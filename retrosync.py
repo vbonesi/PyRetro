@@ -88,30 +88,14 @@ def cmd_fetch_covers_fallback(args) -> None:
         if not sysinfo:
             print(f"[{code}] sistema desconhecido no config.toml, pulando")
             continue
-        reg_sys = registry.setdefault(code, {})
-        capas_dir = capas_root / sysinfo["capas"] / "Named_Boxarts"
-        if not capas_dir.is_dir():
-            continue
+        reg_sys = registry.get(code, {})
+        total_no_match = sum(1 for v in reg_sys.values() if v.get("status") == "no_match")
 
-        no_match_labels = sorted(k for k, v in reg_sys.items() if v.get("status") == "no_match")
-        found = 0
-        for label in no_match_labels:
-            filename = launchbox_mod.find_cover(code, label, index)
-            if not filename:
-                continue
-            if not args.apply:
-                found += 1
-                continue
-            dest = capas_dir / (label + Path(filename).suffix)
-            if launchbox_mod.download_cover(filename, dest):
-                for old_ext in (".png", ".jpg"):
-                    old = capas_dir / (label + old_ext)
-                    if old.exists() and old != dest:
-                        old.unlink()
-                reg_sys[label] = {"status": "replaced_exact", "matched": filename, "source": "launchbox"}
-                found += 1
+        found = launchbox_mod.process_system_fallback(
+            code, sysinfo["capas"], capas_root, registry, index, apply=args.apply
+        )
 
-        print(f"{code:9} achado_no_launchbox:{found:4}  (de {len(no_match_labels)} sem_match anteriores)")
+        print(f"{code:9} achado_no_launchbox:{found:4}  (de {total_no_match} sem_match anteriores)")
         REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
 
     if not args.apply:

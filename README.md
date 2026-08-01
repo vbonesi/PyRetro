@@ -111,6 +111,28 @@ arquivo(s) `FILE "..."` referenciado(s) dentro dele devem se chamar
 (multi-track). Nunca mexe em `.ccd`/`.img` (formato diferente). Nunca
 deleta `.cue` sem `.bin` correspondente.
 
+## Interface gráfica (Fase 1)
+
+```bash
+python3 gui/server.py              # abre em http://localhost:8000
+python3 gui/server.py --port 8080  # outra porta
+```
+
+Servidor local, stdlib só (`http.server`), sem dependência nova - mesma
+filosofia do resto do projeto. Dá pra acessar do navegador do celular também,
+se PC e celular estiverem na mesma rede (usa o IP da máquina em vez de
+`localhost`).
+
+O que tem até agora:
+- Galeria pra navegar pelas capas de cada sistema
+- Botões pra rodar `fetch-covers` e `fetch-covers-fallback` com progresso ao
+  vivo (via Server-Sent Events), incluindo o toggle simulação/aplicar de
+  verdade que os comandos de CLI já tinham
+
+O que ainda não tem (fases futuras, ver conversa de planejamento): revisão
+visual de fuzzy match lado a lado, telas de sync/fix-cues (esperando esses
+comandos existirem de verdade), gestão de pastas/duplicatas.
+
 ## Comandos manuais equivalentes (enquanto `sync` não existe)
 
 Cópias mais comuns entre PC e celular, via `adb`. Ajuste os caminhos aos
@@ -173,9 +195,15 @@ PyRetro/
 ├── config.toml           # sua config real (git-ignored)
 ├── core/
 │   ├── covers.py          # busca/substituição de capas - implementado
+│   ├── launchbox.py       # segunda fonte de capas (LaunchBox Games DB) - implementado
 │   ├── sync.py            # sincronização PC<->Android - esqueleto
 │   ├── cues.py             # correção de .cue - esqueleto
 │   └── adb.py              # wrapper de adb com retry - esqueleto
+├── gui/
+│   ├── server.py          # servidor local da interface gráfica (Fase 1)
+│   └── static/             # HTML/CSS/JS do frontend
+├── docs/
+│   └── capas_sem_correspondencia.md   # capas não resolvidas por nenhuma fonte
 ├── cache/
 │   └── covers_registry.json   # histórico do que já foi processado por fetch-covers
 └── logs/

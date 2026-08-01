@@ -190,3 +190,45 @@ def download_cover(filename: str, dest: Path) -> bool:
         return True
     tmp.unlink(missing_ok=True)
     return False
+
+
+def process_system_fallback(code: str, capas_folder: str, capas_root: Path, registry: dict, index: dict,
+                             apply: bool, on_progress=None) -> int:
+    """Segunda passada, só nos itens que core.covers.process_system já
+    marcou como no_match no registry. Usado tanto pela CLI (retrosync.py
+    fetch-covers-fallback) quanto pela GUI - mesma lógica, sem duplicar.
+    Retorna quantos achou (baixados ou, em modo simulação, encontrados)."""
+    capas_dir = capas_root / capas_folder / "Named_Boxarts"
+    if not capas_dir.is_dir():
+        return 0
+
+    reg_sys = registry.setdefault(code, {})
+    no_match_labels = sorted(k for k, v in reg_sys.items() if v.get("status") == "no_match")
+    found = 0
+    total = len(no_match_labels)
+
+    for i, label in enumerate(no_match_labels, 1):
+        filename = find_cover(code, label, index)
+        if not filename:
+            if on_progress:
+                on_progress(label, "no_match", i, total)
+            continue
+        if not apply:
+            found += 1
+            if on_progress:
+                on_progress(label, "found", i, total)
+            continue
+        dest = capas_dir / (label + Path(filename).suffix)
+        if download_cover(filename, dest):
+            for old_ext in (".png", ".jpg"):
+                old = capas_dir / (label + old_ext)
+                if old.exists() and old != dest:
+                    old.unlink()
+            reg_sys[label] = {"status": "replaced_exact", "matched": filename, "source": "launchbox"}
+            found += 1
+            if on_progress:
+                on_progress(label, "downloaded", i, total)
+        elif on_progress:
+            on_progress(label, "download_failed", i, total)
+
+    return found

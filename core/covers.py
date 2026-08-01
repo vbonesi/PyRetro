@@ -227,10 +227,15 @@ ROMNAME_DATS = {
 }
 
 
-def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, registry: dict, apply: bool) -> dict:
+def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, registry: dict, apply: bool,
+                    on_progress=None) -> dict:
     """Varre uma pasta de capas local, tenta casar cada capa existente
     (que ainda não está no registry) contra o repo remoto. Exato é
-    baixado (se apply=True); fuzzy só entra no relatório."""
+    baixado (se apply=True); fuzzy só entra no relatório.
+
+    on_progress, se passado, é chamado a cada item processado como
+    on_progress(label, status) - usado pela GUI pra mostrar progresso
+    ao vivo, opcional pra não quebrar quem chama sem isso (a CLI)."""
     capas_dir = capas_root / capas_folder / "Named_Boxarts"
     result = {"exact": 0, "fuzzy": [], "no_match": 0, "cached": 0, "rate_limited": 0}
     if not capas_dir.is_dir():
@@ -251,9 +256,12 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
 
     existing = sorted({p.stem for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg")})
 
-    for label in existing:
+    total = len(existing)
+    for i, label in enumerate(existing, 1):
         if label in reg_sys:
             result["cached"] += 1
+            if on_progress:
+                on_progress(label, "cached", i, total)
             continue
 
         remote, kind = find_match(label, exact_idx, loose_idx, norm_keys, romname_dat)
@@ -261,14 +269,20 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
         if remote is None:
             reg_sys[label] = {"status": "no_match"}
             result["no_match"] += 1
+            if on_progress:
+                on_progress(label, "no_match", i, total)
             continue
 
         if kind == "fuzzy":
             result["fuzzy"].append((label, remote))
+            if on_progress:
+                on_progress(label, "fuzzy", i, total)
             continue  # não baixa, não registra - fica pendente pra próxima rodada até humano decidir
 
         if not apply:
             result["exact"] += 1
+            if on_progress:
+                on_progress(label, "exact", i, total)
             continue
 
         url = base_url + urllib.parse.quote(remote + ".png")
@@ -302,9 +316,13 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
                 jpg.unlink()
             reg_sys[label] = {"status": "replaced_exact", "matched": remote}
             result["exact"] += 1
+            if on_progress:
+                on_progress(label, "downloaded", i, total)
         else:
             tmp.unlink(missing_ok=True)
             reg_sys[label] = {"status": "no_match"}
             result["no_match"] += 1
+            if on_progress:
+                on_progress(label, "no_match", i, total)
 
     return result
