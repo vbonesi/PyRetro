@@ -9,7 +9,10 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <h1>PyRetro</h1>
+      <div class="topbar-row">
+        <h1>PyRetro</h1>
+        <button id="btn-settings" class="secondary" type="button">⚙ Configurações</button>
+      </div>
       <nav id="system-tabs" class="system-tabs"></nav>
     </header>
 
@@ -31,6 +34,25 @@
     </div>
 
     <main id="gallery" class="gallery-strip"></main>
+  </div>
+
+  <div id="lightbox" class="lightbox hidden">
+    <img id="lightbox-img" src="" alt="">
+    <div id="lightbox-label" class="lightbox-label"></div>
+  </div>
+
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Configurações</h3>
+        <button id="btn-settings-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div id="settings-form" class="settings-form"></div>
+      <div class="modal-footer">
+        <span id="settings-status" class="settings-status"></span>
+        <button id="btn-settings-save" type="button">Salvar</button>
+      </div>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>

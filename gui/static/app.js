@@ -37,15 +37,91 @@ async function selectSystem(code) {
   }
   for (const file of files) {
     const label = file.replace(/\.(png|jpg)$/i, "");
+    const src = `/images/${code}/${encodeURIComponent(file)}`;
     const div = document.createElement("div");
     div.className = "cover";
     div.innerHTML = `
-      <img src="/images/${code}/${encodeURIComponent(file)}" alt="${label}">
+      <img src="${src}" alt="${label}">
       <div class="label" title="${label}">${label}</div>
     `;
+    div.querySelector("img").addEventListener("click", () => openLightbox(src, label));
     gallery.appendChild(div);
   }
 }
+
+function openLightbox(src, label) {
+  const overlay = document.getElementById("lightbox");
+  document.getElementById("lightbox-img").src = src;
+  document.getElementById("lightbox-label").textContent = label;
+  overlay.classList.remove("hidden");
+}
+
+function closeLightbox() {
+  document.getElementById("lightbox").classList.add("hidden");
+}
+
+document.getElementById("lightbox").addEventListener("click", closeLightbox);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeLightbox(); closeSettings(); }
+});
+
+async function openSettings() {
+  document.getElementById("settings-status").textContent = "";
+  const res = await fetch("/api/settings");
+  const cfg = await res.json();
+  const form = document.getElementById("settings-form");
+  form.innerHTML = "";
+  for (const section of ["pc", "android"]) {
+    const heading = document.createElement("strong");
+    heading.textContent = section === "pc" ? "PC" : "Android";
+    form.appendChild(heading);
+    for (const [key, value] of Object.entries(cfg[section] || {})) {
+      const label = document.createElement("label");
+      label.dataset.section = section;
+      label.dataset.key = key;
+      label.innerHTML = `${key}<input type="text" value="${value.replace(/"/g, "&quot;")}">`;
+      form.appendChild(label);
+    }
+  }
+  document.getElementById("settings-modal").classList.remove("hidden");
+}
+
+function closeSettings() {
+  document.getElementById("settings-modal").classList.add("hidden");
+}
+
+async function saveSettings() {
+  const updates = { pc: {}, android: {} };
+  document.querySelectorAll("#settings-form label").forEach(label => {
+    const section = label.dataset.section;
+    const key = label.dataset.key;
+    const input = label.querySelector("input");
+    updates[section][key] = input.value;
+  });
+  const status = document.getElementById("settings-status");
+  status.textContent = "salvando...";
+  const res = await fetch("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (res.ok) {
+    status.textContent = "salvo";
+    loadSystems();
+    setTimeout(closeSettings, 600);
+  } else {
+    const data = await res.json();
+    status.textContent = `erro: ${data.error || "falha ao salvar"}`;
+    status.style.color = "var(--err)";
+  }
+}
+
+document.getElementById("btn-settings").addEventListener("click", openSettings);
+document.getElementById("btn-settings-close").addEventListener("click", closeSettings);
+document.getElementById("btn-settings-save").addEventListener("click", saveSettings);
+document.getElementById("settings-modal").addEventListener("click", (e) => {
+  if (e.target.id === "settings-modal") closeSettings();
+});
 
 function startFetch(useFallback) {
   if (!currentSystem) return;

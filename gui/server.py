@@ -13,6 +13,7 @@ precisam estar na mesma rede).
 """
 import json
 import queue
+import re
 import sys
 import threading
 import tomllib
@@ -44,6 +45,28 @@ def load_config() -> dict:
         sys.exit(f"config.toml não encontrado - copie config.example.toml para {CONFIG_PATH}")
     with open(CONFIG_PATH, "rb") as f:
         return tomllib.load(f)
+
+
+def write_settings_paths(updates: dict) -> None:
+    """Atualiza só as chaves de caminho dentro de [pc]/[android] no
+    config.toml, preservando o resto do arquivo (comentários, [systems],
+    [cores]) intacto - regex linha a linha em vez de reescrever o TOML
+    inteiro (tomllib da stdlib só lê, não escreve)."""
+    text = CONFIG_PATH.read_text()
+    lines = text.splitlines(keepends=True)
+    section = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped.strip("[]")
+            continue
+        if section in updates:
+            m = re.match(r'^(\s*)([A-Za-z0-9_]+)(\s*=\s*)"([^"]*)"(.*?)(\r?\n?)$', line)
+            if m and m.group(2) in updates[section]:
+                indent, key, eq, _old_val, rest, newline = m.groups()
+                new_val = updates[section][key]
+                lines[i] = f'{indent}{key}{eq}"{new_val}"{rest}{newline}'
+    CONFIG_PATH.write_text("".join(lines))
 
 
 def load_registry() -> dict:
@@ -184,6 +207,10 @@ class Handler(BaseHTTPRequestHandler):
             ctype = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
             return self._file(path, ctype)
 
+        if parts == ["api", "settings"]:
+            cfg = load_config()
+            return self._json({"pc": cfg.get("pc", {}), "android": cfg.get("android", {})})
+
         if parts == ["api", "fetch", "stream"]:
             job_id = query.get("job", [""])[0]
             with _jobs_lock:
@@ -212,6 +239,15 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
+
+        if parts == ["api", "settings"]:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            try:
+                write_settings_paths(body)
+            except Exception as e:
+                return self._json({"error": str(e)}, 500)
+            return self._json({"ok": True})
 
         if parts[:2] == ["api", "fetch"] and len(parts) == 3:
             code = parts[2]

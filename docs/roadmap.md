@@ -10,20 +10,15 @@ genuinamente caro fica marcado como tal em vez de subestimado.
 - **Fase 1 - GUI de capas**: galeria, busca com progresso ao vivo,
   fallback LaunchBox, layout mobile (menu de sistemas no topo, capas
   grandes em faixa horizontal).
-
-## Custo baixo (próximo lote natural)
-
-Pouca superfície nova, sem dependência de nada que ainda não existe.
-
 - **Toque pra ampliar**: clicar numa capa da galeria abre em tela
-  cheia. Só frontend.
+  cheia (lightbox), fecha com toque fora ou Esc.
 - **Tela de configuração de caminhos**: editor do `config.toml` pela
-  GUI (hoje é editar o TOML na mão). Formulário simples, ler/escrever
-  o arquivo.
-- **Lista de fontes de capa alternativas**: pesquisa que eu faço e te
-  entrego pronta (não é código) - screenshot abaixo do porquê isso é
-  "custo baixo": é trabalho de pesquisa, a parte cara é integrar cada
-  fonte (ver mais abaixo).
+  GUI (`⚙ Configurações` no topo) - lê e grava só as chaves de
+  caminho de `[pc]`/`[android]`, preservando o resto do arquivo
+  (comentários, `[systems]`, `[cores]`) intacto.
+- **Lista de fontes de capa alternativas**: pesquisa feita, ver
+  [`docs/fontes_de_capas.md`](fontes_de_capas.md). ScreenScraper.fr é
+  a recomendada como próxima fonte.
 
 ## Custo médio
 
@@ -65,29 +60,32 @@ existe (`covers.py`, `launchbox.py`, o padrão de registry).
 ## Custo alto (merecem plano próprio antes de começar)
 
 - **Upload de ROM + renomear com cascata** (renomear ROM já atualiza
-  capa e save associados): a parte arriscada não é o upload em si, é a
-  renomeação em cascata - precisa tocar no arquivo de ROM, na(s)
-  capa(s), no(s) save(s)/state(s) **e** na entrada da playlist `.lpl`
-  do RetroArch (que referencia o caminho/label específico). Errar isso
-  pode órfão um save sem querer. Merece um desenho específico (que
-  arquivos contam como "associados" por sistema, o que fazer se o
-  save já teve conflito de sync) antes de eu escrever qualquer linha.
-- **Editor de memory card PS1/PS2**: o formato binário desses cartões
-  (blocos, checksums, ícones) é real - não é impossível, mas é o item
-  de maior custo técnico do roadmap inteiro. Antes de reimplementar o
-  parser do zero, vale eu pesquisar se dá pra **envelopar uma
-  ferramenta já existente e testada** (tipo MyMC pro PS2, ou uma lib
-  Python de memcard PS1) em vez de escrever o parser binário na mão -
-  ficaria bem mais seguro. Preciso pesquisar isso antes de estimar
-  custo direito.
-- **Rodar tudo direto pelo celular**: preciso entender melhor o que
-  isso significa na prática antes de estimar - "hospedar o servidor
-  Python no Android via Termux" é uma coisa (viável pras telas de
-  capas/galeria, que não dependem de `adb`); já operações que hoje
-  dependem de `adb` (sync, por definição, fala PC↔Android) não fazem
-  sentido rodando *dentro* do próprio Android alvo. Vale uma conversa
-  rápida pra alinhar o que exatamente você imagina antes de eu
-  arquitetar isso.
+  capa e save associados): ~~risco da playlist `.lpl`~~ - resolvido,
+  o RetroArch reconstrói a playlist sozinho ao re-escanear a pasta,
+  não precisamos tocar nela. Sobra só renomear ROM+capa+save/state
+  juntos, bem mais simples do que eu tinha pensado. Ainda merece um
+  desenho rápido (que arquivos contam como "associados" por sistema),
+  mas não é mais "custo alto" de verdade - deveria ter descido pra
+  "custo médio" na próxima revisão.
+- **Editor de memory card PS1/PS2**: confirmado - vou procurar uma
+  ferramenta open source já pronta (tipo MyMC pro PS2, ou uma lib
+  Python de memcard PS1) pra envelopar em vez de reimplementar o
+  parser binário do zero. Fica mais seguro que escrever isso na mão.
+  Preciso pesquisar antes de estimar custo direito.
+
+## Arquitetura de dois modos (confirmado, guia o design do `sync.py`)
+
+`core/sync.py` vai ter dois modos de operação, não só um:
+- **Modo PC**: roda no computador, fala com o celular via `adb` (é o
+  que já existe hoje em espírito, mesmo não implementado).
+- **Modo Android**: o próprio servidor rodando no aparelho (via
+  Termux), operando direto na estrutura de arquivos local do Android -
+  sem `adb` nenhum, porque já está rodando onde os arquivos estão.
+
+Isso também responde o item "rodar tudo direto pelo celular": não é
+uma feature separada, é o modo Android do mesmo `sync.py`. Vale
+desenhar as duas interfaces (PC e Android) com essa divisão em mente
+desde o início do `adb.py`/`sync.py`, pra não ter que retrofit depois.
 
 ## Ordem sugerida
 
@@ -97,6 +95,8 @@ existe (`covers.py`, `launchbox.py`, o padrão de registry).
    experiência de capas por completo.
 3. `core/adb.py` + `core/sync.py` - o investimento estrutural que
    destrava o resto.
-4. Só depois disso: ROM management e memory card editor, cada um com
-   seu próprio desenho antes de começar a codar. "Rodar pelo celular"
-   entra quando tivermos alinhado o que significa.
+4. Só depois disso: upload/rename de ROM (já mais barato que parecia,
+   ver acima) e o editor de memory card (esse continua exigindo
+   pesquisa de ferramenta pronta antes de estimar direito). O modo
+   Android do `sync.py` sai de graça junto do item 3, se o design já
+   nascer pensando nos dois modos.

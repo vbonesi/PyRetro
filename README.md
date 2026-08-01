@@ -226,3 +226,5 @@ por último (uso mais pontual).
 
 Roadmap completo (GUI, novas fontes de capa, gestão de ROM, editor de
 memory card, etc.), sequenciado por custo: [`docs/roadmap.md`](docs/roadmap.md).
+Pesquisa de fontes de capa alternativas (ScreenScraper, TheGamesDB, IGDB):
+[`docs/fontes_de_capas.md`](docs/fontes_de_capas.md).
