@@ -223,3 +223,6 @@ PyRetro/
 Ordem sugerida pra continuar: `core/adb.py` primeiro (é a base que `sync.py`
 vai precisar), depois `core/sync.py` (o mais pedido no dia a dia), `cues.py`
 por último (uso mais pontual).
+
+Roadmap completo (GUI, novas fontes de capa, gestão de ROM, editor de
+memory card, etc.), sequenciado por custo: [`docs/roadmap.md`](docs/roadmap.md).
