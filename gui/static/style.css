@@ -22,105 +22,110 @@
 
 * { box-sizing: border-box; }
 
-body {
+html, body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
   font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
 }
 
-.layout {
+.app {
   display: flex;
+  flex-direction: column;
   height: 100vh;
 }
 
-.sidebar {
-  width: 260px;
+.topbar {
   flex-shrink: 0;
   background: var(--bg-panel);
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
-  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
 }
 
-.sidebar h1 {
-  font-size: 18px;
-  margin: 0 0 16px;
+.topbar h1 {
+  font-size: 16px;
+  margin: 0 0 8px;
 }
 
-.system-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.system-list li {
-  padding: 10px 12px;
-  border-radius: 6px;
-  cursor: pointer;
+.system-tabs {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
 }
 
-.system-list li:hover {
+.system-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.system-tabs .tab {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 20px;
   background: var(--border);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.system-list li.active {
+.system-tabs .tab.active {
   background: var(--accent);
   color: white;
 }
 
-.system-list .badge {
-  font-size: 11px;
+.system-tabs .tab .badge {
+  font-size: 10px;
   color: var(--text-dim);
 }
 
-.system-list li.active .badge {
+.system-tabs .tab.active .badge {
   color: rgba(255,255,255,0.85);
 }
 
-.system-list .badge.warn {
+.system-tabs .tab .badge.warn {
   color: var(--warn);
 }
 
-.system-list li.active .badge.warn {
+.system-tabs .tab.active .badge.warn {
   color: #ffe6b0;
 }
 
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.topbar {
-  padding: 16px 24px;
+.menubar {
+  flex-shrink: 0;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border);
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   justify-content: space-between;
 }
 
-.topbar h2 {
+.menubar h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
+  color: var(--text-dim);
+  font-weight: normal;
 }
 
 .actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .apply-toggle {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-dim);
   display: flex;
   align-items: center;
@@ -142,13 +147,9 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button.secondary {
-  background: var(--border);
-  color: var(--text);
-}
-
 .progress-panel {
-  padding: 12px 24px;
+  flex-shrink: 0;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
 }
@@ -176,24 +177,27 @@ button.secondary {
   font-size: 12px;
   color: var(--text-dim);
   font-family: ui-monospace, monospace;
-  max-height: 80px;
+  max-height: 70px;
   overflow-y: auto;
 }
 
-.gallery {
+.gallery-strip {
   flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 14px;
-  align-content: start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  gap: 16px;
+  padding: 20px 16px;
+  align-items: flex-start;
 }
 
 .cover {
+  flex-shrink: 0;
+  width: min(60vw, 260px);
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -201,14 +205,14 @@ button.secondary {
 
 .cover img {
   width: 100%;
-  aspect-ratio: 3/4;
-  object-fit: cover;
-  background: var(--border);
+  height: min(70vh, 340px);
+  object-fit: contain;
+  background: #000;
 }
 
 .cover .label {
-  font-size: 11px;
-  padding: 6px 8px;
+  font-size: 12px;
+  padding: 8px 10px;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -219,5 +223,5 @@ button.secondary {
   color: var(--text-dim);
   padding: 40px;
   text-align: center;
-  grid-column: 1 / -1;
+  margin: auto;
 }

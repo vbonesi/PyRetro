@@ -4,22 +4,23 @@ let systems = [];
 async function loadSystems() {
   const res = await fetch("/api/systems");
   systems = await res.json();
-  const list = document.getElementById("system-list");
-  list.innerHTML = "";
+  const tabs = document.getElementById("system-tabs");
+  tabs.innerHTML = "";
   for (const sys of systems) {
-    const li = document.createElement("li");
-    li.dataset.code = sys.code;
+    const tab = document.createElement("div");
+    tab.className = "tab";
+    tab.dataset.code = sys.code;
     const warnClass = sys.no_match > 0 ? "warn" : "";
-    li.innerHTML = `<span>${sys.code}</span><span class="badge ${warnClass}">${sys.count} · ${sys.no_match} sem capa</span>`;
-    li.addEventListener("click", () => selectSystem(sys.code));
-    list.appendChild(li);
+    tab.innerHTML = `<span>${sys.code}</span><span class="badge ${warnClass}">${sys.count}·${sys.no_match}</span>`;
+    tab.addEventListener("click", () => selectSystem(sys.code));
+    tabs.appendChild(tab);
   }
 }
 
 async function selectSystem(code) {
   currentSystem = code;
-  document.querySelectorAll(".system-list li").forEach(li => {
-    li.classList.toggle("active", li.dataset.code === code);
+  document.querySelectorAll(".system-tabs .tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.code === code);
   });
   const sys = systems.find(s => s.code === code);
   document.getElementById("current-system").textContent = `${code} — ${sys.count} capas, ${sys.no_match} sem correspondência`;

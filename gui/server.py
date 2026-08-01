@@ -29,6 +29,12 @@ CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
 STATIC_DIR = Path(__file__).parent / "static"
 
+# PS1 e Dreamcast saíram da biblioteca de capas (os standalones DuckStation/
+# Flycast baixam capa sozinhos agora - ver docs/capas_sem_correspondencia.md).
+# Continuam no config.toml normalmente pra quando ROMs/Saves existirem na
+# GUI - essa exclusão é só da TELA DE CAPAS, não do projeto como um todo.
+COVERS_EXCLUDED = {"SDC", "PS"}
+
 _jobs: dict[str, "queue.Queue"] = {}
 _jobs_lock = threading.Lock()
 
@@ -142,6 +148,8 @@ class Handler(BaseHTTPRequestHandler):
             registry = load_registry()
             out = []
             for code, info in cfg["systems"].items():
+                if code in COVERS_EXCLUDED:
+                    continue
                 capas_dir = capas_root / info["capas"] / "Named_Boxarts"
                 count = len(list(capas_dir.glob("*.png"))) + len(list(capas_dir.glob("*.jpg"))) if capas_dir.is_dir() else 0
                 no_match = sum(1 for v in registry.get(code, {}).values() if v.get("status") == "no_match")

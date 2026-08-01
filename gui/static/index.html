@@ -7,32 +7,30 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="layout">
-    <aside class="sidebar">
+  <div class="app">
+    <header class="topbar">
       <h1>PyRetro</h1>
-      <ul id="system-list" class="system-list"></ul>
-    </aside>
+      <nav id="system-tabs" class="system-tabs"></nav>
+    </header>
 
-    <main class="main">
-      <header class="topbar">
-        <h2 id="current-system">Selecione um sistema</h2>
-        <div class="actions">
-          <label class="apply-toggle">
-            <input type="checkbox" id="apply-toggle">
-            Aplicar de verdade (senão só simula)
-          </label>
-          <button id="btn-fetch" disabled>Buscar capas (libretro-thumbnails)</button>
-          <button id="btn-fallback" disabled>Buscar no LaunchBox (só os sem_match)</button>
-        </div>
-      </header>
-
-      <div id="progress-panel" class="progress-panel hidden">
-        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
-        <div id="progress-log" class="progress-log"></div>
+    <div class="menubar">
+      <h2 id="current-system">Selecione um sistema</h2>
+      <div class="actions">
+        <label class="apply-toggle">
+          <input type="checkbox" id="apply-toggle">
+          Aplicar de verdade
+        </label>
+        <button id="btn-fetch" disabled>Buscar capas</button>
+        <button id="btn-fallback" disabled>Buscar no LaunchBox</button>
       </div>
+    </div>
 
-      <div id="gallery" class="gallery"></div>
-    </main>
+    <div id="progress-panel" class="progress-panel hidden">
+      <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+      <div id="progress-log" class="progress-log"></div>
+    </div>
+
+    <main id="gallery" class="gallery-strip"></main>
   </div>
 
   <script src="/static/app.js"></script>
