@@ -51,6 +51,9 @@ def cmd_fetch_covers(args) -> None:
         )
         print(f"{code:9} exato:{result['exact']:4}  fuzzy:{len(result['fuzzy']):4}  "
               f"sem_match:{result['no_match']:4}  ja_registrado:{result['cached']:4}")
+        if result["rate_limited"]:
+            print(f"          cota da API do GitHub esgotou no meio - parou aqui, "
+                  f"os itens restantes ficam pendentes (não foram marcados sem_match)")
         for label, remote in result["fuzzy"]:
             all_fuzzy.append((code, label, remote))
         REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))

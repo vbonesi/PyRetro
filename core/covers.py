@@ -185,18 +185,32 @@ def find_match(label: str, exact_idx: dict, loose_idx: dict, norm_keys: list, ro
     return _try_match(label, exact_idx, loose_idx, norm_keys)
 
 
+class RateLimited(Exception):
+    """A API do GitHub recusou por cota (403/429) - não é a mesma coisa
+    que "capa não existe". Ver process_system: isso NUNCA vira no_match,
+    fica sem registrar pra tentar de novo na próxima rodada. Já aconteceu
+    duas vezes de eu confundir os dois e precisar limpar o registro na mão."""
+
+
 def _download_via_api(repo: str, remote_name: str) -> bytes | None:
     """Fallback pro cache do raw.githubusercontent.com às vezes servir
     uma resposta velha/quebrada (HTTP 200 com poucos bytes) pra um
     arquivo que existe normalmente no repo. A API do GitHub busca o
-    blob direto (base64), infraestrutura diferente, sem esse cache."""
+    blob direto (base64), infraestrutura diferente, sem esse cache.
+
+    Levanta RateLimited se for cota (não confundir com 404 = arquivo
+    realmente não existe nesse nome)."""
     path = urllib.parse.quote(f"Named_Boxarts/{remote_name}.png")
     url = f"https://api.github.com/repos/libretro-thumbnails/{repo}/contents/{path}"
     req = urllib.request.Request(url, headers={"User-Agent": "PyRetro", "Accept": "application/vnd.github.v3+json"})
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read())
-    except (urllib.error.URLError, urllib.error.HTTPError):
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 429):
+            raise RateLimited from e
+        return None
+    except urllib.error.URLError:
         return None
     content = data.get("content")
     if not content:
@@ -218,7 +232,7 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
     (que ainda não está no registry) contra o repo remoto. Exato é
     baixado (se apply=True); fuzzy só entra no relatório."""
     capas_dir = capas_root / capas_folder / "Named_Boxarts"
-    result = {"exact": 0, "fuzzy": [], "no_match": 0, "cached": 0}
+    result = {"exact": 0, "fuzzy": [], "no_match": 0, "cached": 0, "rate_limited": 0}
     if not capas_dir.is_dir():
         return result
 
@@ -268,7 +282,15 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
 
         if not ok:
             tmp.unlink(missing_ok=True)
-            data = _download_via_api(repo, remote)
+            try:
+                data = _download_via_api(repo, remote)
+            except RateLimited:
+                # cota da API acabou - não é "sem_match", é "não tentado
+                # ainda". Não registra (fica pendente pra próxima rodada)
+                # e para a varredura desse sistema aqui, sem gastar mais
+                # chamada à toa nos itens restantes.
+                result["rate_limited"] += 1
+                break
             if data and len(data) > 1000:
                 tmp.write_bytes(data)
                 ok = True
