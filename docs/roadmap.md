@@ -24,18 +24,22 @@ genuinamente caro fica marcado como tal em vez de subestimado.
   lista de "resolvido"; "Desmarcar" reverte) + botão "⬆ Trocar" que
   sobe um arquivo novo direto pela interface (`status: manual`).
   Testado ponta a ponta com verificação de hash de arquivo.
+- **Busca visual de capa alternativa**: botão "🔍 Buscar" por capa -
+  busca por substring nas duas fontes já integradas (libretro-thumbnails
+  + LaunchBox), mostra grid com a imagem real de cada candidato, um
+  toque aplica direto. Isso cobriu na prática o que a "revisão visual
+  de fuzzy match" ia fazer (ver item riscado abaixo), então esse item
+  saiu do roadmap como redundante.
 
 ## Custo médio
 
 Precisam de desenho novo (endpoint + tela), mas reaproveitam o que já
 existe (`covers.py`, `launchbox.py`, o padrão de registry).
 
-- **Revisão visual de fuzzy match**: candidata lado a lado com o nome
-  local, aceitar/rejeitar com um toque. Troca os `.md` de baixa
-  confiança por uma tela de verdade. Depende de eu persistir os
-  candidatos fuzzy num lugar consultável (hoje só aparecem no log da
-  rodada e somem) - pequeno ajuste no formato do registry antes de dar
-  pra construir a tela.
+- ~~Revisão visual de fuzzy match~~ - coberto pela busca visual acima,
+  que resolve o mesmo problema (escolher entre candidatos vendo a
+  imagem) de forma mais direta (você escolhe o termo de busca, não
+  fica limitado ao que o fuzzy match teria sugerido sozinho).
 - **Integrar mais uma fonte de capa** (ex: ScreenScraper): o padrão já
   existe (`core/covers.py` + `core/launchbox.py` são os dois exemplos)
   - cada fonte nova é essencialmente repetir esse trabalho: entender o
@@ -90,10 +94,10 @@ desde o início do `adb.py`/`sync.py`, pra não ter que retrofit depois.
 
 1. Custo baixo (os 3 itens) - pode ser feito em qualquer ordem, são
    independentes entre si.
-2. Correção manual de capa + revisão visual de fuzzy match - fecham a
-   experiência de capas por completo.
+2. ~~Correção manual de capa + revisão visual de fuzzy match~~ - feito,
+   a experiência de capas está fechada por enquanto.
 3. `core/adb.py` + `core/sync.py` - o investimento estrutural que
-   destrava o resto.
+   destrava o resto. **Próximo passo real.**
 4. Só depois disso: upload/rename de ROM (já mais barato que parecia,
    ver acima) e o editor de memory card (esse continua exigindo
    pesquisa de ferramenta pronta antes de estimar direito). O modo
