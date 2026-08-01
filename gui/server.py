@@ -15,6 +15,7 @@ import base64
 import json
 import queue
 import re
+import subprocess
 import sys
 import threading
 import tomllib
@@ -46,6 +47,74 @@ def load_config() -> dict:
         sys.exit(f"config.toml não encontrado - copie config.example.toml para {CONFIG_PATH}")
     with open(CONFIG_PATH, "rb") as f:
         return tomllib.load(f)
+
+
+def search_cover_candidates(code: str, query: str, systems_cfg: dict) -> list:
+    """Busca por substring (não exata, não fuzzy com trava - aqui quem
+    decide é o humano olhando a prévia) nas duas fontes já integradas.
+    Usado pela tela de "capa errada, buscar outra opção"."""
+    sysinfo = systems_cfg.get(code)
+    if not sysinfo:
+        return []
+    q_norm = covers_mod.normalize(query)
+    if not q_norm:
+        return []
+    results = []
+
+    repo = sysinfo["repo"]
+    base_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/"
+    for name in covers_mod.load_tree(repo):
+        if q_norm in covers_mod.normalize(name):
+            results.append({
+                "source": "libretro", "name": name,
+                "preview": base_url + urllib.parse.quote(name + ".png"),
+            })
+
+    if code in launchbox_mod.PLATFORM_MAP:
+        index = launchbox_mod.build_index()
+        for norm_name, entry in index.get(code, {}).items():
+            filename, orig_name = entry
+            if q_norm in norm_name:
+                results.append({
+                    "source": "launchbox", "name": orig_name, "filename": filename,
+                    "preview": launchbox_mod.IMAGE_BASE_URL + filename,
+                })
+
+    return results[:40]
+
+
+def download_selected_cover(source: str, name: str, repo: str, filename: str, dest: Path) -> bool:
+    """Baixa o candidato que o usuário escolheu na tela de busca manual
+    e grava em dest. Reaproveita o fallback via API do GitHub que já
+    existe pro libretro-thumbnails (cache do raw.githubusercontent.com
+    às vezes serve resposta velha/truncada)."""
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    if source == "libretro":
+        url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/{urllib.parse.quote(name + '.png')}"
+    else:
+        url = launchbox_mod.IMAGE_BASE_URL + filename
+
+    r = subprocess.run(
+        ["curl", "-sL", "--max-time", "20", "-o", str(tmp), "-w", "%{http_code}", url],
+        capture_output=True, text=True,
+    )
+    ok = r.stdout.strip() == "200" and tmp.exists() and tmp.stat().st_size > 1000
+
+    if not ok and source == "libretro":
+        tmp.unlink(missing_ok=True)
+        try:
+            data = covers_mod._download_via_api(repo, name)
+        except covers_mod.RateLimited:
+            data = None
+        if data and len(data) > 1000:
+            tmp.write_bytes(data)
+            ok = True
+
+    if ok:
+        tmp.replace(dest)
+        return True
+    tmp.unlink(missing_ok=True)
+    return False
 
 
 def write_settings_paths(updates: dict) -> None:
@@ -235,6 +304,13 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             return self._json({"pc": cfg.get("pc", {}), "android": cfg.get("android", {})})
 
+        if parts == ["api", "cover", "search"]:
+            code = query.get("code", [""])[0]
+            q = query.get("q", [""])[0]
+            cfg = load_config()
+            results = search_cover_candidates(code, q, cfg["systems"])
+            return self._json(results)
+
         if parts == ["api", "fetch", "stream"]:
             job_id = query.get("job", [""])[0]
             with _jobs_lock:
@@ -321,6 +397,27 @@ class Handler(BaseHTTPRequestHandler):
             registry.setdefault(code, {})[label] = {"status": "manual"}
             save_registry(registry)
             return self._json({"ok": True, "file": label + ext})
+
+        if parts == ["api", "cover", "select"]:
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            source, name = body.get("source"), body.get("name")
+            filename = body.get("filename", "")
+            capas_dir, info = self._cover_path(code, label)
+            if not info:
+                return self._json({"error": "sistema desconhecido"}, 404)
+            capas_dir.mkdir(parents=True, exist_ok=True)
+            dest = capas_dir / (label + ".png")
+            ok = download_selected_cover(source, name, info["repo"], filename, dest)
+            if not ok:
+                return self._json({"error": "download falhou"}, 502)
+            old_jpg = capas_dir / (label + ".jpg")
+            if old_jpg.exists():
+                old_jpg.unlink()
+            registry = load_registry()
+            registry.setdefault(code, {})[label] = {"status": "manual", "matched": name, "source": source}
+            save_registry(registry)
+            return self._json({"ok": True})
 
         if parts[:2] == ["api", "fetch"] and len(parts) == 3:
             code = parts[2]

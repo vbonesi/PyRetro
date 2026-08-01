@@ -53,12 +53,14 @@ function buildCoverCard(code, item) {
     <div class="label" title="${label}">${label}</div>
     <div class="cover-actions">
       <button class="tiny ${flagged ? "" : "secondary"}" data-action="flag">${flagged ? "Desmarcar" : "⚑ Errada"}</button>
+      <button class="tiny secondary" data-action="search">🔍 Buscar</button>
       <button class="tiny secondary" data-action="upload">⬆ Trocar</button>
       <input type="file" accept="image/png,image/jpeg" class="upload-input" hidden>
     </div>
   `;
   div.querySelector("img").addEventListener("click", () => openLightbox(src, label));
   div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, flagged));
+  div.querySelector('[data-action="search"]').addEventListener("click", () => openSearch(code, label));
   const fileInput = div.querySelector(".upload-input");
   div.querySelector('[data-action="upload"]').addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => uploadCover(code, label, fileInput.files[0]));
@@ -108,7 +110,7 @@ function closeLightbox() {
 
 document.getElementById("lightbox").addEventListener("click", closeLightbox);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { closeLightbox(); closeSettings(); }
+  if (e.key === "Escape") { closeLightbox(); closeSettings(); closeSearch(); }
 });
 
 async function openSettings() {
@@ -167,6 +169,74 @@ document.getElementById("btn-settings-close").addEventListener("click", closeSet
 document.getElementById("btn-settings-save").addEventListener("click", saveSettings);
 document.getElementById("settings-modal").addEventListener("click", (e) => {
   if (e.target.id === "settings-modal") closeSettings();
+});
+
+let searchCtx = { code: null, label: null };
+
+function openSearch(code, label) {
+  searchCtx = { code, label };
+  document.getElementById("search-label").textContent = label;
+  document.getElementById("search-query").value = label;
+  document.getElementById("search-results").innerHTML = "";
+  document.getElementById("search-modal").classList.remove("hidden");
+  runSearch();
+}
+
+function closeSearch() {
+  document.getElementById("search-modal").classList.add("hidden");
+}
+
+async function runSearch() {
+  const results = document.getElementById("search-results");
+  results.innerHTML = '<div class="empty-state">buscando...</div>';
+  const q = document.getElementById("search-query").value.trim();
+  const res = await fetch(`/api/cover/search?code=${searchCtx.code}&q=${encodeURIComponent(q)}`);
+  const items = await res.json();
+  results.innerHTML = "";
+  if (items.length === 0) {
+    results.innerHTML = '<div class="empty-state">Nada encontrado - tenta outro termo.</div>';
+    return;
+  }
+  for (const item of items) {
+    const card = document.createElement("div");
+    card.className = "search-result";
+    card.innerHTML = `
+      <img src="${item.preview}" loading="lazy" alt="${item.name}">
+      <div class="search-result-name" title="${item.name}">${item.name}</div>
+      <div class="search-result-source">${item.source === "libretro" ? "libretro-thumbnails" : "LaunchBox"}</div>
+    `;
+    card.addEventListener("click", () => selectCandidate(item));
+    results.appendChild(card);
+  }
+}
+
+async function selectCandidate(item) {
+  const results = document.getElementById("search-results");
+  results.innerHTML = '<div class="empty-state">aplicando...</div>';
+  const res = await fetch("/api/cover/select", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      code: searchCtx.code, label: searchCtx.label,
+      source: item.source, name: item.name, filename: item.filename || "",
+    }),
+  });
+  if (res.ok) {
+    closeSearch();
+    selectSystem(searchCtx.code);
+  } else {
+    const data = await res.json();
+    results.innerHTML = `<div class="empty-state">erro: ${data.error || "falha ao aplicar"}</div>`;
+  }
+}
+
+document.getElementById("btn-search-close").addEventListener("click", closeSearch);
+document.getElementById("btn-search-go").addEventListener("click", runSearch);
+document.getElementById("search-query").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") runSearch();
+});
+document.getElementById("search-modal").addEventListener("click", (e) => {
+  if (e.target.id === "search-modal") closeSearch();
 });
 
 function startFetch(useFallback) {

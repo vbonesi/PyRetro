@@ -378,3 +378,65 @@ button.tiny {
   font-size: 12px;
   color: var(--ok);
 }
+
+.modal-box-wide {
+  max-width: 720px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-bar input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.search-results {
+  padding: 16px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+}
+
+.search-result {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.search-result:hover {
+  border-color: var(--accent);
+}
+
+.search-result img {
+  width: 100%;
+  aspect-ratio: 3/4;
+  object-fit: cover;
+  background: #000;
+}
+
+.search-result-name {
+  font-size: 10px;
+  padding: 4px 6px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-result-source {
+  font-size: 9px;
+  padding: 0 6px 6px;
+  color: var(--text-dim);
+}
