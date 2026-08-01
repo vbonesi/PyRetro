@@ -19,18 +19,17 @@ genuinamente caro fica marcado como tal em vez de subestimado.
 - **Lista de fontes de capa alternativas**: pesquisa feita, ver
   [`docs/fontes_de_capas.md`](fontes_de_capas.md). ScreenScraper.fr é
   a recomendada como próxima fonte.
+- **Correção manual de capa** (marcar errada + subir capa nova): botão
+  "⚑ Errada" por capa (grava `flagged_wrong` no registry, some da
+  lista de "resolvido"; "Desmarcar" reverte) + botão "⬆ Trocar" que
+  sobe um arquivo novo direto pela interface (`status: manual`).
+  Testado ponta a ponta com verificação de hash de arquivo.
 
 ## Custo médio
 
 Precisam de desenho novo (endpoint + tela), mas reaproveitam o que já
 existe (`covers.py`, `launchbox.py`, o padrão de registry).
 
-- **Correção manual de capa** (marcar errada + subir capa nova): um
-  botão "marcar como errada" por capa (grava no registry, tira da
-  lista de "resolvido" pra poder tentar de novo depois) + upload de
-  arquivo direto pela interface, salvando com o nome certo. As duas
-  coisas compartilham a mesma tela/endpoint de "correção", faz sentido
-  fazer juntas.
 - **Revisão visual de fuzzy match**: candidata lado a lado com o nome
   local, aceitar/rejeitar com um toque. Troca os `.md` de baixa
   confiança por uma tela de verdade. Depende de eu persistir os
