@@ -30,23 +30,69 @@ async function selectSystem(code) {
   const gallery = document.getElementById("gallery");
   gallery.innerHTML = "";
   const res = await fetch(`/api/covers/${code}`);
-  const files = await res.json();
-  if (files.length === 0) {
+  const items = await res.json();
+  if (items.length === 0) {
     gallery.innerHTML = '<div class="empty-state">Nenhuma capa nessa pasta ainda.</div>';
     return;
   }
-  for (const file of files) {
-    const label = file.replace(/\.(png|jpg)$/i, "");
-    const src = `/images/${code}/${encodeURIComponent(file)}`;
-    const div = document.createElement("div");
-    div.className = "cover";
-    div.innerHTML = `
-      <img src="${src}" alt="${label}">
-      <div class="label" title="${label}">${label}</div>
-    `;
-    div.querySelector("img").addEventListener("click", () => openLightbox(src, label));
-    gallery.appendChild(div);
+  for (const item of items) {
+    gallery.appendChild(buildCoverCard(code, item));
   }
+}
+
+function buildCoverCard(code, item) {
+  const { file, label, flagged } = item;
+  const src = `/images/${code}/${encodeURIComponent(file)}`;
+  const div = document.createElement("div");
+  div.className = "cover" + (flagged ? " flagged" : "");
+  div.innerHTML = `
+    <div class="cover-img-wrap">
+      <img src="${src}" alt="${label}">
+      ${flagged ? '<span class="flag-badge">⚑ marcada</span>' : ""}
+    </div>
+    <div class="label" title="${label}">${label}</div>
+    <div class="cover-actions">
+      <button class="tiny ${flagged ? "" : "secondary"}" data-action="flag">${flagged ? "Desmarcar" : "⚑ Errada"}</button>
+      <button class="tiny secondary" data-action="upload">⬆ Trocar</button>
+      <input type="file" accept="image/png,image/jpeg" class="upload-input" hidden>
+    </div>
+  `;
+  div.querySelector("img").addEventListener("click", () => openLightbox(src, label));
+  div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, flagged));
+  const fileInput = div.querySelector(".upload-input");
+  div.querySelector('[data-action="upload"]').addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => uploadCover(code, label, fileInput.files[0]));
+  return div;
+}
+
+async function toggleFlag(code, label, currentlyFlagged) {
+  const endpoint = currentlyFlagged ? "unflag" : "flag";
+  await fetch(`/api/cover/${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, label }),
+  });
+  selectSystem(code);
+}
+
+function uploadCover(code, label, file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = reader.result.split(",")[1];
+    const res = await fetch("/api/cover/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, label, filename: file.name, data: base64 }),
+    });
+    if (res.ok) {
+      selectSystem(code);
+    } else {
+      const data = await res.json();
+      alert(`erro no upload: ${data.error || "falha"}`);
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 function openLightbox(src, label) {

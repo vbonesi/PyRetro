@@ -11,6 +11,7 @@ Abre http://localhost:8000 no navegador. Se quiser acessar do celular,
 use o IP da máquina na rede local em vez de localhost (as duas pontas
 precisam estar na mesma rede).
 """
+import base64
 import json
 import queue
 import re
@@ -140,6 +141,22 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _read_json_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(length)) if length else {}
+
+    def _cover_path(self, code: str, label: str):
+        """Resolve o caminho da capa (código do sistema + label) e o
+        diretório Named_Boxarts dela. Retorna (None, None) se o sistema
+        não existir no config.toml."""
+        cfg = load_config()
+        info = cfg["systems"].get(code)
+        if not info:
+            return None, None
+        capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+        capas_dir = capas_root / info["capas"] / "Named_Boxarts"
+        return capas_dir, info
+
     def _file(self, path: Path, content_type: str):
         if not path.is_file():
             self.send_response(404)
@@ -192,8 +209,15 @@ class Handler(BaseHTTPRequestHandler):
             capas_dir = capas_root / info["capas"] / "Named_Boxarts"
             if not capas_dir.is_dir():
                 return self._json([])
+            registry = load_registry()
+            reg_sys = registry.get(code, {})
             files = sorted(p.name for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg"))
-            return self._json(files)
+            out = []
+            for f in files:
+                label = Path(f).stem
+                status = reg_sys.get(label, {}).get("status")
+                out.append({"file": f, "label": label, "flagged": status == "flagged_wrong"})
+            return self._json(out)
 
         if parts[:1] == ["images"] and len(parts) >= 3:
             code = parts[1]
@@ -241,13 +265,62 @@ class Handler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
 
         if parts == ["api", "settings"]:
-            length = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(length)) if length else {}
+            body = self._read_json_body()
             try:
                 write_settings_paths(body)
             except Exception as e:
                 return self._json({"error": str(e)}, 500)
             return self._json({"ok": True})
+
+        if parts == ["api", "cover", "flag"]:
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            registry = load_registry()
+            registry.setdefault(code, {})[label] = {"status": "flagged_wrong"}
+            save_registry(registry)
+            return self._json({"ok": True})
+
+        if parts == ["api", "cover", "unflag"]:
+            # tira do registro por completo - volta a ser "nunca processado",
+            # pra próxima rodada de fetch-covers/fetch-covers-fallback poder
+            # tentar achar uma correspondência de novo (nunca sobrescreve
+            # sozinho, só limpa o estado - a decisão de baixar continua sendo
+            # do usuário, rodando o fetch depois).
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            registry = load_registry()
+            registry.get(code, {}).pop(label, None)
+            save_registry(registry)
+            return self._json({"ok": True})
+
+        if parts == ["api", "cover", "upload"]:
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            filename, data_b64 = body.get("filename", ""), body.get("data", "")
+            capas_dir, info = self._cover_path(code, label)
+            if not info:
+                return self._json({"error": "sistema desconhecido"}, 404)
+            capas_dir.mkdir(parents=True, exist_ok=True)
+            ext = Path(filename).suffix.lower()
+            if ext not in (".png", ".jpg", ".jpeg"):
+                return self._json({"error": f"extensão não suportada: {ext}"}, 400)
+            ext = ".jpg" if ext == ".jpeg" else ext
+            try:
+                data = base64.b64decode(data_b64)
+            except Exception as e:
+                return self._json({"error": f"base64 inválido: {e}"}, 400)
+            if len(data) < 100:
+                return self._json({"error": "arquivo vazio ou pequeno demais"}, 400)
+            dest = capas_dir / (label + ext)
+            dest.write_bytes(data)
+            other_ext = ".jpg" if ext == ".png" else ".png"
+            old = capas_dir / (label + other_ext)
+            if old.exists():
+                old.unlink()
+            registry = load_registry()
+            registry.setdefault(code, {})[label] = {"status": "manual"}
+            save_registry(registry)
+            return self._json({"ok": True, "file": label + ext})
 
         if parts[:2] == ["api", "fetch"] and len(parts) == 3:
             code = parts[2]

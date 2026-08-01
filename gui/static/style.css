@@ -215,21 +215,54 @@ button:disabled {
   flex-direction: column;
 }
 
+.cover.flagged {
+  border-color: var(--err);
+}
+
+.cover-img-wrap {
+  position: relative;
+  height: min(70vh, 340px);
+}
+
 .cover img {
   width: 100%;
-  height: min(70vh, 340px);
+  height: 100%;
   object-fit: contain;
   background: #000;
   cursor: zoom-in;
 }
 
+.flag-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--err);
+  color: white;
+  font-size: 10px;
+  padding: 3px 7px;
+  border-radius: 12px;
+}
+
 .cover .label {
   font-size: 12px;
-  padding: 8px 10px;
+  padding: 8px 10px 4px;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.cover-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+button.tiny {
+  padding: 5px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  flex: 1;
 }
 
 .empty-state {
