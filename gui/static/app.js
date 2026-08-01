@@ -1,5 +1,6 @@
 let currentSystem = null;
 let systems = [];
+let currentItems = [];
 
 async function loadSystems() {
   const res = await fetch("/api/systems");
@@ -27,24 +28,44 @@ async function selectSystem(code) {
   document.getElementById("btn-fetch").disabled = false;
   document.getElementById("btn-fallback").disabled = !sys.has_launchbox;
 
+  const res = await fetch(`/api/covers/${code}`);
+  currentItems = await res.json();
+  renderGallery();
+}
+
+function renderGallery() {
   const gallery = document.getElementById("gallery");
   gallery.innerHTML = "";
-  const res = await fetch(`/api/covers/${code}`);
-  const items = await res.json();
+  const onlyFlagged = document.getElementById("filter-flagged").checked;
+  const onlyNoMatch = document.getElementById("filter-nomatch").checked;
+
+  let items = currentItems;
+  if (onlyFlagged || onlyNoMatch) {
+    items = items.filter(item =>
+      (onlyFlagged && item.status === "flagged_wrong") ||
+      (onlyNoMatch && item.status === "no_match")
+    );
+  }
+
   if (items.length === 0) {
-    gallery.innerHTML = '<div class="empty-state">Nenhuma capa nessa pasta ainda.</div>';
+    const msg = (onlyFlagged || onlyNoMatch) ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
+    gallery.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
   for (const item of items) {
-    gallery.appendChild(buildCoverCard(code, item));
+    gallery.appendChild(buildCoverCard(currentSystem, item));
   }
 }
 
-function buildCoverCard(code, item) {
+document.getElementById("filter-flagged").addEventListener("change", renderGallery);
+document.getElementById("filter-nomatch").addEventListener("change", renderGallery);
+
+function buildCoverCard(code, item, cacheBust) {
   const { file, label, flagged } = item;
-  const src = `/images/${code}/${encodeURIComponent(file)}`;
+  const src = `/images/${code}/${encodeURIComponent(file)}` + (cacheBust ? `?t=${Date.now()}` : "");
   const div = document.createElement("div");
   div.className = "cover" + (flagged ? " flagged" : "");
+  div.dataset.label = label;
   div.innerHTML = `
     <div class="cover-img-wrap">
       <img src="${src}" alt="${label}">
@@ -67,6 +88,39 @@ function buildCoverCard(code, item) {
   return div;
 }
 
+/** Troca só o card de UM jogo no lugar, sem recarregar a galeria inteira -
+ * preserva a posição de rolagem e força o navegador a buscar a imagem
+ * nova (cache-bust), já que o arquivo mudou mas a URL é a mesma. Também
+ * atualiza currentItems (a fonte de verdade dos filtros) e some com o
+ * card se ele deixou de bater com o filtro ativo (ex: desmarcar uma
+ * capa com "só marcadas" ligado). */
+function refreshCard(code, label, flagged, knownFile) {
+  const idx = currentItems.findIndex(i => i.label === label);
+  const old = document.querySelector(`#gallery .cover[data-label="${CSS.escape(label)}"]`);
+  const file = knownFile || (old && decodeURIComponent(old.querySelector("img").src.split("/").pop().split("?")[0]));
+  const status = flagged ? "flagged_wrong" : "manual";
+
+  if (idx >= 0) {
+    currentItems[idx] = { ...currentItems[idx], file: file || currentItems[idx].file, flagged, status };
+  }
+
+  const onlyFlagged = document.getElementById("filter-flagged").checked;
+  const onlyNoMatch = document.getElementById("filter-nomatch").checked;
+  const stillMatchesFilter = !(onlyFlagged || onlyNoMatch) ||
+    (onlyFlagged && status === "flagged_wrong") || (onlyNoMatch && status === "no_match");
+
+  if (!old) {
+    if (stillMatchesFilter) return selectSystem(code); // card não estava visível - recarrega tudo pra achar posição certa
+    return;
+  }
+  if (!stillMatchesFilter) {
+    old.remove();
+    return;
+  }
+  const newCard = buildCoverCard(code, { file, label, flagged }, true);
+  old.replaceWith(newCard);
+}
+
 async function toggleFlag(code, label, currentlyFlagged) {
   const endpoint = currentlyFlagged ? "unflag" : "flag";
   await fetch(`/api/cover/${endpoint}`, {
@@ -74,7 +128,7 @@ async function toggleFlag(code, label, currentlyFlagged) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code, label }),
   });
-  selectSystem(code);
+  refreshCard(code, label, !currentlyFlagged);
 }
 
 function uploadCover(code, label, file) {
@@ -88,7 +142,8 @@ function uploadCover(code, label, file) {
       body: JSON.stringify({ code, label, filename: file.name, data: base64 }),
     });
     if (res.ok) {
-      selectSystem(code);
+      const data = await res.json();
+      refreshCard(code, label, false, data.file);
     } else {
       const data = await res.json();
       alert(`erro no upload: ${data.error || "falha"}`);
@@ -223,7 +278,7 @@ async function selectCandidate(item) {
   });
   if (res.ok) {
     closeSearch();
-    selectSystem(searchCtx.code);
+    refreshCard(searchCtx.code, searchCtx.label, false, searchCtx.label + ".png");
   } else {
     const data = await res.json();
     results.innerHTML = `<div class="empty-state">erro: ${data.error || "falha ao aplicar"}</div>`;

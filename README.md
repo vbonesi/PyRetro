@@ -96,6 +96,32 @@ Dimension") - com trava de segurança pra não deixar "Contra" casar com
 "Contra III" (a palavra logo após o prefixo não pode ser um número/numeral
 romano sozinho).
 
+### `convert-covers` — converte capas `.jpg` pra `.png`
+
+```bash
+python3 retrosync.py convert-covers all --apply
+```
+
+**RetroArch só exibe thumbnail em `.png`** (confirmado em 01/08/2026) -
+um `.jpg` na pasta `Named_Boxarts` fica invisível no menu mesmo com o
+nome certo. Usa o `convert` do ImageMagick (dependência externa aceita,
+igual o `curl`). Também corrigido na fonte: `fetch-covers-fallback` e a
+busca manual da GUI agora convertem automaticamente se o arquivo de
+origem (LaunchBox) vier em `.jpg`, então isso não deveria voltar a
+acontecer sozinho - esse comando é só pra limpar o que já existia.
+
+### `sanitize-names` — remove caracteres que o RetroArch não aceita
+
+```bash
+python3 retrosync.py sanitize-names all --apply
+```
+
+RetroArch não aceita `&`, `:`, `*` (nem `/`, mas isso não apareceria
+literalmente num nome de arquivo) - troca `&`→`and`, `:`→`-`, `*`→
+(removido). Roda em capas **e** ROMs juntos (senão o nome para de
+bater entre os dois lados). Nunca sobrescreve um arquivo que já existe
+com o nome novo (marca como conflito e não mexe).
+
 ### `sync` — sincroniza saves/states/métricas/capas PC ↔ Android
 
 **Ainda não implementado** (`core/sync.py` é só o esqueleto com as regras
@@ -128,6 +154,10 @@ O que tem até agora:
 - Botões pra rodar `fetch-covers` e `fetch-covers-fallback` com progresso ao
   vivo (via Server-Sent Events), incluindo o toggle simulação/aplicar de
   verdade que os comandos de CLI já tinham
+- Zoom, marcar capa errada, upload manual, busca visual nas duas fontes
+  (ver seção de comandos acima pro que cada uma faz)
+- Filtros "só marcadas como erradas" / "só sem correspondência",
+  combináveis entre si (união, não interseção)
 
 O que ainda não tem (fases futuras, ver conversa de planejamento): revisão
 visual de fuzzy match lado a lado, telas de sync/fix-cues (esperando esses

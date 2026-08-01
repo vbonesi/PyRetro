@@ -180,16 +180,29 @@ def find_cover(code: str, label: str, index: dict) -> str | None:
 
 
 def download_cover(filename: str, dest: Path) -> bool:
-    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    """dest é sempre o caminho final em .png - RetroArch só exibe
+    thumbnail nesse formato (confirmado em 01/08/2026), então mesmo
+    quando o arquivo de origem no LaunchBox é .jpg, baixa num
+    temporário com a extensão real e converte pra .png antes de gravar
+    em dest (usa o `convert` do ImageMagick, mesma dependência externa
+    já aceita no projeto - curl)."""
+    src_ext = Path(filename).suffix or ".jpg"
+    tmp = dest.with_suffix(src_ext + ".tmp")
     r = subprocess.run(
         ["curl", "-sL", "--max-time", "20", "-o", str(tmp), "-w", "%{http_code}", IMAGE_BASE_URL + filename],
         capture_output=True, text=True,
     )
-    if r.stdout.strip() == "200" and tmp.exists() and tmp.stat().st_size > 1000:
+    if not (r.stdout.strip() == "200" and tmp.exists() and tmp.stat().st_size > 1000):
+        tmp.unlink(missing_ok=True)
+        return False
+
+    if src_ext.lower() == ".png":
         tmp.replace(dest)
         return True
+
+    conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
     tmp.unlink(missing_ok=True)
-    return False
+    return conv.returncode == 0 and dest.exists() and dest.stat().st_size > 1000
 
 
 def process_system_fallback(code: str, capas_folder: str, capas_root: Path, registry: dict, index: dict,
@@ -218,12 +231,11 @@ def process_system_fallback(code: str, capas_folder: str, capas_root: Path, regi
             if on_progress:
                 on_progress(label, "found", i, total)
             continue
-        dest = capas_dir / (label + Path(filename).suffix)
+        dest = capas_dir / (label + ".png")
         if download_cover(filename, dest):
-            for old_ext in (".png", ".jpg"):
-                old = capas_dir / (label + old_ext)
-                if old.exists() and old != dest:
-                    old.unlink()
+            old_jpg = capas_dir / (label + ".jpg")
+            if old_jpg.exists():
+                old_jpg.unlink()
             reg_sys[label] = {"status": "replaced_exact", "matched": filename, "source": "launchbox"}
             found += 1
             if on_progress:

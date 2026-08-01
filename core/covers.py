@@ -326,3 +326,34 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
                 on_progress(label, "no_match", i, total)
 
     return result
+
+
+def convert_jpg_to_png(capas_dir: Path, apply: bool = False) -> list:
+    """RetroArch só exibe thumbnail em PNG - .jpg na pasta Named_Boxarts
+    fica invisível pro menu do RetroArch mesmo com o nome certo, mesmo
+    que apareça normal em qualquer visualizador (inclusive aqui na GUI,
+    que não faz essa distinção). Usa o `convert` do ImageMagick (não é
+    stdlib, mas já é uma dependência externa aceita no projeto, igual
+    o curl).
+
+    Só apaga o .jpg original depois de confirmar que o .png novo existe
+    e tem tamanho razoável - nunca perde a capa se a conversão falhar."""
+    results = []
+    if not capas_dir.is_dir():
+        return results
+    for jpg in sorted(list(capas_dir.glob("*.jpg")) + list(capas_dir.glob("*.jpeg"))):
+        png = jpg.with_suffix(".png")
+        if png.exists():
+            results.append({"file": jpg.name, "status": "png_ja_existe"})
+            continue
+        if not apply:
+            results.append({"file": jpg.name, "status": "seria_convertido"})
+            continue
+        r = subprocess.run(["convert", str(jpg), str(png)], capture_output=True, text=True)
+        if r.returncode == 0 and png.exists() and png.stat().st_size > 1000:
+            jpg.unlink()
+            results.append({"file": jpg.name, "status": "convertido"})
+        else:
+            png.unlink(missing_ok=True)
+            results.append({"file": jpg.name, "status": "falhou", "erro": r.stderr.strip()[:200]})
+    return results

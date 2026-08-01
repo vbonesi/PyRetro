@@ -11,6 +11,17 @@ saves_root        = "~/Drive/Jogos/Saves/saves"
 states_root       = "~/Drive/Jogos/Saves/states"
 runtime_logs_root = "~/Drive/Jogos/Saves/runtime-logs"
 
+[screenscraper]
+# Sua conta pessoal do screenscraper.fr - crie em https://www.screenscraper.fr
+member_id       = ""
+member_password = ""
+# Credencial de "desenvolvedor" (devid/devpassword) - separada da conta
+# pessoal, identifica o PyRetro como aplicação junto à API deles. Precisa
+# ser solicitada no fórum do ScreenScraper, não é self-service.
+dev_id          = ""
+dev_password    = ""
+softname        = "PyRetro"
+
 [android]
 # Deixe em branco ("") para usar o único device conectado.
 # Preencha com o serial (adb devices -l) se tiver mais de um.

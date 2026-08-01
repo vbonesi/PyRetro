@@ -85,14 +85,19 @@ def search_cover_candidates(code: str, query: str, systems_cfg: dict) -> list:
 
 def download_selected_cover(source: str, name: str, repo: str, filename: str, dest: Path) -> bool:
     """Baixa o candidato que o usuário escolheu na tela de busca manual
-    e grava em dest. Reaproveita o fallback via API do GitHub que já
-    existe pro libretro-thumbnails (cache do raw.githubusercontent.com
-    às vezes serve resposta velha/truncada)."""
-    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    e grava em dest (sempre .png - RetroArch só exibe thumbnail nesse
+    formato). Reaproveita o fallback via API do GitHub que já existe
+    pro libretro-thumbnails (cache do raw.githubusercontent.com às
+    vezes serve resposta velha/truncada). Se a fonte for LaunchBox e o
+    arquivo original for .jpg, converte antes de gravar em dest - sem
+    isso o arquivo ficava com bytes JPEG mas extensão .png, quebrado."""
+    src_ext = ".png"
     if source == "libretro":
         url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/{urllib.parse.quote(name + '.png')}"
     else:
+        src_ext = Path(filename).suffix or ".jpg"
         url = launchbox_mod.IMAGE_BASE_URL + filename
+    tmp = dest.with_suffix(src_ext + ".tmp")
 
     r = subprocess.run(
         ["curl", "-sL", "--max-time", "20", "-o", str(tmp), "-w", "%{http_code}", url],
@@ -109,6 +114,11 @@ def download_selected_cover(source: str, name: str, repo: str, filename: str, de
         if data and len(data) > 1000:
             tmp.write_bytes(data)
             ok = True
+
+    if ok and src_ext.lower() != ".png":
+        conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
+        tmp.unlink(missing_ok=True)
+        return conv.returncode == 0 and dest.exists() and dest.stat().st_size > 1000
 
     if ok:
         tmp.replace(dest)
@@ -285,7 +295,7 @@ class Handler(BaseHTTPRequestHandler):
             for f in files:
                 label = Path(f).stem
                 status = reg_sys.get(label, {}).get("status")
-                out.append({"file": f, "label": label, "flagged": status == "flagged_wrong"})
+                out.append({"file": f, "label": label, "flagged": status == "flagged_wrong", "status": status})
             return self._json(out)
 
         if parts[:1] == ["images"] and len(parts) >= 3:
@@ -387,16 +397,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": f"base64 inválido: {e}"}, 400)
             if len(data) < 100:
                 return self._json({"error": "arquivo vazio ou pequeno demais"}, 400)
-            dest = capas_dir / (label + ext)
-            dest.write_bytes(data)
-            other_ext = ".jpg" if ext == ".png" else ".png"
-            old = capas_dir / (label + other_ext)
-            if old.exists():
-                old.unlink()
+
+            dest = capas_dir / (label + ".png")
+            if ext == ".png":
+                dest.write_bytes(data)
+            else:
+                # RetroArch só exibe thumbnail em .png - converte antes de gravar
+                tmp = capas_dir / (label + ext + ".tmp")
+                tmp.write_bytes(data)
+                conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
+                tmp.unlink(missing_ok=True)
+                if conv.returncode != 0 or not dest.exists() or dest.stat().st_size < 1000:
+                    return self._json({"error": f"falha ao converter pra png: {conv.stderr.strip()[:200]}"}, 500)
+            old_jpg = capas_dir / (label + ".jpg")
+            if old_jpg.exists():
+                old_jpg.unlink()
             registry = load_registry()
             registry.setdefault(code, {})[label] = {"status": "manual"}
             save_registry(registry)
-            return self._json({"ok": True, "file": label + ext})
+            return self._json({"ok": True, "file": label + ".png"})
 
         if parts == ["api", "cover", "select"]:
             body = self._read_json_body()

@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from core import covers as covers_mod
 from core import launchbox as launchbox_mod
+from core import sanitize as sanitize_mod
 
 CONFIG_PATH = Path(__file__).parent / "config.toml"
 REGISTRY_PATH = Path(__file__).parent / "cache" / "covers_registry.json"
@@ -102,6 +103,74 @@ def cmd_fetch_covers_fallback(args) -> None:
         print("\n(modo simulação - nada foi baixado, rode com --apply)")
 
 
+def cmd_convert_covers(args) -> None:
+    """RetroArch só exibe thumbnail em PNG (confirmado em 01/08) - .jpg
+    fica invisível no menu mesmo com nome certo. Converte tudo pra PNG."""
+    cfg = load_config()
+    capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+    systems = cfg["systems"]
+    targets = list(systems.keys()) if args.system.lower() == "all" else [args.system.upper()]
+
+    total = {"convertido": 0, "seria_convertido": 0, "falhou": 0, "png_ja_existe": 0}
+    for code in targets:
+        sysinfo = systems.get(code)
+        if not sysinfo:
+            print(f"[{code}] sistema desconhecido no config.toml, pulando")
+            continue
+        capas_dir = capas_root / sysinfo["capas"] / "Named_Boxarts"
+        results = covers_mod.convert_jpg_to_png(capas_dir, apply=args.apply)
+        if not results:
+            continue
+        counts = {}
+        for r in results:
+            counts[r["status"]] = counts.get(r["status"], 0) + 1
+            total[r["status"]] = total.get(r["status"], 0) + 1
+        print(f"{code:9} " + "  ".join(f"{k}:{v}" for k, v in counts.items()))
+        for r in results:
+            if r["status"] == "falhou":
+                print(f"          FALHOU: {r['file']} - {r.get('erro', '')}")
+
+    print(f"\ntotal: " + "  ".join(f"{k}:{v}" for k, v in total.items()))
+    if not args.apply:
+        print("(modo simulação - nada foi convertido, rode com --apply)")
+
+
+def cmd_sanitize_names(args) -> None:
+    """RetroArch não aceita &, :, * em nome de arquivo. Roda em capas
+    E roms juntos (não dá pra sanitizar só um lado sem quebrar o
+    casamento entre capa e ROM pelo nome)."""
+    cfg = load_config()
+    capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+    roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+
+    roots = []
+    if args.target in ("all", "capas"):
+        roots.append(("Capas", capas_root))
+    if args.target in ("all", "roms"):
+        roots.append(("ROMs", roms_root))
+
+    total = {"renomeado": 0, "seria_renomeado": 0, "conflito": 0}
+    for label, root in roots:
+        results = sanitize_mod.scan_and_rename(root, apply=args.apply)
+        if not results:
+            print(f"{label}: nada pra renomear")
+            continue
+        print(f"\n=== {label} ({len(results)}) ===")
+        for r in results:
+            total[r["status"]] += 1
+            old_name = Path(r["old"]).name
+            new_name = Path(r["new"]).name
+            marker = {"renomeado": "OK", "seria_renomeado": "->", "conflito": "!! CONFLITO"}[r["status"]]
+            print(f"  {marker}  {old_name}  ->  {new_name}")
+
+    print(f"\ntotal: renomeado:{total['renomeado']}  seria_renomeado:{total['seria_renomeado']}  "
+          f"conflito:{total['conflito']}")
+    if total["conflito"]:
+        print("(itens em conflito não foram tocados - já existe um arquivo com o nome novo)")
+    if not args.apply:
+        print("(modo simulação - nada foi renomeado, rode com --apply)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="retrosync", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
@@ -125,6 +194,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="reprocessa o Metadata.xml do zero (~90s) em vez de usar o cache/launchbox_index.json",
     )
 
+    convert = sub.add_parser("convert-covers", help="converte capas .jpg pra .png (RetroArch so exibe PNG)")
+    convert.add_argument("system", help="codigo do sistema (ex: SFC) ou 'all'")
+    convert.add_argument("--apply", action="store_true")
+
+    sanitize = sub.add_parser("sanitize-names", help="troca & : * por caracteres aceitos pelo RetroArch")
+    sanitize.add_argument("target", choices=["capas", "roms", "all"], default="all", nargs="?")
+    sanitize.add_argument("--apply", action="store_true")
+
     cues = sub.add_parser("fix-cues", help="corrige referencias FILE dentro dos .cue")
     cues.add_argument("target", help="pasta de sistema (ex: PS) ou 'all'")
     cues.add_argument("--rename-files", action="store_true", help="tambem renomeia os .bin fisicos")
@@ -140,6 +217,10 @@ def main() -> None:
         cmd_fetch_covers(args)
     elif args.command == "fetch-covers-fallback":
         cmd_fetch_covers_fallback(args)
+    elif args.command == "convert-covers":
+        cmd_convert_covers(args)
+    elif args.command == "sanitize-names":
+        cmd_sanitize_names(args)
     else:
         raise NotImplementedError(f"comando '{args.command}' ainda nao implementado")
 
