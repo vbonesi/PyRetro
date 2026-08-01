@@ -1,0 +1,192 @@
+"""
+Fonte de capas alternativa: LaunchBox Games Database, usada como fallback
+DEPOIS do libretro-thumbnails (core/covers.py) - só entra em ação pros
+itens que já ficaram registrados como "no_match" lá.
+
+Fonte pública, sem necessidade de conta/API key:
+    https://gamesdb.launchbox-app.com/Metadata.zip  (~106MB, "Games Database"
+    baixado diariamente por eles - Metadata.xml tem ~185k jogos e ~1.3M
+    imagens de todas as plataformas que já existiram)
+    https://images.launchbox-app.com/<FileName>  (imagem em si, confirmado
+    funcionando via teste manual em 31/07)
+
+O Metadata.xml sozinho tem ~500MB descompactado - grande demais pra carregar
+inteiro na memória ou reprocessar toda hora. build_index() faz streaming
+(xml.etree.ElementTree.iterparse, ~40s por passe) UMA VEZ e salva um índice
+filtrado (só as plataformas que interessam, só imagens tipo "Box - Front")
+em cache/launchbox_index.json - bem menor, carrega instantâneo depois.
+
+Mapeamento de plataforma (código do config.toml -> nome usado pelo
+LaunchBox nos registros <Game>, confirmado em 31/07 direto no XML):
+"""
+import json
+import re
+import subprocess
+import unicodedata
+import urllib.request
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+METADATA_URL = "https://gamesdb.launchbox-app.com/Metadata.zip"
+IMAGE_BASE_URL = "https://images.launchbox-app.com/"
+CACHE_DIR = Path(__file__).parent.parent / "cache"
+METADATA_ZIP = CACHE_DIR / "launchbox_metadata.zip"
+METADATA_XML = CACHE_DIR / "launchbox_metadata" / "Metadata.xml"
+INDEX_PATH = CACHE_DIR / "launchbox_index.json"
+
+PLATFORM_MAP = {
+    "FC": "Nintendo Entertainment System",
+    "SFC": "Super Nintendo Entertainment System",
+    "GB": "Nintendo Game Boy",
+    "GBC": "Nintendo Game Boy Color",
+    "GBA": "Nintendo Game Boy Advance",
+    "N64": "Nintendo 64",
+    "NDS": "Nintendo DS",
+    "MD": "Sega Genesis",
+    "SMS": "Sega Master System",
+    "GG": "Sega Game Gear",
+    "SS": "Sega Saturn",
+    "SDC": "Sega Dreamcast",
+    "PCE": "NEC TurboGrafx-16",
+    "PCECD": "NEC TurboGrafx-CD",
+    "PS": "Sony Playstation",
+    "NEOGEO": "SNK Neo Geo AES",
+    "NEOGEOCD": "SNK Neo Geo CD",
+    "ARCADE": "Arcade",
+}
+
+REGION_PRIORITY = ["North America", "United States", "World", "Europe"]
+ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10}
+
+_TAG_RE = re.compile(
+    r"\((usa|europe|japan|world|en|fr|de|es|it|nl|pt|rev\s*\d+|beta|proto"
+    r"|virtual console|sample|disc\s*\d+|disk\s*\d+|track\s*\d+)[^)]*\)",
+    re.IGNORECASE,
+)
+_NONALNUM_RE = re.compile(r"[^a-z0-9]")
+
+
+def normalize(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
+    s = _TAG_RE.sub("", s)
+    s = _NONALNUM_RE.sub("", s)
+    return s
+
+
+
+
+def _download_metadata() -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["curl", "-sL", "--max-time", "120", "-o", str(METADATA_ZIP), METADATA_URL],
+        check=True,
+    )
+    subprocess.run(
+        ["unzip", "-o", "-q", str(METADATA_ZIP), "Metadata.xml", "-d", str(METADATA_XML.parent)],
+        check=True,
+    )
+
+
+def build_index(force: bool = False) -> dict:
+    """Faz o streaming parse do Metadata.xml (dois passes: Game depois
+    GameImage) e monta {plataforma_config: {nome_normalizado: filename}}.
+    Cacheia em INDEX_PATH - só reprocessa se force=True ou não existir."""
+    if INDEX_PATH.exists() and not force:
+        return json.loads(INDEX_PATH.read_text())
+
+    if not METADATA_XML.exists() or force:
+        _download_metadata()
+
+    wanted_platforms = set(PLATFORM_MAP.values())
+
+    # passe 1: DatabaseID -> (nome_normalizado, nome_original, plataforma_lb)
+    games: dict[str, tuple[str, str, str]] = {}
+    for event, elem in ET.iterparse(METADATA_XML, events=("end",)):
+        if elem.tag == "Game":
+            plat = elem.findtext("Platform")
+            if plat in wanted_platforms:
+                dbid = elem.findtext("DatabaseID")
+                name = elem.findtext("Name")
+                if dbid and name:
+                    games[dbid] = (normalize(name), name, plat)
+            elem.clear()
+
+    # passe 2: pra cada DatabaseID relevante, pega a melhor imagem "Box - Front"
+    # (prioriza regiao North America > United States > World > Europe > qualquer)
+    best: dict[str, tuple[int, str]] = {}  # dbid -> (prioridade, filename)
+    for event, elem in ET.iterparse(METADATA_XML, events=("end",)):
+        if elem.tag == "GameImage":
+            dbid = elem.findtext("DatabaseID")
+            if dbid in games and elem.findtext("Type") == "Box - Front":
+                region = elem.findtext("Region") or ""
+                prio = REGION_PRIORITY.index(region) if region in REGION_PRIORITY else len(REGION_PRIORITY)
+                filename = elem.findtext("FileName")
+                if dbid not in best or prio < best[dbid][0]:
+                    best[dbid] = (prio, filename)
+            elem.clear()
+
+    # index[code][nome_normalizado] = [filename, nome_original]
+    index: dict = {code: {} for code in PLATFORM_MAP}
+    code_by_platform = {v: k for k, v in PLATFORM_MAP.items()}
+    for dbid, (norm_name, orig_name, plat) in games.items():
+        if dbid not in best:
+            continue
+        code = code_by_platform[plat]
+        index[code][norm_name] = [best[dbid][1], orig_name]
+
+    INDEX_PATH.write_text(json.dumps(index))
+    return index
+
+
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _words(s: str) -> list:
+    return _WORD_RE.findall(s.lower())
+
+
+def find_cover(code: str, label: str, index: dict) -> str | None:
+    """Retorna o FileName da imagem no LaunchBox, ou None.
+
+    Exato primeiro. Se não achar, tenta por PREFIXO de palavras - comum
+    o arquivo local não ter o subtítulo que o LaunchBox guarda por
+    extenso (ex: local "Zool" vs LaunchBox "Zool: Ninja of the 'Nth'
+    Dimension"). A trava de segurança: as primeiras N palavras do
+    candidato (N = número de palavras do label) têm que ser IDÊNTICAS
+    às do label, E a palavra seguinte (se houver) não pode ser um
+    número/numeral romano sozinho - senão "Contra" casaria com
+    "Contra III" (a palavra extra "iii" logo depois do prefixo é
+    exatamente o tipo de vazamento de sequência que isso bloqueia)."""
+    sysidx = index.get(code, {})
+
+    k = normalize(label)
+    if k in sysidx:
+        return sysidx[k][0]
+
+    label_words = _words(label)
+    if not label_words:
+        return None
+    n = len(label_words)
+
+    for norm_name, (filename, orig_name) in sysidx.items():
+        cand_words = _words(orig_name)
+        if len(cand_words) <= n or cand_words[:n] != label_words:
+            continue
+        next_word = cand_words[n]
+        if next_word.isdigit() or next_word in ROMAN:
+            continue  # "Contra" não pode casar com "Contra III"
+        return filename
+    return None
+
+
+def download_cover(filename: str, dest: Path) -> bool:
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    r = subprocess.run(
+        ["curl", "-sL", "--max-time", "20", "-o", str(tmp), "-w", "%{http_code}", IMAGE_BASE_URL + filename],
+        capture_output=True, text=True,
+    )
+    if r.stdout.strip() == "200" and tmp.exists() and tmp.stat().st_size > 1000:
+        tmp.replace(dest)
+        return True
+    tmp.unlink(missing_ok=True)
+    return False

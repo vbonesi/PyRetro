@@ -74,6 +74,28 @@ o nome de verdade via o `.dat` oficial do FBNeo antes de tentar casar contra
 o repositório de capas - resolve a maioria dos casos que fuzzy match sozinho
 erraria.
 
+### `fetch-covers-fallback` — segunda fonte pros que sobraram (LaunchBox Games DB)
+
+```bash
+python3 retrosync.py fetch-covers-fallback SFC              # simula
+python3 retrosync.py fetch-covers-fallback all --apply       # baixa de verdade
+```
+
+Só olha os itens que o `fetch-covers` já marcou como `sem_match` no
+registro - não reprocessa tudo. Usa o [LaunchBox Games
+Database](https://gamesdb.launchbox-app.com/) (não precisa de conta/API
+key - baixa o `Metadata.zip` público deles, ~500MB descompactado, faz um
+índice filtrado e cacheia em `cache/launchbox_index.json`; só reprocessa o
+XML de novo com `--rebuild-index`). Tem cobertura melhor pra hack/tradução
+de fã que o libretro-thumbnails não cataloga.
+
+Casamento exato primeiro; se não achar, tenta por PREFIXO de palavras (o
+arquivo local geralmente não tem o subtítulo que o LaunchBox guarda por
+extenso, ex: local "Zool" vs LaunchBox "Zool: Ninja of the 'Nth'
+Dimension") - com trava de segurança pra não deixar "Contra" casar com
+"Contra III" (a palavra logo após o prefixo não pode ser um número/numeral
+romano sozinho).
+
 ### `sync` — sincroniza saves/states/métricas/capas PC ↔ Android
 
 **Ainda não implementado** (`core/sync.py` é só o esqueleto com as regras
@@ -163,7 +185,8 @@ PyRetro/
 
 | Módulo | Status |
 |---|---|
-| `core/covers.py` | Implementado e testado - resolve exato, fuzzy (só relatório), DAT do FBNeo pro Arcade, fallback de download via API do GitHub |
+| `core/covers.py` | Implementado e testado - resolve exato, fuzzy (só relatório), DAT do FBNeo pro Arcade, fallback de download via API do GitHub, distingue rate-limit de sem_match real |
+| `core/launchbox.py` | Implementado e testado - segunda fonte (LaunchBox Games DB) só pros sem_match do covers.py, exato + prefixo com trava de segurança |
 | `core/adb.py` | Esqueleto - `run`/`shell`/`push`/`pull`/`ensure_connected` documentados, não implementados |
 | `core/sync.py` | Esqueleto - regras de "mais recente vence" e conflito documentadas, não implementado |
 | `core/cues.py` | Esqueleto - regras de nomenclatura documentadas, não implementado |

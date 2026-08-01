@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from core import covers as covers_mod
+from core import launchbox as launchbox_mod
 
 CONFIG_PATH = Path(__file__).parent / "config.toml"
 REGISTRY_PATH = Path(__file__).parent / "cache" / "covers_registry.json"
@@ -67,6 +68,56 @@ def cmd_fetch_covers(args) -> None:
             print(f"  [{code}] {label}  ->  {remote}")
 
 
+def cmd_fetch_covers_fallback(args) -> None:
+    """Segunda passada, só pros itens que o fetch-covers (libretro-thumbnails)
+    já marcou como no_match no registro. Usa o LaunchBox Games DB como
+    fonte alternativa (ver core/launchbox.py). Não precisa reprocessar
+    tudo de novo - só lê os no_match que já estão registrados."""
+    cfg = load_config()
+    capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+    systems = cfg["systems"]
+
+    targets = list(systems.keys()) if args.system.lower() == "all" else [args.system.upper()]
+    targets = [t for t in targets if t in launchbox_mod.PLATFORM_MAP]
+
+    registry = json.loads(REGISTRY_PATH.read_text()) if REGISTRY_PATH.exists() else {}
+    index = launchbox_mod.build_index(force=args.rebuild_index)
+
+    for code in targets:
+        sysinfo = systems.get(code)
+        if not sysinfo:
+            print(f"[{code}] sistema desconhecido no config.toml, pulando")
+            continue
+        reg_sys = registry.setdefault(code, {})
+        capas_dir = capas_root / sysinfo["capas"] / "Named_Boxarts"
+        if not capas_dir.is_dir():
+            continue
+
+        no_match_labels = sorted(k for k, v in reg_sys.items() if v.get("status") == "no_match")
+        found = 0
+        for label in no_match_labels:
+            filename = launchbox_mod.find_cover(code, label, index)
+            if not filename:
+                continue
+            if not args.apply:
+                found += 1
+                continue
+            dest = capas_dir / (label + Path(filename).suffix)
+            if launchbox_mod.download_cover(filename, dest):
+                for old_ext in (".png", ".jpg"):
+                    old = capas_dir / (label + old_ext)
+                    if old.exists() and old != dest:
+                        old.unlink()
+                reg_sys[label] = {"status": "replaced_exact", "matched": filename, "source": "launchbox"}
+                found += 1
+
+        print(f"{code:9} achado_no_launchbox:{found:4}  (de {len(no_match_labels)} sem_match anteriores)")
+        REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
+
+    if not args.apply:
+        print("\n(modo simulação - nada foi baixado, rode com --apply)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="retrosync", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
@@ -78,6 +129,17 @@ def build_parser() -> argparse.ArgumentParser:
     covers = sub.add_parser("fetch-covers", help="busca capas no libretro-thumbnails")
     covers.add_argument("system", help="codigo do sistema (ex: SFC) ou 'all'")
     covers.add_argument("--apply", action="store_true")
+
+    covers_fb = sub.add_parser(
+        "fetch-covers-fallback",
+        help="segunda passada nos sem_match do fetch-covers, usando LaunchBox Games DB",
+    )
+    covers_fb.add_argument("system", help="codigo do sistema (ex: SFC) ou 'all'")
+    covers_fb.add_argument("--apply", action="store_true")
+    covers_fb.add_argument(
+        "--rebuild-index", action="store_true",
+        help="reprocessa o Metadata.xml do zero (~90s) em vez de usar o cache/launchbox_index.json",
+    )
 
     cues = sub.add_parser("fix-cues", help="corrige referencias FILE dentro dos .cue")
     cues.add_argument("target", help="pasta de sistema (ex: PS) ou 'all'")
@@ -92,6 +154,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "fetch-covers":
         cmd_fetch_covers(args)
+    elif args.command == "fetch-covers-fallback":
+        cmd_fetch_covers_fallback(args)
     else:
         raise NotImplementedError(f"comando '{args.command}' ainda nao implementado")
 
