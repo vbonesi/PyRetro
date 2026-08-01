@@ -1,0 +1,163 @@
+# PyRetro - configuração de exemplo.
+#
+# Copie este arquivo para "config.toml" (esse nome fica de fora do git,
+# veja .gitignore) e ajuste os caminhos para o seu acervo. O restante
+# do arquivo (mapeamento de sistemas e núcleos) raramente precisa mudar.
+
+[pc]
+roms_root         = "~/Drive/Jogos/ROMs"
+capas_root        = "~/Drive/Jogos/Capas"
+saves_root        = "~/Drive/Jogos/Saves/saves"
+states_root       = "~/Drive/Jogos/Saves/states"
+runtime_logs_root = "~/Drive/Jogos/Saves/runtime-logs"
+
+[android]
+# Deixe em branco ("") para usar o único device conectado.
+# Preencha com o serial (adb devices -l) se tiver mais de um.
+device_serial     = ""
+jogos_root        = "/storage/emulated/0/Jogos"
+thumbnails_root   = "/storage/emulated/0/RetroArch/thumbnails"
+saves_root        = "/storage/emulated/0/RetroArch/saves"
+states_root       = "/storage/emulated/0/RetroArch/states"
+runtime_logs_root = "/storage/emulated/0/RetroArch/runtime-logs"
+
+# Uma entrada por pasta de sistema dentro de roms_root.
+# capas   = subpasta correspondente dentro de capas_root
+# repo    = repositório em github.com/libretro-thumbnails/<repo>
+# exts    = extensões de ROM reconhecidas nessa pasta
+# cd_system = true para sistemas em disco (usa .cue/.gdi/.chd como "ROM")
+
+[systems.FC]
+capas = "Nintendo - Nintendo Entertainment System"
+repo  = "Nintendo_-_Nintendo_Entertainment_System"
+exts  = ["nes", "fds", "unf", "unif"]
+
+[systems.SFC]
+capas = "Nintendo - Super Nintendo Entertainment System"
+repo  = "Nintendo_-_Super_Nintendo_Entertainment_System"
+exts  = ["sfc", "smc", "fig", "swc", "bs"]
+
+[systems.GB]
+capas = "Nintendo - Game Boy"
+repo  = "Nintendo_-_Game_Boy"
+exts  = ["gb", "dmg"]
+
+[systems.GBC]
+capas = "Nintendo - Game Boy Color"
+repo  = "Nintendo_-_Game_Boy_Color"
+exts  = ["gbc", "cgb"]
+
+[systems.GBA]
+capas = "Nintendo - Game Boy Advance"
+repo  = "Nintendo_-_Game_Boy_Advance"
+exts  = ["gba", "agb"]
+
+[systems.N64]
+capas = "Nintendo - Nintendo 64"
+repo  = "Nintendo_-_Nintendo_64"
+exts  = ["n64", "z64", "v64"]
+
+[systems.NDS]
+capas = "Nintendo - Nintendo DS"
+repo  = "Nintendo_-_Nintendo_DS"
+exts  = ["nds"]
+
+[systems.MD]
+capas = "Sega - Mega Drive - Genesis"
+repo  = "Sega_-_Mega_Drive_-_Genesis"
+exts  = ["md", "bin", "smd", "gen"]
+
+[systems.SMS]
+capas = "Sega - Master System - Mark III"
+repo  = "Sega_-_Master_System_-_Mark_III"
+exts  = ["sms"]
+
+[systems.GG]
+capas = "Sega - Game Gear"
+repo  = "Sega_-_Game_Gear"
+exts  = ["gg"]
+
+[systems.SS]
+capas = "Sega - Saturn"
+repo  = "Sega_-_Saturn"
+exts  = ["cue", "gdi", "chd", "cdi"]
+cd_system = true
+
+[systems.SDC]
+capas = "Sega - Dreamcast"
+repo  = "Sega_-_Dreamcast"
+exts  = ["cue", "gdi", "chd", "cdi"]
+cd_system = true
+
+[systems.PCE]
+capas = "NEC - PC Engine - TurboGrafx 16"
+repo  = "NEC_-_PC_Engine_-_TurboGrafx_16"
+exts  = ["pce"]
+
+[systems.PCECD]
+capas = "NEC - PC Engine CD - TurboGrafx-CD"
+repo  = "NEC_-_PC_Engine_CD_-_TurboGrafx-CD"
+exts  = ["cue", "chd", "cdi"]
+cd_system = true
+
+[systems.PS]
+capas = "Sony - PlayStation"
+repo  = "Sony_-_PlayStation"
+exts  = ["cue", "chd", "ccd"]
+cd_system = true
+
+[systems.NEOGEO]
+capas = "SNK - Neo Geo"
+repo  = "SNK_-_Neo_Geo"
+exts  = ["neo", "zip"]
+
+[systems.NEOGEOCD]
+capas = "SNK - Neo Geo CD"
+repo  = "SNK_-_Neo_Geo_CD"
+exts  = ["cue", "chd", "cdi"]
+cd_system = true
+
+[systems.ARCADE]
+capas = "FBNeo - Arcade Games"
+repo  = "FBNeo_-_Arcade_Games"
+exts  = ["zip", "7z"]
+
+# Núcleo padrão por sistema no Android, usado só pelo comando
+# `retrosync rebuild-playlist` (opcional, playlists usam DETECT
+# por item e o default_core_path/name daqui como núcleo sugerido).
+
+[cores.FC]
+core_path = "nestopia_libretro_android.so"
+core_name = "Nintendo - Nintendo Entertainment System (Nestopia)"
+
+[cores.SFC]
+core_path = "snes9x_libretro_android.so"
+core_name = "Nintendo - Super Nintendo Entertainment System (Snes9x)"
+
+[cores.GB]
+core_path = "gambatte_libretro_android.so"
+core_name = "Nintendo - Game Boy (Gambatte)"
+
+[cores.GBC]
+core_path = "gambatte_libretro_android.so"
+core_name = "Nintendo - Game Boy Color (Gambatte)"
+
+[cores.GBA]
+core_path = "mgba_libretro_android.so"
+core_name = "Nintendo - Game Boy Advance (mGBA)"
+
+[cores.MD]
+core_path = "genesis_plus_gx_libretro_android.so"
+core_name = "Sega - Mega Drive - Genesis (Genesis Plus GX)"
+
+[cores.SMS]
+core_path = "genesis_plus_gx_libretro_android.so"
+core_name = "Sega - Master System - Mark III (Genesis Plus GX)"
+
+[cores.GG]
+core_path = "genesis_plus_gx_libretro_android.so"
+core_name = "Sega - Game Gear (Genesis Plus GX)"
+
+[cores.PCE]
+core_path = "mednafen_pce_libretro_android.so"
+core_name = "NEC - PC Engine / SuperGrafx / CD (Beetle PCE)"

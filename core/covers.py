@@ -1,0 +1,288 @@
+"""
+Busca e substituição de capas via libretro-thumbnails.
+
+Regra central, aprendida com um incidente real: fuzzy match NUNCA é
+aplicado automaticamente. Só entra na pasta o que bateu exato (depois
+de normalizar tags de região/revisão). Fuzzy vira uma lista pra
+revisão humana - correspondência de sequência (ex: "Dragon Quest" vs
+"Dragon Quest II") pode ter similaridade > 90% e ainda assim ser um
+jogo errado, então dígitos/numerais romanos finais são comparados à
+parte e bloqueiam o match se divergirem.
+
+Nunca apaga uma capa existente por falta de ROM correspondente - o
+usuário mantém mais capas do que roms de propósito (sincroniza sob
+demanda).
+"""
+import base64
+import difflib
+import json
+import re
+import subprocess
+import unicodedata
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+TREE_CACHE_DIR = Path("/tmp/lt_trees")
+ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10}
+
+_TAG_RE = re.compile(
+    r"\((usa|europe|japan|world|en|fr|de|es|it|nl|pt|rev\s*\d+|beta|proto"
+    r"|virtual console|sample|disc\s*\d+|disk\s*\d+|track\s*\d+)[^)]*\)",
+    re.IGNORECASE,
+)
+_BRACKET_RE = re.compile(r"\[[^\]]*\]")
+_ARTICLE_RE = re.compile(r"\b(the|a|an|of|and|de|da|do|le|la)\b")
+_NONALNUM_RE = re.compile(r"[^a-z0-9]")
+
+
+def _strip_accents(s: str) -> str:
+    return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
+
+
+def normalize(s: str, loose: bool = False) -> str:
+    """loose=True também remove QUALQUER parêntese (pega códigos tipo
+    "(NGM-007)(NGH-007)" que a lista de tags conhecidas não cobre)."""
+    s = _strip_accents(s).lower()
+    if loose:
+        s = re.sub(r"\([^)]*\)", "", s)
+    else:
+        s = _TAG_RE.sub("", s)
+    s = _BRACKET_RE.sub("", s)
+    s = _ARTICLE_RE.sub("", s)
+    s = _NONALNUM_RE.sub("", s)
+    return s
+
+
+def trailing_sequence_marker(label: str):
+    """Extrai o "número de sequência" no final de um título (dígitos
+    ou numeral romano), pra impedir que "Dragon Quest" combine com
+    "Dragon Quest II" só por similaridade textual."""
+    core = re.sub(r"\s*\([^)]*\)\s*$", "", label).strip()
+    m = re.search(r"(\d+|[ivx]+)$", core, re.IGNORECASE)
+    if not m:
+        return None
+    tok = m.group(1).lower()
+    if tok.isdigit():
+        return tok
+    return str(ROMAN.get(tok, tok))
+
+
+def load_tree(repo: str) -> list:
+    """Retorna a lista de nomes de arquivo REAIS (sem extensão)
+    disponíveis no repo - cada entrada é exatamente o que existe no
+    servidor, pronta pra baixar."""
+    tree_path = TREE_CACHE_DIR / f"{repo}.json"
+    if not tree_path.exists():
+        TREE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        url = f"https://api.github.com/repos/libretro-thumbnails/{repo}/git/trees/master?recursive=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "PyRetro"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            tree_path.write_bytes(resp.read())
+
+    data = json.loads(tree_path.read_text())
+    names = []
+    for entry in data.get("tree", []):
+        path = entry.get("path", "")
+        if path.startswith("Named_Boxarts/") and path.endswith(".png"):
+            names.append(path[len("Named_Boxarts/"):-4])
+    return names
+
+
+def build_index(names: list, loose: bool = False) -> dict:
+    """Indexa cada nome real pela sua forma normalizada - e, quando o
+    nome combina "Titulo A _ Titulo B" (comum no Neo Geo, ingles e
+    japones juntos), indexa CADA PEDAÇO separadamente também, mas
+    sempre apontando pro nome de arquivo REAL (combinado), nunca pro
+    pedaço isolado (que não existe como arquivo no servidor)."""
+    idx = {}
+    for n in names:
+        idx.setdefault(normalize(n, loose=loose), []).append(n)
+        if " _ " in n:
+            for part in n.split(" _ "):
+                part = part.strip()
+                idx.setdefault(normalize(part, loose=loose), []).append(n)
+    return idx
+
+
+def pick_best(candidates: list) -> str:
+    for pref in ("(USA)", "(USA, Europe)", "(World)", "(Europe)", "(Japan)"):
+        for c in candidates:
+            if pref in c and not any(bad in c for bad in ("Beta", "Proto", "Sample")):
+                return c
+    for c in candidates:
+        if not any(bad in c for bad in ("Beta", "Proto", "Sample")):
+            return c
+    return candidates[0]
+
+
+def load_romname_dat(url: str, cache_name: str) -> dict:
+    """Baixa (e cacheia) um .dat estilo ClrMamePro do libretro-database
+    e retorna {nome_curto_da_rom: nome_completo_do_jogo}. Usado pro
+    Arcade, onde o arquivo local se chama tipo "bjourney" e o jogo de
+    verdade é "Blue's Journey / Raguy" - resolver isso ANTES de tentar
+    casar contra o libretro-thumbnails evita fuzzy match perigoso
+    comparando um código curto contra título comprido (foi assim que
+    "bjourney" virou "Journey" e "karnovr" virou "Karnov" - ambos
+    errados, achados por revisão manual)."""
+    dat_path = TREE_CACHE_DIR / f"{cache_name}.dat"
+    if not dat_path.exists():
+        TREE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(url, headers={"User-Agent": "PyRetro"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            dat_path.write_bytes(resp.read())
+    content = dat_path.read_text(encoding="utf-8", errors="replace")
+    games = re.findall(r'game \(\s*name "([^"]+)".*?rom \( name (\S+?)\.zip', content, re.DOTALL)
+    return {rom.lower(): name for name, rom in games}
+
+
+def _try_match(name: str, exact_idx: dict, loose_idx: dict, norm_keys: list):
+    """Tenta casar UM nome (exato -> loose -> fuzzy). Não sabe nada
+    sobre DAT de romname, só faz a comparação normal."""
+    k = normalize(name)
+    if k in exact_idx:
+        return pick_best(exact_idx[k]), "exact"
+
+    k_loose = normalize(name, loose=True)
+    if k_loose in loose_idx:
+        return pick_best(loose_idx[k_loose]), "exact"
+
+    close = difflib.get_close_matches(k, norm_keys, n=3, cutoff=0.90)
+    label_seq = trailing_sequence_marker(name)
+    for cand_key in close:
+        cand_names = exact_idx.get(cand_key) or []
+        if not cand_names:
+            continue
+        cand_name = cand_names[0]
+        cand_seq = trailing_sequence_marker(cand_name)
+        if label_seq != cand_seq:
+            continue  # "Dragon Quest" != "Dragon Quest II" mesmo com >90% de similaridade
+        return pick_best(cand_names), "fuzzy"
+    return None, None
+
+
+def find_match(label: str, exact_idx: dict, loose_idx: dict, norm_keys: list, romname_dat: dict | None = None):
+    """Retorna (nome_remoto, tipo) onde tipo é 'exact' ou 'fuzzy'.
+
+    Se romname_dat for passado e o label bater com um nome curto de
+    rom conhecido (ex: Arcade), tenta casar pelo nome COMPLETO
+    resolvido primeiro - é bem mais confiável que comparar o código
+    curto direto contra o índice de capas."""
+    if romname_dat:
+        real_name = romname_dat.get(label.lower())
+        if real_name:
+            # nomes tipo "Puzzled / Joy Joy Kid (NGM-021 ~ NGH-021)" - pega só o titulo
+            # principal. Precisa de espaço nos dois lados da barra - "/" sem espaço
+            # aparece dentro de datas ("1994/09/19") e sufixos ("Vehicle-001/II"),
+            # cortar nesses casos quebra o nome no meio (bug achado com dariusg/mslug2).
+            primary = re.split(r"\s+/\s+", real_name)[0]
+            primary = re.sub(r"\s*\([^)]*\)\s*$", "", primary).strip()
+            remote, kind = _try_match(primary, exact_idx, loose_idx, norm_keys)
+            if remote:
+                return remote, kind
+
+    return _try_match(label, exact_idx, loose_idx, norm_keys)
+
+
+def _download_via_api(repo: str, remote_name: str) -> bytes | None:
+    """Fallback pro cache do raw.githubusercontent.com às vezes servir
+    uma resposta velha/quebrada (HTTP 200 com poucos bytes) pra um
+    arquivo que existe normalmente no repo. A API do GitHub busca o
+    blob direto (base64), infraestrutura diferente, sem esse cache."""
+    path = urllib.parse.quote(f"Named_Boxarts/{remote_name}.png")
+    url = f"https://api.github.com/repos/libretro-thumbnails/{repo}/contents/{path}"
+    req = urllib.request.Request(url, headers={"User-Agent": "PyRetro", "Accept": "application/vnd.github.v3+json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, urllib.error.HTTPError):
+        return None
+    content = data.get("content")
+    if not content:
+        return None
+    return base64.b64decode(content)
+
+
+ROMNAME_DATS = {
+    "ARCADE": (
+        "https://raw.githubusercontent.com/libretro/libretro-database/master/"
+        "metadat/fbneo-split/FBNeo%20-%20Arcade%20Games.dat",
+        "fbneo",
+    ),
+}
+
+
+def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, registry: dict, apply: bool) -> dict:
+    """Varre uma pasta de capas local, tenta casar cada capa existente
+    (que ainda não está no registry) contra o repo remoto. Exato é
+    baixado (se apply=True); fuzzy só entra no relatório."""
+    capas_dir = capas_root / capas_folder / "Named_Boxarts"
+    result = {"exact": 0, "fuzzy": [], "no_match": 0, "cached": 0}
+    if not capas_dir.is_dir():
+        return result
+
+    names = load_tree(repo)
+    exact_idx = build_index(names, loose=False)
+    loose_idx = build_index(names, loose=True)
+    norm_keys = list(exact_idx.keys())
+
+    romname_dat = None
+    if code in ROMNAME_DATS:
+        dat_url, dat_cache_name = ROMNAME_DATS[code]
+        romname_dat = load_romname_dat(dat_url, dat_cache_name)
+
+    reg_sys = registry.setdefault(code, {})
+    base_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/"
+
+    existing = sorted({p.stem for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg")})
+
+    for label in existing:
+        if label in reg_sys:
+            result["cached"] += 1
+            continue
+
+        remote, kind = find_match(label, exact_idx, loose_idx, norm_keys, romname_dat)
+
+        if remote is None:
+            reg_sys[label] = {"status": "no_match"}
+            result["no_match"] += 1
+            continue
+
+        if kind == "fuzzy":
+            result["fuzzy"].append((label, remote))
+            continue  # não baixa, não registra - fica pendente pra próxima rodada até humano decidir
+
+        if not apply:
+            result["exact"] += 1
+            continue
+
+        url = base_url + urllib.parse.quote(remote + ".png")
+        dest = capas_dir / (label + ".png")
+        tmp = dest.with_suffix(".png.tmp")
+        r = subprocess.run(
+            ["curl", "-sL", "--max-time", "20", "-o", str(tmp), "-w", "%{http_code}", url],
+            capture_output=True, text=True,
+        )
+        ok = r.stdout.strip() == "200" and tmp.exists() and tmp.stat().st_size > 1000
+
+        if not ok:
+            tmp.unlink(missing_ok=True)
+            data = _download_via_api(repo, remote)
+            if data and len(data) > 1000:
+                tmp.write_bytes(data)
+                ok = True
+
+        if ok:
+            tmp.replace(dest)
+            jpg = capas_dir / (label + ".jpg")
+            if jpg.exists():
+                jpg.unlink()
+            reg_sys[label] = {"status": "replaced_exact", "matched": remote}
+            result["exact"] += 1
+        else:
+            tmp.unlink(missing_ok=True)
+            reg_sys[label] = {"status": "no_match"}
+            result["no_match"] += 1
+
+    return result

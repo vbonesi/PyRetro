@@ -1,0 +1,18 @@
+# Configuração específica da máquina/celular
+config.toml
+
+# Cache regenerável (árvores do libretro-thumbnails, registro de capas)
+cache/
+
+# Logs
+logs/*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editor/OS
+.DS_Store
