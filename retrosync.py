@@ -204,9 +204,9 @@ def cmd_organize(args) -> None:
 
 
 def cmd_heavy_roms(args) -> None:
-    """Lista (e opcionalmente envia) ROMs de consoles pesados - esses
-    não sincronizam sozinhos via Google Drive como os sistemas leves,
-    então o envio é sob demanda, um item de cada vez."""
+    """Lista (e opcionalmente envia/baixa) ROMs de consoles pesados -
+    esses não sincronizam sozinhos via Google Drive como os sistemas
+    leves, então o envio/download é sob demanda, um item de cada vez."""
     cfg = load_config()
     heavy = heavy_mod.load_heavy_systems(cfg)
     code = args.system.upper()
@@ -218,9 +218,14 @@ def cmd_heavy_roms(args) -> None:
     jogos_root = cfg["android"]["jogos_root"]
     serial = cfg["android"].get("device_serial") or None
 
-    items = heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))
-    if not items:
-        print(f"nenhum item em roms_root/{code}/")
+    local_items = heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))
+    local_by_name = {i["name"]: i for i in local_items}
+    drive_items = heavy_mod.list_drive_items(code, cfg)
+    drive_by_name = {i["name"]: i for i in drive_items}
+
+    all_names = sorted(set(local_by_name) | set(drive_by_name))
+    if not all_names:
+        print(f"nenhum item em roms_root/{code}/ nem no Drive")
         return
 
     android_ok = False
@@ -235,8 +240,8 @@ def cmd_heavy_roms(args) -> None:
     if args.send:
         if not android_ok:
             sys.exit("celular não conectado - não dá pra enviar agora")
-        if args.send not in {i["name"] for i in items}:
-            sys.exit(f"'{args.send}' não encontrado em roms_root/{code}/")
+        if args.send not in local_by_name:
+            sys.exit(f"'{args.send}' não encontrado no PC (roms_root/{code}/) - baixe do Drive primeiro com --download")
         print(f"enviando '{args.send}'... (pode demorar - arquivos grandes)")
         ok, msg = heavy_mod.send_to_phone(
             code, args.send, roms_root, jogos_root, serial, sysinfo.get("exts", []), overwrite=args.overwrite,
@@ -244,12 +249,28 @@ def cmd_heavy_roms(args) -> None:
         print(("OK: " if ok else "FALHOU: ") + msg)
         return
 
+    if args.download:
+        if args.download not in drive_by_name:
+            sys.exit(f"'{args.download}' não encontrado no Drive (rclone drive:{{drive_roms_root}}/{code}/)")
+        print(f"baixando '{args.download}' do Drive... (pode demorar - arquivos grandes)")
+        ok, msg = heavy_mod.download_from_drive(code, args.download, roms_root, cfg)
+        print(("OK: " if ok else "FALHOU: ") + msg)
+        return
+
     print(f"{code} ({sysinfo.get('nome', code)}):")
-    for item in items:
-        status = "no celular" if item["name"] in remote_names else "só no PC"
-        gb = item["size"] / (1024 ** 3)
-        tag = "PASTA" if item["is_dir"] else "arquivo"
-        print(f"  [{tag:7}] {item['name']:55} {gb:6.2f} GB   [{status}]")
+    for name in all_names:
+        local = local_by_name.get(name)
+        drive = drive_by_name.get(name)
+        size = local["size"] if local else drive["size"]
+        is_dir = local["is_dir"] if local else drive["is_dir"]
+        gb = size / (1024 ** 3)
+        tag = "PASTA" if is_dir else "arquivo"
+        flags = []
+        if local:
+            flags.append("no celular" if name in remote_names else "só no PC")
+        else:
+            flags.append("só no Drive - use --download")
+        print(f"  [{tag:7}] {name:55} {gb:6.2f} GB   [{', '.join(flags)}]")
     if not android_ok:
         print("\n(celular desconectado - status \"no celular\" não pôde ser conferido)")
 
@@ -363,6 +384,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     heavy.add_argument("system", help="codigo do sistema pesado (ex: PS2)")
     heavy.add_argument("--send", metavar="NOME", help="manda esse item (arquivo ou pasta) pro celular")
+    heavy.add_argument("--download", metavar="NOME", help="baixa esse item do Google Drive pro PC (via rclone)")
     heavy.add_argument("--overwrite", action="store_true", help="sobrescreve se ja existir no celular")
 
     sanitize = sub.add_parser("sanitize-names", help="troca & : * por caracteres aceitos pelo RetroArch")

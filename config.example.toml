@@ -172,6 +172,18 @@ exts = ["iso", "cso"]
 nome = "Nintendo - 3DS"
 exts = ["3ds", "cia"]
 
+# rclone (`rclone config`, remote "drive") - permite ver o que já
+# existe no Google Drive (nuvem) sem precisar do celular conectado via
+# adb. drive_roms_root é o caminho DENTRO do Drive (não local). No PC,
+# baixar direto em roms_root/<CODIGO>/ arriscaria conflito com o
+# Google Drive Desktop tentando sincronizar o mesmo arquivo ao mesmo
+# tempo - por isso baixa primeiro em staging_dir e só depois move (um
+# rename local, instantâneo) pro lugar certo.
+[rclone]
+remote          = "drive"
+drive_roms_root = "Jogos/ROMs"
+staging_dir     = "~/Downloads"
+
 # Núcleo padrão por sistema no Android, usado só pelo comando
 # `retrosync rebuild-playlist` (opcional, playlists usam DETECT
 # por item e o default_core_path/name daqui como núcleo sugerido).

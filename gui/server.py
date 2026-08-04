@@ -251,6 +251,32 @@ def run_heavy_send_job(job_id: str, code: str, name: str, overwrite: bool) -> No
         emit({"type": "job_done"})
 
 
+def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
+    """Baixa UM item do Google Drive pro PC via rclone - pode demorar
+    (arquivos de GB), roda em thread separada. Reaproveita a mesma
+    fila/stream SSE genérica por job_id."""
+    q = _jobs[job_id]
+
+    def emit(event: dict) -> None:
+        q.put(event)
+
+    try:
+        cfg = load_config()
+        heavy = heavy_mod.load_heavy_systems(cfg)
+        if code not in heavy:
+            emit({"type": "error", "message": f"sistema pesado desconhecido: {code}"})
+            return
+        roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+
+        emit({"type": "progress", "code": code, "label": name, "status": "baixando", "i": 0, "total": 1})
+        ok, msg = heavy_mod.download_from_drive(code, name, roms_root, cfg)
+        emit({"type": "system_done", "code": code, "result": {"ok": ok, "message": msg}})
+    except Exception as e:
+        emit({"type": "error", "message": str(e)})
+    finally:
+        emit({"type": "job_done"})
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # silencioso - o terminal já mostra o suficiente sem isso
@@ -388,7 +414,9 @@ class Handler(BaseHTTPRequestHandler):
             if not sysinfo:
                 return self._json({"error": "sistema pesado desconhecido"}, 404)
             roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
-            items = heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))
+            local_items = heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))
+            local_by_name = {i["name"]: i for i in local_items}
+            drive_by_name = {i["name"]: i for i in heavy_mod.list_drive_items(code, cfg)}
 
             android_ok = False
             remote_names = set()
@@ -399,7 +427,16 @@ class Handler(BaseHTTPRequestHandler):
             except adb_mod.AdbError:
                 pass
 
-            out = [{**item, "status": "no_celular" if item["name"] in remote_names else "so_pc"} for item in items]
+            out = []
+            for name in sorted(set(local_by_name) | set(drive_by_name)):
+                local = local_by_name.get(name)
+                drive = drive_by_name.get(name)
+                base = local or drive
+                out.append({
+                    "name": name, "size": base["size"], "is_dir": base["is_dir"],
+                    "in_pc": local is not None, "in_drive": drive is not None,
+                    "status": "no_celular" if (local and name in remote_names) else "so_pc",
+                })
             return self._json({"items": out, "android_ok": android_ok})
 
         if parts == ["api", "fetch", "stream"]:
@@ -662,6 +699,21 @@ class Handler(BaseHTTPRequestHandler):
                 _jobs[job_id] = q
 
             t = threading.Thread(target=run_heavy_send_job, args=(job_id, code, name, overwrite), daemon=True)
+            t.start()
+            return self._json({"job": job_id})
+
+        if parts == ["api", "heavy", "download"]:
+            body = self._read_json_body()
+            code, name = body.get("code"), body.get("name")
+            if not code or not name:
+                return self._json({"error": "code e name obrigatorios"}, 400)
+
+            job_id = f"heavydl-{code}-{threading.get_ident()}-{id(object())}"
+            q: "queue.Queue" = queue.Queue()
+            with _jobs_lock:
+                _jobs[job_id] = q
+
+            t = threading.Thread(target=run_heavy_download_job, args=(job_id, code, name), daemon=True)
             t.start()
             return self._json({"job": job_id})
 

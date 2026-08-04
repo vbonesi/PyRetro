@@ -498,10 +498,25 @@ function renderHeavyList() {
     const row = document.createElement("div");
     row.className = "heavy-item";
     row.dataset.name = item.name;
+
+    if (!item.in_pc) {
+      // só existe no Drive - nada local pra renomear/enviar/apagar ainda
+      row.innerHTML = `
+        <div class="heavy-item-name" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
+        <div class="heavy-item-size">${formatGB(item.size)}</div>
+        <div class="heavy-item-status">☁ só no Drive</div>
+        <button class="tiny" data-action="download">⬇ Baixar do Drive</button>
+      `;
+      row.querySelector('[data-action="download"]').addEventListener("click", () => downloadHeavyItem(currentHeavy, item.name));
+      list.appendChild(row);
+      continue;
+    }
+
+    const driveBadge = item.in_drive ? " · ☁ no Drive" : "";
     row.innerHTML = `
       <div class="heavy-item-name" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
       <div class="heavy-item-size">${formatGB(item.size)}</div>
-      <div class="heavy-item-status ${onCelular ? "ok" : ""}">${onCelular ? "no celular" : "só no PC"}</div>
+      <div class="heavy-item-status ${onCelular ? "ok" : ""}">${onCelular ? "no celular" : "só no PC"}${driveBadge}</div>
       <button class="tiny secondary" data-action="rename">✎ Renomear</button>
       <button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>
       <button class="tiny danger" data-action="delete">🗑 Apagar</button>
@@ -533,6 +548,33 @@ function sendHeavyItem(code, name, overwrite) {
           btn.textContent = data.status === "conectando" ? "Conectando..." : "Enviando...";
         } else if (data.type === "system_done") {
           if (!data.result.ok) alert(`falha ao enviar: ${data.result.message}`);
+        } else if (data.type === "error") {
+          alert(`erro: ${data.message}`);
+        } else if (data.type === "job_done") {
+          evtSource.close();
+          if (currentHeavy === code) selectHeavySystem(code); // recarrega status
+        }
+      };
+    });
+}
+
+function downloadHeavyItem(code, name) {
+  const row = document.querySelector(`.heavy-item[data-name="${CSS.escape(name)}"]`);
+  const btn = row && row.querySelector('[data-action="download"]');
+  if (btn) { btn.disabled = true; btn.textContent = "Baixando..."; }
+
+  fetch("/api/heavy/download", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, name }),
+  })
+    .then(r => r.json())
+    .then(({ job }) => {
+      const evtSource = new EventSource(`/api/fetch/stream?job=${job}`);
+      evtSource.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "system_done") {
+          if (!data.result.ok) alert(`falha ao baixar: ${data.result.message}`);
         } else if (data.type === "error") {
           alert(`erro: ${data.message}`);
         } else if (data.type === "job_done") {

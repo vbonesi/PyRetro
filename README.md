@@ -36,8 +36,14 @@ não são só estilo:
 
 - Python 3.11+ (usa `tomllib` da stdlib, sem dependência externa)
 - `adb` no PATH, com o celular autorizado (`adb devices` deve listar o
-  aparelho como `device`, não `unauthorized`/`offline`)
+  aparelho como `device`, não `unauthorized`/`offline`) - só necessário
+  pros comandos que falam com o celular (`sync`, `heavy-roms --send`)
 - `curl` no PATH (usado pro download de capas)
+- `rclone` no PATH, com um remote `drive` configurado
+  (`sudo apt install rclone` + `rclone config` - ver
+  [`docs/roadmap.md`](docs/roadmap.md)) - só necessário pra ver/baixar
+  ROMs pesadas direto do Google Drive sem precisar do celular
+  conectado
 
 Sem `pip install` nenhum - tudo é stdlib de propósito, pra rodar em qualquer
 máquina sem setup de ambiente virtual.
@@ -180,19 +186,24 @@ pra corrigir) nem em `.chd` (arquivo único).
 ### `heavy-roms` — lista/envia ROMs de consoles pesados
 
 ```bash
-python3 retrosync.py heavy-roms PS2                              # lista
-python3 retrosync.py heavy-roms PS2 --send "Gradius V.iso"       # envia um item
+python3 retrosync.py heavy-roms PS2                              # lista (PC + Drive)
+python3 retrosync.py heavy-roms PS2 --send "Gradius V.iso"       # envia pro celular
+python3 retrosync.py heavy-roms PS2 --download "Baroque.iso"     # baixa do Drive pro PC
 ```
 
 Sistemas configurados em `config.toml` `[heavy_systems]` (PS, SDC, PS2,
 GameCube, Wii, PSP, 3DS - Switch fica de fora de propósito, gestão feita
 por fora do PyRetro). Diferente dos sistemas em `[systems]`
 (sincronizados sozinhos via Google Drive), esses ficam só no PC até
-serem enviados sob demanda - `retrosync heavy-roms <CODIGO>` mostra o
-que existe em `roms_root/<CODIGO>/` e se já está no celular ou não. Um
+serem enviados/baixados sob demanda - `retrosync heavy-roms <CODIGO>`
+mostra o que existe em `roms_root/<CODIGO>/`, no Google Drive (via
+`rclone`, config `[rclone]`) e no celular (via adb, se conectado). Um
 "item" é um arquivo ou uma pasta inteira; PS/SDC somam o tamanho dos
 `.bin` sidecars automaticamente. Nunca sobrescreve no celular sem
-`--overwrite`.
+`--overwrite`. Download do Drive vai primeiro pra `staging_dir`
+(`~/Downloads` por padrão) e só depois é movido pra
+`roms_root/<CODIGO>/` - nunca escreve direto na pasta sincronizada pelo
+Google Drive Desktop.
 
 ### `organize` — lista ROMs esperando organização
 
@@ -243,9 +254,15 @@ O que tem até agora:
 - Filtros "só marcadas como erradas" / "só sem correspondência" / "só
   duplicadas", combináveis entre si (união, não interseção)
 - **📦 ROMs Pesadas**: modal separado (botão no topo) pra PS, SDC, PS2,
-  GameCube, Wii, PSP e 3DS - lista o que existe no PC, mostra se já
-  está no celular, e manda um item de cada vez sob demanda (com
-  progresso via SSE). Renomear e apagar também disponíveis aqui, com a
+  GameCube, Wii, PSP e 3DS - lista o que existe no PC, no celular
+  (via adb) e no **Google Drive** (via `rclone`, sem precisar de
+  celular conectado), e manda/baixa um item de cada vez sob demanda
+  (com progresso via SSE). Itens que só existem no Drive mostram botão
+  "⬇ Baixar do Drive" - no PC, o download vai primeiro pra uma pasta
+  de staging (`~/Downloads` por padrão) e só depois é movido pra
+  `roms_root/<CODIGO>/`, nunca direto na pasta sincronizada pelo Google
+  Drive Desktop (evita conflito entre os dois mexendo no mesmo arquivo
+  ao mesmo tempo). Renomear e apagar também disponíveis aqui, com a
   mesma cascata de ROM/save/state (sem capa, que esses sistemas não
   têm).
 - **🗂 Organizar**: modal separado - lista o que está esperando em

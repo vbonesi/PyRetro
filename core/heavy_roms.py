@@ -15,8 +15,21 @@ sozinho na pasta - "Front Mission 3.cue" tem "Front Mission 3.bin" do
 lado, e formatos multi-track como .gdi têm vários ".bin" tipo
 "Sonic Adventure (Track 1).bin", "(Track 2).bin" etc). Mandar só o .cue/
 .gdi sem os .bin quebra o jogo no celular - list_local soma o tamanho
-dos sidecars no item, e send_to_phone manda todos juntos."""
+dos sidecars no item, e send_to_phone manda todos juntos.
+
+Visão do Google Drive (via `rclone`, achado em 04/08 - sugestão do
+usuário): o Drive tem MUITO mais jogos do que o que já foi baixado pro
+PC (ex: dezenas de PS2 na nuvem contra só 3 localmente) - list_drive_
+names mostra o catálogo completo sem precisar do celular conectado via
+adb, e download_from_drive baixa sob demanda. No PC, o download NUNCA
+vai direto pra roms_root/<CODE>/ (que é a própria pasta sincronizada
+pelo Google Drive Desktop - escrever ali enquanto o rclone baixa
+arriscaria os dois mexerem no mesmo arquivo ao mesmo tempo) - baixa
+primeiro em staging_dir (config [rclone], padrão ~/Downloads) e só
+depois move pro lugar certo, um rename local instantâneo."""
+import json
 import re
+import subprocess
 from pathlib import Path
 
 from core import adb as adb_mod
@@ -131,3 +144,76 @@ def send_to_phone(code: str, name: str, roms_root: Path, jogos_root: str, serial
 
     plural = "s" if len(to_send) != 1 else ""
     return True, f"enviado ({len(to_send)} arquivo{plural})"
+
+
+def _rclone_cfg(cfg: dict) -> dict:
+    rc = cfg.get("rclone", {})
+    return {
+        "remote": rc.get("remote", "drive"),
+        "drive_roms_root": rc.get("drive_roms_root", "Jogos/ROMs"),
+        "staging_dir": rc.get("staging_dir", "~/Downloads"),
+    }
+
+
+def list_drive_items(code: str, cfg: dict) -> list:
+    """[{name, size, is_dir}] presentes no Google Drive pra esse sistema
+    via `rclone lsjson` - não depende de adb nem do celular conectado,
+    só do rclone configurado (`rclone config`, remote definido em
+    config.toml [rclone]). Retorna lista vazia (não levanta erro) se o
+    rclone não estiver instalado/configurado, ou a pasta não existir no
+    Drive ainda.
+
+    Achado em 04/08: pastas com muitos itens (PS2 com 97) podem levar
+    até ~1min pra listar via API do Drive - um timeout de 30s cortava
+    isso no meio e devolvia lista vazia silenciosamente (parecia "nada
+    no Drive" quando na verdade só estava demorando). Timeout mais
+    generoso (90s)."""
+    rc = _rclone_cfg(cfg)
+    remote_path = f"{rc['remote']}:{rc['drive_roms_root']}/{code}"
+    try:
+        r = subprocess.run(
+            ["rclone", "lsjson", remote_path],
+            capture_output=True, text=True, timeout=90,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+    if r.returncode != 0:
+        return []
+    try:
+        entries = json.loads(r.stdout)
+    except ValueError:
+        return []
+    return [
+        {"name": e["Name"], "size": max(e.get("Size", 0), 0), "is_dir": bool(e.get("IsDir"))}
+        for e in entries
+    ]
+
+
+def download_from_drive(code: str, name: str, roms_root: Path, cfg: dict) -> tuple[bool, str]:
+    """Baixa um item do Drive pro PC via rclone. Nunca escreve direto em
+    roms_root/<CODE>/ (pasta sincronizada pelo Google Drive Desktop) -
+    baixa primeiro em staging_dir e só move pro lugar certo depois que
+    o download termina por completo (ver docstring do módulo)."""
+    rc = _rclone_cfg(cfg)
+    remote_path = f"{rc['remote']}:{rc['drive_roms_root']}/{code}/{name}"
+    staging = Path(rc["staging_dir"]).expanduser()
+    staging.mkdir(parents=True, exist_ok=True)
+
+    dest_final = roms_root / code / name
+    if dest_final.exists():
+        return False, "já existe no PC"
+
+    r = subprocess.run(
+        ["rclone", "copy", remote_path, str(staging)],
+        capture_output=True, text=True, timeout=3600,
+    )
+    if r.returncode != 0:
+        return False, f"rclone falhou: {r.stderr.strip()[:200]}"
+
+    staged_path = staging / name
+    if not staged_path.exists():
+        return False, "rclone terminou mas o arquivo não apareceu no staging"
+
+    dest_final.parent.mkdir(parents=True, exist_ok=True)
+    staged_path.rename(dest_final)
+    return True, "baixado"

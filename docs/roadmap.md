@@ -19,24 +19,18 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 04/08/2026.
 | Galeria em grid vertical | ✅ Pronto |
 | ScreenScraper (3ª fonte de capa) | 🔒 Bloqueado - credencial de desenvolvedor pedida, aguardando resposta |
 | Editor de memory card PS1/PS2 (`ps2vmc-tool`) | 🔍 Pesquisado + dificuldade validada (baixa) - implementação não iniciada |
-| ROMs pesadas via `rclone` (sem adb) | 🚧 Em implementação |
+| ROMs pesadas via `rclone` (ver Drive + baixar sem adb) | ✅ Pronto, testado (listagem + download reais) |
 | PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)) - não testado no aparelho |
 | `sync.py` pra saves/states/runtime-logs | ❌ Cancelado (sempre vai usar Google Drive pra isso) |
 
 ## Próximos passos (em ordem)
 
-1. **`rclone`** - implementação em andamento. Usuário roda
-   `sudo apt install rclone` + `rclone config` (interativo, precisa da
-   conta Google dele - não é algo que dá pra fazer por ele). Depois:
-   testar `rclone lsjson` contra a pasta real do Drive, e desenhar a
-   integração (provavelmente uma função em `core/heavy_roms.py` que
-   complementa `list_remote_names`).
-2. Testar [`docs/termux_setup.md`](termux_setup.md) contra o aparelho
+1. Testar [`docs/termux_setup.md`](termux_setup.md) contra o aparelho
    real.
-3. Implementar o editor de memory card - dificuldade já validada como
+2. Implementar o editor de memory card - dificuldade já validada como
    baixa, falta desenhar a tela na GUI (envelopar `ps2vmc-tool` via
    subprocess, mesmo padrão de `curl`/`convert`).
-4. ScreenScraper - aguardando resposta do fórum, nada a fazer até lá.
+3. ScreenScraper - aguardando resposta do fórum, nada a fazer até lá.
 
 ## Arquitetura de dois modos
 

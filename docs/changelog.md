@@ -201,3 +201,37 @@ plano.
 - **Passo a passo de instalação no Termux escrito**
   ([`docs/termux_setup.md`](termux_setup.md)) - ainda não testado
   contra o aparelho real.
+- **Apagar com cascata** (ROM + capa + save/state numa ação só):
+  `delete_with_cascade` em `core/rom_rename.py`, botão "🗑 Apagar" na
+  galeria de capas e no modal de ROMs Pesadas, sempre com confirmação
+  (ação irreversível). De propósito NÃO agrupa discos múltiplos como o
+  rename faz - apagar "Jogo (Disc 2)" nunca apaga o Disc 1/3 do mesmo
+  jogo (rename agrupar faz sentido pra manter nomes consistentes,
+  apagar agrupar seria perigoso demais). Testado com dados descartáveis
+  incluindo o caso `.cue`+`.bin` e o caso multi-disco (confirmado que
+  só o disco alvo some).
+- **`rclone` implementado e testado com dados reais**: remote
+  configurado pelo usuário como `drive` (não `gdrive` como eu tinha
+  sugerido - corrigido no código pra usar o nome real). `core/heavy_
+  roms.py` ganhou `list_drive_items` (lista o catálogo completo do
+  Google Drive via `rclone lsjson`, sem depender de adb/celular
+  conectado) e `download_from_drive`. Achado real no primeiro teste:
+  o PS2 tem **97 jogos no Drive contra só 3 baixados localmente** -
+  a listagem une os dois lados numa visão só (local/Drive/celular).
+  Restrição importante trazida pelo usuário: no PC, o download NUNCA
+  vai direto pra `roms_root/<CODIGO>/` (que é a própria pasta
+  sincronizada pelo Google Drive Desktop - escrever ali enquanto o
+  rclone baixa arriscaria os dois mexerem no mesmo arquivo ao mesmo
+  tempo) - baixa primeiro em `staging_dir` (`~/Downloads` por padrão,
+  configurável em `[rclone]`) e só move pro lugar certo depois que o
+  download termina por completo. Testado com download real de 439MB
+  ("Dynasty Warriors 2.chd") - chegou com o tamanho exato, moveu certo,
+  nada sobrou no staging. Bug real achado no meio do caminho: `rclone
+  lsjson` pro PS2 (97 itens) levou até 54s pra responder via API do
+  Drive, estourando o timeout de 30s que eu tinha posto - o código
+  tratava timeout como "vazio" silenciosamente, fazendo parecer que não
+  tinha nada no Drive quando só estava demorando. Corrigido (timeout
+  90s). GUI: modal de ROMs Pesadas agora mostra itens que existem só no
+  Drive (com botão "⬇ Baixar do Drive") e um selo "☁ no Drive" nos que
+  já são locais - testado ponta a ponta incluindo o fluxo de erro
+  (clique → job → SSE → mensagem de erro exibida corretamente).
