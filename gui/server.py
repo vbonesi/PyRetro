@@ -25,18 +25,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
+from core import adb as adb_mod
 from core import covers as covers_mod
+from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
+from core import organize as organize_mod
+from core import rom_rename as rom_rename_mod
+from core import sanitize as sanitize_mod
 
 CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
 STATIC_DIR = Path(__file__).parent / "static"
 
-# PS1 e Dreamcast saíram da biblioteca de capas (os standalones DuckStation/
-# Flycast baixam capa sozinhos agora - ver docs/capas_sem_correspondencia.md).
-# Continuam no config.toml normalmente pra quando ROMs/Saves existirem na
-# GUI - essa exclusão é só da TELA DE CAPAS, não do projeto como um todo.
-COVERS_EXCLUDED = {"SDC", "PS"}
+COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
 
 _jobs: dict[str, "queue.Queue"] = {}
 _jobs_lock = threading.Lock()
@@ -88,9 +89,14 @@ def download_selected_cover(source: str, name: str, repo: str, filename: str, de
     e grava em dest (sempre .png - RetroArch só exibe thumbnail nesse
     formato). Reaproveita o fallback via API do GitHub que já existe
     pro libretro-thumbnails (cache do raw.githubusercontent.com às
-    vezes serve resposta velha/truncada). Se a fonte for LaunchBox e o
-    arquivo original for .jpg, converte antes de gravar em dest - sem
-    isso o arquivo ficava com bytes JPEG mas extensão .png, quebrado."""
+    vezes serve resposta velha/truncada).
+
+    Sempre converte via `convert`, mesmo quando a extensão declarada já
+    é ".png" - achado em 02/08 que confiar na extensão (do nome do
+    arquivo do LaunchBox, ou assumir que libretro-thumbnails sempre
+    serve PNG de verdade) deixou capas reais da coleção com bytes JPEG
+    dentro de um arquivo .png. `convert` detecta o formato pelo
+    conteúdo, não pelo nome - idempotente pra um PNG de verdade."""
     src_ext = ".png"
     if source == "libretro":
         url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/{urllib.parse.quote(name + '.png')}"
@@ -115,16 +121,13 @@ def download_selected_cover(source: str, name: str, repo: str, filename: str, de
             tmp.write_bytes(data)
             ok = True
 
-    if ok and src_ext.lower() != ".png":
-        conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
+    if not ok:
         tmp.unlink(missing_ok=True)
-        return conv.returncode == 0 and dest.exists() and dest.stat().st_size > 1000
+        return False
 
-    if ok:
-        tmp.replace(dest)
-        return True
+    conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
     tmp.unlink(missing_ok=True)
-    return False
+    return conv.returncode == 0 and dest.exists() and dest.stat().st_size > 1000
 
 
 def write_settings_paths(updates: dict) -> None:
@@ -202,6 +205,46 @@ def run_fetch_job(job_id: str, code: str, apply: bool, use_fallback: bool) -> No
                 emit({"type": "system_done", "code": sys_code, "result": {"found": found}})
 
             save_registry(registry)
+    except Exception as e:
+        emit({"type": "error", "message": str(e)})
+    finally:
+        emit({"type": "job_done"})
+
+
+def run_heavy_send_job(job_id: str, code: str, name: str, overwrite: bool) -> None:
+    """Envia UM item de console pesado pro celular via adb - pode
+    demorar (arquivos de GB), roda em thread separada. Reaproveita a
+    mesma fila/stream SSE do run_fetch_job (genérica por job_id, não
+    importa o tipo de job)."""
+    q = _jobs[job_id]
+
+    def emit(event: dict) -> None:
+        q.put(event)
+
+    try:
+        cfg = load_config()
+        heavy = heavy_mod.load_heavy_systems(cfg)
+        sysinfo = heavy.get(code)
+        if not sysinfo:
+            emit({"type": "error", "message": f"sistema pesado desconhecido: {code}"})
+            return
+
+        roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+        jogos_root = cfg["android"]["jogos_root"]
+        serial = cfg["android"].get("device_serial") or None
+
+        emit({"type": "progress", "code": code, "label": name, "status": "conectando", "i": 0, "total": 1})
+        try:
+            serial = adb_mod.ensure_connected(serial)
+        except adb_mod.AdbError as e:
+            emit({"type": "error", "message": str(e)})
+            return
+
+        emit({"type": "progress", "code": code, "label": name, "status": "enviando", "i": 0, "total": 1})
+        ok, msg = heavy_mod.send_to_phone(
+            code, name, roms_root, jogos_root, serial, sysinfo.get("exts", []), overwrite=overwrite,
+        )
+        emit({"type": "system_done", "code": code, "result": {"ok": ok, "message": msg}})
     except Exception as e:
         emit({"type": "error", "message": str(e)})
     finally:
@@ -295,7 +338,10 @@ class Handler(BaseHTTPRequestHandler):
             for f in files:
                 label = Path(f).stem
                 status = reg_sys.get(label, {}).get("status")
-                out.append({"file": f, "label": label, "flagged": status == "flagged_wrong", "status": status})
+                out.append({
+                "file": f, "label": label, "status": status,
+                "flagged": status == "flagged_wrong", "duplicated": status == "duplicate",
+            })
             return self._json(out)
 
         if parts[:1] == ["images"] and len(parts) >= 3:
@@ -320,6 +366,41 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             results = search_cover_candidates(code, q, cfg["systems"])
             return self._json(results)
+
+        if parts == ["api", "organize", "pending"]:
+            cfg = load_config()
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            staging = cfg["pc"].get("organizar_dir", "0-Organizar")
+            ext_index = organize_mod.build_ext_index(cfg["systems"], cfg.get("heavy_systems", {}))
+            pending = organize_mod.list_pending(roms_root, staging, ext_index)
+            return self._json({"staging_dir": staging, "items": pending})
+
+        if parts == ["api", "heavy", "systems"]:
+            cfg = load_config()
+            heavy = heavy_mod.load_heavy_systems(cfg)
+            return self._json([{"code": c, "nome": info.get("nome", c)} for c, info in heavy.items()])
+
+        if parts[:3] == ["api", "heavy", "roms"] and len(parts) == 4:
+            code = parts[3]
+            cfg = load_config()
+            heavy = heavy_mod.load_heavy_systems(cfg)
+            sysinfo = heavy.get(code)
+            if not sysinfo:
+                return self._json({"error": "sistema pesado desconhecido"}, 404)
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            items = heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))
+
+            android_ok = False
+            remote_names = set()
+            try:
+                serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+                remote_names = heavy_mod.list_remote_names(code, cfg["android"]["jogos_root"], serial)
+                android_ok = True
+            except adb_mod.AdbError:
+                pass
+
+            out = [{**item, "status": "no_celular" if item["name"] in remote_names else "so_pc"} for item in items]
+            return self._json({"items": out, "android_ok": android_ok})
 
         if parts == ["api", "fetch", "stream"]:
             job_id = query.get("job", [""])[0]
@@ -379,6 +460,104 @@ class Handler(BaseHTTPRequestHandler):
             save_registry(registry)
             return self._json({"ok": True})
 
+        if parts == ["api", "cover", "duplicate"]:
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            registry = load_registry()
+            registry.setdefault(code, {})[label] = {"status": "duplicate"}
+            save_registry(registry)
+            return self._json({"ok": True})
+
+        if parts == ["api", "cover", "unduplicate"]:
+            # mesma lógica do unflag - limpa o registro por completo, não
+            # decide nada sozinho, só volta ao estado "não processado".
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            registry = load_registry()
+            registry.get(code, {}).pop(label, None)
+            save_registry(registry)
+            return self._json({"ok": True})
+
+        if parts == ["api", "cover", "rename"]:
+            # Renomeia a capa E tenta a cascata (ROM + save/state) na
+            # hora via core.rom_rename. Se a ROM não for encontrada (ou
+            # tiver mais de uma batendo, ou já existir uma com o nome
+            # novo), a capa ainda é renomeada mas o registro guarda
+            # "renamed_pending" - mesmo mecanismo de antes, agora só
+            # como fallback pro que a cascata não resolveu sozinha.
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            new_label_raw = (body.get("new_label") or "").strip()
+            capas_dir, info = self._cover_path(code, label)
+            if not info:
+                return self._json({"error": "sistema desconhecido"}, 404)
+            if not new_label_raw:
+                return self._json({"error": "nome novo vazio"}, 400)
+            new_label = sanitize_mod.sanitize_name(new_label_raw)
+            if new_label == label:
+                return self._json({"error": "nome novo é igual ao atual"}, 400)
+
+            src = None
+            for ext in (".png", ".jpg", ".jpeg"):
+                candidate = capas_dir / (label + ext)
+                if candidate.exists():
+                    src = candidate
+                    break
+            if not src:
+                return self._json({"error": "capa atual não encontrada"}, 404)
+
+            dest = capas_dir / (new_label + src.suffix)
+            if dest.exists():
+                return self._json({"error": f"já existe uma capa chamada '{new_label}'"}, 409)
+
+            src.rename(dest)
+
+            cfg = load_config()
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            saves_dir = Path(cfg["pc"]["saves_root"]).expanduser()
+            states_dir = Path(cfg["pc"]["states_root"]).expanduser()
+            cascade = rom_rename_mod.rename_with_cascade(
+                roms_root / code, saves_dir, states_dir, label, new_label, info.get("exts", []),
+            )
+
+            registry = load_registry()
+            reg_sys = registry.setdefault(code, {})
+            reg_sys.pop(label, None)
+            if cascade["rom"]["status"] != "renomeado":
+                reg_sys[new_label] = {
+                    "status": "renamed_pending", "old_label": label,
+                    "rom_status": cascade["rom"]["status"],
+                }
+            save_registry(registry)
+            return self._json({
+                "ok": True, "new_label": new_label, "file": new_label + src.suffix,
+                "cascade": cascade,
+            })
+
+        if parts == ["api", "cover", "delete"]:
+            # Apaga ROM + capa + save/state - usado pelo botão "🗑 Apagar"
+            # de qualquer capa, e pra processar as marcadas como
+            # duplicada. Sempre tenta apagar tudo, mesmo que algum lado
+            # já não exista (limpa o que sobrou).
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            capas_dir, info = self._cover_path(code, label)
+            if not info:
+                return self._json({"error": "sistema desconhecido"}, 404)
+
+            cfg = load_config()
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            saves_dir = Path(cfg["pc"]["saves_root"]).expanduser()
+            states_dir = Path(cfg["pc"]["states_root"]).expanduser()
+            cascade = rom_rename_mod.delete_with_cascade(
+                roms_root / code, capas_dir, saves_dir, states_dir, label, info.get("exts", []),
+            )
+
+            registry = load_registry()
+            registry.get(code, {}).pop(label, None)
+            save_registry(registry)
+            return self._json({"ok": True, "cascade": cascade})
+
         if parts == ["api", "cover", "upload"]:
             body = self._read_json_body()
             code, label = body.get("code"), body.get("label")
@@ -390,7 +569,6 @@ class Handler(BaseHTTPRequestHandler):
             ext = Path(filename).suffix.lower()
             if ext not in (".png", ".jpg", ".jpeg"):
                 return self._json({"error": f"extensão não suportada: {ext}"}, 400)
-            ext = ".jpg" if ext == ".jpeg" else ext
             try:
                 data = base64.b64decode(data_b64)
             except Exception as e:
@@ -399,16 +577,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "arquivo vazio ou pequeno demais"}, 400)
 
             dest = capas_dir / (label + ".png")
-            if ext == ".png":
-                dest.write_bytes(data)
-            else:
-                # RetroArch só exibe thumbnail em .png - converte antes de gravar
-                tmp = capas_dir / (label + ext + ".tmp")
-                tmp.write_bytes(data)
-                conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
-                tmp.unlink(missing_ok=True)
-                if conv.returncode != 0 or not dest.exists() or dest.stat().st_size < 1000:
-                    return self._json({"error": f"falha ao converter pra png: {conv.stderr.strip()[:200]}"}, 500)
+            # Nunca confia na extensão que o navegador mandou pra decidir se
+            # converte - achado em 02/08: várias capas da coleção real
+            # tinham bytes JPEG de verdade salvos com nome .png (imagem
+            # baixada do Google com extensão errada, por ex.), porque o
+            # código antigo só convertia quando ext != ".png". Sempre passa
+            # pelo `convert` do ImageMagick, que detecta o formato real pelo
+            # conteúdo do arquivo, não pelo nome - idempotente e barato pra
+            # um PNG de verdade.
+            tmp = capas_dir / (label + ext + ".tmp")
+            tmp.write_bytes(data)
+            conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
+            tmp.unlink(missing_ok=True)
+            if conv.returncode != 0 or not dest.exists() or dest.stat().st_size < 1000:
+                return self._json({"error": f"falha ao converter pra png: {conv.stderr.strip()[:200]}"}, 500)
             old_jpg = capas_dir / (label + ".jpg")
             if old_jpg.exists():
                 old_jpg.unlink()
@@ -451,6 +633,89 @@ class Handler(BaseHTTPRequestHandler):
             t = threading.Thread(target=run_fetch_job, args=(job_id, code, apply, fallback), daemon=True)
             t.start()
             return self._json({"job": job_id})
+
+        if parts == ["api", "organize", "move"]:
+            body = self._read_json_body()
+            name, code = body.get("name"), body.get("code")
+            if not name or not code:
+                return self._json({"error": "name e code obrigatorios"}, 400)
+            cfg = load_config()
+            if code not in cfg["systems"] and code not in cfg.get("heavy_systems", {}):
+                return self._json({"error": "sistema desconhecido"}, 404)
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            staging = cfg["pc"].get("organizar_dir", "0-Organizar")
+            ok, msg = organize_mod.move_to_system(roms_root, staging, name, code)
+            if not ok:
+                return self._json({"error": msg}, 409)
+            return self._json({"ok": True, "message": msg})
+
+        if parts == ["api", "heavy", "send"]:
+            body = self._read_json_body()
+            code, name = body.get("code"), body.get("name")
+            overwrite = bool(body.get("overwrite"))
+            if not code or not name:
+                return self._json({"error": "code e name obrigatorios"}, 400)
+
+            job_id = f"heavy-{code}-{threading.get_ident()}-{id(object())}"
+            q: "queue.Queue" = queue.Queue()
+            with _jobs_lock:
+                _jobs[job_id] = q
+
+            t = threading.Thread(target=run_heavy_send_job, args=(job_id, code, name, overwrite), daemon=True)
+            t.start()
+            return self._json({"job": job_id})
+
+        if parts == ["api", "heavy", "rename"]:
+            body = self._read_json_body()
+            code = body.get("code")
+            old_label = body.get("old_label")
+            new_label_raw = (body.get("new_label") or "").strip()
+            cfg = load_config()
+            heavy = heavy_mod.load_heavy_systems(cfg)
+            sysinfo = heavy.get(code)
+            if not sysinfo:
+                return self._json({"error": "sistema pesado desconhecido"}, 404)
+            if not old_label or not new_label_raw:
+                return self._json({"error": "nome novo/antigo vazio"}, 400)
+            new_label = sanitize_mod.sanitize_name(new_label_raw)
+            if new_label == old_label:
+                return self._json({"error": "nome novo é igual ao atual"}, 400)
+
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            saves_dir = Path(cfg["pc"]["saves_root"]).expanduser()
+            states_dir = Path(cfg["pc"]["states_root"]).expanduser()
+            cascade = rom_rename_mod.rename_with_cascade(
+                roms_root / code, saves_dir, states_dir, old_label, new_label, sysinfo.get("exts", []),
+            )
+            rom_status = cascade["rom"]["status"]
+            if rom_status != "renomeado":
+                msg = {
+                    "nao_encontrado": "ROM não encontrada",
+                    "conflito": "já existe um item com esse nome",
+                    "ambiguo": "mais de um arquivo bate com esse nome - resolva manualmente",
+                }.get(rom_status, "falhou")
+                status_code = 409 if rom_status == "conflito" else 404
+                return self._json({"error": msg}, status_code)
+            return self._json({"ok": True, "new_label": new_label, "cascade": cascade})
+
+        if parts == ["api", "heavy", "delete"]:
+            body = self._read_json_body()
+            code, label = body.get("code"), body.get("label")
+            cfg = load_config()
+            heavy = heavy_mod.load_heavy_systems(cfg)
+            sysinfo = heavy.get(code)
+            if not sysinfo:
+                return self._json({"error": "sistema pesado desconhecido"}, 404)
+            if not label:
+                return self._json({"error": "label vazio"}, 400)
+
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            saves_dir = Path(cfg["pc"]["saves_root"]).expanduser()
+            states_dir = Path(cfg["pc"]["states_root"]).expanduser()
+            cascade = rom_rename_mod.delete_with_cascade(
+                roms_root / code, None, saves_dir, states_dir, label, sysinfo.get("exts", []),
+            )
+            return self._json({"ok": True, "cascade": cascade})
 
         self.send_response(404)
         self.end_headers()

@@ -181,11 +181,14 @@ def find_cover(code: str, label: str, index: dict) -> str | None:
 
 def download_cover(filename: str, dest: Path) -> bool:
     """dest é sempre o caminho final em .png - RetroArch só exibe
-    thumbnail nesse formato (confirmado em 01/08/2026), então mesmo
-    quando o arquivo de origem no LaunchBox é .jpg, baixa num
-    temporário com a extensão real e converte pra .png antes de gravar
-    em dest (usa o `convert` do ImageMagick, mesma dependência externa
-    já aceita no projeto - curl)."""
+    thumbnail nesse formato (confirmado em 01/08/2026). Baixa num
+    temporário e SEMPRE passa pelo `convert` do ImageMagick antes de
+    gravar em dest, mesmo quando a extensão declarada no filename do
+    LaunchBox já é ".png" - achado em 02/08: confiar nessa extensão
+    deixou capas reais da coleção com bytes JPEG dentro de um arquivo
+    .png (o metadado do LaunchBox não é garantia do conteúdo real).
+    `convert` detecta o formato pelo conteúdo, não pelo nome -
+    idempotente e barato pra um PNG de verdade."""
     src_ext = Path(filename).suffix or ".jpg"
     tmp = dest.with_suffix(src_ext + ".tmp")
     r = subprocess.run(
@@ -195,10 +198,6 @@ def download_cover(filename: str, dest: Path) -> bool:
     if not (r.stdout.strip() == "200" and tmp.exists() and tmp.stat().st_size > 1000):
         tmp.unlink(missing_ok=True)
         return False
-
-    if src_ext.lower() == ".png":
-        tmp.replace(dest)
-        return True
 
     conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
     tmp.unlink(missing_ok=True)

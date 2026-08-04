@@ -11,7 +11,11 @@
     <header class="topbar">
       <div class="topbar-row">
         <h1>PyRetro</h1>
-        <button id="btn-settings" class="secondary" type="button">⚙ Configurações</button>
+        <div class="topbar-buttons">
+          <button id="btn-organize" class="secondary" type="button">🗂 Organizar</button>
+          <button id="btn-heavy" class="secondary" type="button">📦 ROMs Pesadas</button>
+          <button id="btn-settings" class="secondary" type="button">⚙ Configurações</button>
+        </div>
       </div>
       <nav id="system-tabs" class="system-tabs"></nav>
     </header>
@@ -36,6 +40,10 @@
       <label class="filter-toggle">
         <input type="checkbox" id="filter-nomatch">
         Só sem correspondência
+      </label>
+      <label class="filter-toggle">
+        <input type="checkbox" id="filter-duplicated">
+        ⧉ Só duplicadas
       </label>
     </div>
 
@@ -77,6 +85,27 @@
         <button id="btn-search-go" type="button">Buscar</button>
       </div>
       <div id="search-results" class="search-results"></div>
+    </div>
+  </div>
+
+  <div id="heavy-modal" class="modal hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h3>ROMs pesadas <span id="heavy-status" class="heavy-status"></span></h3>
+        <button id="btn-heavy-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <nav id="heavy-tabs" class="system-tabs"></nav>
+      <div id="heavy-list" class="heavy-list"></div>
+    </div>
+  </div>
+
+  <div id="organize-modal" class="modal hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h3>Organizar <span id="organize-status" class="heavy-status"></span></h3>
+        <button id="btn-organize-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div id="organize-list" class="heavy-list"></div>
     </div>
   </div>
 

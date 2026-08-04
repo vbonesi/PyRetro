@@ -10,6 +10,10 @@ capas_root        = "~/Drive/Jogos/Capas"
 saves_root        = "~/Drive/Jogos/Saves/saves"
 states_root       = "~/Drive/Jogos/Saves/states"
 runtime_logs_root = "~/Drive/Jogos/Saves/runtime-logs"
+# Pasta dentro de roms_root onde ROMs novas ficam esperando organização
+# (o "upload" agora é o próprio Google Drive - joga o arquivo aqui, de
+# qualquer lado, e a GUI/CLI move pra roms_root/<CODIGO>/ certo).
+organizar_dir     = "0-Organizar"
 
 [screenscraper]
 # Sua conta pessoal do screenscraper.fr - crie em https://www.screenscraper.fr
@@ -132,6 +136,41 @@ cd_system = true
 capas = "FBNeo - Arcade Games"
 repo  = "FBNeo_-_Arcade_Games"
 exts  = ["zip", "7z"]
+
+# Consoles "pesados" - ROMs grandes que NÃO ficam sempre baixadas no
+# celular (diferente de [systems] acima, que sincroniza sozinho via
+# Google Drive). Gestão sob demanda: PyRetro identifica o que existe em
+# roms_root/<CODIGO>/ e manda um item de cada vez pro celular via adb
+# quando pedido. Um "item" é um arquivo OU uma pasta inteira (útil pra
+# formatos que usam pasta por jogo). Nintendo Switch (NSW) fica de fora
+# de propósito - a gestão de ROM dele é feita por fora do PyRetro.
+[heavy_systems.PS]
+nome = "Sony - PlayStation"
+exts = ["cue", "chd", "ccd"]
+
+[heavy_systems.SDC]
+nome = "Sega - Dreamcast"
+exts = ["cue", "gdi", "chd", "cdi"]
+
+[heavy_systems.PS2]
+nome = "Sony - PlayStation 2"
+exts = ["iso", "chd"]
+
+[heavy_systems.NGC]
+nome = "Nintendo - GameCube"
+exts = ["iso", "rvz", "gcz"]
+
+[heavy_systems.WII]
+nome = "Nintendo - Wii"
+exts = ["iso", "rvz", "wbfs"]
+
+[heavy_systems.PSP]
+nome = "Sony - PSP"
+exts = ["iso", "cso"]
+
+[heavy_systems.3DS]
+nome = "Nintendo - 3DS"
+exts = ["3ds", "cia"]
 
 # Núcleo padrão por sistema no Android, usado só pelo comando
 # `retrosync rebuild-playlist` (opcional, playlists usam DETECT

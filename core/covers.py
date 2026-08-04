@@ -27,6 +27,14 @@ from pathlib import Path
 TREE_CACHE_DIR = Path("/tmp/lt_trees")
 ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10}
 
+# PS1 e Dreamcast saíram da biblioteca de capas (os standalones DuckStation/
+# Flycast baixam capa sozinhos agora - ver docs/capas_sem_correspondencia.md).
+# Continuam no config.toml normalmente pra quando ROMs/Saves existirem na
+# GUI - essa exclusão é só da tela de capas / sync de capas, não do projeto
+# como um todo. Definido aqui (não em gui/server.py) porque core/sync.py
+# também precisa dele e core não deveria importar de gui.
+COVERS_EXCLUDED = {"SDC", "PS"}
+
 _TAG_RE = re.compile(
     r"\((usa|europe|japan|world|en|fr|de|es|it|nl|pt|rev\s*\d+|beta|proto"
     r"|virtual console|sample|disc\s*\d+|disk\s*\d+|track\s*\d+)[^)]*\)",
@@ -337,14 +345,24 @@ def convert_jpg_to_png(capas_dir: Path, apply: bool = False) -> list:
     o curl).
 
     Só apaga o .jpg original depois de confirmar que o .png novo existe
-    e tem tamanho razoável - nunca perde a capa se a conversão falhar."""
+    e tem tamanho razoável - nunca perde a capa se a conversão falhar.
+
+    Se o .png já existe (achado em 01/08: acontecia quando um .jpg novo
+    chegava - upload manual, fallback do LaunchBox - depois que essa
+    função já tinha rodado uma vez), o .jpg velho é só lixo (RetroArch
+    não olha pra ele de jeito nenhum com o .png presente) - apaga direto,
+    sem converter de novo."""
     results = []
     if not capas_dir.is_dir():
         return results
     for jpg in sorted(list(capas_dir.glob("*.jpg")) + list(capas_dir.glob("*.jpeg"))):
         png = jpg.with_suffix(".png")
         if png.exists():
-            results.append({"file": jpg.name, "status": "png_ja_existe"})
+            if apply:
+                jpg.unlink()
+                results.append({"file": jpg.name, "status": "jpg_orfao_removido"})
+            else:
+                results.append({"file": jpg.name, "status": "jpg_orfao_seria_removido"})
             continue
         if not apply:
             results.append({"file": jpg.name, "status": "seria_convertido"})
@@ -356,4 +374,43 @@ def convert_jpg_to_png(capas_dir: Path, apply: bool = False) -> list:
         else:
             png.unlink(missing_ok=True)
             results.append({"file": jpg.name, "status": "falhou", "erro": r.stderr.strip()[:200]})
+    return results
+
+
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def validate_png_content(capas_dir: Path, apply: bool = False) -> list:
+    """Confere se cada `.png` em Named_Boxarts é PNG DE VERDADE (pelos
+    primeiros bytes do arquivo, não pela extensão) - achado em 02/08:
+    5 capas reais da coleção tinham bytes JPEG salvos com nome .png
+    (vieram de curadoria manual antiga, ou de um upload/download que
+    confiou na extensão declarada em vez do conteúdo - motivo pelo qual
+    download_cover/download_selected_cover/o upload da GUI agora sempre
+    passam por `convert`, independente da extensão declarada).
+    RetroArch não mostra nada pra esses arquivos - fica com o ícone
+    genérico de "sem capa" mesmo com o nome certo, sem erro visível.
+
+    Com apply=True, corrige no lugar via `convert` (detecta o formato
+    real e regrava como PNG de verdade, mesma imagem, só troca o
+    container). Vale rodar esse comando de vez em quando, principalmente
+    depois de uploads manuais."""
+    results = []
+    if not capas_dir.is_dir():
+        return results
+    for png in sorted(capas_dir.glob("*.png")):
+        with open(png, "rb") as f:
+            header = f.read(8)
+        if header.startswith(PNG_MAGIC):
+            continue
+        if not apply:
+            results.append({"file": png.name, "status": "seria_corrigido"})
+            continue
+        r = subprocess.run(["convert", str(png), str(png)], capture_output=True, text=True)
+        if r.returncode == 0 and png.stat().st_size > 1000:
+            with open(png, "rb") as f:
+                ok = f.read(8).startswith(PNG_MAGIC)
+            results.append({"file": png.name, "status": "corrigido" if ok else "falhou"})
+        else:
+            results.append({"file": png.name, "status": "falhou", "erro": r.stderr.strip()[:200]})
     return results

@@ -59,6 +59,11 @@ body {
   margin: 0;
 }
 
+.topbar-buttons {
+  display: flex;
+  gap: 8px;
+}
+
 button.secondary {
   background: var(--border);
   color: var(--text);
@@ -212,18 +217,24 @@ button:disabled {
 
 .gallery-strip {
   flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  /* com centenas de linhas "auto" (galeria grande) o Chromium
+     degenera a altura da linha pra ~0 (bug reproduzido isolado, sem
+     relação com o resto do markup do projeto - só acontece a partir de
+     dezenas de linhas). Um piso mínimo evita a degeneração; "auto"
+     continua podendo crescer além disso se algum card precisar. */
+  grid-auto-rows: minmax(480px, auto);
+  align-content: start;
   gap: 16px;
   padding: 20px 16px;
-  align-items: flex-start;
 }
 
 .cover {
-  flex-shrink: 0;
-  width: min(60vw, 260px);
+  width: 100%;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -236,14 +247,22 @@ button:disabled {
   border-color: var(--err);
 }
 
+.cover.duplicated {
+  border-color: var(--warn);
+}
+
+.cover.renamed {
+  border-color: var(--accent);
+}
+
 .cover-img-wrap {
   position: relative;
-  height: min(70vh, 340px);
 }
 
 .cover img {
+  display: block;
   width: 100%;
-  height: 100%;
+  aspect-ratio: 3/4;
   object-fit: contain;
   background: #000;
   cursor: zoom-in;
@@ -254,6 +273,28 @@ button:disabled {
   top: 6px;
   left: 6px;
   background: var(--err);
+  color: white;
+  font-size: 10px;
+  padding: 3px 7px;
+  border-radius: 12px;
+}
+
+.dup-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--warn);
+  color: white;
+  font-size: 10px;
+  padding: 3px 7px;
+  border-radius: 12px;
+}
+
+.rename-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--accent);
   color: white;
   font-size: 10px;
   padding: 3px 7px;
@@ -271,6 +312,7 @@ button:disabled {
 
 .cover-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 0 10px 10px;
 }
@@ -279,7 +321,12 @@ button.tiny {
   padding: 5px 8px;
   font-size: 11px;
   border-radius: 5px;
-  flex: 1;
+  flex: 1 1 45%;
+}
+
+button.tiny.danger {
+  background: var(--err);
+  color: white;
 }
 
 .empty-state {
@@ -421,8 +468,17 @@ button.tiny {
   padding: 16px;
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
+}
+
+/* Em telas estreitas, com muitos resultados o auto-fill acima cabe 3
+   colunas de ~110-120px (bem pequeno pra julgar a arte da capa) - trava
+   em 2 colunas fixas, maiores, independente de quantos resultados vierem. */
+@media (max-width: 480px) {
+  .search-results {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .search-result {
@@ -433,6 +489,71 @@ button.tiny {
   background: var(--bg);
 }
 
+.heavy-status {
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--warn);
+}
+
+.heavy-list {
+  padding: 12px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.heavy-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  flex-wrap: wrap;
+}
+
+.heavy-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heavy-item-size {
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.heavy-item-status {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.heavy-item-status.ok {
+  color: var(--ok);
+}
+
+.heavy-item button.tiny {
+  flex: 0 0 auto;
+}
+
+.organize-select {
+  flex: 0 1 auto;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 6px;
+  font-size: 12px;
+}
+
 .search-result:hover {
   border-color: var(--accent);
 }
@@ -440,7 +561,7 @@ button.tiny {
 .search-result img {
   width: 100%;
   aspect-ratio: 3/4;
-  object-fit: cover;
+  object-fit: contain;
   background: #000;
 }
 

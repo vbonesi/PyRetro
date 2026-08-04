@@ -35,3 +35,66 @@ Funções previstas (ainda não implementadas):
 
     fix_all(root: Path, dry_run=True) -> ScanReport
 """
+import re
+from pathlib import Path
+
+_TRACK_SUFFIX_RE = re.compile(r" \(Track \d+\)$")
+
+
+def find_bin_sidecars(primary: Path) -> list:
+    """.bin com o mesmo nome base do .cue/.gdi, ou "<nome> (Track N).bin"
+    - não impõe um padrão de zero-padding, só reconhece o que já existe
+    na pasta (o texto do sufixo é preservado literal, nunca regerado)."""
+    sidecars = []
+    for sib in primary.parent.iterdir():
+        if sib == primary or not sib.is_file() or sib.suffix.lower() != ".bin":
+            continue
+        if _TRACK_SUFFIX_RE.sub("", sib.stem) == primary.stem:
+            sidecars.append(sib)
+    return sorted(sidecars)
+
+
+def rename_disc_set(primary: Path, new_stem: str, apply: bool = False) -> dict:
+    """Renomeia um .cue/.gdi (e no futuro qualquer coisa com FILE "...")
+    junto com os .bin sidecars, e reescreve a referência de nome de
+    arquivo DENTRO do texto do .cue/.gdi pra apontar pros nomes novos -
+    achado em 02/08 durante o desenho do rename com cascata: só
+    renomear os arquivos sem atualizar essa referência deixa o .cue
+    apontando pro nome velho do .bin, e o emulador não acha mais a
+    faixa (jogo não abre). Não mexe em .ccd/.img nem .chd (formatos sem
+    essa referência de texto pra corrigir).
+
+    Confere conflito em TODOS os destinos antes de mexer em qualquer
+    arquivo - nunca faz rename parcial. Retorna {"status":
+    "renomeado"|"conflito"|"seria_renomeado"|"sem_referencia_de_texto",
+    "primary_new": Path|None, "sidecars_new": [Path, ...]}."""
+    has_text_ref = primary.suffix.lower() in (".cue", ".gdi")
+    sidecars = find_bin_sidecars(primary) if has_text_ref else []
+
+    renames = [(primary, primary.with_name(new_stem + primary.suffix))]
+    for sc in sidecars:
+        track_part = sc.stem[len(primary.stem):]  # "" ou " (Track N)"
+        renames.append((sc, sc.with_name(new_stem + track_part + sc.suffix)))
+
+    for _, dst in renames:
+        if dst.exists():
+            return {"status": "conflito", "primary_new": None, "sidecars_new": []}
+
+    primary_new = renames[0][1]
+    sidecars_new = [dst for _, dst in renames[1:]]
+
+    if not apply:
+        status = "seria_renomeado" if has_text_ref or not sidecars else "seria_renomeado"
+        return {"status": status, "primary_new": primary_new, "sidecars_new": sidecars_new}
+
+    content = primary.read_text(encoding="utf-8", errors="replace") if has_text_ref else None
+    if content is not None:
+        for (src, dst) in renames[1:]:
+            content = content.replace(f'"{src.name}"', f'"{dst.name}"')
+
+    for src, dst in renames:
+        src.rename(dst)
+    if content is not None:
+        primary_new.write_text(content, encoding="utf-8")
+
+    return {"status": "renomeado", "primary_new": primary_new, "sidecars_new": sidecars_new}

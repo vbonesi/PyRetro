@@ -38,17 +38,19 @@ function renderGallery() {
   gallery.innerHTML = "";
   const onlyFlagged = document.getElementById("filter-flagged").checked;
   const onlyNoMatch = document.getElementById("filter-nomatch").checked;
+  const onlyDuplicated = document.getElementById("filter-duplicated").checked;
 
   let items = currentItems;
-  if (onlyFlagged || onlyNoMatch) {
+  if (onlyFlagged || onlyNoMatch || onlyDuplicated) {
     items = items.filter(item =>
       (onlyFlagged && item.status === "flagged_wrong") ||
-      (onlyNoMatch && item.status === "no_match")
+      (onlyNoMatch && item.status === "no_match") ||
+      (onlyDuplicated && item.status === "duplicate")
     );
   }
 
   if (items.length === 0) {
-    const msg = (onlyFlagged || onlyNoMatch) ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
+    const msg = (onlyFlagged || onlyNoMatch || onlyDuplicated) ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
     gallery.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
@@ -59,33 +61,73 @@ function renderGallery() {
 
 document.getElementById("filter-flagged").addEventListener("change", renderGallery);
 document.getElementById("filter-nomatch").addEventListener("change", renderGallery);
+document.getElementById("filter-duplicated").addEventListener("change", renderGallery);
 
 function buildCoverCard(code, item, cacheBust) {
-  const { file, label, flagged } = item;
+  const { file, label, flagged, duplicated, status } = item;
+  const renamedPending = status === "renamed_pending";
   const src = `/images/${code}/${encodeURIComponent(file)}` + (cacheBust ? `?t=${Date.now()}` : "");
   const div = document.createElement("div");
-  div.className = "cover" + (flagged ? " flagged" : "");
+  div.className = "cover" + (flagged ? " flagged" : "") + (duplicated ? " duplicated" : "") + (renamedPending ? " renamed" : "");
   div.dataset.label = label;
   div.innerHTML = `
     <div class="cover-img-wrap">
       <img src="${src}" alt="${label}">
       ${flagged ? '<span class="flag-badge">⚑ marcada</span>' : ""}
+      ${duplicated ? '<span class="dup-badge">⧉ duplicada</span>' : ""}
+      ${renamedPending ? '<span class="rename-badge">✎ renomeada</span>' : ""}
     </div>
     <div class="label" title="${label}">${label}</div>
     <div class="cover-actions">
       <button class="tiny ${flagged ? "" : "secondary"}" data-action="flag">${flagged ? "Desmarcar" : "⚑ Errada"}</button>
+      <button class="tiny ${duplicated ? "" : "secondary"}" data-action="duplicate">${duplicated ? "Desmarcar" : "⧉ Duplicada"}</button>
+      <button class="tiny secondary" data-action="rename">✎ Renomear</button>
       <button class="tiny secondary" data-action="search">🔍 Buscar</button>
       <button class="tiny secondary" data-action="upload">⬆ Trocar</button>
+      <button class="tiny danger" data-action="delete">🗑 Apagar</button>
       <input type="file" accept="image/png,image/jpeg" class="upload-input" hidden>
     </div>
   `;
   div.querySelector("img").addEventListener("click", () => openLightbox(src, label));
   div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, flagged));
+  div.querySelector('[data-action="duplicate"]').addEventListener("click", () => toggleDuplicate(code, label, duplicated));
+  div.querySelector('[data-action="rename"]').addEventListener("click", () => renameCover(code, label));
   div.querySelector('[data-action="search"]').addEventListener("click", () => openSearch(code, label));
+  div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteCover(code, label));
   const fileInput = div.querySelector(".upload-input");
   div.querySelector('[data-action="upload"]').addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => uploadCover(code, label, fileInput.files[0]));
   return div;
+}
+
+function describeDeleteCascade(cascade) {
+  const parts = [];
+  const romMsg = {
+    apagado: "ROM apagada",
+    nao_encontrado: "ROM não encontrada (nada pra apagar desse lado)",
+    ambiguo: "mais de um arquivo bate com esse nome - nenhum foi apagado, resolva manualmente",
+  }[cascade.rom.status] || cascade.rom.status;
+  parts.push(romMsg);
+  if (cascade.capa && cascade.capa.length) parts.push("capa apagada");
+  if (cascade.saves.length) parts.push(`${cascade.saves.length} save(s) apagado(s)`);
+  if (cascade.states.length) parts.push(`${cascade.states.length} state(s) apagado(s)`);
+  return parts.join(" · ");
+}
+
+async function deleteCover(code, label) {
+  if (!confirm(`Apagar "${label}" (capa + ROM + save/state)? Isso não pode ser desfeito.`)) return;
+  const res = await fetch("/api/cover/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, label }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    alert(describeDeleteCascade(data.cascade));
+    selectSystem(code);
+  } else {
+    alert(`erro ao apagar: ${data.error || "falha"}`);
+  }
 }
 
 /** Troca só o card de UM jogo no lugar, sem recarregar a galeria inteira -
@@ -94,20 +136,22 @@ function buildCoverCard(code, item, cacheBust) {
  * atualiza currentItems (a fonte de verdade dos filtros) e some com o
  * card se ele deixou de bater com o filtro ativo (ex: desmarcar uma
  * capa com "só marcadas" ligado). */
-function refreshCard(code, label, flagged, knownFile) {
+function refreshCard(code, label, flagged, knownFile, duplicated = false) {
   const idx = currentItems.findIndex(i => i.label === label);
   const old = document.querySelector(`#gallery .cover[data-label="${CSS.escape(label)}"]`);
   const file = knownFile || (old && decodeURIComponent(old.querySelector("img").src.split("/").pop().split("?")[0]));
-  const status = flagged ? "flagged_wrong" : "manual";
+  const status = flagged ? "flagged_wrong" : (duplicated ? "duplicate" : "manual");
 
   if (idx >= 0) {
-    currentItems[idx] = { ...currentItems[idx], file: file || currentItems[idx].file, flagged, status };
+    currentItems[idx] = { ...currentItems[idx], file: file || currentItems[idx].file, flagged, duplicated, status };
   }
 
   const onlyFlagged = document.getElementById("filter-flagged").checked;
   const onlyNoMatch = document.getElementById("filter-nomatch").checked;
-  const stillMatchesFilter = !(onlyFlagged || onlyNoMatch) ||
-    (onlyFlagged && status === "flagged_wrong") || (onlyNoMatch && status === "no_match");
+  const onlyDuplicated = document.getElementById("filter-duplicated").checked;
+  const stillMatchesFilter = !(onlyFlagged || onlyNoMatch || onlyDuplicated) ||
+    (onlyFlagged && status === "flagged_wrong") || (onlyNoMatch && status === "no_match") ||
+    (onlyDuplicated && status === "duplicate");
 
   if (!old) {
     if (stillMatchesFilter) return selectSystem(code); // card não estava visível - recarrega tudo pra achar posição certa
@@ -117,7 +161,7 @@ function refreshCard(code, label, flagged, knownFile) {
     old.remove();
     return;
   }
-  const newCard = buildCoverCard(code, { file, label, flagged }, true);
+  const newCard = buildCoverCard(code, { file, label, flagged, duplicated, status }, true);
   old.replaceWith(newCard);
 }
 
@@ -129,6 +173,49 @@ async function toggleFlag(code, label, currentlyFlagged) {
     body: JSON.stringify({ code, label }),
   });
   refreshCard(code, label, !currentlyFlagged);
+}
+
+async function toggleDuplicate(code, label, currentlyDuplicated) {
+  const endpoint = currentlyDuplicated ? "unduplicate" : "duplicate";
+  await fetch(`/api/cover/${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, label }),
+  });
+  refreshCard(code, label, false, null, !currentlyDuplicated);
+}
+
+function describeCascade(cascade) {
+  const parts = [];
+  const romMsg = {
+    renomeado: "ROM renomeada",
+    nao_encontrado: "ROM não encontrada (fica marcado como pendente)",
+    conflito: "já existe uma ROM com esse nome (fica marcado como pendente)",
+    ambiguo: "mais de um arquivo bate com esse nome (fica marcado como pendente)",
+  }[cascade.rom.status] || cascade.rom.status;
+  parts.push(romMsg);
+  if (cascade.saves.length) parts.push(`${cascade.saves.length} save(s) renomeado(s)`);
+  if (cascade.states.length) parts.push(`${cascade.states.length} state(s) renomeado(s)`);
+  return parts.join(" · ");
+}
+
+async function renameCover(code, label) {
+  const input = prompt("Novo nome da capa (sem extensão) - também tenta renomear ROM e save/state junto:", label);
+  if (input === null) return;
+  const newLabel = input.trim();
+  if (!newLabel || newLabel === label) return;
+  const res = await fetch("/api/cover/rename", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, label, new_label: newLabel }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    selectSystem(code); // ordem alfabetica muda de posicao - recarrega a galeria inteira
+    if (data.cascade) alert(describeCascade(data.cascade));
+  } else {
+    alert(`erro ao renomear: ${data.error || "falha"}`);
+  }
 }
 
 function uploadCover(code, label, file) {
@@ -165,7 +252,7 @@ function closeLightbox() {
 
 document.getElementById("lightbox").addEventListener("click", closeLightbox);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { closeLightbox(); closeSettings(); closeSearch(); }
+  if (e.key === "Escape") { closeLightbox(); closeSettings(); closeSearch(); closeHeavy(); closeOrganize(); }
 });
 
 async function openSettings() {
@@ -346,5 +433,243 @@ function startFetch(useFallback) {
 
 document.getElementById("btn-fetch").addEventListener("click", () => startFetch(false));
 document.getElementById("btn-fallback").addEventListener("click", () => startFetch(true));
+
+let heavySystems = [];
+let currentHeavy = null;
+let heavyItems = [];
+
+function openHeavy() {
+  document.getElementById("heavy-modal").classList.remove("hidden");
+  loadHeavySystems();
+}
+
+function closeHeavy() {
+  document.getElementById("heavy-modal").classList.add("hidden");
+}
+
+async function loadHeavySystems() {
+  const res = await fetch("/api/heavy/systems");
+  heavySystems = await res.json();
+  const tabs = document.getElementById("heavy-tabs");
+  tabs.innerHTML = "";
+  for (const sys of heavySystems) {
+    const tab = document.createElement("div");
+    tab.className = "tab";
+    tab.dataset.code = sys.code;
+    tab.textContent = sys.code;
+    tab.addEventListener("click", () => selectHeavySystem(sys.code));
+    tabs.appendChild(tab);
+  }
+  if (heavySystems.length === 0) {
+    document.getElementById("heavy-list").innerHTML =
+      '<div class="empty-state">Nenhum sistema pesado configurado em config.toml [heavy_systems].</div>';
+    return;
+  }
+  selectHeavySystem(currentHeavy && heavySystems.some(s => s.code === currentHeavy) ? currentHeavy : heavySystems[0].code);
+}
+
+function formatGB(bytes) {
+  return (bytes / (1024 ** 3)).toFixed(2) + " GB";
+}
+
+async function selectHeavySystem(code) {
+  currentHeavy = code;
+  document.querySelectorAll("#heavy-tabs .tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.code === code);
+  });
+  const list = document.getElementById("heavy-list");
+  list.innerHTML = '<div class="empty-state">carregando...</div>';
+  const res = await fetch(`/api/heavy/roms/${code}`);
+  const data = await res.json();
+  heavyItems = data.items;
+  document.getElementById("heavy-status").textContent = data.android_ok ? "" : "(celular não conectado)";
+  renderHeavyList();
+}
+
+function renderHeavyList() {
+  const list = document.getElementById("heavy-list");
+  list.innerHTML = "";
+  if (heavyItems.length === 0) {
+    list.innerHTML = `<div class="empty-state">Nada em roms_root/${currentHeavy}/</div>`;
+    return;
+  }
+  for (const item of heavyItems) {
+    const onCelular = item.status === "no_celular";
+    const row = document.createElement("div");
+    row.className = "heavy-item";
+    row.dataset.name = item.name;
+    row.innerHTML = `
+      <div class="heavy-item-name" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
+      <div class="heavy-item-size">${formatGB(item.size)}</div>
+      <div class="heavy-item-status ${onCelular ? "ok" : ""}">${onCelular ? "no celular" : "só no PC"}</div>
+      <button class="tiny secondary" data-action="rename">✎ Renomear</button>
+      <button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>
+      <button class="tiny danger" data-action="delete">🗑 Apagar</button>
+    `;
+    row.querySelector('[data-action="send"]').addEventListener("click", () => sendHeavyItem(currentHeavy, item.name, onCelular));
+    row.querySelector('[data-action="rename"]').addEventListener("click", () => renameHeavyItem(currentHeavy, item));
+    row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHeavyItem(currentHeavy, item));
+    list.appendChild(row);
+  }
+}
+
+function sendHeavyItem(code, name, overwrite) {
+  if (overwrite && !confirm(`"${name}" já está no celular. Sobrescrever?`)) return;
+  const row = document.querySelector(`.heavy-item[data-name="${CSS.escape(name)}"]`);
+  const btn = row && row.querySelector('[data-action="send"]');
+  if (btn) { btn.disabled = true; btn.textContent = "Enviando..."; }
+
+  fetch("/api/heavy/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, name, overwrite }),
+  })
+    .then(r => r.json())
+    .then(({ job }) => {
+      const evtSource = new EventSource(`/api/fetch/stream?job=${job}`);
+      evtSource.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "progress" && btn) {
+          btn.textContent = data.status === "conectando" ? "Conectando..." : "Enviando...";
+        } else if (data.type === "system_done") {
+          if (!data.result.ok) alert(`falha ao enviar: ${data.result.message}`);
+        } else if (data.type === "error") {
+          alert(`erro: ${data.message}`);
+        } else if (data.type === "job_done") {
+          evtSource.close();
+          if (currentHeavy === code) selectHeavySystem(code); // recarrega status
+        }
+      };
+    });
+}
+
+function stemOf(item) {
+  if (item.is_dir) return item.name;
+  const idx = item.name.lastIndexOf(".");
+  return idx > 0 ? item.name.slice(0, idx) : item.name;
+}
+
+async function renameHeavyItem(code, item) {
+  const oldLabel = stemOf(item);
+  const input = prompt("Novo nome (sem extensão) - também tenta renomear save/state junto:", oldLabel);
+  if (input === null) return;
+  const newLabel = input.trim();
+  if (!newLabel || newLabel === oldLabel) return;
+  const res = await fetch("/api/heavy/rename", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, old_label: oldLabel, new_label: newLabel }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    if (data.cascade) alert(describeCascade(data.cascade));
+    selectHeavySystem(code);
+  } else {
+    alert(`erro ao renomear: ${data.error || "falha"}`);
+  }
+}
+
+async function deleteHeavyItem(code, item) {
+  const label = stemOf(item);
+  if (!confirm(`Apagar "${item.name}" (ROM + save/state)? Isso não pode ser desfeito.`)) return;
+  const res = await fetch("/api/heavy/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, label }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    alert(describeDeleteCascade(data.cascade));
+    selectHeavySystem(code);
+  } else {
+    alert(`erro ao apagar: ${data.error || "falha"}`);
+  }
+}
+
+document.getElementById("btn-heavy").addEventListener("click", openHeavy);
+document.getElementById("btn-heavy-close").addEventListener("click", closeHeavy);
+document.getElementById("heavy-modal").addEventListener("click", (e) => {
+  if (e.target.id === "heavy-modal") closeHeavy();
+});
+
+function openOrganize() {
+  document.getElementById("organize-modal").classList.remove("hidden");
+  loadOrganizePending();
+}
+
+function closeOrganize() {
+  document.getElementById("organize-modal").classList.add("hidden");
+}
+
+async function loadOrganizePending() {
+  const list = document.getElementById("organize-list");
+  list.innerHTML = '<div class="empty-state">carregando...</div>';
+  const res = await fetch("/api/organize/pending");
+  const data = await res.json();
+  document.getElementById("organize-status").textContent = `(roms_root/${data.staging_dir}/)`;
+  renderOrganizeList(data.items);
+}
+
+function renderOrganizeList(items) {
+  const list = document.getElementById("organize-list");
+  list.innerHTML = "";
+  if (items.length === 0) {
+    list.innerHTML = '<div class="empty-state">Nada esperando organização.</div>';
+    return;
+  }
+  for (const item of items) {
+    const row = document.createElement("div");
+    row.className = "heavy-item";
+    row.dataset.name = item.name;
+
+    let controls;
+    if (item.candidates.length === 0) {
+      controls = '<div class="heavy-item-status">extensão não reconhecida</div>';
+    } else {
+      const options = item.candidates
+        .map(c => `<option value="${c.code}">${c.code} - ${c.nome}</option>`)
+        .join("");
+      controls = `
+        <select class="organize-select">${options}</select>
+        <button class="tiny" data-action="move">Mover</button>
+      `;
+    }
+
+    row.innerHTML = `
+      <div class="heavy-item-name" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
+      <div class="heavy-item-size">${formatGB(item.size)}</div>
+      ${controls}
+    `;
+    const btn = row.querySelector('[data-action="move"]');
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const code = row.querySelector(".organize-select").value;
+        moveOrganizeItem(item.name, code);
+      });
+    }
+    list.appendChild(row);
+  }
+}
+
+async function moveOrganizeItem(name, code) {
+  const res = await fetch("/api/organize/move", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, code }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    loadOrganizePending();
+    loadSystems(); // contagem de capas do sistema destino pode ter mudado
+  } else {
+    alert(`erro ao mover: ${data.error || "falha"}`);
+  }
+}
+
+document.getElementById("btn-organize").addEventListener("click", openOrganize);
+document.getElementById("btn-organize-close").addEventListener("click", closeOrganize);
+document.getElementById("organize-modal").addEventListener("click", (e) => {
+  if (e.target.id === "organize-modal") closeOrganize();
+});
 
 loadSystems();
