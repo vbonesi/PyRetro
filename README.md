@@ -290,7 +290,11 @@ O que tem até agora:
   `core/serials.py` cruza contra os DATs de redump do
   libretro-database). Por save: exportar (PSU/MCS pra uma pasta de
   staging), apagar, transferir pra outro card do mesmo console, e
-  importar um arquivo PSU/MCS/PSV pro card.
+  importar um arquivo PSU/MCS/PSV pro card. Mais duas seções na mesma
+  aba pra **Dolphin (GameCube)** e **PPSSPP** (`core/emu_saves.py`) -
+  esses já guardam save individualizado por jogo nativamente (sem
+  memory card compartilhado), lista o que existe só no celular via adb
+  e baixa pra pasta local sob demanda.
 
 O que ainda não tem (fases futuras, ver [`docs/roadmap.md`](docs/roadmap.md)):
 revisão visual de fuzzy match lado a lado, auditoria completa de `.cue`
@@ -368,7 +372,8 @@ PyRetro/
 │   ├── organize.py         # organiza "0-Organizar" pra roms_root/<CODIGO>/ - implementado
 │   ├── rom_rename.py       # rename e apagar com cascata (ROM+capa+save/state) - implementado e testado
 │   ├── memcard.py          # editor de memory card PS1/PS2 (ps1vmc-tool/ps2vmc-tool) - implementado e testado
-│   ├── serials.py          # serial -> nome do jogo (DAT de redump), usado pelo memcard.py - implementado e testado
+│   ├── serials.py          # serial -> nome do jogo (DAT de redump), usado por memcard.py/emu_saves.py - implementado e testado
+│   ├── emu_saves.py         # backup de save individualizado Dolphin(GC)/PPSSPP via adb - implementado e testado
 │   └── adb.py              # wrapper de adb com retry - implementado
 ├── gui/
 │   ├── server.py          # servidor local da interface gráfica (Fase 1)
@@ -400,7 +405,8 @@ PyRetro/
 | `core/organize.py` | Implementado e testado ponta a ponta via GUI - identifica ROMs em `0-Organizar/` pela extensão e move pro sistema certo, com desambiguação manual quando a extensão bate com mais de um sistema |
 | `core/rom_rename.py` | Implementado e testado ponta a ponta via GUI - rename e apagar com cascata (ROM + capa + save/state) pra sistemas leves e pesados, incluindo grupos multi-disco no rename (PS1/PS2); `find_flat_matches`/`delete_flat_matches` reaproveitados pela gestão de save/state na galeria |
 | `core/memcard.py` | Implementado e testado contra cartões reais - listar/exportar/apagar/importar/transferir save de memory card PS1/PS2 via `ps1vmc-tool`/`ps2vmc-tool` |
-| `core/serials.py` | Implementado e testado - serial → nome do jogo via DAT de redump do libretro-database, usado pelo `memcard.py` |
+| `core/serials.py` | Implementado e testado - serial → nome do jogo via DAT de redump do libretro-database (PS1/PS2/GameCube/PSP), usado pelo `memcard.py` e `emu_saves.py` |
+| `core/emu_saves.py` | Implementado e testado no aparelho real - lista/baixa save individualizado do Dolphin(GameCube)/PPSSPP via adb, espelhando a estrutura de pastas que o usuário já mantém manualmente |
 | `retrosync.py` | `fetch-covers`, `fetch-covers-fallback`, `convert-covers`, `validate-covers`, `sanitize-names`, `sync covers`, `heavy-roms` e `organize` conectados de verdade; `sync saves/states/metrics` (cancelado) e `fix-cues` (auditoria) levantam `NotImplementedError` |
 
 Roadmap atual e próximos passos: [`docs/roadmap.md`](docs/roadmap.md).

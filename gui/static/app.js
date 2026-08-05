@@ -782,24 +782,36 @@ function savesStatus(msg) {
   document.getElementById("saves-status").textContent = msg;
 }
 
+let emuSaves = {}; // "GC"/"PSP" -> {items, android_ok} | {error}
+
 async function loadSavesCards() {
   const list = document.getElementById("saves-list");
   list.innerHTML = '<div class="empty-state">carregando...</div>';
   savesStatus("");
   const res = await fetch("/api/memcards");
   savesCards = await res.json();
-  if (savesCards.length === 0) {
-    list.innerHTML = '<div class="empty-state">Nenhum memory card configurado em config.toml [memcards].</div>';
-    return;
-  }
+
   // Carrega o conteúdo de todos os cards de uma vez (uma seção por
   // console, uma subseção por card - ver pedido do usuário de não
-  // precisar trocar de aba pra comparar PS1 e PS2).
-  await Promise.all(savesCards.filter(c => c.tool_ok).map(async (card) => {
-    const r = await fetch(`/api/memcards/list/${encodeURIComponent(card.key)}`);
-    const data = await r.json();
-    savesItemsByKey[card.key] = r.ok ? data.items : { error: data.error || "falha ao ler o card" };
-  }));
+  // precisar trocar de aba pra comparar PS1 e PS2), mais o backup de
+  // saves individualizados do Dolphin(GameCube)/PPSSPP.
+  await Promise.all([
+    ...savesCards.filter(c => c.tool_ok).map(async (card) => {
+      const r = await fetch(`/api/memcards/list/${encodeURIComponent(card.key)}`);
+      const data = await r.json();
+      savesItemsByKey[card.key] = r.ok ? data.items : { error: data.error || "falha ao ler o card" };
+    }),
+    ...["GC", "PSP"].map(async (emu) => {
+      const r = await fetch(`/api/emu_saves/list/${emu}`);
+      const data = await r.json();
+      emuSaves[emu] = r.ok ? data : { error: data.error || "falha ao ler" };
+    }),
+  ]);
+
+  if (savesCards.length === 0 && Object.values(emuSaves).every(d => !d.items || d.items.length === 0)) {
+    list.innerHTML = '<div class="empty-state">Nenhum memory card configurado em config.toml [memcards], e nada achado pra Dolphin/PPSSPP.</div>';
+    return;
+  }
   renderSavesList();
 }
 
@@ -874,6 +886,63 @@ function renderSavesList() {
       section.appendChild(cardBox);
     }
     list.appendChild(section);
+  }
+
+  const emuLabels = { GC: "Dolphin - GameCube", PSP: "PPSSPP" };
+  for (const emu of ["GC", "PSP"]) {
+    const data = emuSaves[emu];
+    const section = document.createElement("div");
+    section.className = "saves-console-section";
+    section.innerHTML = `<h4 class="saves-console-header">${emuLabels[emu]}</h4>`;
+    if (!data || data.error) {
+      section.innerHTML += `<div class="empty-state">erro: ${data ? data.error : "falha ao carregar"}</div>`;
+      list.appendChild(section);
+      continue;
+    }
+    if (!data.android_ok) {
+      section.innerHTML += '<div class="empty-state">Celular não conectado - conecte via USB pra ver/baixar saves.</div>';
+      list.appendChild(section);
+      continue;
+    }
+    if (data.items.length === 0) {
+      section.innerHTML += '<div class="empty-state">Nada encontrado no celular.</div>';
+      list.appendChild(section);
+      continue;
+    }
+    for (const item of data.items) {
+      const row = document.createElement("div");
+      row.className = "heavy-item";
+      const title = item.name || `(desconhecido - ${item.raw_name})`;
+      row.innerHTML = `
+        <div class="heavy-item-name" title="${item.raw_name}">${title}</div>
+        <div class="heavy-item-status ${item.in_pc ? "ok" : ""}">${item.in_pc ? "no PC" : "só no celular"}</div>
+        ${item.in_pc ? "" : '<button class="tiny secondary" data-action="pull">⬇ Baixar do celular</button>'}
+      `;
+      const pullBtn = row.querySelector('[data-action="pull"]');
+      if (pullBtn) pullBtn.addEventListener("click", () => pullEmuSaveItem(emu, item, pullBtn));
+      section.appendChild(row);
+    }
+    list.appendChild(section);
+  }
+}
+
+async function pullEmuSaveItem(emu, item, btn) {
+  btn.disabled = true;
+  btn.textContent = "Baixando...";
+  const res = await fetch("/api/emu_saves/pull", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ emu, item }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    savesStatus(`baixado: ${data.file}`);
+    item.in_pc = true;
+    renderSavesList();
+  } else {
+    btn.disabled = false;
+    btn.textContent = "⬇ Baixar do celular";
+    alert(`erro ao baixar: ${data.error || "falha"}`);
   }
 }
 

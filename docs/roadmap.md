@@ -23,23 +23,17 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 05/08/2026.
 | Gestão de save/state por jogo na galeria de capas | ✅ Pronto, testado (badges 💾/⏱ no card, apagar individual) |
 | Esconder menus superiores da galeria | ✅ Pronto, testado (preferência salva) |
 | ROMs pesadas via `rclone` (ver Drive + baixar sem adb) | ✅ Pronto, testado (listagem + download reais) |
-| Backup de saves do Flycast/Dolphin/PPSSPP/3DS (fora do RetroArch) | 🔍 Investigado no aparelho real - achados registrados abaixo, aguardando decisão de escopo/ordem com o usuário |
+| Backup de saves do Dolphin(GameCube)/PPSSPP (fora do RetroArch) | ✅ Pronto, testado no aparelho real (puxa via adb o que falta, nome resolvido via serial) |
+| Backup de saves do Flycast/Dolphin(Wii)/3DS | 🔍 Investigado, fora de escopo por decisão do usuário (custo maior - ver notas abaixo) |
 | PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)) - não testado no aparelho |
 | `sync.py` pra saves/states/runtime-logs | ❌ Cancelado (sempre vai usar Google Drive pra isso) |
 
 ## Próximos passos (em ordem)
 
-1. Decidir com o usuário o escopo/ordem do backup de saves do
-   Flycast/Dolphin/PPSSPP/3DS - achados reais via adb em 05/08:
-   - **Dolphin (GameCube)**: já individualizado nativamente - um
-     arquivo `.gci` por jogo em `GC/<REGIÃO>/Card A|B/`, nome
-     prefixado pelo game code (ex: `70-GBTE-bayblade2002.gci`). Fácil,
-     mesmo padrão do memory card PS1/PS2 (cruzar prefixo com DAT de
-     serial).
-   - **PPSSPP**: já individualizado nativamente - uma pasta por save
-     em `PSP/SAVEDATA/<serial>` (ex: `ULUS10021`), sem card
-     compartilhado nenhum. Fácil, existe DAT de redump pro PSP
-     também.
+1. Testar [`docs/termux_setup.md`](termux_setup.md) contra o aparelho
+   real.
+2. Se algum dia fizer sentido voltar no backup de saves fora do
+   RetroArch - achados reais via adb em 05/08, ainda válidos:
    - **Flycast (Dreamcast)**: usa VMU compartilhado
      (`vmu_save_A1.bin`/`A2.bin`, um "cartão" só pra vários jogos) -
      mesmo problema de fundo que PS1/PS2, mas sem uma ferramenta tipo
@@ -50,12 +44,10 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 05/08/2026.
      `Nintendo 3DS/.../title/<high>/<low>/data|extdata/`) - bem mais
      complexo, título não vem legível (precisaria cruzar title-ID com
      alguma base externa, ou extrair do header do próprio arquivo de
-     ROM local). Mais caro que os outros quatro.
+     ROM local).
    - Nota: o app de 3DS instalado no aparelho é **Lime3DS**
      (`io.github.lime3ds.android`), não "Azahar" como mencionado -
      mesma família (fork do Citra), mas nome/pacote diferentes.
-2. Testar [`docs/termux_setup.md`](termux_setup.md) contra o aparelho
-   real.
 
 ## Arquitetura de dois modos
 

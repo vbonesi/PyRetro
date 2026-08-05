@@ -28,6 +28,7 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 from core import adb as adb_mod
 from core import covers as covers_mod
+from core import emu_saves as emu_saves_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import memcard as memcard_mod
@@ -552,6 +553,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": str(e)}, 502)
             return self._json({"items": items})
 
+        if parts[:3] == ["api", "emu_saves", "list"] and len(parts) == 4:
+            emu = parts[3]
+            if emu not in emu_saves_mod.EMULATORS:
+                return self._json({"error": "emulador desconhecido"}, 404)
+            cfg = load_config()
+            index = serials_mod.build_index()
+            local_names = emu_saves_mod.list_local(emu, cfg)
+            android_ok = True
+            try:
+                remote_items = emu_saves_mod.list_remote(emu, cfg, index)
+            except adb_mod.AdbError:
+                remote_items = []
+                android_ok = False
+            for item in remote_items:
+                item["in_pc"] = item["raw_name"] in local_names
+            return self._json({"items": remote_items, "android_ok": android_ok})
+
         if parts == ["api", "fetch", "stream"]:
             job_id = query.get("job", [""])[0]
             with _jobs_lock:
@@ -978,6 +996,20 @@ class Handler(BaseHTTPRequestHandler):
             except memcard_mod.MemcardError as e:
                 return self._json({"error": str(e)}, 502)
             return self._json({"ok": True})
+
+        if parts == ["api", "emu_saves", "pull"]:
+            body = self._read_json_body()
+            emu, item = body.get("emu", ""), body.get("item")
+            if emu not in emu_saves_mod.EMULATORS:
+                return self._json({"error": "emulador desconhecido"}, 404)
+            if not item:
+                return self._json({"error": "item vazio"}, 400)
+            cfg = load_config()
+            try:
+                dest = emu_saves_mod.pull_item(emu, item, cfg)
+            except adb_mod.AdbError as e:
+                return self._json({"error": str(e)}, 502)
+            return self._json({"ok": True, "file": str(dest)})
 
         self.send_response(404)
         self.end_headers()

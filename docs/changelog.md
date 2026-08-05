@@ -435,3 +435,37 @@ plano.
   escopo/ordem de implementação ainda pendente com o usuário -
   registrado como próximo passo, nada implementado ainda pra esses
   quatro emuladores.
+- **Backup de saves do Dolphin(GameCube)/PPSSPP implementado** -
+  usuário escolheu começar só pelos dois fáceis (Flycast/Wii/3DS
+  ficaram de fora por decisão dele, custo maior). `core/serials.py`
+  ganhou os DATs de redump do GameCube e do PSP (`DAT_URLS["GC"]`/
+  `["PSP"]`) - o GC tem um formato de serial diferente dos outros
+  três, "DL-DOL-\<CODE\>-\<REGIÃO\>" em vez do serial direto, por isso
+  ganhou um parser próprio (`_parse_gc_dat`) que extrai só o \<CODE\>
+  de 4 caracteres (bate com o que aparece no nome real do `.gci`, tipo
+  "70-GBTE-bayblade2002.gci" -> "GBTE"). `core/emu_saves.py` novo,
+  lista via adb + resolve nome via serial + puxa (`adb pull`) o que
+  falta.
+
+  Achado real explorando `~/Drive/Jogos/Saves/` no PC antes de decidir
+  a estrutura de pastas: o usuário **já mantém manualmente**
+  `Saves/Dolphin/` e `Saves/PPSSPP/` como espelho 1:1 da pasta de
+  dados de cada app no celular (`Dolphin/GC/<REGIÃO>/Card X/*.gci`,
+  `PPSSPP/SAVEDATA/<serial>/`) - `emu_saves.py` adota exatamente essa
+  mesma estrutura (preserva o caminho relativo do celular ao puxar) em
+  vez de inventar uma pasta nova, pra não duplicar convenção.
+
+  Testado ponta a ponta contra o aparelho real (reconectou duas vezes
+  no meio do trabalho, adb caiu sozinho entre uma investigação e
+  outra): `list_remote`/`list_local`/`pull_item` confirmados pros dois
+  emuladores, incluindo puxar uma pasta INTEIRA de save do PSP (3
+  arquivos dentro - `DISSIDIA.BIN`/`ICON0.PNG`/`PARAM.SFO`) num só
+  `adb pull` (pasta remota puxa recursivo por padrão). GUI: aba
+  "💾 Saves" ganhou duas seções novas (Dolphin-GameCube, PPSSPP) depois
+  das de PS1/PS2 - lista os itens do celular com nome resolvido,
+  badge "no PC"/"só no celular" e botão "⬇ Baixar do celular" pros que
+  faltam. Testado clicando o botão de verdade na GUI (não só via
+  script) - arquivo `.gci` real baixado no lugar certo, badge virou
+  "no PC" na hora. Artefatos de teste (pull manual antes de existir a
+  rota, e o clique de teste na GUI) limpos do disco depois de cada
+  verificação, sempre restaurando o estado vazio original da pasta.
