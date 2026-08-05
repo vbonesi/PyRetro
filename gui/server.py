@@ -12,6 +12,7 @@ use o IP da máquina na rede local em vez de localhost (as duas pontas
 precisam estar na mesma rede).
 """
 import base64
+import bisect
 import json
 import queue
 import re
@@ -183,7 +184,10 @@ def save_registry(registry: dict) -> None:
     REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
 
 
-def run_fetch_job(job_id: str, code: str, apply: bool, use_fallback: bool) -> None:
+def run_fetch_job(job_id: str, code: str, apply: bool, fallback_source: str) -> None:
+    """fallback_source: "" (busca normal, libretro-thumbnails), "launchbox"
+    ou "screenscraper" (segunda passada só nos no_match, um botão por
+    fonte na GUI - "🔍 Buscar no LaunchBox"/"🔍 Buscar no ScreenScraper")."""
     q = _jobs[job_id]
 
     def emit(event: dict) -> None:
@@ -202,7 +206,7 @@ def run_fetch_job(job_id: str, code: str, apply: bool, use_fallback: bool) -> No
             if not sysinfo:
                 continue
 
-            if not use_fallback:
+            if not fallback_source:
                 def on_progress(label, status, i, total, _code=sys_code):
                     emit({"type": "progress", "code": _code, "label": label, "status": status, "i": i, "total": total})
 
@@ -214,7 +218,7 @@ def run_fetch_job(job_id: str, code: str, apply: bool, use_fallback: bool) -> No
                     "exact": result["exact"], "fuzzy": len(result["fuzzy"]),
                     "no_match": result["no_match"], "cached": result["cached"],
                 }})
-            else:
+            elif fallback_source == "launchbox":
                 if sys_code not in launchbox_mod.PLATFORM_MAP:
                     continue
                 index = launchbox_mod.build_index()
@@ -224,6 +228,17 @@ def run_fetch_job(job_id: str, code: str, apply: bool, use_fallback: bool) -> No
 
                 found = launchbox_mod.process_system_fallback(
                     sys_code, sysinfo["capas"], capas_root, registry, index, apply=apply, on_progress=on_progress,
+                )
+                emit({"type": "system_done", "code": sys_code, "result": {"found": found}})
+            elif fallback_source == "screenscraper":
+                if sys_code not in screenscraper_mod.SYSTEM_MAP:
+                    continue
+
+                def on_progress(label, status, i, total, _code=sys_code):
+                    emit({"type": "progress", "code": _code, "label": label, "status": status, "i": i, "total": total})
+
+                found = screenscraper_mod.process_system_fallback(
+                    sys_code, sysinfo["capas"], capas_root, registry, cfg, apply=apply, on_progress=on_progress,
                 )
                 emit({"type": "system_done", "code": sys_code, "result": {"found": found}})
 
@@ -328,6 +343,17 @@ class Handler(BaseHTTPRequestHandler):
         capas_dir = capas_root / info["capas"] / "Named_Boxarts"
         return capas_dir, info
 
+    def _memcard_path(self, key: str):
+        """Resolve uma "key" tipo "ps1:Slot 1" pro (caminho do arquivo,
+        console em maiúsculo) configurados em config.toml [memcards].
+        Retorna (None, None) se a key não bater com nenhum card."""
+        console, _, label = key.partition(":")
+        cfg = load_config()
+        path = cfg.get("memcards", {}).get(console, {}).get(label)
+        if not path:
+            return None, None
+        return Path(path).expanduser(), console.upper()
+
     def _file(self, path: Path, content_type: str):
         if not path.is_file():
             self.send_response(404)
@@ -367,6 +393,7 @@ class Handler(BaseHTTPRequestHandler):
                 out.append({
                     "code": code, "capas": info["capas"], "count": count,
                     "no_match": no_match, "has_launchbox": code in launchbox_mod.PLATFORM_MAP,
+                    "has_screenscraper": code in screenscraper_mod.SYSTEM_MAP,
                 })
             return self._json(out)
 
@@ -383,6 +410,20 @@ class Handler(BaseHTTPRequestHandler):
             registry = load_registry()
             reg_sys = registry.get(code, {})
             files = sorted(p.name for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg"))
+            # saves_root/states_root não têm subpasta por sistema (achatado,
+            # ver core/rom_rename.py) - lista cada pasta UMA vez e faz busca
+            # por prefixo via bisect, em vez de escanear a pasta inteira pra
+            # cada capa (isso escalaria mal com centenas de capas).
+            saves_dir = Path(cfg["pc"]["saves_root"]).expanduser()
+            states_dir = Path(cfg["pc"]["states_root"]).expanduser()
+            saves_names = sorted(p.name for p in saves_dir.iterdir() if p.is_file()) if saves_dir.is_dir() else []
+            states_names = sorted(p.name for p in states_dir.iterdir() if p.is_file()) if states_dir.is_dir() else []
+
+            def has_flat_match(sorted_names: list, label: str) -> bool:
+                prefix = label + "."
+                i = bisect.bisect_left(sorted_names, prefix)
+                return i < len(sorted_names) and sorted_names[i].startswith(prefix)
+
             out = []
             for f in files:
                 label = Path(f).stem
@@ -390,6 +431,7 @@ class Handler(BaseHTTPRequestHandler):
                 out.append({
                 "file": f, "label": label, "status": status,
                 "flagged": status == "flagged_wrong", "duplicated": status == "duplicate",
+                "has_save": has_flat_match(saves_names, label), "has_state": has_flat_match(states_names, label),
             })
             return self._json(out)
 
@@ -500,14 +542,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts[:3] == ["api", "memcards", "list"] and len(parts) == 4:
             key = urllib.parse.unquote(parts[3])
-            console, _, label = key.partition(":")
-            cfg = load_config()
-            path = cfg.get("memcards", {}).get(console, {}).get(label)
+            path, console = self._memcard_path(key)
             if not path:
                 return self._json({"error": "card desconhecido"}, 404)
             index = serials_mod.build_index()
             try:
-                items = memcard_mod.list_card(console.upper(), Path(path).expanduser(), index)
+                items = memcard_mod.list_card(console, path, index)
             except memcard_mod.MemcardError as e:
                 return self._json({"error": str(e)}, 502)
             return self._json({"items": items})
@@ -668,6 +708,20 @@ class Handler(BaseHTTPRequestHandler):
             save_registry(registry)
             return self._json({"ok": True, "cascade": cascade})
 
+        if parts == ["api", "cover", "delete_save"]:
+            # Apaga só o save OU state de um jogo (não a ROM/capa) -
+            # botão 💾/⏱ na própria capa, pra sistemas RetroArch com
+            # save/state achatado (saves_root/states_root, sem
+            # subpasta por sistema - por isso não precisa do "code").
+            body = self._read_json_body()
+            label, kind = body.get("label"), body.get("kind")
+            if kind not in ("save", "state"):
+                return self._json({"error": "kind precisa ser 'save' ou 'state'"}, 400)
+            cfg = load_config()
+            folder = Path(cfg["pc"]["saves_root" if kind == "save" else "states_root"]).expanduser()
+            deleted = rom_rename_mod.delete_flat_matches(folder, label)
+            return self._json({"ok": True, "deleted": deleted})
+
         if parts == ["api", "cover", "upload"]:
             body = self._read_json_body()
             code, label = body.get("code"), body.get("label")
@@ -738,7 +792,9 @@ class Handler(BaseHTTPRequestHandler):
         if parts[:2] == ["api", "fetch"] and len(parts) == 3:
             code = parts[2]
             apply = query.get("apply", ["0"])[0] == "1"
-            fallback = query.get("fallback", ["0"])[0] == "1"
+            fallback = query.get("fallback", [""])[0]
+            if fallback == "0":
+                fallback = ""
 
             job_id = f"{code}-{threading.get_ident()}-{id(object())}"
             q: "queue.Queue" = queue.Queue()
@@ -850,19 +906,78 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "memcards", "export"]:
             body = self._read_json_body()
             key, item = body.get("key", ""), body.get("item")
-            console, _, label = key.partition(":")
+            path, console = self._memcard_path(key)
             if not item:
                 return self._json({"error": "item vazio"}, 400)
-            cfg = load_config()
-            path = cfg.get("memcards", {}).get(console, {}).get(label)
             if not path:
                 return self._json({"error": "card desconhecido"}, 404)
+            cfg = load_config()
             export_dir = Path(cfg.get("memcards", {}).get("export_dir", "~/Downloads")).expanduser()
             try:
-                dest = memcard_mod.export_save(console.upper(), Path(path).expanduser(), item, export_dir)
+                dest = memcard_mod.export_save(console, path, item, export_dir)
             except memcard_mod.MemcardError as e:
                 return self._json({"error": str(e)}, 502)
             return self._json({"ok": True, "file": str(dest)})
+
+        if parts == ["api", "memcards", "delete"]:
+            body = self._read_json_body()
+            key, item = body.get("key", ""), body.get("item")
+            path, console = self._memcard_path(key)
+            if not item:
+                return self._json({"error": "item vazio"}, 400)
+            if not path:
+                return self._json({"error": "card desconhecido"}, 404)
+            try:
+                memcard_mod.delete_save(console, path, item)
+            except memcard_mod.MemcardError as e:
+                return self._json({"error": str(e)}, 502)
+            return self._json({"ok": True})
+
+        if parts == ["api", "memcards", "import"]:
+            body = self._read_json_body()
+            key = body.get("key", "")
+            filename, data_b64 = body.get("filename", ""), body.get("data", "")
+            path, console = self._memcard_path(key)
+            if not path:
+                return self._json({"error": "card desconhecido"}, 404)
+            try:
+                data = base64.b64decode(data_b64)
+            except Exception as e:
+                return self._json({"error": f"base64 inválido: {e}"}, 400)
+            if len(data) < 100:
+                return self._json({"error": "arquivo vazio ou pequeno demais"}, 400)
+            ext = Path(filename).suffix or ".mcs"
+            # import_save() decide o formato pela extensão do arquivo
+            # (src_file.suffix) - ela tem que ficar por último no nome,
+            # não pode ter ".tmp" depois ou ele lê ".tmp" como formato.
+            tmp = path.with_name(path.name + f".import.tmp{ext}")
+            tmp.write_bytes(data)
+            try:
+                memcard_mod.import_save(console, path, tmp)
+            except memcard_mod.MemcardError as e:
+                return self._json({"error": str(e)}, 502)
+            finally:
+                tmp.unlink(missing_ok=True)
+            return self._json({"ok": True})
+
+        if parts == ["api", "memcards", "transfer"]:
+            body = self._read_json_body()
+            src_key, dest_key, item = body.get("src_key", ""), body.get("dest_key", ""), body.get("item")
+            src_path, src_console = self._memcard_path(src_key)
+            dest_path, dest_console = self._memcard_path(dest_key)
+            if not item:
+                return self._json({"error": "item vazio"}, 400)
+            if not src_path or not dest_path:
+                return self._json({"error": "card desconhecido"}, 404)
+            if src_console != dest_console:
+                return self._json({"error": "só é possível transferir entre cards do mesmo console"}, 400)
+            cfg = load_config()
+            tmp_dir = Path(cfg.get("memcards", {}).get("export_dir", "~/Downloads")).expanduser()
+            try:
+                memcard_mod.transfer_save(src_console, src_path, dest_path, item, tmp_dir)
+            except memcard_mod.MemcardError as e:
+                return self._json({"error": str(e)}, 502)
+            return self._json({"ok": True})
 
         self.send_response(404)
         self.end_headers()

@@ -57,8 +57,13 @@ def _run(console: str, card_path: Path, args: list, timeout: int = 30) -> str:
     r = subprocess.run(
         [binname, str(card_path), *args], capture_output=True, text=True, timeout=timeout
     )
-    if r.returncode != 0:
-        raise MemcardError(r.stderr.strip() or r.stdout.strip() or "falha desconhecida")
+    # Achado real em 05/08: os dois binários às vezes devolvem returncode
+    # 0 MESMO quando imprimem uma linha "Error: ..." (ex: -in rejeitando
+    # save duplicado, -pu com diretório já existente) - por isso não dá
+    # pra confiar só no returncode, tem que checar a saída também.
+    err_line = next((ln for ln in r.stdout.splitlines() if ln.strip().startswith("Error:")), None)
+    if r.returncode != 0 or err_line:
+        raise MemcardError(err_line or r.stderr.strip() or r.stdout.strip() or "falha desconhecida")
     return r.stdout
 
 
@@ -121,3 +126,71 @@ def export_save(console: str, card_path: Path, item: dict, dest_dir: Path) -> Pa
         dest = dest_dir / f"{safe_name}.psu"
         _run(console, card_path, ["-px", item["raw_name"], str(dest)])
     return dest
+
+
+def delete_save(console: str, card_path: Path, item: dict) -> None:
+    """Apaga um save do card. No PS1 é uma remoção de slot só; no PS2 a
+    "pasta" do jogo não pode ser removida direto (achado em 05/08: o
+    -rm de um diretório não-vazio falha com "-6") - precisa esvaziar
+    (listar e remover cada arquivo dentro) antes de -rmdir."""
+    if console == "PS1":
+        _run(console, card_path, ["-rm", item["slot"]])
+        return
+    path = f"/{item['raw_name']}"
+    out = _run(console, card_path, ["-ls", path])
+    for line in out.splitlines():
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 2 or parts[0] in (".", "..") or parts[0].startswith("--"):
+            continue
+        _run(console, card_path, ["-rm", f"{path}/{parts[0]}"])
+    _run(console, card_path, ["-rmdir", path])
+
+
+def import_save(console: str, card_path: Path, src_file: Path) -> None:
+    """Injeta um arquivo de save (.MCS/.PSV/.PSX/.RAW/.PS1 no PS1,
+    .PSU/.PSV no PS2) no card. Não dá pra saber o jogo/slot de destino
+    sem abrir o binário do save - deixa a ferramenta decidir e tentar.
+
+    Testado em 05/08: duplicar o MESMO jogo no card funciona
+    normalmente (real - hardware de PS1 de verdade permite isso) -
+    quem barrou numa primeira tentativa de teste foi falta de espaço
+    livre CONTÍGUO (um save de 4 blocos não cabe se só sobra 1 slot
+    livre), não duplicação. Por isso o erro traduzido aqui fala em
+    espaço, não em "já existe esse jogo"."""
+    ext = src_file.suffix.lower()
+    if console == "PS1":
+        if ext not in (".mcs", ".psv", ".psx", ".raw", ".ps1"):
+            raise MemcardError(f"formato não suportado pro PS1: {ext}")
+        try:
+            _run(console, card_path, ["-in", str(src_file)])
+        except MemcardError as e:
+            raise MemcardError(
+                f"não foi possível importar - provavelmente não há espaço livre "
+                f"suficiente no card (detalhe: {e})"
+            ) from e
+    else:
+        if ext not in (".psu", ".psv"):
+            raise MemcardError(f"formato não suportado pro PS2: {ext}")
+        flag = "-pu" if ext == ".psu" else "-pi"
+        try:
+            _run(console, card_path, [flag, str(src_file)])
+        except MemcardError as e:
+            raise MemcardError(
+                f"não foi possível importar - provavelmente não há espaço livre "
+                f"suficiente no card (detalhe: {e})"
+            ) from e
+
+
+def transfer_save(console: str, src_card: Path, dest_card: Path, item: dict, tmp_dir: Path) -> None:
+    """Move (não copia) um save entre dois cards do MESMO console
+    (formatos de PS1 e PS2 são incompatíveis entre si, não faz sentido
+    cruzar) - exporta do card origem pro formato portável, injeta no
+    destino e só então apaga a origem, pra nunca ficar sem nenhuma
+    cópia se o import falhar no meio do caminho (se o import falhar, a
+    exceção sobe e a origem não é tocada)."""
+    exported = export_save(console, src_card, item, tmp_dir)
+    try:
+        import_save(console, dest_card, exported)
+    finally:
+        exported.unlink(missing_ok=True)
+    delete_save(console, src_card, item)

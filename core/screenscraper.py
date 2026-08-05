@@ -169,3 +169,48 @@ def download_cover(media_url: str, dest: Path) -> bool:
     conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
     tmp.unlink(missing_ok=True)
     return conv.returncode == 0 and dest.exists() and dest.stat().st_size > 1000
+
+
+def process_system_fallback(code: str, capas_folder: str, capas_root: Path, registry: dict, cfg: dict,
+                             apply: bool, on_progress=None) -> int:
+    """Segunda passada, só nos itens que core.covers.process_system já
+    marcou como no_match no registry - mesmo papel que
+    launchbox.process_system_fallback, botão "🔍 Buscar no
+    ScreenScraper" na GUI. Usa o próprio label como termo de busca e
+    pega o primeiro resultado (a API já ordena por relevância) - sem
+    trava de prefixo como o LaunchBox porque aqui é busca textual da
+    API, não índice local exato/prefixo."""
+    capas_dir = capas_root / capas_folder / "Named_Boxarts"
+    if not capas_dir.is_dir():
+        return 0
+
+    reg_sys = registry.setdefault(code, {})
+    no_match_labels = sorted(k for k, v in reg_sys.items() if v.get("status") == "no_match")
+    found = 0
+    total = len(no_match_labels)
+
+    for i, label in enumerate(no_match_labels, 1):
+        results = search_game(code, label, cfg, limit=1)
+        if not results:
+            if on_progress:
+                on_progress(label, "no_match", i, total)
+            continue
+        media_url = results[0]["media_url"]
+        if not apply:
+            found += 1
+            if on_progress:
+                on_progress(label, "found", i, total)
+            continue
+        dest = capas_dir / (label + ".png")
+        if download_cover(media_url, dest):
+            old_jpg = capas_dir / (label + ".jpg")
+            if old_jpg.exists():
+                old_jpg.unlink()
+            reg_sys[label] = {"status": "replaced_exact", "matched": results[0]["name"], "source": "screenscraper"}
+            found += 1
+            if on_progress:
+                on_progress(label, "downloaded", i, total)
+        elif on_progress:
+            on_progress(label, "download_failed", i, total)
+
+    return found

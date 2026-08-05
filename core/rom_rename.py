@@ -211,17 +211,22 @@ def _delete_rom(roms_dir: Path, label: str, exts: list) -> dict:
     return {"status": "apagado", "files": deleted}
 
 
-def _delete_flat_matches(folder: Path, label: str) -> list:
-    """Mesma comparação exata (nunca glob) do resto do módulo."""
+def find_flat_matches(folder: Path, label: str) -> list:
+    """Lista (sem apagar) os arquivos de saves_root/states_root que
+    pertencem a um label - mesma comparação exata por prefixo (nunca
+    glob) do resto do módulo. Usado tanto pela galeria de capas (pra
+    mostrar se o jogo tem save/state) quanto pelo delete abaixo."""
     if not folder.is_dir():
         return []
     prefix = label + "."
-    deleted = []
-    for p in sorted(folder.iterdir()):
-        if p.is_file() and p.name.startswith(prefix):
-            p.unlink()
-            deleted.append(str(p))
-    return deleted
+    return [p for p in sorted(folder.iterdir()) if p.is_file() and p.name.startswith(prefix)]
+
+
+def delete_flat_matches(folder: Path, label: str) -> list:
+    matches = find_flat_matches(folder, label)
+    for p in matches:
+        p.unlink()
+    return [str(p) for p in matches]
 
 
 def delete_with_cascade(roms_dir: Path, capas_dir: Path | None, saves_dir: Path, states_dir: Path,
@@ -240,6 +245,6 @@ def delete_with_cascade(roms_dir: Path, capas_dir: Path | None, saves_dir: Path,
             if p.exists():
                 p.unlink()
                 capa_deleted.append(str(p))
-    saves = _delete_flat_matches(saves_dir, label)
-    states = _delete_flat_matches(states_dir, label)
+    saves = delete_flat_matches(saves_dir, label)
+    states = delete_flat_matches(states_dir, label)
     return {"rom": rom_result, "capa": capa_deleted, "saves": saves, "states": states}

@@ -328,3 +328,110 @@ plano.
   Fora de escopo por ora: importar/injetar save de volta no cartão -
   a v1 cobre só visualização + exportação, que já resolve o pedido
   original de "verificar quais são individualizados".
+- **Editor de memory card v2**: usuário pediu importar/apagar/
+  transferir save entre cards, e apontou que a badge "individualizado"
+  da v1 estava enganosa. Corrigido: a badge media só se o NOME foi
+  resolvido via serial, não se o save é um arquivo próprio (TODO save
+  de PS1/PS2 vive dentro de um card compartilhado, nunca é
+  "individualizado" de verdade) - renomeada pra "nome identificado"/
+  "serial desconhecido". `core/memcard.py` ganhou `delete_save`,
+  `import_save`, `transfer_save`. Achados reais testando contra cópias
+  descartáveis dos cartões do usuário:
+  - Os binários às vezes devolvem **returncode 0 mesmo imprimindo uma
+    linha "Error: ..."** (ex: `-in` recusando por falta de espaço,
+    `-pu` avisando que o diretório já existe mas sobrescrevendo mesmo
+    assim) - `_run()` agora também escaneia a saída por "Error:" em
+    vez de confiar só no returncode, senão essas falhas passavam
+    batido como sucesso.
+  - PS2 `-rm` não remove um diretório não-vazio direto (erro "-6") -
+    `delete_save` esvazia (lista + remove cada arquivo) antes de
+    `-rmdir`.
+  - Hipótese inicial errada: achei que reimportar o MESMO jogo era
+    bloqueado por duplicação - na verdade real hardware de PS1 permite
+    duplicar, o bloqueio real era falta de espaço CONTÍGUO (um save de
+    4 blocos não cabe com só 1 slot livre). Mensagem de erro corrigida
+    pra falar em espaço, não em duplicação.
+  - "Transferir" tinha virar "copiar" (export+import sem apagar a
+    origem) até o usuário notar - corrigido pra mover de verdade
+    (`transfer_save` só apaga a origem DEPOIS do import ter sucesso,
+    pra nunca ficar sem nenhuma cópia se o import falhar no meio).
+  - Bug de case: `card.key` vem em minúsculo ("ps1:Slot 1") mas
+    `card.console` vem em maiúsculo ("PS1") - o filtro de "outros
+    cards do mesmo console" no botão Transferir comparava os dois
+    direto e nunca achava nada. Corrigido com `.toUpperCase()`.
+  - Bug de nome de arquivo temporário: o endpoint de import montava o
+    nome como `<card>.import<ext>.tmp` - como quem decide o formato é
+    a ÚLTIMA extensão do nome (`Path.suffix`), isso fazia o código ler
+    ".tmp" como formato em vez de ".mcs"/".psu". Corrigido pra
+    `<card>.import.tmp<ext>`.
+  - Aba reorganizada a pedido do usuário: PS1 e PS2 juntos na mesma
+    tela (antes eram 4 abas separadas, uma por card - agora é uma
+    seção por console, uma subseção por card, sem precisar trocar de
+    aba pra comparar).
+  Todo teste destrutivo (apagar/importar/transferir) rodou contra
+  cópias descartáveis dos 4 cartões reais do usuário, nunca os
+  arquivos de verdade - conferido hash antes/depois de cada sessão de
+  teste pra garantir que os originais não foram tocados.
+- **Gestão de save/state por jogo na galeria de capas**: pedido do
+  usuário - cada capa agora mostra badges "💾 Save"/"⏱ State" quando o
+  jogo tem arquivo correspondente em `saves_root`/`states_root`
+  (convenção achatada do RetroArch, mesma comparação por prefixo
+  exato - nunca glob - já usada em `rename_with_cascade`). Clicar
+  apaga só aquele save/state (não a ROM/capa). No backend, em vez de
+  escanear `saves_root`/`states_root` inteiro pra CADA capa da galeria
+  (lento com centenas de capas), lista as duas pastas uma vez só e usa
+  busca binária (`bisect`) pra checar o prefixo - O(log n) por capa em
+  vez de O(n). Refatorado `core/rom_rename.py`: `_delete_flat_matches`
+  virou público (`delete_flat_matches`) e ganhou uma versão só-leitura
+  (`find_flat_matches`), reaproveitados tanto pela galeria quanto pelo
+  apagar-com-cascata que já existia. Testado ao vivo: badge aparece
+  certo pra "Daytona USA" (Saturn, tem save E state reais), apagar o
+  save some só com o botão de save (state continua), arquivos restaurados
+  do backup depois do teste.
+- **Busca de capa por fonte**: usuário pediu um botão de fallback em
+  massa por fonte, igual o "Buscar no LaunchBox" que já existia -
+  criado "🔍 Buscar no ScreenScraper" ao lado. `core/screenscraper.py`
+  ganhou `process_system_fallback` (mesmo papel do equivalente em
+  `launchbox.py`: segunda passada só nos `no_match`, usa o label como
+  termo de busca, primeiro resultado da API). Backend trocou o
+  parâmetro `fallback` de booleano pra string ("launchbox"/
+  "screenscraper"/vazio), pra caber uma terceira fonte sem duplicar
+  rota. Testado ao vivo com um caso real: marcou "ActRaiser" (SFC)
+  como `no_match` temporariamente no registry, rodou o fallback em
+  modo simulação (sem aplicar) e confirmou "found:1" - restaurou o
+  registry original depois.
+- **Bug real corrigido: capa cortada no modal de busca** - usuário
+  reportou "corta um bom pedaço" ao ver a prévia na busca. Mesma causa
+  raiz do bug de `.gallery-strip` documentado acima (Chromium degenera
+  a altura de linhas `grid-auto-rows: auto` com filhos de
+  `aspect-ratio` quando tem dezenas de linhas), só que dessa vez em
+  `.search-results` - que nunca tinha recebido o mesmo piso mínimo.
+  Reproduzido e confirmado isolado: com `minmax(50px, auto)` a altura
+  real da linha colapsava pra ~82px contra os ~245px que o conteúdo
+  precisa (17 resultados já bastam pra disparar, não precisa de
+  "dezenas" nesse container mais estreito) - a imagem de 209px ficava
+  cortada quase pela metade. Corrigido com `grid-auto-rows: minmax(260px,
+  auto)`, testado com 40 resultados (o máximo) sem nenhum corte.
+- **Esconder menus superiores**: botão fixo (⌃/⌄, sempre visível
+  independente do estado) esconde/mostra topbar+menubar+filterbar de
+  uma vez, preferência salva em `localStorage` (sobrevive a reload).
+- **Investigação real no aparelho: saves do Flycast/Dolphin/PPSSPP/
+  3DS** - usuário pediu mapear a estrutura de save de cada emulador
+  fora do RetroArch, pra decidir se/como estender o backup pra eles.
+  Celular reconectado via adb (`RQCY207RB4N`) e explorado direto:
+  - Dolphin (GameCube) e PPSSPP já guardam save individualizado por
+    jogo nativamente (arquivo `.gci` e pasta `SAVEDATA/<serial>`,
+    respectivamente) - encaixariam fácil no mesmo padrão do memory
+    card PS1/PS2.
+  - Flycast usa VMU compartilhado (mesmo problema estrutural do PS1/
+    PS2, mas sem tool tipo `ps2vmc-tool` pronta pra esse formato).
+  - Dolphin (Wii) e 3DS usam estrutura tipo NAND por title-ID
+    hexadecimal - bem mais caro de implementar (título não vem
+    legível sem cruzar com base externa).
+  - App de 3DS instalado é **Lime3DS**, não "Azahar" (nome que o
+    usuário mencionou) - mesma família de fork do Citra, mas outro
+    projeto/pacote.
+  Detalhes completos em [`docs/roadmap.md`](roadmap.md). Decisão de
+  escopo/ordem de implementação ainda pendente com o usuário -
+  registrado como próximo passo, nada implementado ainda pra esses
+  quatro emuladores.

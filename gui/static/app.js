@@ -26,7 +26,8 @@ async function selectSystem(code) {
   const sys = systems.find(s => s.code === code);
   document.getElementById("current-system").textContent = `${code} — ${sys.count} capas, ${sys.no_match} sem correspondência`;
   document.getElementById("btn-fetch").disabled = false;
-  document.getElementById("btn-fallback").disabled = !sys.has_launchbox;
+  document.getElementById("btn-fallback-launchbox").disabled = !sys.has_launchbox;
+  document.getElementById("btn-fallback-screenscraper").disabled = !sys.has_screenscraper;
 
   const res = await fetch(`/api/covers/${code}`);
   currentItems = await res.json();
@@ -64,7 +65,7 @@ document.getElementById("filter-nomatch").addEventListener("change", renderGalle
 document.getElementById("filter-duplicated").addEventListener("change", renderGallery);
 
 function buildCoverCard(code, item, cacheBust) {
-  const { file, label, flagged, duplicated, status } = item;
+  const { file, label, flagged, duplicated, status, has_save, has_state } = item;
   const renamedPending = status === "renamed_pending";
   const src = `/images/${code}/${encodeURIComponent(file)}` + (cacheBust ? `?t=${Date.now()}` : "");
   const div = document.createElement("div");
@@ -78,6 +79,10 @@ function buildCoverCard(code, item, cacheBust) {
       ${renamedPending ? '<span class="rename-badge">✎ renomeada</span>' : ""}
     </div>
     <div class="label" title="${label}">${label}</div>
+    ${has_save || has_state ? `<div class="save-state-row">
+      ${has_save ? '<button class="tiny secondary" data-action="delete-save" title="Apagar save">💾 Save</button>' : ""}
+      ${has_state ? '<button class="tiny secondary" data-action="delete-state" title="Apagar state">⏱ State</button>' : ""}
+    </div>` : ""}
     <div class="cover-actions">
       <button class="tiny ${flagged ? "" : "secondary"}" data-action="flag">${flagged ? "Desmarcar" : "⚑ Errada"}</button>
       <button class="tiny ${duplicated ? "" : "secondary"}" data-action="duplicate">${duplicated ? "Desmarcar" : "⧉ Duplicada"}</button>
@@ -97,7 +102,29 @@ function buildCoverCard(code, item, cacheBust) {
   const fileInput = div.querySelector(".upload-input");
   div.querySelector('[data-action="upload"]').addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => uploadCover(code, label, fileInput.files[0]));
+  const delSaveBtn = div.querySelector('[data-action="delete-save"]');
+  if (delSaveBtn) delSaveBtn.addEventListener("click", () => deleteSaveOrState(label, "save", delSaveBtn));
+  const delStateBtn = div.querySelector('[data-action="delete-state"]');
+  if (delStateBtn) delStateBtn.addEventListener("click", () => deleteSaveOrState(label, "state", delStateBtn));
   return div;
+}
+
+async function deleteSaveOrState(label, kind, btn) {
+  const kindLabel = kind === "save" ? "save" : "state";
+  if (!confirm(`Apagar o ${kindLabel} de "${label}"? Isso não pode ser desfeito.`)) return;
+  const res = await fetch("/api/cover/delete_save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label, kind }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    btn.remove();
+    const idx = currentItems.findIndex(i => i.label === label);
+    if (idx >= 0) currentItems[idx][kind === "save" ? "has_save" : "has_state"] = false;
+  } else {
+    alert(`erro ao apagar ${kindLabel}: ${data.error || "falha"}`);
+  }
 }
 
 function describeDeleteCascade(cascade) {
@@ -161,7 +188,11 @@ function refreshCard(code, label, flagged, knownFile, duplicated = false) {
     old.remove();
     return;
   }
-  const newCard = buildCoverCard(code, { file, label, flagged, duplicated, status }, true);
+  const prev = idx >= 0 ? currentItems[idx] : {};
+  const newCard = buildCoverCard(code, {
+    file, label, flagged, duplicated, status,
+    has_save: prev.has_save, has_state: prev.has_state,
+  }, true);
   old.replaceWith(newCard);
 }
 
@@ -399,10 +430,10 @@ document.getElementById("search-modal").addEventListener("click", (e) => {
   if (e.target.id === "search-modal") closeSearch();
 });
 
-function startFetch(useFallback) {
+function startFetch(fallbackSource) {
   if (!currentSystem) return;
   const apply = document.getElementById("apply-toggle").checked ? "1" : "0";
-  const fallback = useFallback ? "1" : "0";
+  const fallback = fallbackSource || "0";
 
   const panel = document.getElementById("progress-panel");
   const fill = document.getElementById("progress-fill");
@@ -412,7 +443,8 @@ function startFetch(useFallback) {
   log.innerHTML = "";
 
   document.getElementById("btn-fetch").disabled = true;
-  document.getElementById("btn-fallback").disabled = true;
+  document.getElementById("btn-fallback-launchbox").disabled = true;
+  document.getElementById("btn-fallback-screenscraper").disabled = true;
 
   fetch(`/api/fetch/${currentSystem}?apply=${apply}&fallback=${fallback}`, { method: "POST" })
     .then(r => r.json())
@@ -440,7 +472,8 @@ function startFetch(useFallback) {
         } else if (data.type === "job_done") {
           evtSource.close();
           document.getElementById("btn-fetch").disabled = false;
-          document.getElementById("btn-fallback").disabled = false;
+          document.getElementById("btn-fallback-launchbox").disabled = false;
+          document.getElementById("btn-fallback-screenscraper").disabled = false;
           loadSystems().then(() => {
             if (currentSystem) selectSystem(currentSystem);
           });
@@ -449,8 +482,9 @@ function startFetch(useFallback) {
     });
 }
 
-document.getElementById("btn-fetch").addEventListener("click", () => startFetch(false));
-document.getElementById("btn-fallback").addEventListener("click", () => startFetch(true));
+document.getElementById("btn-fetch").addEventListener("click", () => startFetch(""));
+document.getElementById("btn-fallback-launchbox").addEventListener("click", () => startFetch("launchbox"));
+document.getElementById("btn-fallback-screenscraper").addEventListener("click", () => startFetch("screenscraper"));
 
 let heavySystems = [];
 let currentHeavy = null;
@@ -732,9 +766,8 @@ document.getElementById("organize-modal").addEventListener("click", (e) => {
   if (e.target.id === "organize-modal") closeOrganize();
 });
 
-let savesCards = [];
-let currentSavesKey = null;
-let savesItems = [];
+let savesCards = [];       // [{console, label, key, tool_ok}]
+let savesItemsByKey = {};  // key -> items[] (carregado uma vez, uma seção por card)
 
 function openSaves() {
   document.getElementById("saves-modal").classList.remove("hidden");
@@ -745,90 +778,200 @@ function closeSaves() {
   document.getElementById("saves-modal").classList.add("hidden");
 }
 
-async function loadSavesCards() {
-  const res = await fetch("/api/memcards");
-  savesCards = await res.json();
-  const tabs = document.getElementById("saves-tabs");
-  tabs.innerHTML = "";
-  for (const card of savesCards) {
-    const tab = document.createElement("div");
-    tab.className = "tab";
-    tab.dataset.key = card.key;
-    tab.textContent = `${card.console} - ${card.label}`;
-    tab.addEventListener("click", () => selectSavesCard(card.key));
-    tabs.appendChild(tab);
-  }
-  if (savesCards.length === 0) {
-    document.getElementById("saves-list").innerHTML =
-      '<div class="empty-state">Nenhum memory card configurado em config.toml [memcards].</div>';
-    return;
-  }
-  selectSavesCard(currentSavesKey && savesCards.some(c => c.key === currentSavesKey) ? currentSavesKey : savesCards[0].key);
+function savesStatus(msg) {
+  document.getElementById("saves-status").textContent = msg;
 }
 
-async function selectSavesCard(key) {
-  currentSavesKey = key;
-  document.querySelectorAll("#saves-tabs .tab").forEach(tab => {
-    tab.classList.toggle("active", tab.dataset.key === key);
-  });
-  const card = savesCards.find(c => c.key === key);
+async function loadSavesCards() {
   const list = document.getElementById("saves-list");
-  document.getElementById("saves-status").textContent = "";
-  if (card && !card.tool_ok) {
-    list.innerHTML = `<div class="empty-state">Ferramenta "${card.console === "PS1" ? "ps1vmc-tool" : "ps2vmc-tool"}" não encontrada no PATH - veja docs/memory_card_editor.md.</div>`;
-    return;
-  }
   list.innerHTML = '<div class="empty-state">carregando...</div>';
-  const res = await fetch(`/api/memcards/list/${encodeURIComponent(key)}`);
-  const data = await res.json();
-  if (!res.ok) {
-    list.innerHTML = `<div class="empty-state">erro: ${data.error || "falha ao ler o card"}</div>`;
+  savesStatus("");
+  const res = await fetch("/api/memcards");
+  savesCards = await res.json();
+  if (savesCards.length === 0) {
+    list.innerHTML = '<div class="empty-state">Nenhum memory card configurado em config.toml [memcards].</div>';
     return;
   }
-  savesItems = data.items;
+  // Carrega o conteúdo de todos os cards de uma vez (uma seção por
+  // console, uma subseção por card - ver pedido do usuário de não
+  // precisar trocar de aba pra comparar PS1 e PS2).
+  await Promise.all(savesCards.filter(c => c.tool_ok).map(async (card) => {
+    const r = await fetch(`/api/memcards/list/${encodeURIComponent(card.key)}`);
+    const data = await r.json();
+    savesItemsByKey[card.key] = r.ok ? data.items : { error: data.error || "falha ao ler o card" };
+  }));
   renderSavesList();
+}
+
+function formatSaveSize(item) {
+  // PS2 "size" no -ls é contagem de arquivos dentro da pasta, não
+  // bytes (só o PS1 devolve tamanho real do save) - formata diferente
+  // pra não mostrar "0 KB" enganoso.
+  return item.type === "dir" ? `${item.size} arquivo${item.size === 1 ? "" : "s"}` : `${(item.size / 1024).toFixed(0)} KB`;
 }
 
 function renderSavesList() {
   const list = document.getElementById("saves-list");
   list.innerHTML = "";
-  const saveItems = savesItems.filter(i => i.type !== "link");
-  if (saveItems.length === 0) {
-    list.innerHTML = '<div class="empty-state">Card vazio.</div>';
-    return;
-  }
-  for (const item of saveItems) {
-    const row = document.createElement("div");
-    row.className = "heavy-item";
-    const title = item.name || `(desconhecido - ${item.raw_name})`;
-    const badge = item.name ? "individualizado" : "sem correspondência";
-    // PS2 "size" no -ls é contagem de arquivos dentro da pasta, não
-    // bytes (só o PS1 devolve tamanho real do save) - formata diferente
-    // pra não mostrar "0 KB" enganoso.
-    const sizeLabel = item.type === "dir" ? `${item.size} arquivo${item.size === 1 ? "" : "s"}` : `${(item.size / 1024).toFixed(0)} KB`;
-    row.innerHTML = `
-      <div class="heavy-item-name" title="${item.raw_name}">${title}</div>
-      <div class="heavy-item-size">${sizeLabel}</div>
-      <div class="heavy-item-status ${item.name ? "ok" : ""}">${badge}</div>
-      <button class="tiny secondary" data-action="export">⬇ Exportar</button>
-    `;
-    row.querySelector('[data-action="export"]').addEventListener("click", () => exportSaveItem(item));
-    list.appendChild(row);
+  for (const consoleName of ["PS1", "PS2"]) {
+    const cards = savesCards.filter(c => c.console === consoleName);
+    if (cards.length === 0) continue;
+    const section = document.createElement("div");
+    section.className = "saves-console-section";
+    section.innerHTML = `<h4 class="saves-console-header">${consoleName}</h4>`;
+    for (const card of cards) {
+      const cardBox = document.createElement("div");
+      cardBox.className = "saves-card-section";
+      const header = document.createElement("div");
+      header.className = "saves-card-header";
+      header.innerHTML = `
+        <span>${card.label}</span>
+        <label class="tiny secondary import-label">📥 Importar save<input type="file" class="import-input" hidden></label>
+      `;
+      header.querySelector(".import-input").addEventListener("change", (e) => {
+        if (e.target.files[0]) importSaveFile(card.key, e.target.files[0]);
+      });
+      cardBox.appendChild(header);
+
+      if (!card.tool_ok) {
+        cardBox.innerHTML += `<div class="empty-state">Ferramenta "${consoleName === "PS1" ? "ps1vmc-tool" : "ps2vmc-tool"}" não encontrada no PATH - veja docs/memory_card_editor.md.</div>`;
+        section.appendChild(cardBox);
+        continue;
+      }
+      const data = savesItemsByKey[card.key];
+      if (!data || data.error) {
+        cardBox.innerHTML += `<div class="empty-state">erro: ${data ? data.error : "falha ao ler o card"}</div>`;
+        section.appendChild(cardBox);
+        continue;
+      }
+      const saveItems = data.filter(i => i.type !== "link");
+      if (saveItems.length === 0) {
+        cardBox.innerHTML += '<div class="empty-state">Card vazio.</div>';
+        section.appendChild(cardBox);
+        continue;
+      }
+      for (const item of saveItems) {
+        const row = document.createElement("div");
+        row.className = "heavy-item";
+        const title = item.name || `(desconhecido - ${item.raw_name})`;
+        // "individualizado" aqui seria enganoso - TODO save de PS1/PS2
+        // vive dentro de um card compartilhado, o que essa badge mostra
+        // de fato é se o nome do jogo foi resolvido a partir do serial.
+        const badge = item.name ? "nome identificado" : "serial desconhecido";
+        row.innerHTML = `
+          <div class="heavy-item-name" title="${item.raw_name}">${title}</div>
+          <div class="heavy-item-size">${formatSaveSize(item)}</div>
+          <div class="heavy-item-status ${item.name ? "ok" : ""}">${badge}</div>
+          <button class="tiny secondary" data-action="export">⬇ Exportar</button>
+          <button class="tiny secondary" data-action="transfer">↔ Transferir</button>
+          <button class="tiny danger" data-action="delete">🗑 Apagar</button>
+        `;
+        row.querySelector('[data-action="export"]').addEventListener("click", () => exportSaveItem(card.key, item));
+        row.querySelector('[data-action="transfer"]').addEventListener("click", () => transferSaveItem(card.key, item, row));
+        row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteSaveItem(card.key, item));
+        cardBox.appendChild(row);
+      }
+      section.appendChild(cardBox);
+    }
+    list.appendChild(section);
   }
 }
 
-async function exportSaveItem(item) {
+async function exportSaveItem(key, item) {
   const res = await fetch("/api/memcards/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key: currentSavesKey, item }),
+    body: JSON.stringify({ key, item }),
   });
   const data = await res.json();
   if (res.ok) {
-    document.getElementById("saves-status").textContent = `exportado: ${data.file}`;
+    savesStatus(`exportado: ${data.file}`);
   } else {
     alert(`erro ao exportar: ${data.error || "falha"}`);
   }
+}
+
+async function deleteSaveItem(key, item) {
+  const title = item.name || item.raw_name;
+  if (!confirm(`Apagar o save de "${title}" do card? Ação irreversível.`)) return;
+  const res = await fetch("/api/memcards/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, item }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    savesStatus(`apagado: ${title}`);
+    const r = await fetch(`/api/memcards/list/${encodeURIComponent(key)}`);
+    const d = await r.json();
+    savesItemsByKey[key] = r.ok ? d.items : { error: d.error };
+    renderSavesList();
+  } else {
+    alert(`erro ao apagar: ${data.error || "falha"}`);
+  }
+}
+
+function transferSaveItem(key, item, row) {
+  const consoleName = key.split(":")[0].toUpperCase();
+  const others = savesCards.filter(c => c.console === consoleName && c.key !== key && c.tool_ok);
+  if (others.length === 0) {
+    alert("Não há outro card desse console configurado pra transferir.");
+    return;
+  }
+  const controls = row.querySelector(".transfer-controls");
+  if (controls) { controls.remove(); return; } // toggle: clicar de novo cancela
+  const box = document.createElement("div");
+  box.className = "transfer-controls";
+  const options = others.map(c => `<option value="${c.key}">${c.label}</option>`).join("");
+  box.innerHTML = `
+    <select class="organize-select">${options}</select>
+    <button class="tiny" type="button">Mover</button>
+  `;
+  box.querySelector("button").addEventListener("click", async () => {
+    const destKey = box.querySelector("select").value;
+    const res = await fetch("/api/memcards/transfer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ src_key: key, dest_key: destKey, item }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      savesStatus(`transferido: ${item.name || item.raw_name} -> ${destKey.split(":")[1]}`);
+      const keys = [key, destKey];
+      await Promise.all(keys.map(async (k) => {
+        const r = await fetch(`/api/memcards/list/${encodeURIComponent(k)}`);
+        const d = await r.json();
+        savesItemsByKey[k] = r.ok ? d.items : { error: d.error };
+      }));
+      renderSavesList();
+    } else {
+      alert(`erro ao transferir: ${data.error || "falha"}`);
+    }
+  });
+  row.appendChild(box);
+}
+
+function importSaveFile(key, file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const data_b64 = reader.result.split(",")[1];
+    const res = await fetch("/api/memcards/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, filename: file.name, data: data_b64 }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      savesStatus(`importado: ${file.name}`);
+      const r = await fetch(`/api/memcards/list/${encodeURIComponent(key)}`);
+      const d = await r.json();
+      savesItemsByKey[key] = r.ok ? d.items : { error: d.error };
+      renderSavesList();
+    } else {
+      alert(`erro ao importar: ${data.error || "falha"}`);
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 document.getElementById("btn-saves").addEventListener("click", openSaves);
@@ -836,5 +979,17 @@ document.getElementById("btn-saves-close").addEventListener("click", closeSaves)
 document.getElementById("saves-modal").addEventListener("click", (e) => {
   if (e.target.id === "saves-modal") closeSaves();
 });
+
+function setChromeHidden(hidden) {
+  document.querySelector(".app").classList.toggle("chrome-hidden", hidden);
+  document.getElementById("btn-toggle-chrome").textContent = hidden ? "⌄" : "⌃";
+  localStorage.setItem("pyretro_chrome_hidden", hidden ? "1" : "0");
+}
+
+document.getElementById("btn-toggle-chrome").addEventListener("click", () => {
+  setChromeHidden(!document.querySelector(".app").classList.contains("chrome-hidden"));
+});
+
+if (localStorage.getItem("pyretro_chrome_hidden") === "1") setChromeHidden(true);
 
 loadSystems();

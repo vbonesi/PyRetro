@@ -18,20 +18,44 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 05/08/2026.
 | Organizar ROM nova ("0-Organizar") | ✅ Pronto |
 | Galeria em grid vertical | ✅ Pronto |
 | ScreenScraper (3ª fonte de capa) | ✅ Pronto, testado (busca + download reais, credencial de dev liberada em 04/08) |
-| Editor de memory card PS1/PS2 (`ps2vmc-tool`) | ✅ Pronto, testado (aba "💾 Saves" - listar + exportar, com nome do jogo resolvido via serial) |
+| Busca de capa por fonte (botão dedicado por fonte pra reprocessar sem_match/marcadas erradas) | ✅ Pronto, testado (LaunchBox + ScreenScraper) |
+| Editor de memory card PS1/PS2 (`ps2vmc-tool`) | ✅ Pronto, testado (aba "💾 Saves" - listar/exportar/apagar/importar/transferir, nome do jogo resolvido via serial) |
+| Gestão de save/state por jogo na galeria de capas | ✅ Pronto, testado (badges 💾/⏱ no card, apagar individual) |
+| Esconder menus superiores da galeria | ✅ Pronto, testado (preferência salva) |
 | ROMs pesadas via `rclone` (ver Drive + baixar sem adb) | ✅ Pronto, testado (listagem + download reais) |
+| Backup de saves do Flycast/Dolphin/PPSSPP/3DS (fora do RetroArch) | 🔍 Investigado no aparelho real - achados registrados abaixo, aguardando decisão de escopo/ordem com o usuário |
 | PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)) - não testado no aparelho |
 | `sync.py` pra saves/states/runtime-logs | ❌ Cancelado (sempre vai usar Google Drive pra isso) |
 
 ## Próximos passos (em ordem)
 
-1. Testar [`docs/termux_setup.md`](termux_setup.md) contra o aparelho
+1. Decidir com o usuário o escopo/ordem do backup de saves do
+   Flycast/Dolphin/PPSSPP/3DS - achados reais via adb em 05/08:
+   - **Dolphin (GameCube)**: já individualizado nativamente - um
+     arquivo `.gci` por jogo em `GC/<REGIÃO>/Card A|B/`, nome
+     prefixado pelo game code (ex: `70-GBTE-bayblade2002.gci`). Fácil,
+     mesmo padrão do memory card PS1/PS2 (cruzar prefixo com DAT de
+     serial).
+   - **PPSSPP**: já individualizado nativamente - uma pasta por save
+     em `PSP/SAVEDATA/<serial>` (ex: `ULUS10021`), sem card
+     compartilhado nenhum. Fácil, existe DAT de redump pro PSP
+     também.
+   - **Flycast (Dreamcast)**: usa VMU compartilhado
+     (`vmu_save_A1.bin`/`A2.bin`, um "cartão" só pra vários jogos) -
+     mesmo problema de fundo que PS1/PS2, mas sem uma ferramenta tipo
+     `ps2vmc-tool` pronta pra VMU - precisaria parser novo ou achar
+     outra ferramenta.
+   - **Dolphin (Wii) e 3DS**: estrutura tipo NAND por title-ID em
+     hexadecimal (`Wii/title/<high>/<low>/data/`,
+     `Nintendo 3DS/.../title/<high>/<low>/data|extdata/`) - bem mais
+     complexo, título não vem legível (precisaria cruzar title-ID com
+     alguma base externa, ou extrair do header do próprio arquivo de
+     ROM local). Mais caro que os outros quatro.
+   - Nota: o app de 3DS instalado no aparelho é **Lime3DS**
+     (`io.github.lime3ds.android`), não "Azahar" como mencionado -
+     mesma família (fork do Citra), mas nome/pacote diferentes.
+2. Testar [`docs/termux_setup.md`](termux_setup.md) contra o aparelho
    real.
-2. Editor de memory card - importar/injetar save de volta no cartão
-   (`-in`/`-psu-import`), hoje só lista + exporta.
-3. ~~ScreenScraper~~ - feito (ver Status atual).
-4. ~~Editor de memory card (listar/exportar)~~ - feito (ver Status
-   atual).
 
 ## Arquitetura de dois modos
 

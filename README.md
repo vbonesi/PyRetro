@@ -257,6 +257,15 @@ O que tem até agora:
   (apagar "Jogo (Disc 2)" não apaga o Disc 1/3 do mesmo jogo)
 - Filtros "só marcadas como erradas" / "só sem correspondência" / "só
   duplicadas", combináveis entre si (união, não interseção)
+- **💾/⏱ Save/State por jogo**: badges na própria capa quando o jogo
+  tem save e/ou state (convenção achatada do RetroArch, `saves_root`/
+  `states_root`) - clicar apaga só aquele save ou state, sem mexer na
+  ROM/capa
+- Botão de busca em massa por fonte pra reprocessar sem_match/
+  marcadas erradas - "🔍 Buscar no LaunchBox" e "🔍 Buscar no
+  ScreenScraper", cada um roda só na fonte escolhida
+- ⌃/⌄ no topo esconde/mostra os menus (topbar/menubar/filterbar) pra
+  mais espaço de galeria - preferência salva
 - **📦 ROMs Pesadas**: modal separado (botão no topo) pra PS, SDC, PS2,
   GameCube, Wii, PSP e 3DS - lista o que existe no PC, no celular
   (via adb) e no **Google Drive** (via `rclone`, sem precisar de
@@ -274,12 +283,14 @@ O que tem até agora:
   dropdown de sistema candidato por item (pré-selecionado se só bater
   com um) e um botão "Mover".
 - **💾 Saves**: modal separado - editor de memory card PS1/PS2
-  (`core/memcard.py`, envelopa `ps1vmc-tool`/`ps2vmc-tool`). Lista os
-  cartões configurados em `config.toml [memcards]`, com o nome do jogo
-  resolvido a partir do serial (o card só guarda o serial, tipo
-  "BASLUS-21672" - `core/serials.py` cruza contra os DATs de redump do
-  libretro-database) e exporta save individual (PSU no PS2, MCS no
-  PS1) pra uma pasta de staging.
+  (`core/memcard.py`, envelopa `ps1vmc-tool`/`ps2vmc-tool`). PS1 e PS2
+  juntos na mesma tela, uma seção por card configurado em
+  `config.toml [memcards]`, com o nome do jogo resolvido a partir do
+  serial (o card só guarda o serial, tipo "BASLUS-21672" -
+  `core/serials.py` cruza contra os DATs de redump do
+  libretro-database). Por save: exportar (PSU/MCS pra uma pasta de
+  staging), apagar, transferir pra outro card do mesmo console, e
+  importar um arquivo PSU/MCS/PSV pro card.
 
 O que ainda não tem (fases futuras, ver [`docs/roadmap.md`](docs/roadmap.md)):
 revisão visual de fuzzy match lado a lado, auditoria completa de `.cue`
@@ -387,8 +398,8 @@ PyRetro/
 | `core/cues.py` | `rename_disc_set` implementado e testado (`.cue`/`.gdi` + sidecars `.bin`, corrige a referência de texto). Auditoria completa (`scan_folder`/`fix_all`) ainda esqueleto |
 | `core/heavy_roms.py` | Implementado e testado ponta a ponta com o celular real - identifica ROMs de PS/SDC/PS2/GameCube/Wii/PSP/3DS e envia sob demanda via adb, somando sidecars |
 | `core/organize.py` | Implementado e testado ponta a ponta via GUI - identifica ROMs em `0-Organizar/` pela extensão e move pro sistema certo, com desambiguação manual quando a extensão bate com mais de um sistema |
-| `core/rom_rename.py` | Implementado e testado ponta a ponta via GUI - rename e apagar com cascata (ROM + capa + save/state) pra sistemas leves e pesados, incluindo grupos multi-disco no rename (PS1/PS2) |
-| `core/memcard.py` | Implementado e testado contra cartões reais - lista e exporta save (PSU/MCS) de memory card PS1/PS2 via `ps1vmc-tool`/`ps2vmc-tool`. Importar/injetar de volta ainda não |
+| `core/rom_rename.py` | Implementado e testado ponta a ponta via GUI - rename e apagar com cascata (ROM + capa + save/state) pra sistemas leves e pesados, incluindo grupos multi-disco no rename (PS1/PS2); `find_flat_matches`/`delete_flat_matches` reaproveitados pela gestão de save/state na galeria |
+| `core/memcard.py` | Implementado e testado contra cartões reais - listar/exportar/apagar/importar/transferir save de memory card PS1/PS2 via `ps1vmc-tool`/`ps2vmc-tool` |
 | `core/serials.py` | Implementado e testado - serial → nome do jogo via DAT de redump do libretro-database, usado pelo `memcard.py` |
 | `retrosync.py` | `fetch-covers`, `fetch-covers-fallback`, `convert-covers`, `validate-covers`, `sanitize-names`, `sync covers`, `heavy-roms` e `organize` conectados de verdade; `sync saves/states/metrics` (cancelado) e `fix-cues` (auditoria) levantam `NotImplementedError` |
 
