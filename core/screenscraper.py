@@ -1,31 +1,18 @@
 """
-Fonte de capas ScreenScraper.fr - BLOQUEADA por enquanto, ver abaixo.
+Fonte de capas ScreenScraper.fr - terceira fonte, além de
+libretro-thumbnails e LaunchBox. Credencial de desenvolvedor concedida
+em 04/08/2026 (pedida no fórum deles), destravou jeuRecherche.php e
+jeuInfos.php (os placeholders xxx/yyy tinham parado de funcionar pra
+esses dois em 01/08 - ver docs/changelog.md).
 
-A API tem dois níveis de credencial: a conta pessoal do usuário
-(ssid/sspassword, já configurada em config.toml [screenscraper]) e uma
-credencial de "desenvolvedor" (devid/devpassword) que identifica o
-PyRetro como aplicação - essa precisa ser pedida no fórum do
-ScreenScraper, não é self-service.
-
-Em 31/07 os placeholders devid=xxx&devpassword=yyy pareciam funcionar
-contra jeuInfos.php e systemesListe.php (testado direto). Em 01/08,
-retestando pra construir esse módulo, jeuInfos.php e jeuRecherche.php
-(os dois endpoints que realmente importam - busca e info de jogo)
-passaram a recusar esse placeholder:
-
-    "Erreur de login : Vérifier vos identifiants développeur !" (HTTP 403)
-
-só systemesListe.php (usado abaixo pra montar o SYSTEM_MAP) continua
-aceitando. Ou seja: dá pra descobrir o mapeamento de sistemas, mas NÃO
-dá pra buscar/baixar capa de jogo nenhuma sem devid/devpassword de
-verdade. search_game/download_cover ficam propositalmente não
-implementadas (levantam NotImplementedError) até isso ser resolvido -
-nada de fingir que funciona com um placeholder que a própria API já
-rejeitou uma vez.
-
-Próximo passo pra desbloquear: pedir credencial de desenvolvedor no
-fórum do ScreenScraper (https://www.screenscraper.fr, seção
-Contribuer/Développeurs) usando a conta "bonis" já configurada.
+IMPORTANTE - as URLs de mídia que a API devolve (campo "medias" de
+cada jogo) já vêm com devid/devpassword/ssid/sspassword embutidos como
+parâmetro de URL. Por isso essas URLs NUNCA são expostas direto pro
+navegador (nem como "preview" na busca da GUI) - o servidor sempre
+baixa a imagem por trás e serve só os bytes, através de um proxy
+(/api/cover/ss_preview) e um cache em memória por processo
+(gui/server.py _ss_media_cache) que guarda a URL real associada a um
+id de busca, nunca grava isso em disco nem manda pro cliente.
 
 SYSTEM_MAP: código do config.toml -> systemeid do ScreenScraper.
 Montado cruzando noms.nom_launchbox do systemesListe.php contra
@@ -47,6 +34,12 @@ uma vez cada:
     nom_recalbox incluindo "fbneo", que é exatamente o núcleo/repo que
     o ARCADE do config.toml usa (FBNeo - Arcade Games).
 """
+import json
+import subprocess
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
 
 SYSTEM_MAP = {
     "FC": 3,
@@ -71,6 +64,11 @@ SYSTEM_MAP = {
 
 API_BASE = "https://api.screenscraper.fr/api2/"
 
+# Ordem de preferência de região pra escolher UMA capa entre as várias
+# que o ScreenScraper retorna por jogo (mesma ideia do REGION_PRIORITY
+# em launchbox.py). "wor" é "World" quando existe.
+_REGION_PRIORITY = ["us", "eu", "wor", "ss"]
+
 
 def _creds(cfg: dict) -> dict:
     ss = cfg.get("screenscraper", {})
@@ -83,21 +81,83 @@ def _creds(cfg: dict) -> dict:
     }
 
 
-def search_game(code: str, query: str, cfg: dict) -> list:
+def _best_name(noms: list) -> str:
+    if not noms:
+        return "(sem nome)"
+    by_region = {n.get("region"): n.get("text") for n in noms}
+    for region in ("us", "eu", "wor", "ss"):
+        if by_region.get(region):
+            return by_region[region]
+    return noms[0].get("text", "(sem nome)")
+
+
+def _best_box_media(medias: list) -> str | None:
+    """Escolhe UMA mídia "box-2D" entre as várias regiões disponíveis."""
+    candidates = {m.get("region"): m.get("url") for m in medias if m.get("type") == "box-2D" and m.get("url")}
+    for region in _REGION_PRIORITY:
+        if candidates.get(region):
+            return candidates[region]
+    return next(iter(candidates.values()), None)
+
+
+def search_game(code: str, query: str, cfg: dict, limit: int = 20) -> list:
+    """Busca jogos no ScreenScraper por nome, dentro do systemeid do
+    código dado. Retorna [{"id", "name", "media_url"}] - media_url
+    JAMAIS deve ser repassada pro cliente (tem senha embutida, ver
+    docstring do módulo) - é pra uso só no backend."""
     creds = _creds(cfg)
     if not creds["devid"] or not creds["devpassword"]:
         raise NotImplementedError(
             "ScreenScraper precisa de credencial de desenvolvedor real "
-            "(devid/devpassword) - o placeholder xxx/yyy foi testado em "
-            "01/08 e a API recusou pra busca de jogo (jeuRecherche.php). "
-            "Peça a credencial no fórum do ScreenScraper e preencha "
-            "config.toml [screenscraper] antes de usar esta função."
+            "(devid/devpassword) em config.toml [screenscraper]."
         )
-    raise NotImplementedError("busca ainda não implementada - ver bloqueio acima")
+    systeme_id = SYSTEM_MAP.get(code)
+    if systeme_id is None:
+        return []
+
+    params = {**creds, "output": "json", "recherche": query, "systemeid": systeme_id}
+    url = API_BASE + "jeuRecherche.php?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "PyRetro"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read())
+    except (urllib.error.URLError, ValueError):
+        return []
+
+    jeux = (data.get("response") or {}).get("jeux") or []
+    results = []
+    for jeu in jeux[:limit]:
+        media_url = _best_box_media(jeu.get("medias", []))
+        if not media_url:
+            continue
+        results.append({
+            "id": jeu.get("id"), "name": _best_name(jeu.get("noms", [])), "media_url": media_url,
+        })
+    return results
 
 
-def download_cover(*args, **kwargs) -> bool:
-    raise NotImplementedError(
-        "download ainda não implementado - depende de search_game, "
-        "que está bloqueada por falta de devid/devpassword real"
-    )
+def fetch_media_bytes(media_url: str) -> bytes | None:
+    """Baixa os bytes crus de uma media_url (já vem com credenciais
+    embutidas pela própria API). Usado tanto pelo proxy de preview
+    quanto pelo download final."""
+    req = urllib.request.Request(media_url, headers={"User-Agent": "PyRetro"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = resp.read()
+    except urllib.error.URLError:
+        return None
+    return data if len(data) > 500 else None
+
+
+def download_cover(media_url: str, dest: Path) -> bool:
+    """Baixa a capa e grava sempre como PNG de verdade - `convert`
+    detecta o formato pelo conteúdo, nunca confia na extensão (mesma
+    lição de 02/08, ver core/covers.py PNG_MAGIC)."""
+    data = fetch_media_bytes(media_url)
+    if not data:
+        return False
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    tmp.write_bytes(data)
+    conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
+    tmp.unlink(missing_ok=True)
+    return conv.returncode == 0 and dest.exists() and dest.stat().st_size > 1000

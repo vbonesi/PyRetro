@@ -235,3 +235,32 @@ plano.
   Drive (com botão "⬇ Baixar do Drive") e um selo "☁ no Drive" nos que
   já são locais - testado ponta a ponta incluindo o fluxo de erro
   (clique → job → SSE → mensagem de erro exibida corretamente).
+- **ScreenScraper implementado e testado com a API real**: usuário
+  conseguiu conta de desenvolvedor (devid/devpassword), o que
+  destravou `jeuRecherche.php`/`jeuInfos.php` (os placeholders xxx/yyy
+  tinham parado de funcionar pra esses dois endpoints, ver entrada de
+  01-02/08). `core/screenscraper.py` reescrito: `search_game` busca
+  por nome dentro do `systemeid` do sistema (mapeado em `SYSTEM_MAP`,
+  cruzando `nom_launchbox` do `systemesListe.php` com
+  `launchbox_mod.PLATFORM_MAP` - com dois overrides manuais pra PCECD e
+  NEOGEO onde o texto diverge entre as duas fontes, e ARCADE fixado no
+  id genérico "Mame" já que o ScreenScraper não tem um id único por
+  núcleo/placa). **Cuidado de segurança**: as URLs de mídia que a API
+  devolve já vêm com devid/devpassword/ssid/sspassword embutidos como
+  parâmetro de URL - por isso nunca são repassadas pro navegador.
+  Solução: cache em memória por processo em `gui/server.py`
+  (`_ss_media_cache`, nunca gravado em disco) guarda a URL real por
+  `code:id` durante a busca, e uma rota nova `GET
+  /api/cover/ss_preview?code=&id=` busca a imagem no backend e
+  devolve só os bytes pro cliente, com Content-Type detectado pelos
+  magic bytes (PNG vs JPEG - mesma lição de não confiar em extensão
+  declarada). `POST /api/cover/select` ganhou um branch pra
+  `source == "screenscraper"`. Testado ao vivo contra a API de
+  produção com a credencial real do usuário: busca por "Chrono
+  Trigger" no SFC devolveu 5 resultados reais, download do primeiro
+  produziu um PNG de capa correto (680×497, conferido visualmente).
+  Testado também o fluxo completo pela GUI (clique num card de
+  resultado ScreenScraper na busca → capa aplicada no disco), sem
+  vazar a URL com credenciais pro cliente em nenhum momento (conferido
+  via network tab). Artefatos de teste (`ZZZ_TESTE_SS*`) limpos do
+  disco e do registry depois.

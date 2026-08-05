@@ -17,7 +17,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 04/08/2026.
 | Apagar com cascata (ROM+capa+save/state) | ✅ Pronto |
 | Organizar ROM nova ("0-Organizar") | ✅ Pronto |
 | Galeria em grid vertical | ✅ Pronto |
-| ScreenScraper (3ª fonte de capa) | 🔒 Bloqueado - credencial de desenvolvedor pedida, aguardando resposta |
+| ScreenScraper (3ª fonte de capa) | ✅ Pronto, testado (busca + download reais, credencial de dev liberada em 04/08) |
 | Editor de memory card PS1/PS2 (`ps2vmc-tool`) | 🔍 Pesquisado + dificuldade validada (baixa) - implementação não iniciada |
 | ROMs pesadas via `rclone` (ver Drive + baixar sem adb) | ✅ Pronto, testado (listagem + download reais) |
 | PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)) - não testado no aparelho |
@@ -30,7 +30,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 04/08/2026.
 2. Implementar o editor de memory card - dificuldade já validada como
    baixa, falta desenhar a tela na GUI (envelopar `ps2vmc-tool` via
    subprocess, mesmo padrão de `curl`/`convert`).
-3. ScreenScraper - aguardando resposta do fórum, nada a fazer até lá.
+3. ~~ScreenScraper~~ - feito (ver Status atual).
 
 ## Arquitetura de dois modos
 

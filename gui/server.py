@@ -32,6 +32,7 @@ from core import launchbox as launchbox_mod
 from core import organize as organize_mod
 from core import rom_rename as rom_rename_mod
 from core import sanitize as sanitize_mod
+from core import screenscraper as screenscraper_mod
 
 CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
@@ -42,6 +43,12 @@ COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
 _jobs: dict[str, "queue.Queue"] = {}
 _jobs_lock = threading.Lock()
 
+# "code:ss_id" -> media_url real do ScreenScraper (com credenciais
+# embutidas) - NUNCA mandado pro cliente, só usado pelo proxy de
+# preview e pelo download final. Em memória, por processo - some ao
+# reiniciar o servidor, o que é aceitável (busca de novo re-popula).
+_ss_media_cache: dict[str, str] = {}
+
 
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
@@ -50,10 +57,11 @@ def load_config() -> dict:
         return tomllib.load(f)
 
 
-def search_cover_candidates(code: str, query: str, systems_cfg: dict) -> list:
+def search_cover_candidates(code: str, query: str, cfg: dict) -> list:
     """Busca por substring (não exata, não fuzzy com trava - aqui quem
-    decide é o humano olhando a prévia) nas duas fontes já integradas.
+    decide é o humano olhando a prévia) nas três fontes integradas.
     Usado pela tela de "capa errada, buscar outra opção"."""
+    systems_cfg = cfg["systems"]
     sysinfo = systems_cfg.get(code)
     if not sysinfo:
         return []
@@ -80,6 +88,19 @@ def search_cover_candidates(code: str, query: str, systems_cfg: dict) -> list:
                     "source": "launchbox", "name": orig_name, "filename": filename,
                     "preview": launchbox_mod.IMAGE_BASE_URL + filename,
                 })
+
+    if code in screenscraper_mod.SYSTEM_MAP:
+        try:
+            ss_results = screenscraper_mod.search_game(code, query, cfg)
+        except NotImplementedError:
+            ss_results = []
+        for r in ss_results:
+            ss_id = r["id"]
+            _ss_media_cache[f"{code}:{ss_id}"] = r["media_url"]
+            results.append({
+                "source": "screenscraper", "name": r["name"], "ss_id": ss_id,
+                "preview": f"/api/cover/ss_preview?code={urllib.parse.quote(code)}&id={urllib.parse.quote(str(ss_id))}",
+            })
 
     return results[:40]
 
@@ -390,8 +411,32 @@ class Handler(BaseHTTPRequestHandler):
             code = query.get("code", [""])[0]
             q = query.get("q", [""])[0]
             cfg = load_config()
-            results = search_cover_candidates(code, q, cfg["systems"])
+            results = search_cover_candidates(code, q, cfg)
             return self._json(results)
+
+        if parts == ["api", "cover", "ss_preview"]:
+            # Proxy da imagem do ScreenScraper - a media_url real (com
+            # senha embutida) nunca sai do backend, só os bytes da
+            # imagem em si. Ver docstring de core/screenscraper.py.
+            code = query.get("code", [""])[0]
+            ss_id = query.get("id", [""])[0]
+            media_url = _ss_media_cache.get(f"{code}:{ss_id}")
+            if not media_url:
+                self.send_response(404)
+                self.end_headers()
+                return
+            data = screenscraper_mod.fetch_media_bytes(media_url)
+            if not data:
+                self.send_response(502)
+                self.end_headers()
+                return
+            ctype = "image/png" if data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg"
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
 
         if parts == ["api", "organize", "pending"]:
             cfg = load_config()
@@ -646,7 +691,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "sistema desconhecido"}, 404)
             capas_dir.mkdir(parents=True, exist_ok=True)
             dest = capas_dir / (label + ".png")
-            ok = download_selected_cover(source, name, info["repo"], filename, dest)
+            if source == "screenscraper":
+                ss_id = body.get("ss_id", "")
+                media_url = _ss_media_cache.get(f"{code}:{ss_id}")
+                ok = screenscraper_mod.download_cover(media_url, dest) if media_url else False
+            else:
+                ok = download_selected_cover(source, name, info["repo"], filename, dest)
             if not ok:
                 return self._json({"error": "download falhou"}, 502)
             old_jpg = capas_dir / (label + ".jpg")

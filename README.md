@@ -338,7 +338,7 @@ PyRetro/
 ├── core/
 │   ├── covers.py          # busca/substituição de capas - implementado
 │   ├── launchbox.py       # segunda fonte de capas (LaunchBox Games DB) - implementado
-│   ├── screenscraper.py   # terceira fonte de capas - bloqueada, falta devid/devpassword real
+│   ├── screenscraper.py   # terceira fonte de capas (busca + proxy de mídia) - implementado e testado
 │   ├── sanitize.py        # remove caracteres que o RetroArch não aceita - implementado
 │   ├── sync.py            # sincronização PC<->Android (só capas) - implementado e testado no aparelho
 │   ├── cues.py             # rename_disc_set (.cue/.gdi+.bin) - implementado; scan/auditoria - esqueleto
@@ -368,7 +368,7 @@ PyRetro/
 | `core/covers.py` | Implementado e testado - resolve exato, fuzzy (só relatório), DAT do FBNeo pro Arcade, fallback de download via API do GitHub, distingue rate-limit de sem_match real |
 | `core/launchbox.py` | Implementado e testado - segunda fonte (LaunchBox Games DB) só pros sem_match do covers.py, exato + prefixo com trava de segurança |
 | `core/sanitize.py` | Implementado e testado - remove `&`/`:`/`*` de nomes de capa e ROM, nunca sobrescreve em conflito |
-| `core/screenscraper.py` | Bloqueado - mapeamento de sistemas (`SYSTEM_MAP`) pronto e testado, mas busca/download levantam `NotImplementedError` porque a API recusa o devid/devpassword placeholder pra `jeuRecherche.php`/`jeuInfos.php`. Precisa de credencial de desenvolvedor real (fórum do ScreenScraper) |
+| `core/screenscraper.py` | Implementado e testado com API real - `search_game`/`download_cover`, mapeamento de sistemas (`SYSTEM_MAP`), URLs de mídia com credencial embutida nunca vão pro cliente (proxy `/api/cover/ss_preview` + cache em memória em `gui/server.py`) |
 | `core/adb.py` | Implementado e testado contra o aparelho real - `run`/`shell`/`push`/`pull`/`ensure_connected` com retry via kill-server/start-server |
 | `core/sync.py` | Implementado e testado contra o aparelho real, só pra capas (`sync_capas`) - manifesto em `cache/sync_state.json`, classifica sem_mudança/pra PC/pro Android/conflito, nunca deleta. Extensão pra saves/states/runtime-logs **cancelada** (sempre vai usar Google Drive pra isso) |
 | `core/cues.py` | `rename_disc_set` implementado e testado (`.cue`/`.gdi` + sidecars `.bin`, corrige a referência de texto). Auditoria completa (`scan_folder`/`fix_all`) ainda esqueleto |

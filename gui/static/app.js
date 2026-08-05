@@ -342,10 +342,11 @@ async function runSearch() {
   for (const item of items) {
     const card = document.createElement("div");
     card.className = "search-result";
+    const sourceLabel = { libretro: "libretro-thumbnails", launchbox: "LaunchBox", screenscraper: "ScreenScraper" }[item.source] || item.source;
     card.innerHTML = `
       <img src="${item.preview}" loading="lazy" alt="${item.name}">
       <div class="search-result-name" title="${item.name}">${item.name}</div>
-      <div class="search-result-source">${item.source === "libretro" ? "libretro-thumbnails" : "LaunchBox"}</div>
+      <div class="search-result-source">${sourceLabel}</div>
     `;
     card.addEventListener("click", () => selectCandidate(item));
     results.appendChild(card);
@@ -361,6 +362,7 @@ async function selectCandidate(item) {
     body: JSON.stringify({
       code: searchCtx.code, label: searchCtx.label,
       source: item.source, name: item.name, filename: item.filename || "",
+      ss_id: item.ss_id || "",
     }),
   });
   if (res.ok) {
