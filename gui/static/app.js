@@ -732,4 +732,109 @@ document.getElementById("organize-modal").addEventListener("click", (e) => {
   if (e.target.id === "organize-modal") closeOrganize();
 });
 
+let savesCards = [];
+let currentSavesKey = null;
+let savesItems = [];
+
+function openSaves() {
+  document.getElementById("saves-modal").classList.remove("hidden");
+  loadSavesCards();
+}
+
+function closeSaves() {
+  document.getElementById("saves-modal").classList.add("hidden");
+}
+
+async function loadSavesCards() {
+  const res = await fetch("/api/memcards");
+  savesCards = await res.json();
+  const tabs = document.getElementById("saves-tabs");
+  tabs.innerHTML = "";
+  for (const card of savesCards) {
+    const tab = document.createElement("div");
+    tab.className = "tab";
+    tab.dataset.key = card.key;
+    tab.textContent = `${card.console} - ${card.label}`;
+    tab.addEventListener("click", () => selectSavesCard(card.key));
+    tabs.appendChild(tab);
+  }
+  if (savesCards.length === 0) {
+    document.getElementById("saves-list").innerHTML =
+      '<div class="empty-state">Nenhum memory card configurado em config.toml [memcards].</div>';
+    return;
+  }
+  selectSavesCard(currentSavesKey && savesCards.some(c => c.key === currentSavesKey) ? currentSavesKey : savesCards[0].key);
+}
+
+async function selectSavesCard(key) {
+  currentSavesKey = key;
+  document.querySelectorAll("#saves-tabs .tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.key === key);
+  });
+  const card = savesCards.find(c => c.key === key);
+  const list = document.getElementById("saves-list");
+  document.getElementById("saves-status").textContent = "";
+  if (card && !card.tool_ok) {
+    list.innerHTML = `<div class="empty-state">Ferramenta "${card.console === "PS1" ? "ps1vmc-tool" : "ps2vmc-tool"}" não encontrada no PATH - veja docs/memory_card_editor.md.</div>`;
+    return;
+  }
+  list.innerHTML = '<div class="empty-state">carregando...</div>';
+  const res = await fetch(`/api/memcards/list/${encodeURIComponent(key)}`);
+  const data = await res.json();
+  if (!res.ok) {
+    list.innerHTML = `<div class="empty-state">erro: ${data.error || "falha ao ler o card"}</div>`;
+    return;
+  }
+  savesItems = data.items;
+  renderSavesList();
+}
+
+function renderSavesList() {
+  const list = document.getElementById("saves-list");
+  list.innerHTML = "";
+  const saveItems = savesItems.filter(i => i.type !== "link");
+  if (saveItems.length === 0) {
+    list.innerHTML = '<div class="empty-state">Card vazio.</div>';
+    return;
+  }
+  for (const item of saveItems) {
+    const row = document.createElement("div");
+    row.className = "heavy-item";
+    const title = item.name || `(desconhecido - ${item.raw_name})`;
+    const badge = item.name ? "individualizado" : "sem correspondência";
+    // PS2 "size" no -ls é contagem de arquivos dentro da pasta, não
+    // bytes (só o PS1 devolve tamanho real do save) - formata diferente
+    // pra não mostrar "0 KB" enganoso.
+    const sizeLabel = item.type === "dir" ? `${item.size} arquivo${item.size === 1 ? "" : "s"}` : `${(item.size / 1024).toFixed(0)} KB`;
+    row.innerHTML = `
+      <div class="heavy-item-name" title="${item.raw_name}">${title}</div>
+      <div class="heavy-item-size">${sizeLabel}</div>
+      <div class="heavy-item-status ${item.name ? "ok" : ""}">${badge}</div>
+      <button class="tiny secondary" data-action="export">⬇ Exportar</button>
+    `;
+    row.querySelector('[data-action="export"]').addEventListener("click", () => exportSaveItem(item));
+    list.appendChild(row);
+  }
+}
+
+async function exportSaveItem(item) {
+  const res = await fetch("/api/memcards/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: currentSavesKey, item }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    document.getElementById("saves-status").textContent = `exportado: ${data.file}`;
+  } else {
+    alert(`erro ao exportar: ${data.error || "falha"}`);
+  }
+}
+
+document.getElementById("btn-saves").addEventListener("click", openSaves);
+document.getElementById("btn-saves-close").addEventListener("click", closeSaves);
+document.getElementById("saves-modal").addEventListener("click", (e) => {
+  if (e.target.id === "saves-modal") closeSaves();
+});
+
 loadSystems();

@@ -48,9 +48,32 @@ https://github.com/bucanero/ps2vmc-tool
   Python/Linux (dependência de .NET), e criaria a mesma necessidade de
   duas ferramentas separadas que o `ps2vmc-tool` já evita.
 
-## Próximo passo (implementação, não pesquisa)
+## Implementado em 05/08/2026
 
-Não implementado ainda - fica pro próximo passo depois do
-`ps2vmc-tool` ser baixado/compilado e testado manualmente contra um
-save real da coleção (confirmar que lista/exporta/importa direito
-antes de desenhar a integração com a GUI do PyRetro).
+`core/memcard.py` envelopa `ps1vmc-tool`/`ps2vmc-tool` via subprocess
+(binários instalados em `~/.local/bin`, já no PATH). GUI ganhou uma
+aba "💾 Saves" (botão no topbar) que lista o conteúdo dos cartões
+configurados em `config.toml [memcards]` e exporta save individual
+(PSU no PS2, MCS no PS1) pra `[memcards].export_dir` (padrão
+`~/Downloads`).
+
+**Problema real resolvido**: um memory card guarda os saves só pelo
+SERIAL do disco (ex: pasta "BASLUS-21672" no PS2, slot
+"BASCUS-9424400000000" no PS1) - sem cruzar isso com o nome do jogo a
+tela ficaria uma lista de códigos ilegíveis, que era exatamente o
+pedido original ("verificar quais são individualizados"). Resolvido
+com `core/serials.py`, que baixa e cacheia os DATs de redump do
+libretro-database (`metadat/redump/Sony - PlayStation{,  2}.dat` -
+mesma fonte curada já usada pra .cue/nomeação, sem precisar de mais
+uma base de dados própria) e faz o cruzamento serial→nome.
+
+Testado ponta a ponta contra os cartões reais do usuário: PS1
+(Crash Bandicoot - Warped, Gran Turismo 2, Driver, Jeremy McGrath
+Supercross 2000, Yu-Gi-Oh! Forbidden Memories) e PS2 (Guitar Hero III,
+Need for Speed Underground 2) - todos os 9 slots/pastas resolvidos
+certo pro nome do jogo, e exportação real confirmada nos dois formatos
+(.mcs de 8320 bytes, .psu de 330240 bytes).
+
+Não implementado (fora de escopo por ora): importar/injetar save de
+volta no cartão (`-in`/`-psu-import`) - a v1 é só visualização +
+exportação, que já resolve o pedido original.

@@ -29,10 +29,12 @@ from core import adb as adb_mod
 from core import covers as covers_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
+from core import memcard as memcard_mod
 from core import organize as organize_mod
 from core import rom_rename as rom_rename_mod
 from core import sanitize as sanitize_mod
 from core import screenscraper as screenscraper_mod
+from core import serials as serials_mod
 
 CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
@@ -484,6 +486,32 @@ class Handler(BaseHTTPRequestHandler):
                 })
             return self._json({"items": out, "android_ok": android_ok})
 
+        if parts == ["api", "memcards"]:
+            cfg = load_config()
+            mc_cfg = cfg.get("memcards", {})
+            out = []
+            for console in ("ps1", "ps2"):
+                for label, path in mc_cfg.get(console, {}).items():
+                    out.append({
+                        "console": console.upper(), "label": label, "key": f"{console}:{label}",
+                        "tool_ok": memcard_mod.tool_available(console.upper()),
+                    })
+            return self._json(out)
+
+        if parts[:3] == ["api", "memcards", "list"] and len(parts) == 4:
+            key = urllib.parse.unquote(parts[3])
+            console, _, label = key.partition(":")
+            cfg = load_config()
+            path = cfg.get("memcards", {}).get(console, {}).get(label)
+            if not path:
+                return self._json({"error": "card desconhecido"}, 404)
+            index = serials_mod.build_index()
+            try:
+                items = memcard_mod.list_card(console.upper(), Path(path).expanduser(), index)
+            except memcard_mod.MemcardError as e:
+                return self._json({"error": str(e)}, 502)
+            return self._json({"items": items})
+
         if parts == ["api", "fetch", "stream"]:
             job_id = query.get("job", [""])[0]
             with _jobs_lock:
@@ -818,6 +846,23 @@ class Handler(BaseHTTPRequestHandler):
                 roms_root / code, None, saves_dir, states_dir, label, sysinfo.get("exts", []),
             )
             return self._json({"ok": True, "cascade": cascade})
+
+        if parts == ["api", "memcards", "export"]:
+            body = self._read_json_body()
+            key, item = body.get("key", ""), body.get("item")
+            console, _, label = key.partition(":")
+            if not item:
+                return self._json({"error": "item vazio"}, 400)
+            cfg = load_config()
+            path = cfg.get("memcards", {}).get(console, {}).get(label)
+            if not path:
+                return self._json({"error": "card desconhecido"}, 404)
+            export_dir = Path(cfg.get("memcards", {}).get("export_dir", "~/Downloads")).expanduser()
+            try:
+                dest = memcard_mod.export_save(console.upper(), Path(path).expanduser(), item, export_dir)
+            except memcard_mod.MemcardError as e:
+                return self._json({"error": str(e)}, 502)
+            return self._json({"ok": True, "file": str(dest)})
 
         self.send_response(404)
         self.end_headers()

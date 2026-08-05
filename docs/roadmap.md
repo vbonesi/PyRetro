@@ -3,7 +3,7 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 04/08/2026.
+pronto" (resumo) e "o que vem a seguir". Atualizado em 05/08/2026.
 
 ## Status atual
 
@@ -18,7 +18,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 04/08/2026.
 | Organizar ROM nova ("0-Organizar") | ✅ Pronto |
 | Galeria em grid vertical | ✅ Pronto |
 | ScreenScraper (3ª fonte de capa) | ✅ Pronto, testado (busca + download reais, credencial de dev liberada em 04/08) |
-| Editor de memory card PS1/PS2 (`ps2vmc-tool`) | 🔍 Pesquisado + dificuldade validada (baixa) - implementação não iniciada |
+| Editor de memory card PS1/PS2 (`ps2vmc-tool`) | ✅ Pronto, testado (aba "💾 Saves" - listar + exportar, com nome do jogo resolvido via serial) |
 | ROMs pesadas via `rclone` (ver Drive + baixar sem adb) | ✅ Pronto, testado (listagem + download reais) |
 | PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)) - não testado no aparelho |
 | `sync.py` pra saves/states/runtime-logs | ❌ Cancelado (sempre vai usar Google Drive pra isso) |
@@ -27,10 +27,11 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 04/08/2026.
 
 1. Testar [`docs/termux_setup.md`](termux_setup.md) contra o aparelho
    real.
-2. Implementar o editor de memory card - dificuldade já validada como
-   baixa, falta desenhar a tela na GUI (envelopar `ps2vmc-tool` via
-   subprocess, mesmo padrão de `curl`/`convert`).
+2. Editor de memory card - importar/injetar save de volta no cartão
+   (`-in`/`-psu-import`), hoje só lista + exporta.
 3. ~~ScreenScraper~~ - feito (ver Status atual).
+4. ~~Editor de memory card (listar/exportar)~~ - feito (ver Status
+   atual).
 
 ## Arquitetura de dois modos
 

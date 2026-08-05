@@ -26,6 +26,20 @@ dev_id          = ""
 dev_password    = ""
 softname        = "PyRetro"
 
+[memcards]
+# Editor de memory card PS1/PS2 (docs/memory_card_editor.md) - precisa
+# de `ps1vmc-tool`/`ps2vmc-tool` no PATH (baixe o release "ubuntu" em
+# https://github.com/bucanero/ps2vmc-tool/releases e coloque em
+# ~/.local/bin). Uma entrada por arquivo de card real (.mcd/.gme pro
+# PS1, .ps2/.bin pro PS2) - o rótulo (chave) é só pra exibição na GUI.
+export_dir = "~/Downloads"
+[memcards.ps1]
+"Slot 1" = "~/Drive/Jogos/Saves/PS1-DuckStation/memcards/Mcd001.mcd"
+"Slot 2" = "~/Drive/Jogos/Saves/PS1-DuckStation/memcards/Mcd002.mcd"
+[memcards.ps2]
+"Slot 1" = "~/Drive/Jogos/Saves/PS2/memcards/Mcd001.ps2"
+"Slot 2" = "~/Drive/Jogos/Saves/PS2/memcards/Mcd002.ps2"
+
 [android]
 # Deixe em branco ("") para usar o único device conectado.
 # Preencha com o serial (adb devices -l) se tiver mais de um.

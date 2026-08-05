@@ -264,3 +264,67 @@ plano.
   vazar a URL com credenciais pro cliente em nenhum momento (conferido
   via network tab). Artefatos de teste (`ZZZ_TESTE_SS*`) limpos do
   disco e do registry depois.
+
+## 05/08/2026
+
+- **Bug real achado e corrigido: busca de capa travando
+  "infinitamente"** - reportado pelo usuário logo depois do
+  ScreenScraper entrar no ar. Causa raiz: quando a API do
+  ScreenScraper aceita a conexão mas demora mais que o timeout de
+  leitura (comum sob carga, sobretudo em conta de dev gratuita), o
+  Python levanta `socket.timeout`/`TimeoutError` - que NÃO é subclasse
+  de `urllib.error.URLError`, então o `except (URLError, ValueError)`
+  em `search_game`/`fetch_media_bytes` (`core/screenscraper.py`) não
+  pegava. A exceção vazava, derrubava a thread da request no servidor
+  sem nunca mandar resposta - e como `runSearch`/`selectCandidate` no
+  `gui/static/app.js` não tinham `try/catch`, a tela ficava presa em
+  "buscando..."/"aplicando..." pra sempre, sem erro visível nenhum.
+  Corrigido nos dois lados: backend captura `OSError` (cobre
+  `URLError` E `TimeoutError` de uma vez, já que `URLError` também é
+  subclasse de `OSError`); frontend ganhou `try/catch` + timeout de
+  30s via `AbortController`, mostrando mensagem de erro em vez de
+  travar. Reproduzido e confirmado antes/depois com um
+  `socket.timeout` simulado via monkeypatch, e testado ao vivo no
+  navegador (fetch forçado a falhar → mensagem de erro aparece em vez
+  de travar; busca normal continua funcionando igual).
+
+- **Editor de memory card PS1/PS2 implementado** (item do roadmap,
+  dificuldade já validada como baixa em 02/08) - ver
+  [`docs/memory_card_editor.md`](memory_card_editor.md) pros detalhes
+  completos. Resumo: `core/memcard.py` envelopa `ps1vmc-tool`/
+  `ps2vmc-tool` via subprocess (binários instalados em `~/.local/bin`);
+  nova aba "💾 Saves" na GUI lista o conteúdo de cada cartão
+  configurado em `config.toml [memcards]` e exporta save individual
+  pra `export_dir` (padrão `~/Downloads`).
+
+  Pedido extra do usuário no meio da conversa: "seria bom uma aba SAVE
+  ... pra verificar os que são individualizados" - só listar o
+  conteúdo cru do cartão não bastava, porque um memory card guarda
+  save só pelo SERIAL do disco (pasta "BASLUS-21672" no PS2, slot
+  "BASCUS-9424400000000" no PS1), não pelo nome do jogo. Resolvido
+  criando `core/serials.py`, que baixa e cacheia os DATs de **redump**
+  do `libretro/libretro-database` (`metadat/redump/Sony -
+  PlayStation{,  2}.dat` - já tem o campo `serial` no nível do jogo,
+  não só por ROM/track) e cruza serial normalizado → nome. Achado no
+  caminho: o DAT de **serial** puro do libretro-database (pasta
+  `metadat/serial/`) não cobre PS1/PS2 (só consoles mais antigos) -
+  por isso a escolha pelo DAT de redump em vez dele.
+
+  Testado ponta a ponta contra os cartões reais do usuário
+  (`~/Drive/Jogos/Saves/PS1-DuckStation/memcards/` e
+  `~/Drive/Jogos/Saves/PS2/memcards/`): os 7 slots do PS1 (Crash
+  Bandicoot - Warped, Gran Turismo 2 x2, Yu-Gi-Oh! Forbidden Memories,
+  Jeremy McGrath Supercross 2000, Driver x2) e as 2 pastas do PS2
+  (Guitar Hero III, Need for Speed Underground 2) resolveram certo pro
+  nome do jogo; exportação real confirmada nos dois formatos (.mcs de
+  8320 bytes no PS1, .psu de 330240 bytes no PS2), inclusive pelo
+  clique de verdade no botão "⬇ Exportar" da GUI. Bug pequeno achado
+  durante o teste na GUI: o campo "size" que o `-ls` do PS2 devolve
+  pra uma pasta é a CONTAGEM de arquivos dentro dela, não bytes (só o
+  PS1 devolve tamanho real do save) - mostrar isso como "0 KB"
+  (dividindo por 1024) era enganoso; corrigido pra mostrar "N
+  arquivos" quando o item é uma pasta.
+
+  Fora de escopo por ora: importar/injetar save de volta no cartão -
+  a v1 cobre só visualização + exportação, que já resolve o pedido
+  original de "verificar quais são individualizados".

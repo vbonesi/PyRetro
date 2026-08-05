@@ -44,6 +44,10 @@ não são só estilo:
   [`docs/roadmap.md`](docs/roadmap.md)) - só necessário pra ver/baixar
   ROMs pesadas direto do Google Drive sem precisar do celular
   conectado
+- `ps1vmc-tool`/`ps2vmc-tool` no PATH (baixe o release "ubuntu" em
+  https://github.com/bucanero/ps2vmc-tool/releases e coloque em
+  `~/.local/bin`) - só necessário pra aba "💾 Saves" (editor de memory
+  card PS1/PS2)
 
 Sem `pip install` nenhum - tudo é stdlib de propósito, pra rodar em qualquer
 máquina sem setup de ambiente virtual.
@@ -269,11 +273,18 @@ O que tem até agora:
   `roms_root/0-Organizar/` (ver comando `organize` acima) com um
   dropdown de sistema candidato por item (pré-selecionado se só bater
   com um) e um botão "Mover".
+- **💾 Saves**: modal separado - editor de memory card PS1/PS2
+  (`core/memcard.py`, envelopa `ps1vmc-tool`/`ps2vmc-tool`). Lista os
+  cartões configurados em `config.toml [memcards]`, com o nome do jogo
+  resolvido a partir do serial (o card só guarda o serial, tipo
+  "BASLUS-21672" - `core/serials.py` cruza contra os DATs de redump do
+  libretro-database) e exporta save individual (PSU no PS2, MCS no
+  PS1) pra uma pasta de staging.
 
 O que ainda não tem (fases futuras, ver [`docs/roadmap.md`](docs/roadmap.md)):
 revisão visual de fuzzy match lado a lado, auditoria completa de `.cue`
-fora do padrão (`fix-cues` como comando), editor de memory card PS1/PS2
-(pesquisa e validação de dificuldade feitas, implementação não).
+fora do padrão (`fix-cues` como comando), importar/injetar save de
+volta no cartão (editor de memory card hoje só lista + exporta).
 
 ## Comandos manuais equivalentes (saves/states - `sync` ainda só cobre capas)
 
@@ -345,6 +356,8 @@ PyRetro/
 │   ├── heavy_roms.py       # gestão de ROMs pesadas (PS/SDC/PS2/GC/Wii/PSP/3DS) - implementado
 │   ├── organize.py         # organiza "0-Organizar" pra roms_root/<CODIGO>/ - implementado
 │   ├── rom_rename.py       # rename e apagar com cascata (ROM+capa+save/state) - implementado e testado
+│   ├── memcard.py          # editor de memory card PS1/PS2 (ps1vmc-tool/ps2vmc-tool) - implementado e testado
+│   ├── serials.py          # serial -> nome do jogo (DAT de redump), usado pelo memcard.py - implementado e testado
 │   └── adb.py              # wrapper de adb com retry - implementado
 ├── gui/
 │   ├── server.py          # servidor local da interface gráfica (Fase 1)
@@ -354,7 +367,7 @@ PyRetro/
 │   ├── changelog.md                   # histórico detalhado (bugs, testes, decisões)
 │   ├── fontes_de_capas.md             # pesquisa de fontes de capa alternativas
 │   ├── capas_sem_correspondencia.md   # capas não resolvidas por nenhuma fonte
-│   ├── memory_card_editor.md          # pesquisa do editor de memory card PS1/PS2
+│   ├── memory_card_editor.md          # editor de memory card PS1/PS2 - pesquisa + implementação
 │   └── termux_setup.md                # rodar o PyRetro direto no Android
 ├── cache/
 │   └── covers_registry.json   # histórico do que já foi processado por fetch-covers
@@ -375,14 +388,16 @@ PyRetro/
 | `core/heavy_roms.py` | Implementado e testado ponta a ponta com o celular real - identifica ROMs de PS/SDC/PS2/GameCube/Wii/PSP/3DS e envia sob demanda via adb, somando sidecars |
 | `core/organize.py` | Implementado e testado ponta a ponta via GUI - identifica ROMs em `0-Organizar/` pela extensão e move pro sistema certo, com desambiguação manual quando a extensão bate com mais de um sistema |
 | `core/rom_rename.py` | Implementado e testado ponta a ponta via GUI - rename e apagar com cascata (ROM + capa + save/state) pra sistemas leves e pesados, incluindo grupos multi-disco no rename (PS1/PS2) |
+| `core/memcard.py` | Implementado e testado contra cartões reais - lista e exporta save (PSU/MCS) de memory card PS1/PS2 via `ps1vmc-tool`/`ps2vmc-tool`. Importar/injetar de volta ainda não |
+| `core/serials.py` | Implementado e testado - serial → nome do jogo via DAT de redump do libretro-database, usado pelo `memcard.py` |
 | `retrosync.py` | `fetch-covers`, `fetch-covers-fallback`, `convert-covers`, `validate-covers`, `sanitize-names`, `sync covers`, `heavy-roms` e `organize` conectados de verdade; `sync saves/states/metrics` (cancelado) e `fix-cues` (auditoria) levantam `NotImplementedError` |
 
 Roadmap atual e próximos passos: [`docs/roadmap.md`](docs/roadmap.md).
 Histórico detalhado (bugs achados, testes, decisões de desenho):
 [`docs/changelog.md`](docs/changelog.md). Outros documentos:
 pesquisa de fontes de capa alternativas
-([`docs/fontes_de_capas.md`](docs/fontes_de_capas.md)), editor de
-memory card PS1/PS2
+([`docs/fontes_de_capas.md`](docs/fontes_de_capas.md)), pesquisa e
+notas de implementação do editor de memory card PS1/PS2
 ([`docs/memory_card_editor.md`](docs/memory_card_editor.md)), rodar o
 PyRetro direto no Android
 ([`docs/termux_setup.md`](docs/termux_setup.md)).
