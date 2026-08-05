@@ -332,8 +332,18 @@ async function runSearch() {
   const results = document.getElementById("search-results");
   results.innerHTML = '<div class="empty-state">buscando...</div>';
   const q = document.getElementById("search-query").value.trim();
-  const res = await fetch(`/api/cover/search?code=${searchCtx.code}&q=${encodeURIComponent(q)}`);
-  const items = await res.json();
+  let items;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const res = await fetch(`/api/cover/search?code=${searchCtx.code}&q=${encodeURIComponent(q)}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    items = await res.json();
+  } catch (e) {
+    results.innerHTML = `<div class="empty-state">Erro na busca (${e.name === "AbortError" ? "demorou demais" : e.message}) - tenta de novo.</div>`;
+    return;
+  }
   results.innerHTML = "";
   if (items.length === 0) {
     results.innerHTML = '<div class="empty-state">Nada encontrado - tenta outro termo.</div>';
@@ -356,15 +366,21 @@ async function runSearch() {
 async function selectCandidate(item) {
   const results = document.getElementById("search-results");
   results.innerHTML = '<div class="empty-state">aplicando...</div>';
-  const res = await fetch("/api/cover/select", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      code: searchCtx.code, label: searchCtx.label,
-      source: item.source, name: item.name, filename: item.filename || "",
-      ss_id: item.ss_id || "",
-    }),
-  });
+  let res;
+  try {
+    res = await fetch("/api/cover/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: searchCtx.code, label: searchCtx.label,
+        source: item.source, name: item.name, filename: item.filename || "",
+        ss_id: item.ss_id || "",
+      }),
+    });
+  } catch (e) {
+    results.innerHTML = `<div class="empty-state">Erro ao aplicar (${e.message}) - tenta de novo.</div>`;
+    return;
+  }
   if (res.ok) {
     closeSearch();
     refreshCard(searchCtx.code, searchCtx.label, false, searchCtx.label + ".png");

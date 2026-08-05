@@ -121,7 +121,13 @@ def search_game(code: str, query: str, cfg: dict, limit: int = 20) -> list:
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read())
-    except (urllib.error.URLError, ValueError):
+    except (OSError, ValueError):
+        # OSError cobre urllib.error.URLError (falha de conexão) E
+        # socket.timeout/TimeoutError (timeout de leitura já com conexão
+        # aberta) - achado real: a API do ScreenScraper às vezes aceita a
+        # conexão mas demora mais que os 20s pra responder, e
+        # socket.timeout NÃO é subclasse de URLError, então antes vazava
+        # sem ser pego aqui e derrubava a request inteira sem resposta.
         return []
 
     jeux = (data.get("response") or {}).get("jeux") or []
@@ -144,7 +150,9 @@ def fetch_media_bytes(media_url: str) -> bytes | None:
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = resp.read()
-    except urllib.error.URLError:
+    except OSError:
+        # ver comentário equivalente em search_game - OSError cobre
+        # URLError e timeout de leitura (socket.timeout/TimeoutError).
         return None
     return data if len(data) > 500 else None
 
