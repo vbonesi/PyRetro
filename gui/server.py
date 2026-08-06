@@ -65,7 +65,15 @@ def load_config() -> dict:
 def search_cover_candidates(code: str, query: str, cfg: dict) -> list:
     """Busca por substring (não exata, não fuzzy com trava - aqui quem
     decide é o humano olhando a prévia) nas três fontes integradas.
-    Usado pela tela de "capa errada, buscar outra opção"."""
+    Usado pela tela de "capa errada, buscar outra opção".
+
+    Ordem = prioridade: ScreenScraper primeiro (curadoria melhor,
+    pedido do usuário), depois LaunchBox, libretro-thumbnails por
+    último. Importa de verdade porque o resultado final é truncado em
+    40 itens (results[:40]) - achado real: uma busca por título comum
+    já enche as 40 vagas só com libretro-thumbnails (o índice inteiro
+    do repo, substring solta acha muita coisa), o que antes fazia o
+    ScreenScraper (adicionado por último) nunca aparecer."""
     systems_cfg = cfg["systems"]
     sysinfo = systems_cfg.get(code)
     if not sysinfo:
@@ -74,25 +82,6 @@ def search_cover_candidates(code: str, query: str, cfg: dict) -> list:
     if not q_norm:
         return []
     results = []
-
-    repo = sysinfo["repo"]
-    base_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/"
-    for name in covers_mod.load_tree(repo):
-        if q_norm in covers_mod.normalize(name):
-            results.append({
-                "source": "libretro", "name": name,
-                "preview": base_url + urllib.parse.quote(name + ".png"),
-            })
-
-    if code in launchbox_mod.PLATFORM_MAP:
-        index = launchbox_mod.build_index()
-        for norm_name, entry in index.get(code, {}).items():
-            filename, orig_name = entry
-            if q_norm in norm_name:
-                results.append({
-                    "source": "launchbox", "name": orig_name, "filename": filename,
-                    "preview": launchbox_mod.IMAGE_BASE_URL + filename,
-                })
 
     if code in screenscraper_mod.SYSTEM_MAP:
         try:
@@ -105,6 +94,25 @@ def search_cover_candidates(code: str, query: str, cfg: dict) -> list:
             results.append({
                 "source": "screenscraper", "name": r["name"], "ss_id": ss_id,
                 "preview": f"/api/cover/ss_preview?code={urllib.parse.quote(code)}&id={urllib.parse.quote(str(ss_id))}",
+            })
+
+    if code in launchbox_mod.PLATFORM_MAP:
+        index = launchbox_mod.build_index()
+        for norm_name, entry in index.get(code, {}).items():
+            filename, orig_name = entry
+            if q_norm in norm_name:
+                results.append({
+                    "source": "launchbox", "name": orig_name, "filename": filename,
+                    "preview": launchbox_mod.IMAGE_BASE_URL + filename,
+                })
+
+    repo = sysinfo["repo"]
+    base_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/"
+    for name in covers_mod.load_tree(repo):
+        if q_norm in covers_mod.normalize(name):
+            results.append({
+                "source": "libretro", "name": name,
+                "preview": base_url + urllib.parse.quote(name + ".png"),
             })
 
     return results[:40]

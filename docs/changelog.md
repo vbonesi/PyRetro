@@ -573,3 +573,16 @@ plano.
   pontos. Testado ao vivo: capa "19xx" mostrando "19XX: The War
   Against Destiny" na tela com tooltip "19xx"; sistema não-Arcade
   (SFC) confirmado sem nenhuma mudança de comportamento.
+- **Bug real corrigido: ScreenScraper podia nunca aparecer na busca de
+  capa** - usuário pediu pra priorizar o ScreenScraper. Causa raiz:
+  `search_cover_candidates` monta os resultados na ordem
+  libretro→LaunchBox→ScreenScraper e corta em 40 no final
+  (`results[:40]`) - pra um título comum, a busca solta por substring
+  no índice INTEIRO do libretro-thumbnails sozinha já enche as 40
+  vagas, então o ScreenScraper (adicionado por último) nunca chegava a
+  aparecer. Corrigido invertendo a ordem de montagem
+  (ScreenScraper→LaunchBox→libretro) - ScreenScraper garante suas até
+  20 vagas sempre, LaunchBox preenche o resto, libretro só entra se
+  sobrar espaço. Testado ao vivo (SFC, "Mario"/"Super Mario World"):
+  antes libretro sozinho já batia 40; depois os 10 primeiros
+  resultados são todos ScreenScraper, seguidos de LaunchBox.
