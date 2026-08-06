@@ -25,6 +25,9 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 05/08/2026.
 | ROMs pesadas via `rclone` (ver Drive + baixar sem adb) | ✅ Pronto, testado (listagem + download reais) |
 | Backup de saves do Dolphin(GameCube)/PPSSPP (fora do RetroArch) | ✅ Pronto, testado no aparelho real (puxa via adb o que falta, nome resolvido via serial) |
 | Backup de saves do Flycast/Dolphin(Wii)/3DS | 🔍 Investigado, fora de escopo por decisão do usuário (custo maior - ver notas abaixo) |
+| Galeria/topbar responsivos no mobile (2 colunas, sem corte, rolagem horizontal) | ✅ Pronto, testado com o usuário no aparelho real |
+| Busca geral no acervo (todos os sistemas de uma vez) + filtro por console | ✅ Pronto, testado |
+| Nome real do jogo Arcade na visualização (romset curto só no arquivo) | ✅ Pronto, testado (216/218 do acervo real resolvidos) |
 | PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)) - não testado no aparelho |
 | `sync.py` pra saves/states/runtime-logs | ❌ Cancelado (sempre vai usar Google Drive pra isso) |
 
