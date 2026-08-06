@@ -44,13 +44,19 @@ body {
   flex-shrink: 0;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
-  padding: 10px 16px;
+  /* padding-top extra reserva uma faixa própria pro chrome-toggle (o
+     "⌃" fixo no topo) - sem isso ele fica sobreposto ao primeiro botão
+     em telas estreitas, onde os botões quebram linha logo abaixo do
+     título (achado real testando no celular). */
+  padding: 26px 16px 10px;
 }
 
 .topbar-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
@@ -61,6 +67,7 @@ body {
 
 .topbar-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -249,21 +256,26 @@ button:disabled {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  /* com centenas de linhas "auto" (galeria grande) o Chromium
-     degenera a altura da linha pra ~0 (bug reproduzido isolado, sem
-     relação com o resto do markup do projeto - só acontece a partir de
-     dezenas de linhas). Um piso mínimo evita a degeneração; "auto"
-     continua podendo crescer além disso se algum card precisar. */
-  grid-auto-rows: minmax(480px, auto);
-  align-content: start;
+  /* Era CSS Grid com "grid-auto-rows: minmax(<piso fixo>, auto)" - só
+     um jeito de contornar um bug real do Chromium (com muitas linhas
+     "auto" e filhos de aspect-ratio, a altura da linha degenera pra
+     ~0). O piso em px tinha que ser grande o bastante pro pior caso, o
+     que quebrou no celular: em 1 coluna a imagem fica bem mais alta
+     (achado testando no aparelho real - com o piso pensado pro
+     desktop, os botões de ação ficavam cortados fora da carta,
+     "sumindo" no mobile). Flexbox com wrap não tem esse bug - cada
+     item cresce pro tamanho do próprio conteúdo, sem precisar de
+     nenhum piso mágico em px. */
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
   gap: 16px;
   padding: 20px 16px;
 }
 
 .cover {
-  width: 100%;
+  flex: 1 1 220px;
+  max-width: 260px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -293,7 +305,10 @@ button:disabled {
   width: 100%;
   aspect-ratio: 3/4;
   object-fit: contain;
-  background: #000;
+  /* capas com proporção diferente de 3:4 sobram como barra ao redor
+     (object-fit: contain nunca corta) - fundo preto puro parecia um
+     corte de verdade, usa a cor do painel pra ficar mais suave. */
+  background: var(--bg-panel);
   cursor: zoom-in;
 }
 
@@ -354,6 +369,20 @@ button:disabled {
   flex-wrap: wrap;
   gap: 6px;
   padding: 0 10px 10px;
+}
+
+/* Celular: 220px de flex-basis não cabe 2 por linha numa tela
+   estreita (o flexbox cai pra 1 coluna sozinho) - força exatamente 2,
+   menores, ao pedido do usuário testando no aparelho real. */
+@media (max-width: 600px) {
+  .gallery-strip {
+    gap: 10px;
+    padding: 12px 10px;
+  }
+  .cover {
+    flex-basis: calc(50% - 5px);
+    max-width: calc(50% - 5px);
+  }
 }
 
 button.tiny {
@@ -506,22 +535,14 @@ button.tiny.danger {
 .search-results {
   padding: 16px;
   overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  /* mesmo bug do Chromium documentado em .gallery-strip acima - com
-     "auto" e filhos de aspect-ratio, a altura da linha degenera e corta
-     a imagem. Um piso mínimo evita a degeneração. */
-  grid-auto-rows: minmax(260px, auto);
+  /* Era CSS Grid com piso fixo em px pra contornar o bug do Chromium
+     documentado em .gallery-strip acima - trocado pelo mesmo motivo:
+     um piso em px certo pro desktop fica errado assim que o número de
+     colunas muda (celular, telas estreitas). Flexbox não tem esse
+     bug. */
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
-}
-
-/* Em telas estreitas, com muitos resultados o auto-fill acima cabe 3
-   colunas de ~110-120px (bem pequeno pra julgar a arte da capa) - trava
-   em 2 colunas fixas, maiores, independente de quantos resultados vierem. */
-@media (max-width: 480px) {
-  .search-results {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 .search-result {
@@ -530,6 +551,18 @@ button.tiny.danger {
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg);
+  flex: 1 1 140px;
+  max-width: 180px;
+}
+
+/* Em telas estreitas, com muitos resultados o flex-basis acima cabe 3
+   colunas de ~110-120px (bem pequeno pra julgar a arte da capa) - trava
+   em 2 colunas fixas, maiores, independente de quantos resultados vierem. */
+@media (max-width: 480px) {
+  .search-result {
+    flex-basis: calc(50% - 6px);
+    max-width: calc(50% - 6px);
+  }
 }
 
 .heavy-status {
@@ -638,7 +671,10 @@ button.tiny.danger {
   width: 100%;
   aspect-ratio: 3/4;
   object-fit: contain;
-  background: #000;
+  /* capas com proporção diferente de 3:4 sobram como barra ao redor
+     (object-fit: contain nunca corta) - fundo preto puro parecia um
+     corte de verdade, usa a cor do painel pra ficar mais suave. */
+  background: var(--bg-panel);
 }
 
 .search-result-name {

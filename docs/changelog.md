@@ -469,3 +469,45 @@ plano.
   "no PC" na hora. Artefatos de teste (pull manual antes de existir a
   rota, e o clique de teste na GUI) limpos do disco depois de cada
   verificação, sempre restaurando o estado vazio original da pasta.
+- **Rodada de ajustes testando no celular de verdade** (usuário mandou
+  screenshot do mobile) - achados reais:
+  - **Bug real: ações da capa "sumindo" no celular** - o piso fixo em
+    px do `grid-auto-rows` (documentado acima, pensado pro desktop)
+    era pequeno demais numa coluna só de mobile, onde a imagem sozinha
+    já passa da altura do piso - resultado: os botões de ação ficavam
+    cortados fora do card, invisíveis. Resolvido de vez (não só mais
+    um ajuste de número): trocado `.gallery-strip` e `.search-results`
+    de CSS Grid pra **flexbox com wrap** - flexbox não tem esse bug do
+    Chromium (cada item cresce pro próprio conteúdo, sem track de
+    linha compartilhado calculado errado), elimina a classe inteira do
+    problema em vez de só mais um piso mágico em px. Também virou
+    pedido explícito do usuário: 2 colunas no celular (antes 1,
+    imagem enorme) - `flex-basis: calc(50% - Npx)` num media query.
+  - **Bug real: topbar cortado/sobreposto no celular** - `.topbar-row`
+    sem `flex-wrap` deixava os 4 botões overflowarem pra fora da tela
+    (texto "Configurações" cortado na borda, sem scroll horizontal
+    porque `body` tem `overflow: hidden`). Corrigido com
+    `flex-wrap: wrap` no título+botões. O botão de esconder menu
+    (⌃/⌄, `position: fixed; top: 4px`) ficava sobreposto ao primeiro
+    botão que agora quebrava linha logo abaixo do título - corrigido
+    reservando uma faixa própria pra ele via `padding-top` extra no
+    `.topbar`, testado medindo a posição real dos elementos (toggle
+    em y:4-22, título em y:26+, sem overlap).
+  - Fundo preto puro (`#000`) atrás de capas com proporção diferente
+    de 3:4 (letterbox do `object-fit: contain`) parecia um corte de
+    verdade - trocado pra `var(--bg-panel)`, mais suave e consistente
+    com o tema (inclusive no modo claro).
+  - "Aplicar de verdade" → "Aplicar" (texto do checkbox).
+  - Aba "💾 Saves" ganhou navegação por aba de novo (PS1/PS2/GameCube/
+    PPSSPP, `<nav class="system-tabs">` igual o resto do app) em vez
+    de uma rolagem única longa com as 4 seções empilhadas - mantém a
+    separação por card dentro de PS1/PS2 (pedido anterior), só que
+    agora escolhida por clique em vez de scroll, bem mais usável no
+    celular.
+  - 3DS e Wii seguem de propósito fora do escopo (backup manual do
+    usuário) - confirmado de novo, nenhuma mudança de código.
+  Testado inteiramente via geometria real (`getBoundingClientRect`)
+  simulando mobile (375×812) e desktop (1280×800) no mesmo navegador -
+  a Browser pane deste ambiente não composita frames pra screenshot,
+  então a verificação foi feita medindo posição/tamanho real dos
+  elementos em vez de inspeção visual.

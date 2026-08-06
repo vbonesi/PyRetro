@@ -768,6 +768,12 @@ document.getElementById("organize-modal").addEventListener("click", (e) => {
 
 let savesCards = [];       // [{console, label, key, tool_ok}]
 let savesItemsByKey = {};  // key -> items[] (carregado uma vez, uma seção por card)
+let emuSaves = {}; // "GC"/"PSP" -> {items, android_ok} | {error}
+let currentSavesConsole = "PS1";
+const SAVES_CONSOLES = [
+  { key: "PS1", label: "PS1" }, { key: "PS2", label: "PS2" },
+  { key: "GC", label: "GameCube" }, { key: "PSP", label: "PPSSPP" },
+];
 
 function openSaves() {
   document.getElementById("saves-modal").classList.remove("hidden");
@@ -782,8 +788,6 @@ function savesStatus(msg) {
   document.getElementById("saves-status").textContent = msg;
 }
 
-let emuSaves = {}; // "GC"/"PSP" -> {items, android_ok} | {error}
-
 async function loadSavesCards() {
   const list = document.getElementById("saves-list");
   list.innerHTML = '<div class="empty-state">carregando...</div>';
@@ -791,10 +795,12 @@ async function loadSavesCards() {
   const res = await fetch("/api/memcards");
   savesCards = await res.json();
 
-  // Carrega o conteúdo de todos os cards de uma vez (uma seção por
-  // console, uma subseção por card - ver pedido do usuário de não
-  // precisar trocar de aba pra comparar PS1 e PS2), mais o backup de
-  // saves individualizados do Dolphin(GameCube)/PPSSPP.
+  // Carrega o conteúdo de tudo de uma vez (troca de aba fica
+  // instantânea, sem esperar a rede de novo) - uma seção por card em
+  // PS1/PS2 (pedido do usuário de não precisar trocar de card pra
+  // comparar), mais o backup de saves individualizados do
+  // Dolphin(GameCube)/PPSSPP. Navegação entre CONSOLES é por aba,
+  // igual o resto do app (galeria, ROMs Pesadas).
   await Promise.all([
     ...savesCards.filter(c => c.tool_ok).map(async (card) => {
       const r = await fetch(`/api/memcards/list/${encodeURIComponent(card.key)}`);
@@ -808,10 +814,29 @@ async function loadSavesCards() {
     }),
   ]);
 
-  if (savesCards.length === 0 && Object.values(emuSaves).every(d => !d.items || d.items.length === 0)) {
-    list.innerHTML = '<div class="empty-state">Nenhum memory card configurado em config.toml [memcards], e nada achado pra Dolphin/PPSSPP.</div>';
-    return;
+  renderSavesTabs();
+  selectSavesConsole(currentSavesConsole);
+}
+
+function renderSavesTabs() {
+  const tabs = document.getElementById("saves-console-tabs");
+  tabs.innerHTML = "";
+  for (const c of SAVES_CONSOLES) {
+    const tab = document.createElement("div");
+    tab.className = "tab";
+    tab.dataset.console = c.key;
+    tab.textContent = c.label;
+    tab.addEventListener("click", () => selectSavesConsole(c.key));
+    tabs.appendChild(tab);
   }
+}
+
+function selectSavesConsole(consoleName) {
+  currentSavesConsole = consoleName;
+  document.querySelectorAll("#saves-console-tabs .tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.console === consoleName);
+  });
+  savesStatus("");
   renderSavesList();
 }
 
@@ -825,12 +850,13 @@ function formatSaveSize(item) {
 function renderSavesList() {
   const list = document.getElementById("saves-list");
   list.innerHTML = "";
-  for (const consoleName of ["PS1", "PS2"]) {
-    const cards = savesCards.filter(c => c.console === consoleName);
-    if (cards.length === 0) continue;
-    const section = document.createElement("div");
-    section.className = "saves-console-section";
-    section.innerHTML = `<h4 class="saves-console-header">${consoleName}</h4>`;
+
+  if (currentSavesConsole === "PS1" || currentSavesConsole === "PS2") {
+    const cards = savesCards.filter(c => c.console === currentSavesConsole);
+    if (cards.length === 0) {
+      list.innerHTML = `<div class="empty-state">Nenhum card de ${currentSavesConsole} configurado em config.toml [memcards].</div>`;
+      return;
+    }
     for (const card of cards) {
       const cardBox = document.createElement("div");
       cardBox.className = "saves-card-section";
@@ -846,20 +872,20 @@ function renderSavesList() {
       cardBox.appendChild(header);
 
       if (!card.tool_ok) {
-        cardBox.innerHTML += `<div class="empty-state">Ferramenta "${consoleName === "PS1" ? "ps1vmc-tool" : "ps2vmc-tool"}" não encontrada no PATH - veja docs/memory_card_editor.md.</div>`;
-        section.appendChild(cardBox);
+        cardBox.innerHTML += `<div class="empty-state">Ferramenta "${currentSavesConsole === "PS1" ? "ps1vmc-tool" : "ps2vmc-tool"}" não encontrada no PATH - veja docs/memory_card_editor.md.</div>`;
+        list.appendChild(cardBox);
         continue;
       }
       const data = savesItemsByKey[card.key];
       if (!data || data.error) {
         cardBox.innerHTML += `<div class="empty-state">erro: ${data ? data.error : "falha ao ler o card"}</div>`;
-        section.appendChild(cardBox);
+        list.appendChild(cardBox);
         continue;
       }
       const saveItems = data.filter(i => i.type !== "link");
       if (saveItems.length === 0) {
         cardBox.innerHTML += '<div class="empty-state">Card vazio.</div>';
-        section.appendChild(cardBox);
+        list.appendChild(cardBox);
         continue;
       }
       for (const item of saveItems) {
@@ -883,46 +909,38 @@ function renderSavesList() {
         row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteSaveItem(card.key, item));
         cardBox.appendChild(row);
       }
-      section.appendChild(cardBox);
+      list.appendChild(cardBox);
     }
-    list.appendChild(section);
+    return;
   }
 
-  const emuLabels = { GC: "Dolphin - GameCube", PSP: "PPSSPP" };
-  for (const emu of ["GC", "PSP"]) {
-    const data = emuSaves[emu];
-    const section = document.createElement("div");
-    section.className = "saves-console-section";
-    section.innerHTML = `<h4 class="saves-console-header">${emuLabels[emu]}</h4>`;
-    if (!data || data.error) {
-      section.innerHTML += `<div class="empty-state">erro: ${data ? data.error : "falha ao carregar"}</div>`;
-      list.appendChild(section);
-      continue;
-    }
-    if (!data.android_ok) {
-      section.innerHTML += '<div class="empty-state">Celular não conectado - conecte via USB pra ver/baixar saves.</div>';
-      list.appendChild(section);
-      continue;
-    }
-    if (data.items.length === 0) {
-      section.innerHTML += '<div class="empty-state">Nada encontrado no celular.</div>';
-      list.appendChild(section);
-      continue;
-    }
-    for (const item of data.items) {
-      const row = document.createElement("div");
-      row.className = "heavy-item";
-      const title = item.name || `(desconhecido - ${item.raw_name})`;
-      row.innerHTML = `
-        <div class="heavy-item-name" title="${item.raw_name}">${title}</div>
-        <div class="heavy-item-status ${item.in_pc ? "ok" : ""}">${item.in_pc ? "no PC" : "só no celular"}</div>
-        ${item.in_pc ? "" : '<button class="tiny secondary" data-action="pull">⬇ Baixar do celular</button>'}
-      `;
-      const pullBtn = row.querySelector('[data-action="pull"]');
-      if (pullBtn) pullBtn.addEventListener("click", () => pullEmuSaveItem(emu, item, pullBtn));
-      section.appendChild(row);
-    }
-    list.appendChild(section);
+  // GC / PSP - lista flat (sem card, um único inventário no celular).
+  const emu = currentSavesConsole;
+  const data = emuSaves[emu];
+  if (!data || data.error) {
+    list.innerHTML = `<div class="empty-state">erro: ${data ? data.error : "falha ao carregar"}</div>`;
+    return;
+  }
+  if (!data.android_ok) {
+    list.innerHTML = '<div class="empty-state">Celular não conectado - conecte via USB pra ver/baixar saves.</div>';
+    return;
+  }
+  if (data.items.length === 0) {
+    list.innerHTML = '<div class="empty-state">Nada encontrado no celular.</div>';
+    return;
+  }
+  for (const item of data.items) {
+    const row = document.createElement("div");
+    row.className = "heavy-item";
+    const title = item.name || `(desconhecido - ${item.raw_name})`;
+    row.innerHTML = `
+      <div class="heavy-item-name" title="${item.raw_name}">${title}</div>
+      <div class="heavy-item-status ${item.in_pc ? "ok" : ""}">${item.in_pc ? "no PC" : "só no celular"}</div>
+      ${item.in_pc ? "" : '<button class="tiny secondary" data-action="pull">⬇ Baixar do celular</button>'}
+    `;
+    const pullBtn = row.querySelector('[data-action="pull"]');
+    if (pullBtn) pullBtn.addEventListener("click", () => pullEmuSaveItem(emu, item, pullBtn));
+    list.appendChild(row);
   }
 }
 

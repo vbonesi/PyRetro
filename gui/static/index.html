@@ -27,7 +27,7 @@
       <div class="actions">
         <label class="apply-toggle">
           <input type="checkbox" id="apply-toggle">
-          Aplicar de verdade
+          Aplicar
         </label>
         <button id="btn-fetch" disabled>Buscar capas</button>
         <button id="btn-fallback-launchbox" disabled>Buscar no LaunchBox</button>
@@ -115,9 +115,10 @@
   <div id="saves-modal" class="modal hidden">
     <div class="modal-box modal-box-wide">
       <div class="modal-header">
-        <h3>Saves (memory card PS1/PS2) <span id="saves-status" class="heavy-status"></span></h3>
+        <h3>Saves <span id="saves-status" class="heavy-status"></span></h3>
         <button id="btn-saves-close" class="secondary" type="button">Fechar</button>
       </div>
+      <nav id="saves-console-tabs" class="system-tabs"></nav>
       <div id="saves-list" class="heavy-list"></div>
     </div>
   </div>
