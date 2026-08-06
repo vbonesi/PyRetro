@@ -264,8 +264,13 @@ O que tem até agora:
 - Botão de busca em massa por fonte pra reprocessar sem_match/
   marcadas erradas - "🔍 Buscar no LaunchBox" e "🔍 Buscar no
   ScreenScraper", cada um roda só na fonte escolhida
-- ⌃/⌄ no topo esconde/mostra os menus (topbar/menubar/filterbar) pra
-  mais espaço de galeria - preferência salva
+- ⌃/⌄ no topo esconde/mostra os menus em 2 etapas (1º clique: busca/
+  filtro de capas; 2º clique: topbar também; 3º: volta a mostrar tudo)
+  pra mais espaço de galeria - preferência salva
+- **Busca geral do acervo**: campo no topo pesquisa por nome em
+  qualquer sistema configurado de uma vez (não só o selecionado),
+  filtro opcional por console - clicar num resultado troca de sistema
+  e rola até a capa certa, com destaque temporário
 - **📦 ROMs Pesadas**: modal separado (botão no topo) pra PS, SDC, PS2,
   GameCube, Wii, PSP e 3DS - lista o que existe no PC, no celular
   (via adb) e no **Google Drive** (via `rclone`, sem precisar de

@@ -45,17 +45,14 @@ body {
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   /* padding-top extra reserva uma faixa própria pro chrome-toggle (o
-     "⌃" fixo no topo) - sem isso ele fica sobreposto ao primeiro botão
-     em telas estreitas, onde os botões quebram linha logo abaixo do
-     título (achado real testando no celular). */
+     "⌃" fixo no topo) - sem isso ele fica sobreposto aos botões em
+     telas estreitas (achado real testando no celular). */
   padding: 26px 16px 10px;
 }
 
 .topbar-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -63,17 +60,109 @@ body {
 .topbar h1 {
   font-size: 16px;
   margin: 0;
+  flex-shrink: 0;
 }
 
 .topbar-buttons {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* pedido do usuário: não quebrar linha - rolar horizontal, igual
+     .system-tabs já faz. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.topbar-buttons button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 button.secondary {
   background: var(--border);
   color: var(--text);
+}
+
+.global-search-row {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.global-search-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.global-search-row select {
+  flex: 0 0 auto;
+  max-width: 40%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 6px;
+  font-size: 12px;
+}
+
+.global-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  margin-top: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.global-search-results.hidden {
+  display: none;
+}
+
+.global-search-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.global-search-result:last-child {
+  border-bottom: none;
+}
+
+.global-search-result:hover {
+  background: var(--border);
+}
+
+.global-search-result .code {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-dim);
+  background: var(--border);
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.global-search-result .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .system-tabs {
@@ -228,7 +317,7 @@ button:disabled {
   left: 50%;
   transform: translateX(-50%);
   z-index: 50;
-  width: 36px;
+  width: 44px;
   height: 18px;
   padding: 0;
   border-radius: 0 0 8px 8px;
@@ -245,9 +334,12 @@ button:disabled {
   opacity: 1;
 }
 
-.app.chrome-hidden .topbar,
-.app.chrome-hidden .menubar,
-.app.chrome-hidden .filterbar {
+.app.hide-search .menubar,
+.app.hide-search .filterbar {
+  display: none;
+}
+
+.app.hide-topbar .topbar {
   display: none;
 }
 
@@ -294,6 +386,12 @@ button:disabled {
 
 .cover.renamed {
   border-color: var(--accent);
+}
+
+.cover.search-highlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent);
+  transition: box-shadow 0.3s;
 }
 
 .cover-img-wrap {

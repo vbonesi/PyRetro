@@ -16,7 +16,67 @@ async function loadSystems() {
     tab.addEventListener("click", () => selectSystem(sys.code));
     tabs.appendChild(tab);
   }
+
+  const consoleSelect = document.getElementById("global-search-console");
+  consoleSelect.innerHTML = '<option value="">Todos</option>' +
+    systems.map(s => `<option value="${s.code}">${s.code}</option>`).join("");
 }
+
+let globalSearchTimer = null;
+
+function runGlobalSearch() {
+  const q = document.getElementById("global-search-input").value.trim();
+  const code = document.getElementById("global-search-console").value;
+  const results = document.getElementById("global-search-results");
+  if (q.length < 2) {
+    results.classList.add("hidden");
+    results.innerHTML = "";
+    return;
+  }
+  fetch(`/api/search_library?q=${encodeURIComponent(q)}&code=${encodeURIComponent(code)}`)
+    .then(r => r.json())
+    .then(items => {
+      results.innerHTML = "";
+      if (items.length === 0) {
+        results.innerHTML = '<div class="global-search-result">Nada encontrado.</div>';
+      } else {
+        for (const item of items) {
+          const row = document.createElement("div");
+          row.className = "global-search-result";
+          row.innerHTML = `<span class="code">${item.code}</span><span class="label">${item.label}</span>`;
+          row.addEventListener("click", () => goToSearchResult(item));
+          results.appendChild(row);
+        }
+      }
+      results.classList.remove("hidden");
+    });
+}
+
+async function goToSearchResult(item) {
+  document.getElementById("global-search-results").classList.add("hidden");
+  document.getElementById("global-search-input").value = "";
+  if (currentSystem !== item.code) {
+    await selectSystem(item.code);
+  }
+  const card = document.querySelector(`#gallery .cover[data-label="${CSS.escape(item.label)}"]`);
+  if (card) {
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.classList.add("search-highlight");
+    setTimeout(() => card.classList.remove("search-highlight"), 2000);
+  }
+}
+
+document.getElementById("global-search-input").addEventListener("input", () => {
+  clearTimeout(globalSearchTimer);
+  globalSearchTimer = setTimeout(runGlobalSearch, 300);
+});
+document.getElementById("global-search-console").addEventListener("change", runGlobalSearch);
+document.addEventListener("click", (e) => {
+  const row = document.querySelector(".global-search-row");
+  if (row && !row.contains(e.target)) {
+    document.getElementById("global-search-results").classList.add("hidden");
+  }
+});
 
 async function selectSystem(code) {
   currentSystem = code;
@@ -1067,16 +1127,32 @@ document.getElementById("saves-modal").addEventListener("click", (e) => {
   if (e.target.id === "saves-modal") closeSaves();
 });
 
-function setChromeHidden(hidden) {
-  document.querySelector(".app").classList.toggle("chrome-hidden", hidden);
-  document.getElementById("btn-toggle-chrome").textContent = hidden ? "⌄" : "⌃";
-  localStorage.setItem("pyretro_chrome_hidden", hidden ? "1" : "0");
+// 2 etapas, a pedido do usuário: 0 = tudo visível, 1 = esconde
+// busca/filtro de capas (menubar+filterbar), 2 = esconde também o
+// topbar (nav de sistemas incluída) - cicla de volta pro 0.
+const CHROME_STAGES = [
+  { classes: [], icon: "⌄", title: "Esconder busca de capas" },
+  { classes: ["hide-search"], icon: "⌄⌄", title: "Esconder também o menu superior" },
+  { classes: ["hide-search", "hide-topbar"], icon: "⌃", title: "Mostrar tudo" },
+];
+
+function setChromeStage(stage) {
+  const app = document.querySelector(".app");
+  app.classList.remove("hide-search", "hide-topbar");
+  const cfg = CHROME_STAGES[stage];
+  app.classList.add(...cfg.classes);
+  const btn = document.getElementById("btn-toggle-chrome");
+  btn.textContent = cfg.icon;
+  btn.title = cfg.title;
+  localStorage.setItem("pyretro_chrome_stage", String(stage));
 }
 
 document.getElementById("btn-toggle-chrome").addEventListener("click", () => {
-  setChromeHidden(!document.querySelector(".app").classList.contains("chrome-hidden"));
+  const current = Number(localStorage.getItem("pyretro_chrome_stage") || "0");
+  setChromeStage((current + 1) % CHROME_STAGES.length);
 });
 
-if (localStorage.getItem("pyretro_chrome_hidden") === "1") setChromeHidden(true);
+const savedChromeStage = Number(localStorage.getItem("pyretro_chrome_stage") || "0");
+if (savedChromeStage > 0) setChromeStage(savedChromeStage);
 
 loadSystems();

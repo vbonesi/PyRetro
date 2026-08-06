@@ -20,6 +20,7 @@ import subprocess
 import sys
 import threading
 import tomllib
+import unicodedata
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -397,6 +398,40 @@ class Handler(BaseHTTPRequestHandler):
                     "has_screenscraper": code in screenscraper_mod.SYSTEM_MAP,
                 })
             return self._json(out)
+
+        if parts == ["api", "search_library"]:
+            # Busca geral - pedido do usuário pra achar um jogo sem
+            # precisar já saber em qual sistema ele está. Substring
+            # simples (case/acento-insensitive), não a normalização
+            # "agressiva" de covers.normalize (que tira tag/artigo/
+            # parênteses - certa pra decidir se dois resultados são o
+            # mesmo jogo, errada pra busca livre onde o usuário pode
+            # digitar exatamente uma tag tipo "usa").
+            q = query.get("q", [""])[0].strip()
+            code_filter = query.get("code", [""])[0]
+            if len(q) < 2:
+                return self._json([])
+            q_norm = unicodedata.normalize("NFKD", q).encode("ascii", "ignore").decode().lower()
+            cfg = load_config()
+            capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+            out = []
+            for code, info in cfg["systems"].items():
+                if code in COVERS_EXCLUDED:
+                    continue
+                if code_filter and code_filter != code:
+                    continue
+                capas_dir = capas_root / info["capas"] / "Named_Boxarts"
+                if not capas_dir.is_dir():
+                    continue
+                for p in capas_dir.iterdir():
+                    if p.suffix.lower() not in (".png", ".jpg"):
+                        continue
+                    label = p.stem
+                    label_norm = unicodedata.normalize("NFKD", label).encode("ascii", "ignore").decode().lower()
+                    if q_norm in label_norm:
+                        out.append({"code": code, "label": label, "file": p.name})
+            out.sort(key=lambda x: (x["label"].lower(), x["code"]))
+            return self._json(out[:100])
 
         if parts[:2] == ["api", "covers"] and len(parts) == 3:
             code = parts[2]

@@ -511,3 +511,30 @@ plano.
   a Browser pane deste ambiente não composita frames pra screenshot,
   então a verificação foi feita medindo posição/tamanho real dos
   elementos em vez de inspeção visual.
+- **Segunda rodada de ajustes de mobile, feedback direto do usuário
+  testando no celular**:
+  - **Topbar: voltou atrás na quebra de linha** - o `flex-wrap: wrap`
+    da rodada anterior resolvia o corte, mas o usuário preferiu rolar
+    horizontal (mesmo padrão que `.system-tabs` já usa) em vez de
+    empilhar os botões em várias linhas. `.topbar-buttons` virou
+    `overflow-x: auto` com os botões `flex-shrink: 0`.
+  - **Esconder menu em 2 etapas** - antes era um único toggle
+    (tudo/nada). Agora cicla em 3 estados: visível → esconde busca/
+    filtro de capas (`menubar`+`filterbar`, classe `hide-search`) →
+    esconde também o topbar (classe `hide-topbar` adicional) → volta
+    pro visível. Ícone do botão muda por estado (⌄ / ⌄⌄ / ⌃) com
+    `title` explicando a próxima ação.
+  - **Busca geral no acervo + filtro por console** (pedido novo) -
+    campo de busca no topbar (`/api/search_library?q=&code=`) procura
+    por substring (case/acento-insensitive) o nome de qualquer capa em
+    QUALQUER sistema configurado, não só o selecionado no momento -
+    resultado mostra o código do sistema junto. Select ao lado filtra
+    pra um sistema só. Clicar num resultado troca de sistema (se
+    precisar) e rola até a capa, com um destaque temporário (2s) pra
+    achar rápido numa galeria de centenas de capas. Testado ao vivo:
+    busca cruzando sistemas ("mario" retornando FC/NDS/GBA juntos),
+    filtro restringindo a um só (SFC), clique navegando e destacando o
+    card certo.
+  Testado de novo via geometria real (mobile 375×812 e desktop
+  1280×800) - topbar em uma linha só rolável, sem overlap com o botão
+  de esconder menu; ciclo dos 3 estados conferido classe por classe.
