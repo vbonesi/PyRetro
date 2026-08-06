@@ -356,6 +356,21 @@ class Handler(BaseHTTPRequestHandler):
             return None, None
         return Path(path).expanduser(), console.upper()
 
+    def _arcade_romname_dat(self, code: str) -> dict | None:
+        """Nome de exibição do Arcade (romset curto -> título completo,
+        ver core.covers.arcade_display_name) - só pra ARCADE, e nunca
+        deixa uma falha de rede derrubar a listagem de capas inteira
+        (diferente de core.covers.load_romname_dat, chamada aqui fora
+        do contexto de job em background que já tem seu próprio
+        try/except)."""
+        if code not in covers_mod.ROMNAME_DATS:
+            return None
+        try:
+            dat_url, dat_cache_name = covers_mod.ROMNAME_DATS[code]
+            return covers_mod.load_romname_dat(dat_url, dat_cache_name)
+        except Exception:
+            return None
+
     def _file(self, path: Path, content_type: str):
         if not path.is_file():
             self.send_response(404)
@@ -423,14 +438,20 @@ class Handler(BaseHTTPRequestHandler):
                 capas_dir = capas_root / info["capas"] / "Named_Boxarts"
                 if not capas_dir.is_dir():
                     continue
+                romname_dat = self._arcade_romname_dat(code)
                 for p in capas_dir.iterdir():
                     if p.suffix.lower() not in (".png", ".jpg"):
                         continue
                     label = p.stem
-                    label_norm = unicodedata.normalize("NFKD", label).encode("ascii", "ignore").decode().lower()
-                    if q_norm in label_norm:
-                        out.append({"code": code, "label": label, "file": p.name})
-            out.sort(key=lambda x: (x["label"].lower(), x["code"]))
+                    display_name = covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None
+                    # Arcade: também bate pelo nome de exibição (ex:
+                    # "metal slug" acha "mslug2") - sem isso a busca só
+                    # funcionaria digitando o código curto do romset.
+                    haystack = label + (" " + display_name if display_name else "")
+                    haystack_norm = unicodedata.normalize("NFKD", haystack).encode("ascii", "ignore").decode().lower()
+                    if q_norm in haystack_norm:
+                        out.append({"code": code, "label": label, "file": p.name, "display_name": display_name})
+            out.sort(key=lambda x: ((x["display_name"] or x["label"]).lower(), x["code"]))
             return self._json(out[:100])
 
         if parts[:2] == ["api", "covers"] and len(parts) == 3:
@@ -460,6 +481,12 @@ class Handler(BaseHTTPRequestHandler):
                 i = bisect.bisect_left(sorted_names, prefix)
                 return i < len(sorted_names) and sorted_names[i].startswith(prefix)
 
+            # Arcade: o arquivo/label é o nome curto do romset (ex:
+            # "mslug2") - display_name é só pra GUI mostrar "Metal Slug
+            # 2" na tela, nunca usado pra rename/apagar (esses sempre
+            # operam no label curto de verdade, ver core/rom_rename.py).
+            romname_dat = self._arcade_romname_dat(code)
+
             out = []
             for f in files:
                 label = Path(f).stem
@@ -468,6 +495,7 @@ class Handler(BaseHTTPRequestHandler):
                 "file": f, "label": label, "status": status,
                 "flagged": status == "flagged_wrong", "duplicated": status == "duplicate",
                 "has_save": has_flat_match(saves_names, label), "has_state": has_flat_match(states_names, label),
+                "display_name": covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None,
             })
             return self._json(out)
 

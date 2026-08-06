@@ -43,7 +43,7 @@ function runGlobalSearch() {
         for (const item of items) {
           const row = document.createElement("div");
           row.className = "global-search-result";
-          row.innerHTML = `<span class="code">${item.code}</span><span class="label">${item.label}</span>`;
+          row.innerHTML = `<span class="code">${item.code}</span><span class="label">${item.display_name || item.label}</span>`;
           row.addEventListener("click", () => goToSearchResult(item));
           results.appendChild(row);
         }
@@ -125,7 +125,12 @@ document.getElementById("filter-nomatch").addEventListener("change", renderGalle
 document.getElementById("filter-duplicated").addEventListener("change", renderGallery);
 
 function buildCoverCard(code, item, cacheBust) {
-  const { file, label, flagged, duplicated, status, has_save, has_state } = item;
+  const { file, label, flagged, duplicated, status, has_save, has_state, display_name } = item;
+  // display_name só existe pro Arcade (nome real do jogo, ex: "Metal
+  // Slug 2") - o romset continua se chamando "mslug2" no arquivo, no
+  // rename, em tudo que mexe em disco. Isso aqui é só pra tela: mostra
+  // o nome real, o label curto vira tooltip (title) no lugar dele.
+  const shown = display_name || label;
   const renamedPending = status === "renamed_pending";
   const src = `/images/${code}/${encodeURIComponent(file)}` + (cacheBust ? `?t=${Date.now()}` : "");
   const div = document.createElement("div");
@@ -133,12 +138,12 @@ function buildCoverCard(code, item, cacheBust) {
   div.dataset.label = label;
   div.innerHTML = `
     <div class="cover-img-wrap">
-      <img src="${src}" alt="${label}">
+      <img src="${src}" alt="${shown}">
       ${flagged ? '<span class="flag-badge">⚑ marcada</span>' : ""}
       ${duplicated ? '<span class="dup-badge">⧉ duplicada</span>' : ""}
       ${renamedPending ? '<span class="rename-badge">✎ renomeada</span>' : ""}
     </div>
-    <div class="label" title="${label}">${label}</div>
+    <div class="label" title="${label}">${shown}</div>
     ${has_save || has_state ? `<div class="save-state-row">
       ${has_save ? '<button class="tiny secondary" data-action="delete-save" title="Apagar save">💾 Save</button>' : ""}
       ${has_state ? '<button class="tiny secondary" data-action="delete-state" title="Apagar state">⏱ State</button>' : ""}
@@ -153,11 +158,11 @@ function buildCoverCard(code, item, cacheBust) {
       <input type="file" accept="image/png,image/jpeg" class="upload-input" hidden>
     </div>
   `;
-  div.querySelector("img").addEventListener("click", () => openLightbox(src, label));
+  div.querySelector("img").addEventListener("click", () => openLightbox(src, label, display_name));
   div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, flagged));
   div.querySelector('[data-action="duplicate"]').addEventListener("click", () => toggleDuplicate(code, label, duplicated));
-  div.querySelector('[data-action="rename"]').addEventListener("click", () => renameCover(code, label));
-  div.querySelector('[data-action="search"]').addEventListener("click", () => openSearch(code, label));
+  div.querySelector('[data-action="rename"]').addEventListener("click", () => renameCover(code, label, display_name));
+  div.querySelector('[data-action="search"]').addEventListener("click", () => openSearch(code, label, display_name));
   div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteCover(code, label));
   const fileInput = div.querySelector(".upload-input");
   div.querySelector('[data-action="upload"]').addEventListener("click", () => fileInput.click());
@@ -251,7 +256,7 @@ function refreshCard(code, label, flagged, knownFile, duplicated = false) {
   const prev = idx >= 0 ? currentItems[idx] : {};
   const newCard = buildCoverCard(code, {
     file, label, flagged, duplicated, status,
-    has_save: prev.has_save, has_state: prev.has_state,
+    has_save: prev.has_save, has_state: prev.has_state, display_name: prev.display_name,
   }, true);
   old.replaceWith(newCard);
 }
@@ -290,8 +295,13 @@ function describeCascade(cascade) {
   return parts.join(" · ");
 }
 
-async function renameCover(code, label) {
-  const input = prompt("Novo nome da capa (sem extensão) - também tenta renomear ROM e save/state junto:", label);
+async function renameCover(code, label, displayName) {
+  // O prefill do prompt fica sempre no nome curto de verdade (label) -
+  // é ele que vira arquivo em disco. displayName só entra no texto da
+  // pergunta, pra quem tá renomeando um romset de Arcade saber qual
+  // jogo é "mslug2" sem precisar decorar.
+  const hint = displayName ? ` ("${displayName}")` : "";
+  const input = prompt(`Novo nome da capa${hint} (sem extensão) - também tenta renomear ROM e save/state junto:`, label);
   if (input === null) return;
   const newLabel = input.trim();
   if (!newLabel || newLabel === label) return;
@@ -330,10 +340,10 @@ function uploadCover(code, label, file) {
   reader.readAsDataURL(file);
 }
 
-function openLightbox(src, label) {
+function openLightbox(src, label, displayName) {
   const overlay = document.getElementById("lightbox");
   document.getElementById("lightbox-img").src = src;
-  document.getElementById("lightbox-label").textContent = label;
+  document.getElementById("lightbox-label").textContent = displayName || label;
   overlay.classList.remove("hidden");
 }
 
@@ -406,10 +416,14 @@ document.getElementById("settings-modal").addEventListener("click", (e) => {
 
 let searchCtx = { code: null, label: null };
 
-function openSearch(code, label) {
+function openSearch(code, label, displayName) {
+  // searchCtx.label é sempre o nome curto de verdade (o que vira
+  // arquivo em disco) - displayName só melhora o que aparece na tela
+  // e o termo de busca pré-preenchido (buscar "Metal Slug 2" nas
+  // fontes de capa dá resultado bem melhor que buscar "mslug2").
   searchCtx = { code, label };
-  document.getElementById("search-label").textContent = label;
-  document.getElementById("search-query").value = label;
+  document.getElementById("search-label").textContent = displayName || label;
+  document.getElementById("search-query").value = displayName || label;
   document.getElementById("search-results").innerHTML = "";
   document.getElementById("search-modal").classList.remove("hidden");
   runSearch();

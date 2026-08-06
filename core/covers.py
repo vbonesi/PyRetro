@@ -170,6 +170,25 @@ def _try_match(name: str, exact_idx: dict, loose_idx: dict, norm_keys: list):
     return None, None
 
 
+def _clean_dat_name(real_name: str) -> str:
+    """"Puzzled / Joy Joy Kid (NGM-021 ~ NGH-021)" -> "Puzzled" - pega só o
+    título principal. Precisa de espaço nos dois lados da barra - "/" sem
+    espaço aparece dentro de datas ("1994/09/19") e sufixos ("Vehicle-001/II"),
+    cortar nesses casos quebra o nome no meio (bug achado com dariusg/mslug2)."""
+    primary = re.split(r"\s+/\s+", real_name)[0]
+    return re.sub(r"\s*\([^)]*\)\s*$", "", primary).strip()
+
+
+def arcade_display_name(label: str, romname_dat: dict) -> str | None:
+    """Nome de exibição pro Arcade - o label/arquivo real continua sendo o
+    nome curto do romset (ex: "mslug2"), isso aqui é só pra GUI mostrar
+    "Metal Slug 2" na tela em vez do código. Puramente cosmético - nunca
+    usado pra rename/apagar/renomear ROM (ver core/rom_rename.py, que
+    sempre opera no label curto de verdade)."""
+    real_name = romname_dat.get(label.lower())
+    return _clean_dat_name(real_name) if real_name else None
+
+
 def find_match(label: str, exact_idx: dict, loose_idx: dict, norm_keys: list, romname_dat: dict | None = None):
     """Retorna (nome_remoto, tipo) onde tipo é 'exact' ou 'fuzzy'.
 
@@ -180,12 +199,7 @@ def find_match(label: str, exact_idx: dict, loose_idx: dict, norm_keys: list, ro
     if romname_dat:
         real_name = romname_dat.get(label.lower())
         if real_name:
-            # nomes tipo "Puzzled / Joy Joy Kid (NGM-021 ~ NGH-021)" - pega só o titulo
-            # principal. Precisa de espaço nos dois lados da barra - "/" sem espaço
-            # aparece dentro de datas ("1994/09/19") e sufixos ("Vehicle-001/II"),
-            # cortar nesses casos quebra o nome no meio (bug achado com dariusg/mslug2).
-            primary = re.split(r"\s+/\s+", real_name)[0]
-            primary = re.sub(r"\s*\([^)]*\)\s*$", "", primary).strip()
+            primary = _clean_dat_name(real_name)
             remote, kind = _try_match(primary, exact_idx, loose_idx, norm_keys)
             if remote:
                 return remote, kind

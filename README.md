@@ -82,7 +82,10 @@ nunca é baixado sozinho. Pra sistemas como Arcade, onde o nome do arquivo é
 um código curto de ROM (`dariusg`, `karnovr`...), o script primeiro resolve
 o nome de verdade via o `.dat` oficial do FBNeo antes de tentar casar contra
 o repositório de capas - resolve a maioria dos casos que fuzzy match sozinho
-erraria.
+erraria. Esse mesmo `.dat` também alimenta a exibição na GUI: a galeria mostra
+o nome completo do jogo em vez do código curto (`core/covers.py`
+`arcade_display_name`) - só cosmético, renomear/apagar continuam operando no
+nome curto de verdade.
 
 ### `fetch-covers-fallback` — segunda fonte pros que sobraram (LaunchBox Games DB)
 
@@ -270,7 +273,8 @@ O que tem até agora:
 - **Busca geral do acervo**: campo no topo pesquisa por nome em
   qualquer sistema configurado de uma vez (não só o selecionado),
   filtro opcional por console - clicar num resultado troca de sistema
-  e rola até a capa certa, com destaque temporário
+  e rola até a capa certa, com destaque temporário. Pro Arcade, busca
+  também pelo nome real do jogo, não só pelo código curto do romset
 - **📦 ROMs Pesadas**: modal separado (botão no topo) pra PS, SDC, PS2,
   GameCube, Wii, PSP e 3DS - lista o que existe no PC, no celular
   (via adb) e no **Google Drive** (via `rclone`, sem precisar de
@@ -399,7 +403,7 @@ PyRetro/
 
 | Módulo | Status |
 |---|---|
-| `core/covers.py` | Implementado e testado - resolve exato, fuzzy (só relatório), DAT do FBNeo pro Arcade, fallback de download via API do GitHub, distingue rate-limit de sem_match real |
+| `core/covers.py` | Implementado e testado - resolve exato, fuzzy (só relatório), DAT do FBNeo pro Arcade (também usado pra `arcade_display_name`, nome de exibição na GUI), fallback de download via API do GitHub, distingue rate-limit de sem_match real |
 | `core/launchbox.py` | Implementado e testado - segunda fonte (LaunchBox Games DB) só pros sem_match do covers.py, exato + prefixo com trava de segurança |
 | `core/sanitize.py` | Implementado e testado - remove `&`/`:`/`*` de nomes de capa e ROM, nunca sobrescreve em conflito |
 | `core/screenscraper.py` | Implementado e testado com API real - `search_game`/`download_cover`, mapeamento de sistemas (`SYSTEM_MAP`), URLs de mídia com credencial embutida nunca vão pro cliente (proxy `/api/cover/ss_preview` + cache em memória em `gui/server.py`) |

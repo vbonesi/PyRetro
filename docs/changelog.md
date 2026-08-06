@@ -538,3 +538,38 @@ plano.
   Testado de novo via geometria real (mobile 375×812 e desktop
   1280×800) - topbar em uma linha só rolável, sem overlap com o botão
   de esconder menu; ciclo dos 3 estados conferido classe por classe.
+- **Nome real do jogo Arcade só na visualização** - pedido do usuário:
+  romset do Arcade tem nome curto tipo "mslug2"/"19xx" no arquivo, quis
+  ver o nome de verdade na tela sem perder o nome curto em operações
+  como renomear. Achado real: `core/covers.py` já tinha exatamente o
+  dado necessário (`load_romname_dat`/`ROMNAME_DATS["ARCADE"]`, DAT do
+  FBNeo do libretro-database, "mslug2" -> "Metal Slug 2 - Super
+  Vehicle-001/II") - usado até agora só internamente pra achar a capa
+  certa, nunca exposto ao usuário. Extraído `_clean_dat_name` (lógica
+  de limpeza que já existia em `find_match`) e criada
+  `arcade_display_name(label, romname_dat)`, cosmética, nunca chamada
+  por rename/apagar.
+
+  Testado contra o DAT real e o acervo real do usuário: 216 dos 218
+  romsets de Arcade resolvidos pro nome completo (só 2 sem
+  correspondência, ex: "mvsc2" - cai de volta pro nome curto sem
+  quebrar nada). `GET /api/covers/<code>` e `GET /api/search_library`
+  ganharam o campo `display_name` (só preenchido pra ARCADE, `None`
+  pros outros sistemas - sem custo nem mudança de comportamento pro
+  resto do acervo). A busca geral também passou a bater pelo nome
+  real, não só pelo romset - buscar "metal slug" agora acha os 6 jogos
+  da série Arcade mesmo sem digitar "mslug"/"mslugx"/etc.
+
+  Na GUI: card da galeria mostra o nome completo, com o nome curto
+  virando tooltip (`title`) no lugar de texto visível. Lightbox e
+  modal de busca de capa também mostram/usam o nome completo (inclusive
+  pré-preenchendo a busca com ele - "Metal Slug 2" acha capa bem melhor
+  que "mslug2" nas fontes externas). O prompt de renomear continua
+  pré-preenchido com o nome CURTO de verdade (é o que vira arquivo),
+  só ganhou o nome completo como dica no texto da pergunta - `label`
+  (curto) segue sendo o único valor usado em toda operação de arquivo
+  (`dataset.label`, `searchCtx.label`, corpo de toda request de
+  rename/apagar/flag/duplicar), confirmado não mudou em nenhum desses
+  pontos. Testado ao vivo: capa "19xx" mostrando "19XX: The War
+  Against Destiny" na tela com tooltip "19xx"; sistema não-Arcade
+  (SFC) confirmado sem nenhuma mudança de comportamento.
