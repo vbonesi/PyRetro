@@ -4,6 +4,7 @@ PyRetro - CLI de manutenção do acervo RetroArch (PC <-> Android).
 
 Comandos:
     retrosync sync [saves|states|metrics|covers|all]  [--apply]   (ainda não implementado)
+    retrosync backup-saves [--apply]
     retrosync fetch-covers <SISTEMA|all> [--apply]
     retrosync fix-cues <pasta|all> [--rename-files] [--apply]     (ainda não implementado)
 
@@ -23,6 +24,7 @@ from core import covers as covers_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import organize as organize_mod
+from core import pc_backup as pc_backup_mod
 from core import sanitize as sanitize_mod
 from core import sync as sync_mod
 
@@ -311,6 +313,32 @@ def cmd_sanitize_names(args) -> None:
         print("(modo simulação - nada foi renomeado, rode com --apply)")
 
 
+def cmd_backup_saves(args) -> None:
+    """PC -> Drive, uma direção só. A maioria dos emuladores já escreve
+    direto dentro de Saves/ (o Drive faz o backup sozinho); isso aqui
+    cobre só o que sobra (Dolphin GC/Wii, Flycast VMU) - ver
+    core/pc_backup.py."""
+    cfg = load_config()
+    items = pc_backup_mod.plan(cfg)
+    if not items:
+        print("nada pra fazer backup (tudo já copiado, ou dolphin_data_root/flycast_data_root vazios em config.toml)")
+        return
+
+    by_source = {}
+    for item in items:
+        by_source.setdefault(item["source"], []).append(item)
+    for source, group in by_source.items():
+        print(f"\n=== {source} ({len(group)}) ===")
+        for item in group:
+            print(f"  [{item['action']:10}] {item['rel_path']}")
+
+    if args.apply:
+        pc_backup_mod.apply(items)
+        print(f"\ncopiado: {len(items)} arquivo(s)")
+    else:
+        print(f"\ntotal: {len(items)} arquivo(s) (modo simulacao - nada foi copiado, rode com --apply)")
+
+
 def cmd_sync(args) -> None:
     """Por enquanto só 'covers' está implementado - saves/states/metrics
     seguem a mesma arquitetura (ver core/sync.py) mas ainda não foram
@@ -347,6 +375,12 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("scope", choices=["saves", "states", "metrics", "covers", "all"], default="all", nargs="?")
     sync.add_argument("--apply", action="store_true", help="aplica as mudancas (padrao: so mostra)")
 
+    backup = sub.add_parser(
+        "backup-saves",
+        help="copia PC -> Drive os saves que nao escrevem direto em Saves/ (Dolphin GC/Wii, Flycast VMU)",
+    )
+    backup.add_argument("--apply", action="store_true", help="aplica a copia (padrao: so mostra)")
+
     covers = sub.add_parser("fetch-covers", help="busca capas no libretro-thumbnails")
     covers.add_argument("system", help="codigo do sistema (ex: SFC) ou 'all'")
     covers.add_argument("--apply", action="store_true")
@@ -380,7 +414,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     heavy = sub.add_parser(
         "heavy-roms",
-        help="lista/envia ROMs de consoles pesados (PS, SDC, PS2, GameCube, Wii, PSP, 3DS)",
+        help="lista/envia ROMs de consoles pesados (PS, SS, SDC, PS2, GameCube, Wii, PSP, 3DS)",
     )
     heavy.add_argument("system", help="codigo do sistema pesado (ex: PS2)")
     heavy.add_argument("--send", metavar="NOME", help="manda esse item (arquivo ou pasta) pro celular")
@@ -404,6 +438,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "sync":
         cmd_sync(args)
+    elif args.command == "backup-saves":
+        cmd_backup_saves(args)
     elif args.command == "fetch-covers":
         cmd_fetch_covers(args)
     elif args.command == "fetch-covers-fallback":

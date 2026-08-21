@@ -198,14 +198,14 @@ python3 retrosync.py heavy-roms PS2 --send "Gradius V.iso"       # envia pro cel
 python3 retrosync.py heavy-roms PS2 --download "Baroque.iso"     # baixa do Drive pro PC
 ```
 
-Sistemas configurados em `config.toml` `[heavy_systems]` (PS, SDC, PS2,
-GameCube, Wii, PSP, 3DS - Switch fica de fora de propósito, gestão feita
-por fora do PyRetro). Diferente dos sistemas em `[systems]`
+Sistemas configurados em `config.toml` `[heavy_systems]` (PS, SS, SDC,
+PS2, GameCube, Wii, PSP, 3DS - Switch fica de fora de propósito, gestão
+feita por fora do PyRetro). Diferente dos sistemas em `[systems]`
 (sincronizados sozinhos via Google Drive), esses ficam só no PC até
 serem enviados/baixados sob demanda - `retrosync heavy-roms <CODIGO>`
 mostra o que existe em `roms_root/<CODIGO>/`, no Google Drive (via
 `rclone`, config `[rclone]`) e no celular (via adb, se conectado). Um
-"item" é um arquivo ou uma pasta inteira; PS/SDC somam o tamanho dos
+"item" é um arquivo ou uma pasta inteira; PS/SS/SDC somam o tamanho dos
 `.bin` sidecars automaticamente. Nunca sobrescreve no celular sem
 `--overwrite`. Download do Drive vai primeiro pra `staging_dir`
 (`~/Downloads` por padrão) e só depois é movido pra
@@ -275,8 +275,8 @@ O que tem até agora:
   filtro opcional por console - clicar num resultado troca de sistema
   e rola até a capa certa, com destaque temporário. Pro Arcade, busca
   também pelo nome real do jogo, não só pelo código curto do romset
-- **📦 ROMs Pesadas**: modal separado (botão no topo) pra PS, SDC, PS2,
-  GameCube, Wii, PSP e 3DS - lista o que existe no PC, no celular
+- **📦 ROMs Pesadas**: modal separado (botão no topo) pra PS, SS, SDC,
+  PS2, GameCube, Wii, PSP e 3DS - lista o que existe no PC, no celular
   (via adb) e no **Google Drive** (via `rclone`, sem precisar de
   celular conectado), e manda/baixa um item de cada vez sob demanda
   (com progresso via SSE). Itens que só existem no Drive mostram botão
@@ -377,7 +377,7 @@ PyRetro/
 │   ├── sanitize.py        # remove caracteres que o RetroArch não aceita - implementado
 │   ├── sync.py            # sincronização PC<->Android (só capas) - implementado e testado no aparelho
 │   ├── cues.py             # rename_disc_set (.cue/.gdi+.bin) - implementado; scan/auditoria - esqueleto
-│   ├── heavy_roms.py       # gestão de ROMs pesadas (PS/SDC/PS2/GC/Wii/PSP/3DS) - implementado
+│   ├── heavy_roms.py       # gestão de ROMs pesadas (PS/SS/SDC/PS2/GC/Wii/PSP/3DS) - implementado
 │   ├── organize.py         # organiza "0-Organizar" pra roms_root/<CODIGO>/ - implementado
 │   ├── rom_rename.py       # rename e apagar com cascata (ROM+capa+save/state) - implementado e testado
 │   ├── memcard.py          # editor de memory card PS1/PS2 (ps1vmc-tool/ps2vmc-tool) - implementado e testado
@@ -410,7 +410,7 @@ PyRetro/
 | `core/adb.py` | Implementado e testado contra o aparelho real - `run`/`shell`/`push`/`pull`/`ensure_connected` com retry via kill-server/start-server |
 | `core/sync.py` | Implementado e testado contra o aparelho real, só pra capas (`sync_capas`) - manifesto em `cache/sync_state.json`, classifica sem_mudança/pra PC/pro Android/conflito, nunca deleta. Extensão pra saves/states/runtime-logs **cancelada** (sempre vai usar Google Drive pra isso) |
 | `core/cues.py` | `rename_disc_set` implementado e testado (`.cue`/`.gdi` + sidecars `.bin`, corrige a referência de texto). Auditoria completa (`scan_folder`/`fix_all`) ainda esqueleto |
-| `core/heavy_roms.py` | Implementado e testado ponta a ponta com o celular real - identifica ROMs de PS/SDC/PS2/GameCube/Wii/PSP/3DS e envia sob demanda via adb, somando sidecars |
+| `core/heavy_roms.py` | Implementado e testado ponta a ponta com o celular real - identifica ROMs de PS/SS/SDC/PS2/GameCube/Wii/PSP/3DS e envia sob demanda via adb, somando sidecars |
 | `core/organize.py` | Implementado e testado ponta a ponta via GUI - identifica ROMs em `0-Organizar/` pela extensão e move pro sistema certo, com desambiguação manual quando a extensão bate com mais de um sistema |
 | `core/rom_rename.py` | Implementado e testado ponta a ponta via GUI - rename e apagar com cascata (ROM + capa + save/state) pra sistemas leves e pesados, incluindo grupos multi-disco no rename (PS1/PS2); `find_flat_matches`/`delete_flat_matches` reaproveitados pela gestão de save/state na galeria |
 | `core/memcard.py` | Implementado e testado contra cartões reais - listar/exportar/apagar/importar/transferir save de memory card PS1/PS2 via `ps1vmc-tool`/`ps2vmc-tool` |

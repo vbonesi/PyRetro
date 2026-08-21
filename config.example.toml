@@ -10,6 +10,12 @@ capas_root        = "~/Drive/Jogos/Capas"
 saves_root        = "~/Drive/Jogos/Saves/saves"
 states_root       = "~/Drive/Jogos/Saves/states"
 runtime_logs_root = "~/Drive/Jogos/Saves/runtime-logs"
+# Raiz de dados dos apps Flatpak que guardam save dentro da própria
+# sandbox (GC/Wii do Dolphin, VMU do Flycast) - únicos que não escrevem
+# direto dentro de Saves/ (ver core/pc_backup.py). Deixe em branco ("")
+# se não usar esses emuladores.
+dolphin_data_root = "~/.var/app/org.DolphinEmu.dolphin-emu/data/dolphin-emu"
+flycast_data_root = "~/.var/app/org.flycast.Flycast/data/flycast"
 # Pasta dentro de roms_root onde ROMs novas ficam esperando organização
 # (o "upload" agora é o próprio Google Drive - joga o arquivo aqui, de
 # qualquer lado, e a GUI/CLI move pra roms_root/<CODIGO>/ certo).
