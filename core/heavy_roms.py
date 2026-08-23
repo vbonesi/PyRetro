@@ -77,7 +77,16 @@ def list_local(code: str, roms_root: Path, exts: list) -> list:
         return []
     exts_lower = {e.lower().lstrip(".") for e in exts}
     items = []
-    for entry in sorted(sysdir.iterdir()):
+    try:
+        entries = sorted(sysdir.iterdir())
+    except OSError:
+        # pasta existe mas não é legível - achado real no Termux (modo
+        # Android): algumas subpastas do armazenamento compartilhado
+        # voltam PermissionError mesmo com a permissão de arquivos
+        # concedida ao app. Sem isso derrubava a aba inteira de ROMs
+        # Pesadas por causa de UM sistema sem acesso.
+        return []
+    for entry in entries:
         if entry.is_dir():
             items.append({"name": entry.name, "size": _dir_size(entry), "is_dir": True, "sidecar_count": 0})
         elif entry.is_file() and entry.suffix.lower().lstrip(".") in exts_lower:

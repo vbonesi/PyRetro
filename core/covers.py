@@ -351,6 +351,18 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
     return result
 
 
+def _iterdir_safe(path: Path):
+    """iterdir() que não derruba a pagina inteira quando uma pasta
+    existe mas não é legível - achado real rodando no Termux (modo
+    Android): algumas subpastas dentro do armazenamento compartilhado
+    voltam PermissionError mesmo com a permissão de arquivos concedida
+    ao app, em vez de simplesmente não existir."""
+    try:
+        return list(path.iterdir())
+    except OSError:
+        return []
+
+
 def missing_cover_labels(roms_root: Path, code: str, exts: list, capas_dir: Path) -> list:
     """Labels de ROM em roms_root/<code> que ainda não têm capa (nem
     .png nem .jpg) em capas_dir. Sem isso, um jogo recém organizado
@@ -361,9 +373,9 @@ def missing_cover_labels(roms_root: Path, code: str, exts: list, capas_dir: Path
     if not sysdir.is_dir():
         return []
     exts_lower = {e.lower().lstrip(".") for e in exts}
-    have = {p.stem for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg")} if capas_dir.is_dir() else set()
+    have = {p.stem for p in _iterdir_safe(capas_dir) if p.suffix.lower() in (".png", ".jpg")} if capas_dir.is_dir() else set()
     labels = {
-        p.stem for p in sysdir.iterdir()
+        p.stem for p in _iterdir_safe(sysdir)
         if p.is_file() and p.suffix.lower().lstrip(".") in exts_lower
     }
     return sorted(labels - have)

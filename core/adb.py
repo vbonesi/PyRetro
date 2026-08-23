@@ -53,6 +53,13 @@ def run(args: list, serial: str | None = None, timeout: int = 30, retries: int =
             last = subprocess.run(_adb_base(serial) + args, capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired as e:
             last = subprocess.CompletedProcess(args, 1, stdout="", stderr=f"timeout: {e}")
+        except FileNotFoundError as e:
+            # binário 'adb' nem existe (achado real: rodando local no
+            # Termux, modo Android - não tem "outro lado" pra falar via
+            # adb) - vira AdbError igual qualquer outra falha de
+            # conexão, pros mesmos try/except já espalhados pelo GUI
+            # tratarem sem precisar de um caso novo em cada chamador.
+            raise AdbError(f"adb não encontrado no PATH: {e}") from e
 
         combined = (last.stdout or "") + (last.stderr or "")
         if last.returncode == 0 or not any(marker in combined for marker in _OFFLINE_MARKERS):
