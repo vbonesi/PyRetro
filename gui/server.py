@@ -186,6 +186,54 @@ def write_settings_paths(updates: dict) -> None:
     CONFIG_PATH.write_text("".join(lines))
 
 
+def add_memcard_entry(console: str, label: str, path: str) -> None:
+    """Adiciona uma entrada nova em [memcards.<console>] preservando o
+    resto do config.toml, mesmo espírito de write_settings_paths mas
+    pra chave citada ("Slot 1" = "...") em vez de chave = valor simples
+    - insere logo após o cabeçalho da seção (cria a seção se ainda não
+    existir, ex: usuário nunca configurou nenhum card de PS2)."""
+    text = CONFIG_PATH.read_text()
+    lines = text.splitlines(keepends=True)
+    header = f"[memcards.{console}]"
+    esc_label = label.replace("\\", "\\\\").replace('"', '\\"')
+    esc_path = path.replace("\\", "\\\\").replace('"', '\\"')
+    new_line = f'"{esc_label}" = "{esc_path}"\n'
+    for i, line in enumerate(lines):
+        if line.strip() == header:
+            j = i + 1
+            while j < len(lines) and not lines[j].strip().startswith("["):
+                j += 1
+            lines.insert(j, new_line)
+            CONFIG_PATH.write_text("".join(lines))
+            return
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    lines.append(f"\n{header}\n{new_line}")
+    CONFIG_PATH.write_text("".join(lines))
+
+
+def remove_memcard_entry(console: str, label: str) -> bool:
+    """Remove a linha da entrada em [memcards.<console>] - só
+    desregistra do config.toml, nunca apaga o arquivo do card (mesmo
+    princípio de "nunca apaga nada sozinho" do resto do projeto)."""
+    text = CONFIG_PATH.read_text()
+    lines = text.splitlines(keepends=True)
+    header = f"[memcards.{console}]"
+    esc_label = label.replace("\\", "\\\\").replace('"', '\\"')
+    key_re = re.compile(rf'^\s*"{re.escape(esc_label)}"\s*=')
+    in_section = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            in_section = (stripped == header)
+            continue
+        if in_section and key_re.match(line):
+            del lines[i]
+            CONFIG_PATH.write_text("".join(lines))
+            return True
+    return False
+
+
 def load_registry() -> dict:
     return json.loads(REGISTRY_PATH.read_text()) if REGISTRY_PATH.exists() else {}
 
@@ -379,7 +427,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return None
 
-    def _file(self, path: Path, content_type: str):
+    def _file(self, path: Path, content_type: str, no_cache: bool = False):
         if not path.is_file():
             self.send_response(404)
             self.end_headers()
@@ -388,6 +436,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
+        if no_cache:
+            # app.js/index.html mudam com frequência durante o
+            # desenvolvimento (sem Last-Modified/ETag o navegador é
+            # livre pra usar cache heurístico) - sem isso, um F5 normal
+            # pode continuar servindo JS velho do disk cache e uma
+            # correção parece "não ter feito efeito" até um hard
+            # refresh. Não se aplica a /images (capas já usam
+            # cache-bust por query param, ver buildCoverCard).
+            self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
 
@@ -397,16 +454,17 @@ class Handler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
 
         if parsed.path == "/":
-            return self._file(STATIC_DIR / "index.html", "text/html; charset=utf-8")
+            return self._file(STATIC_DIR / "index.html", "text/html; charset=utf-8", no_cache=True)
 
         if parts[:1] == ["static"] and len(parts) == 2:
             ext = parts[1].rsplit(".", 1)[-1]
             ctype = {"js": "application/javascript", "css": "text/css"}.get(ext, "application/octet-stream")
-            return self._file(STATIC_DIR / parts[1], ctype)
+            return self._file(STATIC_DIR / parts[1], ctype, no_cache=True)
 
         if parts[:2] == ["api", "systems"]:
             cfg = load_config()
             capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
             registry = load_registry()
             out = []
             for code, info in cfg["systems"].items():
@@ -415,9 +473,10 @@ class Handler(BaseHTTPRequestHandler):
                 capas_dir = capas_root / info["capas"] / "Named_Boxarts"
                 count = len(list(capas_dir.glob("*.png"))) + len(list(capas_dir.glob("*.jpg"))) if capas_dir.is_dir() else 0
                 no_match = sum(1 for v in registry.get(code, {}).values() if v.get("status") == "no_match")
+                missing = len(covers_mod.missing_cover_labels(roms_root, code, info.get("exts", []), capas_dir))
                 out.append({
                     "code": code, "capas": info["capas"], "count": count,
-                    "no_match": no_match, "has_launchbox": code in launchbox_mod.PLATFORM_MAP,
+                    "no_match": no_match, "missing": missing, "has_launchbox": code in launchbox_mod.PLATFORM_MAP,
                     "has_screenscraper": code in screenscraper_mod.SYSTEM_MAP,
                 })
             return self._json(out)
@@ -470,11 +529,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "sistema desconhecido"}, 404)
             capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
             capas_dir = capas_root / info["capas"] / "Named_Boxarts"
-            if not capas_dir.is_dir():
-                return self._json([])
             registry = load_registry()
             reg_sys = registry.get(code, {})
-            files = sorted(p.name for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg"))
+            files = sorted(p.name for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg")) if capas_dir.is_dir() else []
             # saves_root/states_root não têm subpasta por sistema (achatado,
             # ver core/rom_rename.py) - lista cada pasta UMA vez e faz busca
             # por prefixo via bisect, em vez de escanear a pasta inteira pra
@@ -505,6 +562,22 @@ class Handler(BaseHTTPRequestHandler):
                 "has_save": has_flat_match(saves_names, label), "has_state": has_flat_match(states_names, label),
                 "display_name": covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None,
             })
+
+            # ROMs já organizadas mas sem capa nenhuma ainda (nem
+            # tentativa registrada) - sem isso ficam invisíveis pra
+            # sempre, já que a busca em massa só revê capas que já
+            # existem (ver core/covers.py missing_cover_labels).
+            if code not in covers_mod.COVERS_EXCLUDED:
+                roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+                for label in covers_mod.missing_cover_labels(roms_root, code, info.get("exts", []), capas_dir):
+                    out.append({
+                        "file": None, "label": label, "status": "no_cover",
+                        "flagged": False, "duplicated": False,
+                        "has_save": has_flat_match(saves_names, label), "has_state": has_flat_match(states_names, label),
+                        "display_name": covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None,
+                    })
+
+            out.sort(key=lambda item: (item["display_name"] or item["label"]).lower())
             return self._json(out)
 
         if parts[:1] == ["images"] and len(parts) >= 3:
@@ -907,7 +980,32 @@ class Handler(BaseHTTPRequestHandler):
             ok, msg = organize_mod.move_to_system(roms_root, staging, name, code)
             if not ok:
                 return self._json({"error": msg}, 409)
-            return self._json({"ok": True, "message": msg})
+
+            # Tenta já sair capeado do organizar, em vez de esperar uma
+            # rodada manual de "Buscar capas" depois - só pra sistemas
+            # leves com capas (heavy_systems e PS/SDC não têm galeria de
+            # capa, ver COVERS_EXCLUDED). Falha de rede aqui nunca
+            # desfaz o move, que já aconteceu de verdade.
+            cover_status = None
+            info = cfg["systems"].get(code)
+            if info and code not in covers_mod.COVERS_EXCLUDED:
+                dest_name = organize_mod.clean_name(name)
+                label = Path(dest_name).stem
+                capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+                capas_dir = capas_root / info["capas"] / "Named_Boxarts"
+                try:
+                    names = covers_mod.load_tree(info["repo"])
+                    exact_idx = covers_mod.build_index(names, loose=False)
+                    loose_idx = covers_mod.build_index(names, loose=True)
+                    norm_keys = list(exact_idx.keys())
+                    romname_dat = self._arcade_romname_dat(code)
+                    cover_status, _ = covers_mod.fetch_one(
+                        label, info["repo"], capas_dir, exact_idx, loose_idx, norm_keys, romname_dat
+                    )
+                except Exception:
+                    cover_status = None
+
+            return self._json({"ok": True, "message": msg, "cover": cover_status})
 
         if parts == ["api", "heavy", "send"]:
             body = self._read_json_body()
@@ -991,6 +1089,50 @@ class Handler(BaseHTTPRequestHandler):
                 roms_root / code, None, saves_dir, states_dir, label, sysinfo.get("exts", []),
             )
             return self._json({"ok": True, "cascade": cascade})
+
+        if parts == ["api", "memcards", "add"]:
+            body = self._read_json_body()
+            console = (body.get("console") or "").lower()
+            label = (body.get("label") or "").strip()
+            raw_path = (body.get("path") or "").strip()
+            mode = body.get("mode")  # "create" (card em branco novo) ou "open" (card já existente)
+            if console not in ("ps1", "ps2"):
+                return self._json({"error": "console inválido"}, 400)
+            if not label or not raw_path:
+                return self._json({"error": "nome e caminho são obrigatórios"}, 400)
+            cfg = load_config()
+            existing = cfg.get("memcards", {}).get(console, {})
+            if label in existing:
+                return self._json({"error": f'já existe um card chamado "{label}"'}, 409)
+            dest = Path(raw_path).expanduser()
+            if mode == "create":
+                if not existing:
+                    return self._json({
+                        "error": "precisa de pelo menos um card desse console já configurado "
+                                 "pra servir de molde"
+                    }, 400)
+                template_path = Path(next(iter(existing.values()))).expanduser()
+                try:
+                    memcard_mod.create_card(console.upper(), template_path, dest)
+                except (memcard_mod.MemcardError, OSError) as e:
+                    return self._json({"error": str(e)}, 502)
+            else:
+                if not dest.exists():
+                    return self._json({"error": "arquivo não encontrado"}, 404)
+                try:
+                    memcard_mod.mc_info(console.upper(), dest)
+                except memcard_mod.MemcardError as e:
+                    return self._json({"error": f"não parece ser um card válido: {e}"}, 502)
+            add_memcard_entry(console, label, raw_path)
+            return self._json({"ok": True, "key": f"{console}:{label}"})
+
+        if parts == ["api", "memcards", "remove"]:
+            body = self._read_json_body()
+            console = (body.get("console") or "").lower()
+            label = body.get("label") or ""
+            if not remove_memcard_entry(console, label):
+                return self._json({"error": "card não encontrado em config.toml"}, 404)
+            return self._json({"ok": True})
 
         if parts == ["api", "memcards", "export"]:
             body = self._read_json_body()

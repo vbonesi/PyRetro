@@ -11,8 +11,8 @@ async function loadSystems() {
     const tab = document.createElement("div");
     tab.className = "tab";
     tab.dataset.code = sys.code;
-    const warnClass = sys.no_match > 0 ? "warn" : "";
-    tab.innerHTML = `<span>${sys.code}</span><span class="badge ${warnClass}">${sys.count}·${sys.no_match}</span>`;
+    const warnClass = (sys.no_match > 0 || sys.missing > 0) ? "warn" : "";
+    tab.innerHTML = `<span>${sys.code}</span><span class="badge ${warnClass}" title="${sys.count} capas · ${sys.no_match} sem correspondência · ${sys.missing} sem capa ainda">${sys.count}·${sys.no_match}·${sys.missing}</span>`;
     tab.addEventListener("click", () => selectSystem(sys.code));
     tabs.appendChild(tab);
   }
@@ -100,18 +100,20 @@ function renderGallery() {
   const onlyFlagged = document.getElementById("filter-flagged").checked;
   const onlyNoMatch = document.getElementById("filter-nomatch").checked;
   const onlyDuplicated = document.getElementById("filter-duplicated").checked;
+  const onlyNoCover = document.getElementById("filter-nocover").checked;
 
   let items = currentItems;
-  if (onlyFlagged || onlyNoMatch || onlyDuplicated) {
+  if (onlyFlagged || onlyNoMatch || onlyDuplicated || onlyNoCover) {
     items = items.filter(item =>
       (onlyFlagged && item.status === "flagged_wrong") ||
       (onlyNoMatch && item.status === "no_match") ||
-      (onlyDuplicated && item.status === "duplicate")
+      (onlyDuplicated && item.status === "duplicate") ||
+      (onlyNoCover && item.status === "no_cover")
     );
   }
 
   if (items.length === 0) {
-    const msg = (onlyFlagged || onlyNoMatch || onlyDuplicated) ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
+    const msg = (onlyFlagged || onlyNoMatch || onlyDuplicated || onlyNoCover) ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
     gallery.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
@@ -123,6 +125,7 @@ function renderGallery() {
 document.getElementById("filter-flagged").addEventListener("change", renderGallery);
 document.getElementById("filter-nomatch").addEventListener("change", renderGallery);
 document.getElementById("filter-duplicated").addEventListener("change", renderGallery);
+document.getElementById("filter-nocover").addEventListener("change", renderGallery);
 
 function buildCoverCard(code, item, cacheBust) {
   const { file, label, flagged, duplicated, status, has_save, has_state, display_name } = item;
@@ -131,17 +134,20 @@ function buildCoverCard(code, item, cacheBust) {
   // rename, em tudo que mexe em disco. Isso aqui é só pra tela: mostra
   // o nome real, o label curto vira tooltip (title) no lugar dele.
   const shown = display_name || label;
+  const noCover = status === "no_cover"; // ROM já organizada, mas sem capa nenhuma ainda (ver missing_cover_labels)
   const renamedPending = status === "renamed_pending";
-  const src = `/images/${code}/${encodeURIComponent(file)}` + (cacheBust ? `?t=${Date.now()}` : "");
+  const src = file ? `/images/${code}/${encodeURIComponent(file)}` + (cacheBust ? `?t=${Date.now()}` : "") : null;
   const div = document.createElement("div");
-  div.className = "cover" + (flagged ? " flagged" : "") + (duplicated ? " duplicated" : "") + (renamedPending ? " renamed" : "");
+  div.className = "cover" + (flagged ? " flagged" : "") + (duplicated ? " duplicated" : "") + (renamedPending ? " renamed" : "") + (noCover ? " no-cover" : "");
   div.dataset.label = label;
   div.innerHTML = `
     <div class="cover-img-wrap">
-      <img src="${src}" alt="${shown}">
-      ${flagged ? '<span class="flag-badge">⚑ marcada</span>' : ""}
-      ${duplicated ? '<span class="dup-badge">⧉ duplicada</span>' : ""}
-      ${renamedPending ? '<span class="rename-badge">✎ renomeada</span>' : ""}
+      ${noCover
+        ? '<div class="cover-placeholder">🖼<br>sem capa</div>'
+        : `<img src="${src}" alt="${shown}">
+           ${flagged ? '<span class="flag-badge">⚑ marcada</span>' : ""}
+           ${duplicated ? '<span class="dup-badge">⧉ duplicada</span>' : ""}
+           ${renamedPending ? '<span class="rename-badge">✎ renomeada</span>' : ""}`}
     </div>
     <div class="label" title="${label}">${shown}</div>
     ${has_save || has_state ? `<div class="save-state-row">
@@ -149,21 +155,24 @@ function buildCoverCard(code, item, cacheBust) {
       ${has_state ? '<button class="tiny secondary" data-action="delete-state" title="Apagar state">⏱ State</button>' : ""}
     </div>` : ""}
     <div class="cover-actions">
+      ${noCover ? "" : `
       <button class="tiny ${flagged ? "" : "secondary"}" data-action="flag">${flagged ? "Desmarcar" : "⚑ Errada"}</button>
       <button class="tiny ${duplicated ? "" : "secondary"}" data-action="duplicate">${duplicated ? "Desmarcar" : "⧉ Duplicada"}</button>
-      <button class="tiny secondary" data-action="rename">✎ Renomear</button>
+      <button class="tiny secondary" data-action="rename">✎ Renomear</button>`}
       <button class="tiny secondary" data-action="search">🔍 Buscar</button>
-      <button class="tiny secondary" data-action="upload">⬆ Trocar</button>
-      <button class="tiny danger" data-action="delete">🗑 Apagar</button>
+      <button class="tiny secondary" data-action="upload">⬆ ${noCover ? "Adicionar" : "Trocar"}</button>
+      ${noCover ? "" : '<button class="tiny danger" data-action="delete">🗑 Apagar</button>'}
       <input type="file" accept="image/png,image/jpeg" class="upload-input" hidden>
     </div>
   `;
-  div.querySelector("img").addEventListener("click", () => openLightbox(src, label, display_name));
-  div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, flagged));
-  div.querySelector('[data-action="duplicate"]').addEventListener("click", () => toggleDuplicate(code, label, duplicated));
-  div.querySelector('[data-action="rename"]').addEventListener("click", () => renameCover(code, label, display_name));
+  if (!noCover) {
+    div.querySelector("img").addEventListener("click", () => openLightbox(src, label, display_name));
+    div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, flagged));
+    div.querySelector('[data-action="duplicate"]').addEventListener("click", () => toggleDuplicate(code, label, duplicated));
+    div.querySelector('[data-action="rename"]').addEventListener("click", () => renameCover(code, label, display_name));
+    div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteCover(code, label));
+  }
   div.querySelector('[data-action="search"]').addEventListener("click", () => openSearch(code, label, display_name));
-  div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteCover(code, label));
   const fileInput = div.querySelector(".upload-input");
   div.querySelector('[data-action="upload"]').addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", () => uploadCover(code, label, fileInput.files[0]));
@@ -827,6 +836,17 @@ async function moveOrganizeItem(name, code) {
   });
   const data = await res.json();
   if (res.ok) {
+    const statusEl = document.getElementById("organize-status");
+    const prevText = statusEl.textContent;
+    const coverMsg = {
+      exact: "✓ capa baixada automaticamente",
+      fuzzy: "capa parecida encontrada - revise em \"Buscar capas\"",
+      no_match: "sem capa correspondente - use 🖼 Só sem capa na galeria pra buscar/subir manualmente",
+    }[data.cover];
+    if (coverMsg) {
+      statusEl.textContent = `${name} → ${code}/: ${coverMsg}`;
+      setTimeout(() => { statusEl.textContent = prevText; }, 5000);
+    }
     loadOrganizePending();
     loadSystems(); // contagem de capas do sistema destino pode ter mudado
   } else {
@@ -938,11 +958,15 @@ function renderSavesList() {
       header.className = "saves-card-header";
       header.innerHTML = `
         <span>${card.label}</span>
-        <label class="tiny secondary import-label">📥 Importar save<input type="file" class="import-input" hidden></label>
+        <div class="saves-card-actions">
+          <label class="tiny secondary import-label">📥 Importar save<input type="file" class="import-input" hidden></label>
+          <button class="tiny secondary" data-action="remove-card">✕ Remover</button>
+        </div>
       `;
       header.querySelector(".import-input").addEventListener("change", (e) => {
         if (e.target.files[0]) importSaveFile(card.key, e.target.files[0]);
       });
+      header.querySelector('[data-action="remove-card"]').addEventListener("click", () => removeMemcard(card));
       cardBox.appendChild(header);
 
       if (!card.tool_ok) {
@@ -1112,6 +1136,49 @@ function transferSaveItem(key, item, row) {
   row.appendChild(box);
 }
 
+async function addMemcard() {
+  const consoleName = document.getElementById("saves-add-console").value;
+  const label = document.getElementById("saves-add-label").value.trim();
+  const path = document.getElementById("saves-add-path").value.trim();
+  const mode = document.getElementById("saves-add-mode-create").checked ? "create" : "open";
+  if (!label || !path) {
+    alert("preencha o nome e o caminho do card");
+    return;
+  }
+  const res = await fetch("/api/memcards/add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ console: consoleName, label, path, mode }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    document.getElementById("saves-add-card").classList.add("hidden");
+    document.getElementById("saves-add-label").value = "";
+    document.getElementById("saves-add-path").value = "";
+    document.getElementById("saves-add-mode-create").checked = false;
+    await loadSavesCards();
+    selectSavesConsole(consoleName.toUpperCase());
+    savesStatus(`card adicionado: ${label}`);
+  } else {
+    alert(`erro ao adicionar card: ${data.error || "falha"}`);
+  }
+}
+
+async function removeMemcard(card) {
+  if (!confirm(`Desregistrar "${card.label}" (${card.console})? O arquivo do card NÃO é apagado, só some da lista.`)) return;
+  const res = await fetch("/api/memcards/remove", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ console: card.console.toLowerCase(), label: card.label }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    await loadSavesCards();
+  } else {
+    alert(`erro ao remover: ${data.error || "falha"}`);
+  }
+}
+
 function importSaveFile(key, file) {
   const reader = new FileReader();
   reader.onload = async () => {
@@ -1140,6 +1207,10 @@ document.getElementById("btn-saves-close").addEventListener("click", closeSaves)
 document.getElementById("saves-modal").addEventListener("click", (e) => {
   if (e.target.id === "saves-modal") closeSaves();
 });
+document.getElementById("btn-saves-add-toggle").addEventListener("click", () => {
+  document.getElementById("saves-add-card").classList.toggle("hidden");
+});
+document.getElementById("saves-add-confirm").addEventListener("click", addMemcard);
 
 // 2 etapas, a pedido do usuário: 0 = tudo visível, 1 = esconde
 // busca/filtro de capas (menubar+filterbar), 2 = esconde também o

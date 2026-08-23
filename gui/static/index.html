@@ -53,6 +53,10 @@
         <input type="checkbox" id="filter-duplicated">
         ⧉ Só duplicadas
       </label>
+      <label class="filter-toggle">
+        <input type="checkbox" id="filter-nocover">
+        🖼 Só sem capa
+      </label>
     </div>
 
     <div id="progress-panel" class="progress-panel hidden">
@@ -121,9 +125,22 @@
     <div class="modal-box modal-box-wide">
       <div class="modal-header">
         <h3>Saves <span id="saves-status" class="heavy-status"></span></h3>
-        <button id="btn-saves-close" class="secondary" type="button">Fechar</button>
+        <div class="modal-header-actions">
+          <button id="btn-saves-add-toggle" class="tiny secondary" type="button">+ Card</button>
+          <button id="btn-saves-close" class="secondary" type="button">Fechar</button>
+        </div>
       </div>
       <nav id="saves-console-tabs" class="system-tabs"></nav>
+      <div id="saves-add-card" class="saves-add-card hidden">
+        <select id="saves-add-console">
+          <option value="ps1">PS1</option>
+          <option value="ps2">PS2</option>
+        </select>
+        <input id="saves-add-label" type="text" placeholder="Nome do card (ex: Slot 3)">
+        <input id="saves-add-path" type="text" placeholder="Caminho do arquivo (~/Drive/Jogos/...)">
+        <label class="tiny"><input id="saves-add-mode-create" type="checkbox"> criar em branco</label>
+        <button id="saves-add-confirm" class="tiny" type="button">Adicionar</button>
+      </div>
       <div id="saves-list" class="heavy-list"></div>
     </div>
   </div>

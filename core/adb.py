@@ -72,14 +72,20 @@ def shell(cmd: str, serial: str | None = None, timeout: int = 30) -> str:
     return r.stdout
 
 
-def push(local: Path, remote: str, serial: str | None = None, timeout: int = 120) -> bool:
-    r = run(["push", str(local), remote], serial=serial, timeout=timeout)
+def push(local: Path, remote: str, serial: str | None = None, timeout: int = 120, archive: bool = False) -> bool:
+    """archive=True usa `-a` (preserva mtime/permissão do lado de
+    origem) - precisa disso pra sync por mtime real (ver
+    core/emu_sync.py); default False porque os outros usos (transferir
+    ROM/capa) nunca dependeram do mtime sobreviver à cópia."""
+    args = ["push"] + (["-a"] if archive else []) + [str(local), remote]
+    r = run(args, serial=serial, timeout=timeout)
     return r.returncode == 0
 
 
-def pull(remote: str, local: Path, serial: str | None = None, timeout: int = 120) -> bool:
+def pull(remote: str, local: Path, serial: str | None = None, timeout: int = 120, archive: bool = False) -> bool:
     local.parent.mkdir(parents=True, exist_ok=True)
-    r = run(["pull", remote, str(local)], serial=serial, timeout=timeout)
+    args = ["pull"] + (["-a"] if archive else []) + [remote, str(local)]
+    r = run(args, serial=serial, timeout=timeout)
     return r.returncode == 0
 
 

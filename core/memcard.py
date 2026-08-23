@@ -181,6 +181,30 @@ def import_save(console: str, card_path: Path, src_file: Path) -> None:
             ) from e
 
 
+def create_card(console: str, template_path: Path, dest_path: Path) -> None:
+    """Cria um card novo, em branco, a partir de um card já existente e
+    válido (template_path) usado só de molde.
+
+    Achado real (22/08): --mc-format num arquivo inexistente, ou num
+    arquivo já do tamanho certo mas zerado do zero, NÃO produz um card
+    válido - os dois binários "salvam" um arquivo de 128 KB/8 MB mas
+    sem o cabeçalho certo, e depois -i falha com "no ... Memory Card
+    detected". Eles só reformatam em cima de algo que já reconhecem
+    como card. Por isso sempre parte de um card configurado existente
+    como molde (copia os bytes) e reformata a cópia - isso sim zera de
+    verdade os saves (confirmado: Blocks Used 0 / Free 15 no PS1) sem
+    precisar reimplementar o parser binário do formato."""
+    if dest_path.exists():
+        raise MemcardError("já existe um arquivo nesse caminho")
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(template_path, dest_path)
+    try:
+        _run(console, dest_path, ["--mc-format"])
+    except MemcardError:
+        dest_path.unlink(missing_ok=True)
+        raise
+
+
 def transfer_save(console: str, src_card: Path, dest_card: Path, item: dict, tmp_dir: Path) -> None:
     """Move (não copia) um save entre dois cards do MESMO console
     (formatos de PS1 e PS2 são incompatíveis entre si, não faz sentido

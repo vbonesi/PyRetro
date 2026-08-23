@@ -27,13 +27,14 @@ from pathlib import Path
 TREE_CACHE_DIR = Path("/tmp/lt_trees")
 ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10}
 
-# PS1 e Dreamcast saíram da biblioteca de capas (os standalones DuckStation/
-# Flycast baixam capa sozinhos agora - ver docs/capas_sem_correspondencia.md).
-# Continuam no config.toml normalmente pra quando ROMs/Saves existirem na
-# GUI - essa exclusão é só da tela de capas / sync de capas, não do projeto
-# como um todo. Definido aqui (não em gui/server.py) porque core/sync.py
-# também precisa dele e core não deveria importar de gui.
-COVERS_EXCLUDED = {"SDC", "PS"}
+# PS1, Dreamcast e Saturn saíram da biblioteca de capas (os standalones
+# DuckStation/Flycast/Kronos baixam capa sozinhos agora - ver
+# docs/capas_sem_correspondencia.md). Continuam no config.toml
+# normalmente pra quando ROMs/Saves existirem na GUI - essa exclusão é
+# só da tela de capas / sync de capas, não do projeto como um todo.
+# Definido aqui (não em gui/server.py) porque core/sync.py também
+# precisa dele e core não deveria importar de gui.
+COVERS_EXCLUDED = {"SDC", "PS", "SS"}
 
 _TAG_RE = re.compile(
     r"\((usa|europe|japan|world|en|fr|de|es|it|nl|pt|rev\s*\d+|beta|proto"
@@ -348,6 +349,67 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
                 on_progress(label, "no_match", i, total)
 
     return result
+
+
+def missing_cover_labels(roms_root: Path, code: str, exts: list, capas_dir: Path) -> list:
+    """Labels de ROM em roms_root/<code> que ainda não têm capa (nem
+    .png nem .jpg) em capas_dir. Sem isso, um jogo recém organizado
+    fica invisível na galeria pra sempre - process_system (a busca em
+    massa) só REVISA capas que já existem, nunca descobre um jogo novo
+    sozinho, porque varre capas_dir, não roms_root."""
+    sysdir = roms_root / code
+    if not sysdir.is_dir():
+        return []
+    exts_lower = {e.lower().lstrip(".") for e in exts}
+    have = {p.stem for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg")} if capas_dir.is_dir() else set()
+    labels = {
+        p.stem for p in sysdir.iterdir()
+        if p.is_file() and p.suffix.lower().lstrip(".") in exts_lower
+    }
+    return sorted(labels - have)
+
+
+def fetch_one(label: str, repo: str, capas_dir: Path, exact_idx: dict, loose_idx: dict, norm_keys: list,
+              romname_dat: dict | None = None) -> tuple[str, str | None]:
+    """Busca e baixa a capa de UM label só (usado pelo organize, pra já
+    sair capeado da pasta de organização em vez de esperar uma rodada
+    de "Buscar capas" depois) - mesma lógica de match/download de
+    process_system, só que pra um item isolado em vez de varrer
+    capas_dir inteiro. Retorna (status, nome_remoto) onde status é
+    "exact" (baixou), "fuzzy" (achou candidato mas não baixa sozinho,
+    mesma regra de sempre) ou "no_match"."""
+    remote, kind = find_match(label, exact_idx, loose_idx, norm_keys, romname_dat)
+    if remote is None:
+        return "no_match", None
+    if kind == "fuzzy":
+        return "fuzzy", remote
+
+    capas_dir.mkdir(parents=True, exist_ok=True)
+    base_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/"
+    url = base_url + urllib.parse.quote(remote + ".png")
+    dest = capas_dir / (label + ".png")
+    tmp = dest.with_suffix(".png.tmp")
+    r = subprocess.run(
+        ["curl", "-sL", "--max-time", "20", "-o", str(tmp), "-w", "%{http_code}", url],
+        capture_output=True, text=True,
+    )
+    ok = r.stdout.strip() == "200" and tmp.exists() and tmp.stat().st_size > 1000
+
+    if not ok:
+        tmp.unlink(missing_ok=True)
+        try:
+            data = _download_via_api(repo, remote)
+        except RateLimited:
+            return "no_match", remote
+        if data and len(data) > 1000:
+            tmp.write_bytes(data)
+            ok = True
+
+    if ok:
+        tmp.replace(dest)
+        return "exact", remote
+    tmp.unlink(missing_ok=True)
+    return "no_match", None
 
 
 def convert_jpg_to_png(capas_dir: Path, apply: bool = False) -> list:

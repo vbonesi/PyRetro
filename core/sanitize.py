@@ -13,6 +13,7 @@ quebraria o casamento entre capa e ROM. Nunca sobrescreve um arquivo
 que já existe com o nome novo (marca como "conflito" e não mexe, pra
 não perder nada por engano).
 """
+import re
 from pathlib import Path
 
 _REPLACEMENTS = [
@@ -27,6 +28,34 @@ def sanitize_name(name: str) -> str:
     for old, new in _REPLACEMENTS:
         name = name.replace(old, new)
     return name
+
+
+# Tags de crédito de ROM hack/tradução de fã (região da tradução tipo
+# "(BR)"/"(BR-USA)"/"(BR-U)", versão do patch "(T1.02)", site de origem
+# "(www.site.com)") - achado real em 22/08 com o lote de ROMs traduzidas
+# do romsportugues.com organizado pro GBA. Deliberadamente NÃO mexe em
+# tag padrão de região/revisão (USA)/(Europe)/(Rev 1)/(Beta)/(Disc 1) -
+# só esses três padrões específicos de site de tradução.
+_TRANSLATION_TAG_RE = re.compile(
+    r"\s*\("
+    r"(?:BR(?:-[A-Z]+)?"                        # (BR), (BR-USA), (BR-U)
+    r"|T\d+(?:\.\d+)*[a-z]?"                     # (T1.0), (T1.1), (T1.02), (T2)
+    r"|[^()]*\.(?:com|net|org|com\.br)[^()]*"    # (www.romsportugues.com) etc.
+    r")\)",
+    re.IGNORECASE,
+)
+
+
+def strip_translation_tags(name: str) -> str:
+    """Remove as tags de crédito de tradução do nome (mantém a
+    extensão intacta) - ver _TRANSLATION_TAG_RE pros três padrões
+    reconhecidos."""
+    stem, _, ext = name.rpartition(".")
+    if not stem:
+        stem, ext = name, ""
+    cleaned = _TRANSLATION_TAG_RE.sub("", stem)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return f"{cleaned}.{ext}" if ext else cleaned
 
 
 def needs_sanitizing(name: str) -> bool:

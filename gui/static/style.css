@@ -394,6 +394,24 @@ button:disabled {
   transition: box-shadow 0.3s;
 }
 
+.cover.no-cover {
+  border-style: dashed;
+}
+
+.cover-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  aspect-ratio: 3/4;
+  width: 100%;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+}
+
 .cover-img-wrap {
   position: relative;
 }
@@ -736,6 +754,51 @@ button.tiny.danger {
   font-size: 13px;
   font-weight: 600;
   padding: 6px 0;
+}
+
+.saves-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+}
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saves-add-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.saves-add-card.hidden {
+  display: none;
+}
+
+.saves-add-card input[type="text"] {
+  flex: 1 1 160px;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 6px;
+}
+
+.saves-add-card select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 6px;
 }
 
 .import-label {

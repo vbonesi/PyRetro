@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from core import adb as adb_mod
 from core import covers as covers_mod
+from core import emu_sync as emu_sync_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import organize as organize_mod
@@ -339,6 +340,59 @@ def cmd_backup_saves(args) -> None:
         print(f"\ntotal: {len(items)} arquivo(s) (modo simulacao - nada foi copiado, rode com --apply)")
 
 
+def cmd_emu_sync(args) -> None:
+    """PC <-> Drive <-> Android, mais recente vence, pros saves que
+    moram dentro da sandbox do próprio emulador (Dolphin GC/Wii nos
+    dois lados; PS2 só a perna Android, já que o PCSX2 do PC escreve
+    direto em Drive) - ver core/emu_sync.py.
+
+    Rodando dentro do Termux (docs/termux_setup.md), detecta sozinho e
+    muda pra local_mode: sem adb, sem perna PC, a pasta do emulador no
+    Android é lida direto (precisa da permissão "Acesso a todos os
+    arquivos" concedida ao Termux)."""
+    cfg = load_config()
+    sources = list(emu_sync_mod.SOURCES) if args.source == "all" else [args.source]
+    local_mode = emu_sync_mod.running_in_termux()
+    serial = None
+    if not local_mode:
+        try:
+            serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+        except adb_mod.AdbError as e:
+            sys.exit(f"erro de adb: {e}")
+
+    all_actions, all_conflicts = [], []
+    for source in sources:
+        result = emu_sync_mod.plan(source, cfg, serial=serial, local_mode=local_mode)
+        all_actions += result["actions"]
+        all_conflicts += result["conflicts"]
+
+    if not all_actions and not all_conflicts:
+        print("nada pra sincronizar (tudo já igual nas tres pontas)")
+        return
+
+    by_source = {}
+    for a in all_actions:
+        by_source.setdefault(a["source"], []).append(a)
+    for source, group in by_source.items():
+        print(f"\n=== {emu_sync_mod.SOURCES[source]['nome']} ({len(group)}) ===")
+        for a in group:
+            print(f"  [{a['direction']:16}] {a['rel_path']}")
+
+    if all_conflicts:
+        print("\n=== CONFLITOS (PC e Android mudaram os dois desde a ultima sync - revisar na mao) ===")
+        for c in all_conflicts:
+            print(f"  {c['source']}: {c['rel_path']} (pc={c['pc_mtime']}, android={c['android_mtime']})")
+
+    if args.apply:
+        results = emu_sync_mod.apply(all_actions, cfg, serial=serial, local_mode=local_mode)
+        erros = [r for r in results if not r["ok"]]
+        print(f"\naplicado: {len(results) - len(erros)}/{len(results)}")
+        for r in erros:
+            print(f"  erro: {r['source']}/{r['rel_path']}: {r['erro']}")
+    else:
+        print(f"\ntotal: {len(all_actions)} acao(oes) (modo simulacao - nada foi copiado, rode com --apply)")
+
+
 def cmd_sync(args) -> None:
     """Por enquanto só 'covers' está implementado - saves/states/metrics
     seguem a mesma arquitetura (ver core/sync.py) mas ainda não foram
@@ -380,6 +434,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="copia PC -> Drive os saves que nao escrevem direto em Saves/ (Dolphin GC/Wii, Flycast VMU)",
     )
     backup.add_argument("--apply", action="store_true", help="aplica a copia (padrao: so mostra)")
+
+    emu_sync = sub.add_parser(
+        "emu-sync",
+        help="PC <-> Drive <-> Android, mais recente vence (Dolphin GC/Wii, PS2 memcards/savestates)",
+    )
+    emu_sync.add_argument("source", choices=list(emu_sync_mod.SOURCES) + ["all"], default="all", nargs="?")
+    emu_sync.add_argument("--apply", action="store_true", help="aplica a sincronizacao (padrao: so mostra)")
 
     covers = sub.add_parser("fetch-covers", help="busca capas no libretro-thumbnails")
     covers.add_argument("system", help="codigo do sistema (ex: SFC) ou 'all'")
@@ -440,6 +501,8 @@ def main() -> None:
         cmd_sync(args)
     elif args.command == "backup-saves":
         cmd_backup_saves(args)
+    elif args.command == "emu-sync":
+        cmd_emu_sync(args)
     elif args.command == "fetch-covers":
         cmd_fetch_covers(args)
     elif args.command == "fetch-covers-fallback":

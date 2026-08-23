@@ -15,12 +15,20 @@ Termux). Rodando local no aparelho:
   errada/duplicada, renomear com cascata, organizar `0-Organizar`,
   configurações - tudo isso é operação de arquivo local, não depende
   de rede nem de `adb`.
+- **`retrosync emu-sync` funciona, mas em modo diferente**: detecta
+  sozinho que está no Termux (variável `$PREFIX`) e muda pra
+  "local_mode" - sem `adb`, sem perna PC (não alcançável a partir do
+  celular), só reconcilia a pasta do emulador no próprio Android
+  contra a mesma pasta do Drive que o PC também reconcilia do lado
+  dele. Nenhum dos dois lados fala com o outro diretamente - quem
+  carrega o resultado de um aparelho pro outro é o próprio Google
+  Drive/FolderSync, exatamente como o resto do projeto já faz pra
+  tudo mais. Ver seção "Manter os saves sincronizados" abaixo.
 - **Não se aplica** (e vai dar erro/não aparecer, sem quebrar o resto):
-  qualquer coisa que dependa de `core/adb.py` - o app já está rodando
-  onde os arquivos estão, não tem "outro lado" pra falar via adb. Os
-  botões que hoje mostram status "no celular"/"só no PC" no modal de
-  ROMs Pesadas não fazem sentido nesse modo (o próprio app já É o
-  celular).
+  qualquer coisa que dependa de `core/adb.py` pra falar com OUTRO
+  aparelho - o app já está rodando onde os arquivos estão. Os botões
+  que hoje mostram status "no celular"/"só no PC" no modal de ROMs
+  Pesadas não fazem sentido nesse modo (o próprio app já É o celular).
 - **Não mapeado ainda**: consumo de bateria com o servidor rodando em
   segundo plano, e a melhor forma de abrir a interface (ver seção
   final).
@@ -111,3 +119,44 @@ chmod +x ~/pyretro.sh
 E roda com `~/pyretro.sh`. O app **Termux:Widget** (também F-Droid)
 permite colocar isso como atalho na tela inicial, mas não foi testado
 aqui.
+
+## Manter os saves sincronizados (Dolphin, PS2)
+
+Dolphin (GC/Wii) e o emulador de PS2 do celular (AetherSX2/NetherSX2)
+guardam save dentro da própria sandbox do app (`Android/data/<pacote>/
+files/...`), não na árvore sincronizada pelo Drive - por isso precisam
+do `retrosync emu-sync` (ver `core/emu_sync.py`) pra ficar em dia com o
+PC, em vez de sincronizar sozinhos feito o resto do acervo.
+
+Roda dos dois lados, cada um no seu aparelho:
+```bash
+# no PC
+python3 retrosync.py emu-sync all --apply
+
+# no celular, dentro do Termux (detecta sozinho o modo local)
+python3 retrosync.py emu-sync all --apply
+```
+Nenhum dos dois fala direto com o outro - cada lado só reconcilia a
+pasta do emulador com a mesma pasta do Drive (`Saves/Dolphin/...`,
+`Saves/PS2/...`), e quem carrega o resultado de um aparelho pro outro é
+o próprio Google Drive/FolderSync. Rodar só de um lado deixa esse lado
+em dia com o Drive; rodar dos dois é que fecha o ciclo (o que mudou no
+celular chega no PC, e vice-versa, na próxima vez que cada um rodar).
+
+Precisa de **"Acesso a todos os arquivos"** concedido ao Termux
+(Android 11+, `Ajustes > Apps > Termux > Permissões > Arquivos`) pra
+alcançar a pasta de outro app - sem isso, a leitura da sandbox do
+Dolphin/AetherSX2 falha. Não testado ainda no aparelho real.
+
+## Como atualizar o PyRetro no celular
+
+Sempre que uma mudança for commitada e enviada pro GitHub a partir do
+PC, atualizar a cópia do Termux é só um `git pull`:
+```bash
+cd ~/PyRetro
+git pull
+```
+Se `config.toml` (que fica fora do git, `.gitignore`) precisar de um
+campo novo que só existe em `config.example.toml`, adiciona esse campo
+na mão - o `git pull` nunca mexe em `config.toml` (é ignorado, não
+rastreado).

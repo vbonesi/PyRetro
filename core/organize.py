@@ -12,6 +12,8 @@ isso acontece, não decide sozinho, lista os candidatos pro usuário
 escolher (GUI: dropdown por item; CLI: só lista, não move)."""
 from pathlib import Path
 
+from core import sanitize as sanitize_mod
+
 
 def build_ext_index(systems_cfg: dict, heavy_systems_cfg: dict) -> dict:
     """{ext_sem_ponto_minusculo: [{"code", "nome", "kind": "leve"|"pesado"}, ...]}
@@ -55,16 +57,26 @@ def list_pending(roms_root: Path, staging_dir_name: str, ext_index: dict) -> lis
     return items
 
 
+def clean_name(name: str) -> str:
+    """Nome final que um item leva pra roms_root/<code> - troca
+    & : * (sanitize_name) e remove tag de crédito de tradução/hack
+    (strip_translation_tags), ver core/sanitize.py pros dois."""
+    return sanitize_mod.strip_translation_tags(sanitize_mod.sanitize_name(name))
+
+
 def move_to_system(roms_root: Path, staging_dir_name: str, name: str, code: str) -> tuple[bool, str]:
-    """Move um item da pasta de organização pra roms_root/<code>/.
+    """Move um item da pasta de organização pra roms_root/<code>/, já
+    com o nome limpo (clean_name) - senão o item cai lá com & : * ou
+    tag de tradução intactos até alguém lembrar de corrigir à parte.
     Nunca sobrescreve um item que já existe lá."""
     src = roms_root / staging_dir_name / name
     if not src.exists():
         return False, "não encontrado na pasta de organização"
     dest_dir = roms_root / code
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / name
+    dest_name = clean_name(name)
+    dest = dest_dir / dest_name
     if dest.exists():
         return False, f"já existe um item com esse nome em {code}/"
     src.rename(dest)
-    return True, f"movido pra {code}/"
+    return True, f"movido pra {code}/{dest_name}"

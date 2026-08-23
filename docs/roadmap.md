@@ -3,7 +3,7 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 05/08/2026.
+pronto" (resumo) e "o que vem a seguir". Atualizado em 23/08/2026.
 
 ## Status atual
 
@@ -25,10 +25,13 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 05/08/2026.
 | ROMs pesadas via `rclone` (ver Drive + baixar sem adb) | ✅ Pronto, testado (listagem + download reais) |
 | Backup de saves do Dolphin(GameCube)/PPSSPP (fora do RetroArch) | ✅ Pronto, testado no aparelho real (puxa via adb o que falta, nome resolvido via serial) |
 | Backup de saves do Flycast/Dolphin(Wii)/3DS | 🔍 Investigado, fora de escopo por decisão do usuário (custo maior - ver notas abaixo) |
+| Sync de verdade PC↔Drive↔Android pra saves de sandbox (`retrosync emu-sync`, `core/emu_sync.py`) | ✅ Pronto, testado no aparelho real (Dolphin GC/Wii + PS2 AetherSX2, mais recente vence, filtra content/ vs data/ no Wii, roda em local_mode dentro do Termux) |
+| Organizar já limpa tag de tradução/hack no nome (site, versão do patch, região da tradução) | ✅ Pronto, testado no acervo real (1827 ROMs, 0 falso positivo) |
+| Galeria mostra ROM organizada sem capa nenhuma ainda (antes ficava invisível) | ✅ Pronto, testado (filtro "🖼 Só sem capa", badge conta separado) |
 | Galeria/topbar responsivos no mobile (2 colunas, sem corte, rolagem horizontal) | ✅ Pronto, testado com o usuário no aparelho real |
 | Busca geral no acervo (todos os sistemas de uma vez) + filtro por console | ✅ Pronto, testado |
 | Nome real do jogo Arcade na visualização (romset curto só no arquivo) | ✅ Pronto, testado (216/218 do acervo real resolvidos) |
-| PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)) - não testado no aparelho |
+| PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)), agora incluindo `emu-sync` em local_mode e procedimento de `git pull` pra atualizar - não testado no aparelho |
 | `sync.py` pra saves/states/runtime-logs | ❌ Cancelado (sempre vai usar Google Drive pra isso) |
 
 ## Próximos passos (em ordem)
