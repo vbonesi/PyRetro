@@ -5,7 +5,10 @@ PyRetro - CLI de manutenção do acervo RetroArch (PC <-> Android).
 Comandos:
     retrosync sync [saves|states|metrics|covers|all]  [--apply]   (ainda não implementado)
     retrosync backup-saves [--apply]
+    retrosync backup-config [pc|android|all] [--apply]
+    retrosync rebuild-playlist <SISTEMA> [pc|android|all] [--apply]
     retrosync fetch-covers <SISTEMA|all> [--apply]
+    retrosync fetch-covers-cloud <SISTEMA|all> [--apply]
     retrosync fix-cues <pasta|all> [--rename-files] [--apply]     (ainda não implementado)
 
 Todo comando roda em modo de simulação por padrão (mostra o que faria)
@@ -20,12 +23,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from core import adb as adb_mod
+from core import config_backup as config_backup_mod
 from core import covers as covers_mod
 from core import emu_sync as emu_sync_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import organize as organize_mod
 from core import pc_backup as pc_backup_mod
+from core import playlist as playlist_mod
 from core import sanitize as sanitize_mod
 from core import sync as sync_mod
 
@@ -108,6 +113,64 @@ def cmd_fetch_covers_fallback(args) -> None:
 
     if not args.apply:
         print("\n(modo simulação - nada foi baixado, rode com --apply)")
+
+
+def cmd_fetch_covers_cloud(args) -> None:
+    """Mesma busca/match de fetch-covers (libretro-thumbnails, exato
+    baixa, fuzzy só no relatorio) - a diferenca e de onde vem a lista
+    de jogos: aqui e o catalogo completo no Google Drive (via rclone,
+    core/heavy_roms.list_drive_items), nao uma varredura de roms_root
+    local. Pra sistema onde a nuvem tem muito mais jogo do que o que
+    ja foi baixado pro PC - nao baixa ROM nenhuma, so a capa. Depois
+    de rodar isso, "fetch-covers-fallback <SISTEMA>" funciona
+    normalmente em cima do que sobrou sem match (le do registry, nao
+    de arquivo local)."""
+    cfg = load_config()
+    capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+    systems = cfg["systems"]
+    targets = list(systems.keys()) if args.system.lower() == "all" else [args.system.upper()]
+
+    registry = json.loads(REGISTRY_PATH.read_text()) if REGISTRY_PATH.exists() else {}
+
+    all_fuzzy = []
+    for code in targets:
+        sysinfo = systems.get(code)
+        if not sysinfo:
+            print(f"[{code}] sistema desconhecido no config.toml, pulando")
+            continue
+        if code in covers_mod.COVERS_EXCLUDED:
+            print(f"[{code}] esta em COVERS_EXCLUDED (core/covers.py), pulando")
+            continue
+
+        exts_lower = {e.lower().lstrip(".") for e in sysinfo.get("exts", [])}
+        cloud_items = heavy_mod.list_drive_items(code, cfg)
+        cloud_labels = sorted({
+            Path(i["name"]).stem for i in cloud_items
+            if not i["is_dir"] and Path(i["name"]).suffix.lower().lstrip(".") in exts_lower
+        })
+        if not cloud_labels:
+            print(f"{code:9} nada no Drive (rclone drive:{{drive_roms_root}}/{code}/) com essas extensoes")
+            continue
+
+        result = covers_mod.process_system_cloud(
+            code, sysinfo["capas"], sysinfo["repo"], capas_root, cloud_labels, registry, apply=args.apply
+        )
+        print(f"{code:9} nuvem:{len(cloud_labels):4}  exato:{result['exact']:4}  fuzzy:{len(result['fuzzy']):4}  "
+              f"sem_match:{result['no_match']:4}  ja_registrado:{result['cached']:4}")
+        if result["rate_limited"]:
+            print(f"          cota da API do GitHub esgotou no meio - parou aqui, "
+                  f"os itens restantes ficam pendentes (não foram marcados sem_match)")
+        for label, remote in result["fuzzy"]:
+            all_fuzzy.append((code, label, remote))
+        REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
+
+    if not args.apply:
+        print("\n(modo simulacao - nada foi baixado, rode com --apply)")
+
+    if all_fuzzy:
+        print(f"\n=== {len(all_fuzzy)} casos via FUZZY MATCH (revisar manualmente, não foram aplicados) ===")
+        for code, label, remote in all_fuzzy:
+            print(f"  [{code}] {label}  ->  {remote}")
 
 
 def cmd_convert_covers(args) -> None:
@@ -317,12 +380,11 @@ def cmd_sanitize_names(args) -> None:
 def cmd_backup_saves(args) -> None:
     """PC -> Drive, uma direção só. A maioria dos emuladores já escreve
     direto dentro de Saves/ (o Drive faz o backup sozinho); isso aqui
-    cobre só o que sobra (Dolphin GC/Wii, Flycast VMU) - ver
-    core/pc_backup.py."""
+    cobre só o que sobra (Dolphin GC/Wii) - ver core/pc_backup.py."""
     cfg = load_config()
     items = pc_backup_mod.plan(cfg)
     if not items:
-        print("nada pra fazer backup (tudo já copiado, ou dolphin_data_root/flycast_data_root vazios em config.toml)")
+        print("nada pra fazer backup (tudo já copiado, ou dolphin_data_root vazio em config.toml)")
         return
 
     by_source = {}
@@ -338,6 +400,105 @@ def cmd_backup_saves(args) -> None:
         print(f"\ncopiado: {len(items)} arquivo(s)")
     else:
         print(f"\ntotal: {len(items)} arquivo(s) (modo simulacao - nada foi copiado, rode com --apply)")
+
+
+def cmd_backup_config(args) -> None:
+    """Snapshot datado de retroarch.cfg + config/ + playlists/ pro PC
+    e/ou celular, pasta nova a cada rodada
+    (Backups/retroarch_<pc|android>_<data>/) - ver core/config_backup.py."""
+    cfg = load_config()
+    backups_root = Path(cfg["pc"]["backups_root"]).expanduser()
+    targets = ["pc", "android"] if args.target == "all" else [args.target]
+
+    if "pc" in targets:
+        plan = config_backup_mod.backup_pc(cfg, backups_root, apply=args.apply)
+        print(f"[PC] -> {plan['dest']}")
+        for label, src in (("retroarch.cfg", plan["cfg_src"]), ("config/", plan["config_src"]),
+                           ("playlists/", plan["playlists_src"])):
+            print(f"  {label:14} {'ok' if src.exists() else 'NAO ENCONTRADO'}  ({src})")
+        if args.apply:
+            for k, v in plan["counts"].items():
+                print(f"  -> {k}: {v} arquivo(s) copiado(s)")
+
+    if "android" in targets:
+        try:
+            serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+        except adb_mod.AdbError as e:
+            print(f"[Android] erro de adb: {e}")
+            serial = None
+        if serial:
+            plan = config_backup_mod.backup_android(cfg, backups_root, serial, apply=args.apply)
+            print(f"[Android] -> {plan['dest']}")
+            print(f"  retroarch.cfg  ({plan['cfg_src']})")
+            print(f"  config/        ({plan['config_src']})")
+            print(f"  playlists/     ({plan['playlists_src']})")
+            if args.apply:
+                for k, v in plan["counts"].items():
+                    ok = plan["ok"][k]
+                    print(f"  -> {k}: {v} arquivo(s) copiado(s)" + ("" if ok else "  FALHOU"))
+
+    if not args.apply:
+        print("\n(modo simulacao - nada foi copiado, rode com --apply)")
+
+
+def cmd_rebuild_playlist(args) -> None:
+    """Monta playlist .lpl do RetroArch a partir do que existe DE
+    VERDADE em roms_root/<CODE>/ (PC) e/ou no celular (Android, via
+    adb) - sistemas pesados (PS2/GameCube/Wii/...) não sincronizam sozinhos,
+    então PC e Android costumam ter jogos DIFERENTES na mesma pasta; a
+    playlist de cada lado reflete só o que aquele lado realmente tem
+    (ver core/playlist.py)."""
+    cfg = load_config()
+    code = args.system.upper()
+    sysinfo = cfg["systems"].get(code)
+    if not sysinfo:
+        sys.exit(f"sistema desconhecido em [systems] no config.toml: '{code}'")
+    db_name = f"{sysinfo['capas']}.lpl"
+    exts = sysinfo.get("exts", [])
+    targets = ["pc", "android"] if args.target == "all" else [args.target]
+
+    if "pc" in targets:
+        roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+        content_dir = roms_root / code
+        dest = Path(cfg["pc"]["retroarch_root"]).expanduser() / "playlists" / db_name
+        names = playlist_mod.list_local_names(code, roms_root, exts)
+        if not names:
+            print(f"[PC] nada em {content_dir} com extensao {exts} - nada a fazer")
+        else:
+            print(f"[PC] {dest}")
+            for n in names:
+                print(f"  {n}")
+            if args.apply:
+                items = [(str(content_dir / n), Path(n).stem) for n in names]
+                pl = playlist_mod.make_playlist(items, str(content_dir), exts, db_name)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_text(json.dumps(pl, indent=1, ensure_ascii=False))
+                print(f"  -> gravado ({len(names)} jogo(s))")
+
+    if "android" in targets:
+        jogos_root = cfg["android"]["jogos_root"]
+        remote_content_dir = f"{jogos_root.rstrip('/')}/{code}"
+        remote_dest = f"{cfg['android']['retroarch_root'].rstrip('/')}/playlists/{db_name}"
+        try:
+            serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+        except adb_mod.AdbError as e:
+            sys.exit(f"erro de adb: {e}")
+        names = playlist_mod.list_remote_names(code, jogos_root, exts, serial)
+        if not names:
+            print(f"[Android] nada em {remote_content_dir} com extensao {exts} - nada a fazer")
+        else:
+            print(f"[Android] {remote_dest}")
+            for n in names:
+                print(f"  {n}")
+            if args.apply:
+                items = [(f"{remote_content_dir}/{n}", Path(n).stem) for n in names]
+                pl = playlist_mod.make_playlist(items, remote_content_dir, exts, db_name)
+                tmp_dir = Path(__file__).parent / "cache" / "playlists_tmp"
+                ok = playlist_mod.push_playlist(pl, remote_dest, serial, tmp_dir)
+                print(f"  -> {'enviado' if ok else 'FALHOU'} ({len(names)} jogo(s))")
+
+    if not args.apply:
+        print("\n(modo simulacao - nada foi escrito, rode com --apply)")
 
 
 def cmd_emu_sync(args) -> None:
@@ -431,9 +592,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     backup = sub.add_parser(
         "backup-saves",
-        help="copia PC -> Drive os saves que nao escrevem direto em Saves/ (Dolphin GC/Wii, Flycast VMU)",
+        help="copia PC -> Drive os saves que nao escrevem direto em Saves/ (Dolphin GC/Wii)",
     )
     backup.add_argument("--apply", action="store_true", help="aplica a copia (padrao: so mostra)")
+
+    backup_cfg = sub.add_parser(
+        "backup-config",
+        help="snapshot datado de retroarch.cfg + config/ + playlists/ pro PC e/ou celular "
+             "(Backups/retroarch_<pc|android>_<data>/)",
+    )
+    backup_cfg.add_argument("target", choices=["pc", "android", "all"], default="all", nargs="?")
+    backup_cfg.add_argument("--apply", action="store_true", help="grava de verdade (padrao: so mostra)")
+
+    rebuild = sub.add_parser(
+        "rebuild-playlist",
+        help="monta playlist .lpl do RetroArch a partir do que existe em roms_root/<CODE> (PC) e/ou no celular",
+    )
+    rebuild.add_argument("system", help="codigo do sistema (ex: SS, SDC) - precisa estar em [systems] no config.toml")
+    rebuild.add_argument("target", choices=["pc", "android", "all"], default="all", nargs="?")
+    rebuild.add_argument("--apply", action="store_true", help="grava/envia de verdade (padrao: so mostra)")
 
     emu_sync = sub.add_parser(
         "emu-sync",
@@ -445,6 +622,14 @@ def build_parser() -> argparse.ArgumentParser:
     covers = sub.add_parser("fetch-covers", help="busca capas no libretro-thumbnails")
     covers.add_argument("system", help="codigo do sistema (ex: SFC) ou 'all'")
     covers.add_argument("--apply", action="store_true")
+
+    covers_cloud = sub.add_parser(
+        "fetch-covers-cloud",
+        help="busca capas no libretro-thumbnails a partir do catalogo completo no Google Drive (rclone), "
+             "nao so do que ja foi baixado pro PC",
+    )
+    covers_cloud.add_argument("system", help="codigo do sistema (ex: SS) ou 'all'")
+    covers_cloud.add_argument("--apply", action="store_true")
 
     covers_fb = sub.add_parser(
         "fetch-covers-fallback",
@@ -475,7 +660,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     heavy = sub.add_parser(
         "heavy-roms",
-        help="lista/envia ROMs de consoles pesados (PS, SS, SDC, PS2, GameCube, Wii, PSP, 3DS)",
+        help="lista/envia ROMs de consoles pesados (PS, PS2, GameCube, Wii, PSP, 3DS)",
     )
     heavy.add_argument("system", help="codigo do sistema pesado (ex: PS2)")
     heavy.add_argument("--send", metavar="NOME", help="manda esse item (arquivo ou pasta) pro celular")
@@ -501,10 +686,16 @@ def main() -> None:
         cmd_sync(args)
     elif args.command == "backup-saves":
         cmd_backup_saves(args)
+    elif args.command == "backup-config":
+        cmd_backup_config(args)
+    elif args.command == "rebuild-playlist":
+        cmd_rebuild_playlist(args)
     elif args.command == "emu-sync":
         cmd_emu_sync(args)
     elif args.command == "fetch-covers":
         cmd_fetch_covers(args)
+    elif args.command == "fetch-covers-cloud":
+        cmd_fetch_covers_cloud(args)
     elif args.command == "fetch-covers-fallback":
         cmd_fetch_covers_fallback(args)
     elif args.command == "convert-covers":

@@ -7,7 +7,7 @@ sistema pela extensão e move pra roms_root/<CODIGO>/ - sem precisar de
 upload HTTP, o que seria arriscado pra ROM de vários GB.
 
 Muitas extensões são ambíguas entre sistemas (.iso: PS2/GameCube/Wii/
-PSP; .cue/.chd/.cdi/.gdi: PS/SDC/SS/PCECD/NEOGEOCD/PS2...) - quando
+PSP; .cue/.chd/.cdi/.gdi: PS/SDC/SS/PCECD/PS2...) - quando
 isso acontece, não decide sozinho, lista os candidatos pro usuário
 escolher (GUI: dropdown por item; CLI: só lista, não move)."""
 from pathlib import Path

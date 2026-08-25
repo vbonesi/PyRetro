@@ -87,6 +87,34 @@ o nome completo do jogo em vez do código curto (`core/covers.py`
 `arcade_display_name`) - só cosmético, renomear/apagar continuam operando no
 nome curto de verdade.
 
+### `fetch-covers-cloud` — busca capas a partir do catálogo completo no Drive
+
+```bash
+python3 retrosync.py fetch-covers-cloud SS              # simula
+python3 retrosync.py fetch-covers-cloud SS --apply       # baixa de verdade
+python3 retrosync.py fetch-covers-cloud all --apply      # todos os sistemas (exceto COVERS_EXCLUDED)
+```
+
+Mesmo casamento exato/fuzzy do `fetch-covers` acima, mas a lista de jogos
+vem do catálogo completo no Google Drive (via `rclone`,
+`core/heavy_roms.list_drive_items`) em vez de escanear `roms_root` local -
+pra sistema onde a nuvem tem muito mais jogo do que o que já foi baixado
+pro PC. `fetch-covers` sozinho não serve pra isso porque só REVISA capas
+que já existem em `capas_root` - nunca descobre um sistema novo do zero
+(achado em 24/08 com Saturn/Dreamcast: as pastas de capas nem existiam
+ainda). Não baixa ROM nenhuma, só a capa - mesmo princípio de "capa sem
+ROM correspondente não é lixo" (ver Princípios acima), estendido pro lado
+cloud-only. Sistema que dá `no_match` nas duas fontes (aqui +
+`fetch-covers-fallback`) fica listado sem capa mesmo - revisão manual
+depois, igual todo `no_match` do projeto.
+
+Achado no mesmo dia: o `cache/covers_registry.json` já tinha 62 entradas
+de Saturn marcadas `replaced_exact` de antes do sistema entrar em
+`COVERS_EXCLUDED`, mas a pasta de capas nem existia mais no disco -
+`process_system_cloud` (`core/covers.py`) só confia num cache
+"replaced_exact"/"replaced_fuzzy" se o `.png` ainda existir de verdade;
+`no_match` continua confiável sempre.
+
 ### `fetch-covers-fallback` — segunda fonte pros que sobraram (LaunchBox Games DB)
 
 ```bash
@@ -198,14 +226,14 @@ python3 retrosync.py heavy-roms PS2 --send "Gradius V.iso"       # envia pro cel
 python3 retrosync.py heavy-roms PS2 --download "Baroque.iso"     # baixa do Drive pro PC
 ```
 
-Sistemas configurados em `config.toml` `[heavy_systems]` (PS, SS, SDC,
+Sistemas configurados em `config.toml` `[heavy_systems]` (PS,
 PS2, GameCube, Wii, PSP, 3DS - Switch fica de fora de propósito, gestão
 feita por fora do PyRetro). Diferente dos sistemas em `[systems]`
 (sincronizados sozinhos via Google Drive), esses ficam só no PC até
 serem enviados/baixados sob demanda - `retrosync heavy-roms <CODIGO>`
 mostra o que existe em `roms_root/<CODIGO>/`, no Google Drive (via
 `rclone`, config `[rclone]`) e no celular (via adb, se conectado). Um
-"item" é um arquivo ou uma pasta inteira; PS/SS/SDC somam o tamanho dos
+"item" é um arquivo ou uma pasta inteira; PS soma o tamanho dos
 `.bin` sidecars automaticamente. Nunca sobrescreve no celular sem
 `--overwrite`. Download do Drive vai primeiro pra `staging_dir`
 (`~/Downloads` por padrão) e só depois é movido pra
@@ -226,6 +254,54 @@ Esse comando só **lista** o que está esperando e os sistemas candidatos
 - mover é feito pela GUI (`🗂 Organizar`), porque muitas extensões são
 ambíguas entre sistemas (`.iso`, `.cue`, `.chd`...) e decidir isso
 direito pede uma tela com escolha manual, não um comando de linha.
+
+### `rebuild-playlist` — monta playlist `.lpl` do RetroArch
+
+```bash
+python3 retrosync.py rebuild-playlist SS              # simula PC + Android
+python3 retrosync.py rebuild-playlist SS pc --apply    # so PC
+python3 retrosync.py rebuild-playlist SS android --apply # so Android
+```
+
+Lê o que existe DE VERDADE em `roms_root/<CODE>/` (PC) e/ou no celular
+(via `adb find`) e monta a playlist a partir disso - não depende de
+abrir o RetroArch e rodar o scan manual pela UI. Usa `[systems.<CODE>]`
+do `config.toml` pro nome de exibição (`db_name`) e as extensões
+reconhecidas. Cada item usa `core_path`/`core_name` `"DETECT"` (mesmo
+padrão de toda playlist de sistema em disco gerada pelo próprio
+RetroArch) - o núcleo certo é resolvido sozinho assim que estiver
+instalado, não precisa reescrever a playlist depois de baixar o core.
+
+Sistemas pesados (`PS2`, `GameCube`...) não sincronizam PC↔Android
+sozinhos - achado em 24/08, quando Saturn e Dreamcast ainda eram
+`heavy_systems` (voltaram a ser sistema leve normal logo em seguida, a
+pedido do usuário - ver `docs/changelog.md`): o PC tinha "Daytona USA"
++ "Rabbit" de Saturn, o celular tinha "NiGHTS into Dreams" + "Virtua
+Fighter 2" + "Virtua Racing", nenhum jogo em comum. A playlist de cada
+lado reflete só o que aquele lado tem local - normal em qualquer
+sistema pesado, não é bug. Rode de novo depois de mandar/tirar jogo de
+um lado (`heavy-roms --send`) pra manter a playlist em dia.
+
+### `backup-config` — snapshot datado das configs do RetroArch
+
+```bash
+python3 retrosync.py backup-config              # simula PC + Android
+python3 retrosync.py backup-config pc --apply    # so PC
+python3 retrosync.py backup-config --apply       # os dois
+```
+
+Copia `retroarch.cfg` + `config/` (shaders/opções/remaps por core) +
+`playlists/` (incluindo `builtin/` e `logs/`) pro PC e/ou celular (via
+`adb pull`) pra dentro de `Backups/retroarch_<pc|android>_<data>/` -
+mesma pasta/convenção que já vinha sendo feita na mão. Cada rodada cria
+uma pasta **nova** com a data de hoje, nunca sobrescreve um snapshot
+anterior. Não inclui `cores/` (redownloadável, ver `docs/roadmap.md`)
+nem saves/states/thumbnails (já têm sync próprio - `core/pc_backup.py`,
+`core/sync.py`). No Android, `retroarch.cfg` mora numa pasta privada do
+app diferente de `config/`/`playlists/` (que ficam em
+`/storage/emulated/0/RetroArch/`, pública) - só é acessível via `adb`
+porque o arquivo em si é `0666` (confirmado com `adb shell stat` em
+24/08).
 
 ## Interface gráfica (Fase 1)
 
@@ -275,7 +351,7 @@ O que tem até agora:
   filtro opcional por console - clicar num resultado troca de sistema
   e rola até a capa certa, com destaque temporário. Pro Arcade, busca
   também pelo nome real do jogo, não só pelo código curto do romset
-- **📦 ROMs Pesadas**: modal separado (botão no topo) pra PS, SS, SDC,
+- **📦 ROMs Pesadas**: modal separado (botão no topo) pra PS,
   PS2, GameCube, Wii, PSP e 3DS - lista o que existe no PC, no celular
   (via adb) e no **Google Drive** (via `rclone`, sem precisar de
   celular conectado), e manda/baixa um item de cada vez sob demanda
@@ -377,8 +453,10 @@ PyRetro/
 │   ├── sanitize.py        # remove caracteres que o RetroArch não aceita - implementado
 │   ├── sync.py            # sincronização PC<->Android (só capas) - implementado e testado no aparelho
 │   ├── cues.py             # rename_disc_set (.cue/.gdi+.bin) - implementado; scan/auditoria - esqueleto
-│   ├── heavy_roms.py       # gestão de ROMs pesadas (PS/SS/SDC/PS2/GC/Wii/PSP/3DS) - implementado
+│   ├── heavy_roms.py       # gestão de ROMs pesadas (PS/PS2/GC/Wii/PSP/3DS) - implementado
 │   ├── organize.py         # organiza "0-Organizar" pra roms_root/<CODIGO>/ - implementado
+│   ├── playlist.py         # monta playlist .lpl a partir do que existe de verdade (PC/Android) - implementado
+│   ├── config_backup.py    # snapshot datado de retroarch.cfg+config/+playlists/ - implementado
 │   ├── rom_rename.py       # rename e apagar com cascata (ROM+capa+save/state) - implementado e testado
 │   ├── memcard.py          # editor de memory card PS1/PS2 (ps1vmc-tool/ps2vmc-tool) - implementado e testado
 │   ├── serials.py          # serial -> nome do jogo (DAT de redump), usado por memcard.py/emu_saves.py - implementado e testado
@@ -403,20 +481,22 @@ PyRetro/
 
 | Módulo | Status |
 |---|---|
-| `core/covers.py` | Implementado e testado - resolve exato, fuzzy (só relatório), DAT do FBNeo pro Arcade (também usado pra `arcade_display_name`, nome de exibição na GUI), fallback de download via API do GitHub, distingue rate-limit de sem_match real |
+| `core/covers.py` | Implementado e testado - resolve exato, fuzzy (só relatório), DAT do FBNeo pro Arcade (também usado pra `arcade_display_name`, nome de exibição na GUI), fallback de download via API do GitHub, distingue rate-limit de sem_match real; `process_system_cloud` (24/08) busca a partir do catálogo no Drive em vez de `roms_root` local, testado ponta a ponta (Saturn 37/37, Dreamcast 9/9) |
 | `core/launchbox.py` | Implementado e testado - segunda fonte (LaunchBox Games DB) só pros sem_match do covers.py, exato + prefixo com trava de segurança |
 | `core/sanitize.py` | Implementado e testado - remove `&`/`:`/`*` de nomes de capa e ROM, nunca sobrescreve em conflito |
 | `core/screenscraper.py` | Implementado e testado com API real - `search_game`/`download_cover`, mapeamento de sistemas (`SYSTEM_MAP`), URLs de mídia com credencial embutida nunca vão pro cliente (proxy `/api/cover/ss_preview` + cache em memória em `gui/server.py`) |
 | `core/adb.py` | Implementado e testado contra o aparelho real - `run`/`shell`/`push`/`pull`/`ensure_connected` com retry via kill-server/start-server |
 | `core/sync.py` | Implementado e testado contra o aparelho real, só pra capas (`sync_capas`) - manifesto em `cache/sync_state.json`, classifica sem_mudança/pra PC/pro Android/conflito, nunca deleta. Extensão pra saves/states/runtime-logs **cancelada** (sempre vai usar Google Drive pra isso) |
 | `core/cues.py` | `rename_disc_set` implementado e testado (`.cue`/`.gdi` + sidecars `.bin`, corrige a referência de texto). Auditoria completa (`scan_folder`/`fix_all`) ainda esqueleto |
-| `core/heavy_roms.py` | Implementado e testado ponta a ponta com o celular real - identifica ROMs de PS/SS/SDC/PS2/GameCube/Wii/PSP/3DS e envia sob demanda via adb, somando sidecars |
+| `core/heavy_roms.py` | Implementado e testado ponta a ponta com o celular real - identifica ROMs de PS/PS2/GameCube/Wii/PSP/3DS e envia sob demanda via adb, somando sidecars |
 | `core/organize.py` | Implementado e testado ponta a ponta via GUI - identifica ROMs em `0-Organizar/` pela extensão e move pro sistema certo, com desambiguação manual quando a extensão bate com mais de um sistema |
 | `core/rom_rename.py` | Implementado e testado ponta a ponta via GUI - rename e apagar com cascata (ROM + capa + save/state) pra sistemas leves e pesados, incluindo grupos multi-disco no rename (PS1/PS2); `find_flat_matches`/`delete_flat_matches` reaproveitados pela gestão de save/state na galeria |
 | `core/memcard.py` | Implementado e testado contra cartões reais - listar/exportar/apagar/importar/transferir save de memory card PS1/PS2 via `ps1vmc-tool`/`ps2vmc-tool` |
 | `core/serials.py` | Implementado e testado - serial → nome do jogo via DAT de redump do libretro-database (PS1/PS2/GameCube/PSP), usado pelo `memcard.py` e `emu_saves.py` |
 | `core/emu_saves.py` | Implementado e testado no aparelho real - lista/baixa save individualizado do Dolphin(GameCube)/PPSSPP via adb, espelhando a estrutura de pastas que o usuário já mantém manualmente |
-| `retrosync.py` | `fetch-covers`, `fetch-covers-fallback`, `convert-covers`, `validate-covers`, `sanitize-names`, `sync covers`, `heavy-roms` e `organize` conectados de verdade; `sync saves/states/metrics` (cancelado) e `fix-cues` (auditoria) levantam `NotImplementedError` |
+| `core/playlist.py` | Implementado e testado ponta a ponta com o celular real (24/08) - monta `.lpl` a partir do que existe em `roms_root`/`jogos_root`, `core_path`/`core_name` "DETECT" por item, PC e Android tratados separado (sistemas pesados não sincronizam sozinhos, cada lado pode ter jogos diferentes) |
+| `core/config_backup.py` | Implementado e testado ponta a ponta (24/08) - snapshot datado de `retroarch.cfg`+`config/`+`playlists/` pro PC (cópia local) e Android (`adb pull`), pasta nova por data, nunca sobrescreve |
+| `retrosync.py` | `fetch-covers`, `fetch-covers-cloud`, `fetch-covers-fallback`, `convert-covers`, `validate-covers`, `sanitize-names`, `sync covers`, `heavy-roms`, `organize`, `rebuild-playlist` e `backup-config` conectados de verdade; `sync saves/states/metrics` (cancelado) e `fix-cues` (auditoria) levantam `NotImplementedError` |
 
 Roadmap atual e próximos passos: [`docs/roadmap.md`](docs/roadmap.md).
 Histórico detalhado (bugs achados, testes, decisões de desenho):

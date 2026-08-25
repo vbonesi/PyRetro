@@ -27,14 +27,15 @@ from pathlib import Path
 TREE_CACHE_DIR = Path("/tmp/lt_trees")
 ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 8, "ix": 9, "x": 10}
 
-# PS1, Dreamcast e Saturn saíram da biblioteca de capas (os standalones
-# DuckStation/Flycast/Kronos baixam capa sozinhos agora - ver
-# docs/capas_sem_correspondencia.md). Continuam no config.toml
-# normalmente pra quando ROMs/Saves existirem na GUI - essa exclusão é
-# só da tela de capas / sync de capas, não do projeto como um todo.
-# Definido aqui (não em gui/server.py) porque core/sync.py também
-# precisa dele e core não deveria importar de gui.
-COVERS_EXCLUDED = {"SDC", "PS", "SS"}
+# PS1 saiu da biblioteca de capas (o standalone DuckStation baixa capa
+# sozinho). Dreamcast e Saturn tinham saído pelo mesmo motivo
+# (Flycast/Kronos) mas voltaram em 24/08 a pedido do usuário - ver
+# docs/changelog.md. Continuam no config.toml normalmente mesmo
+# quando excluídos daqui; essa exclusão é só da tela de capas / sync
+# de capas, não do projeto como um todo. Definido aqui (não em
+# gui/server.py) porque core/sync.py também precisa dele e core não
+# deveria importar de gui.
+COVERS_EXCLUDED = {"PS"}
 
 _TAG_RE = re.compile(
     r"\((usa|europe|japan|world|en|fr|de|es|it|nl|pt|rev\s*\d+|beta|proto"
@@ -337,6 +338,120 @@ def process_system(code: str, capas_folder: str, repo: str, capas_root: Path, re
             jpg = capas_dir / (label + ".jpg")
             if jpg.exists():
                 jpg.unlink()
+            reg_sys[label] = {"status": "replaced_exact", "matched": remote}
+            result["exact"] += 1
+            if on_progress:
+                on_progress(label, "downloaded", i, total)
+        else:
+            tmp.unlink(missing_ok=True)
+            reg_sys[label] = {"status": "no_match"}
+            result["no_match"] += 1
+            if on_progress:
+                on_progress(label, "no_match", i, total)
+
+    return result
+
+
+def process_system_cloud(code: str, capas_folder: str, repo: str, capas_root: Path, cloud_labels: list,
+                          registry: dict, apply: bool, on_progress=None) -> dict:
+    """Mesma lógica de match/download de process_system (exato baixa,
+    fuzzy só entra no relatório, RateLimited NUNCA vira no_match - ver
+    docstring de RateLimited, já confundiu os dois duas vezes) - a
+    diferença é de onde vem a lista de labels: aqui é `cloud_labels`
+    (tipicamente o catálogo completo do Google Drive via rclone, ver
+    core/heavy_roms.list_drive_items - chamado por quem invoca isso,
+    não daqui, pra não criar import cruzado entre módulos core/*),
+    não uma varredura de capas_dir local.
+
+    Pensado pra sistema onde a nuvem tem muito mais jogo do que o que
+    já foi baixado pro PC (achado em 24/08 com Saturn/Dreamcast, que
+    tinham só 1-2 jogos em roms_root/ mas dezenas na nuvem) - a capa
+    fica pronta antes do ROM em si existir local, mesmo princípio de
+    "capa sem ROM correspondente não é lixo" (ver docstring do módulo),
+    só que estendido pro lado cloud-only. Ao contrário de
+    process_system, NÃO exige que capas_dir já exista - cria na hora
+    (`mkdir`) se algum item for baixado, porque pra um sistema que
+    nunca teve nenhuma capa (caso de Saturn/Dreamcast em 24/08) a
+    pasta simplesmente não existe ainda."""
+    capas_dir = capas_root / capas_folder / "Named_Boxarts"
+    result = {"exact": 0, "fuzzy": [], "no_match": 0, "cached": 0, "rate_limited": 0}
+    if not cloud_labels:
+        return result
+
+    names = load_tree(repo)
+    exact_idx = build_index(names, loose=False)
+    loose_idx = build_index(names, loose=True)
+    norm_keys = list(exact_idx.keys())
+
+    reg_sys = registry.setdefault(code, {})
+    base_url = f"https://raw.githubusercontent.com/libretro-thumbnails/{repo}/master/Named_Boxarts/"
+
+    existing = sorted(set(cloud_labels))
+    total = len(existing)
+    for i, label in enumerate(existing, 1):
+        cached_entry = reg_sys.get(label)
+        # Achado em 24/08 (Saturn): o registry tinha 62 entradas
+        # "replaced_exact" de um fetch-covers anterior a COVERS_EXCLUDED,
+        # mas capas_dir nem existia mais (pasta inteira sumiu em algum
+        # momento). Diferente de process_system (só olha label que já
+        # tem arquivo local, então cache "replaced_exact" nele sempre
+        # corresponde a arquivo real), aqui o label vem da nuvem - um
+        # "replaced_exact" cacheado só é confiável se o .png ainda
+        # existir de verdade; "no_match" continua confiável sempre (não
+        # existia arquivo então, não existe agora, nada mudou).
+        if cached_entry and (
+            cached_entry.get("status") == "no_match"
+            or (capas_dir / (label + ".png")).exists()
+        ):
+            result["cached"] += 1
+            if on_progress:
+                on_progress(label, "cached", i, total)
+            continue
+
+        remote, kind = find_match(label, exact_idx, loose_idx, norm_keys)
+
+        if remote is None:
+            reg_sys[label] = {"status": "no_match"}
+            result["no_match"] += 1
+            if on_progress:
+                on_progress(label, "no_match", i, total)
+            continue
+
+        if kind == "fuzzy":
+            result["fuzzy"].append((label, remote))
+            if on_progress:
+                on_progress(label, "fuzzy", i, total)
+            continue  # não baixa, não registra - mesma regra de process_system
+
+        if not apply:
+            result["exact"] += 1
+            if on_progress:
+                on_progress(label, "exact", i, total)
+            continue
+
+        capas_dir.mkdir(parents=True, exist_ok=True)
+        url = base_url + urllib.parse.quote(remote + ".png")
+        dest = capas_dir / (label + ".png")
+        tmp = dest.with_suffix(".png.tmp")
+        r = subprocess.run(
+            ["curl", "-sL", "--max-time", "20", "-o", str(tmp), "-w", "%{http_code}", url],
+            capture_output=True, text=True,
+        )
+        ok = r.stdout.strip() == "200" and tmp.exists() and tmp.stat().st_size > 1000
+
+        if not ok:
+            tmp.unlink(missing_ok=True)
+            try:
+                data = _download_via_api(repo, remote)
+            except RateLimited:
+                result["rate_limited"] += 1
+                break
+            if data and len(data) > 1000:
+                tmp.write_bytes(data)
+                ok = True
+
+        if ok:
+            tmp.replace(dest)
             reg_sys[label] = {"status": "replaced_exact", "matched": remote}
             result["exact"] += 1
             if on_progress:

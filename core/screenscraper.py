@@ -23,10 +23,10 @@ uma vez cada:
     aquele nome, não o primeiro - "Sega Genesis" aparece em id=1 (Mega
     Drive, certo) E id=203 ("Megadrive - Sonic 2 Hacks", uma
     sub-coleção de hack) - por isso é sempre por PRIMEIRA ocorrência.
-  - PCECD e NEOGEO têm nom_launchbox com texto levemente diferente do
-    que está em launchbox_mod.PLATFORM_MAP ("NEC PC Engine-CD" vs "NEC
-    TurboGrafx-CD"; "SNK Neo Geo" vs "SNK Neo Geo AES") - cross-match
-    automático não acha, entram como override manual abaixo.
+  - PCECD tem nom_launchbox com texto levemente diferente do que está
+    em launchbox_mod.PLATFORM_MAP ("NEC PC Engine-CD" vs "NEC
+    TurboGrafx-CD") - cross-match automático não acha, entra como
+    override manual abaixo.
   - ARCADE não tem um systemeid único (o ScreenScraper separa arcade
     por fabricante/placa - Cave, Irem, Capcom Classics, etc, dezenas de
     ids). id=75 ("Mame") é o bucket genérico certo pro nosso caso -
@@ -57,8 +57,6 @@ SYSTEM_MAP = {
     "PCE": 31,
     "PCECD": 114,   # override manual - nom_launchbox = "NEC PC Engine-CD"
     "PS": 57,
-    "NEOGEO": 142,  # override manual - nom_launchbox = "SNK Neo Geo" (sem "AES")
-    "NEOGEOCD": 70,
     "ARCADE": 75,   # bucket genérico "Mame" - ScreenScraper não tem 1 id por FBNeo
 }
 

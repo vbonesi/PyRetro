@@ -8,14 +8,20 @@ config.toml [memcards], [pc] saves_root/states_root, e o .ini de cada
 emulador) - pra esses o Google Drive já faz o backup sozinho, sem
 precisar de nada aqui.
 
-Dolphin (GC/Wii) e Flycast (VMU) são os dois que sobram: guardam save
-dentro do próprio diretório de dados do app (sandbox Flatpak), que não
-dá pra redirecionar pra dentro do Drive sem risco de quebrar o app
-(GC memcard até dá pra apontar por fora, mas o NAND do Wii é uma
-estrutura fixa do próprio Dolphin). Então aqui é só uma cópia (nunca
-corta, nunca deleta - mesma regra do sync.py) do que mudou pra dentro
-de Saves/Dolphin e Saves/Flycast, espelhando a mesma estrutura que
-emu_saves.py já usa pro lado Android->PC do Dolphin/PPSSPP.
+Dolphin (GC/Wii) é o que sobra: guarda save dentro do próprio
+diretório de dados do app (sandbox Flatpak), que não dá pra
+redirecionar pra dentro do Drive sem risco de quebrar o app (GC
+memcard até dá pra apontar por fora, mas o NAND do Wii é uma estrutura
+fixa do próprio Dolphin). Então aqui é só uma cópia (nunca corta,
+nunca deleta - mesma regra do sync.py) do que mudou pra dentro de
+Saves/Dolphin, espelhando a mesma estrutura que emu_saves.py já usa
+pro lado Android->PC do Dolphin/PPSSPP.
+
+Tinha uma entrada "flycast" aqui (VMU do Dreamcast standalone,
+Saves/Flycast) - removida em 24/08 junto com a mudança de Dreamcast
+pra RetroArch (core Flycast escreve save normal em saves_root/
+states_root, sem sandbox pra escapar, igual qualquer outro sistema do
+RetroArch) - ver docs/changelog.md.
 
 "Mudou" = arquivo novo OU mtime local mais recente que o mtime já
 copiado no Drive (compara por caminho relativo dentro de cada fonte).
@@ -44,12 +50,6 @@ SOURCES = {
         "rel_root": "Wii/title",
         "dest_name": "Dolphin/Wii/title",
         "glob": "**/*",
-    },
-    "flycast": {
-        "cfg_key": "flycast_data_root",
-        "rel_root": "",
-        "dest_name": "Flycast",
-        "glob": "*.bin",
     },
 }
 

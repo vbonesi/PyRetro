@@ -586,3 +586,183 @@ plano.
   sobrar espaço. Testado ao vivo (SFC, "Mario"/"Super Mario World"):
   antes libretro sozinho já batia 40; depois os 10 primeiros
   resultados são todos ScreenScraper, seguidos de LaunchBox.
+- **`rebuild-playlist` e `backup-config` (24/08)** - pedido do usuário:
+  montar playlist `.lpl` do RetroArch pro Saturn e Dreamcast (PC +
+  Android) e depois atualizar o backup datado das configs. Nenhum dos
+  dois existia - `config.toml [cores.*]` já tinha um comentário
+  mencionando "usado só pelo comando `rebuild-playlist`" mas o comando
+  em si nunca tinha sido escrito (conferido: zero ocorrência de
+  "playlist" em `retrosync.py`/`core/`/`gui/` antes disso).
+
+  Achado ao gerar a primeira playlist de Saturn: sistemas pesados
+  (`heavy_systems` - SS/SDC/PS2/...) não sincronizam PC↔Android
+  sozinhos, então o mesmo código pode ter jogos DIFERENTES nos dois
+  lados por design (heavy-roms manda um item de cada vez, sob
+  demanda). No acervo real: SS no PC tinha "Daytona USA" + "Rabbit",
+  no celular tinha "NiGHTS into Dreams" + "Virtua Fighter 2" + "Virtua
+  Racing" - nenhum em comum. `core/playlist.py` trata PC e Android
+  como duas listagens independentes de propósito (`list_local_names`
+  via `Path.iterdir`, `list_remote_names` via `adb shell find`, mesmo
+  padrão de `heavy_roms.list_remote_names`) em vez de uma lista
+  compartilhada.
+
+  Decisão de design: cada item da playlist usa `core_path`/`core_name`
+  `"DETECT"` e `crc32` `"00000000|crc"` (conferido contra uma playlist
+  real gerada pelo próprio RetroArch - "NEC - PC Engine CD -
+  TurboGrafx-CD.lpl" - mesmo padrão em todo sistema de disco).
+  `default_core_path`/`default_core_name` ficam em branco de
+  propósito: nem Saturn nem Dreamcast tinham núcleo instalado no PC no
+  momento (usuário confirmou que vai baixar depois via Online Updater
+  do próprio RetroArch - PyRetro não baixa `.so` sozinho) e no Android
+  não dá pra sequer conferir núcleo instalado via `adb` (`run-as
+  com.retroarch` -> "package not debuggable", sem root - `cores/` do
+  Android fica em storage privado do app). "DETECT" por item já
+  resolve sozinho assim que o núcleo certo existir, sem precisar
+  reescrever a playlist depois.
+
+  Descoberta paralela sobre o layout do Android que também virou a
+  base do `backup-config`: `playlists/`, `config/`, `cheats/` etc.
+  ficam em `/storage/emulated/0/RetroArch/` (storage público, sem
+  root) mas o `retroarch.cfg` fica em
+  `/storage/emulated/0/Android/data/com.retroarch/files/` (pasta
+  privada do app) - só acessível via `adb` porque o arquivo em si é
+  `0666` (`adb shell stat` confirmou `Uid: shell` conseguindo ler,
+  24/08). `config.toml [android]` ganhou `retroarch_root` (a raiz
+  pública) e `retroarch_cfg_path` (o `.cfg`, caminho separado) pra
+  refletir isso; `[pc]` ganhou `retroarch_root` (raiz única do profile
+  Flatpak, `.cfg`+`config/`+`playlists/` juntos) e `backups_root`.
+
+  `backup-config` replica exatamente o que já vinha sendo feito na
+  mão (pasta `Backups/retroarch_<pc|android>_<data>/`, comparado
+  contra os backups reais de 31/07 e 20/08 pra confirmar o escopo: só
+  `retroarch.cfg`+`config/`+`playlists/`, sem `cores/`/saves/
+  thumbnails - esses já têm caminho próprio) - cada rodada cria pasta
+  nova, nunca sobrescreve uma data anterior.
+
+  Testado ponta a ponta contra o acervo e o aparelho real (S24 Ultra):
+  `rebuild-playlist SS`/`SDC` gerou os 4 arquivos esperados (2 PC + 2
+  Android) com o conteúdo certo por lado; `backup-config` copiou 53
+  arquivos de `config/` + 1 `.cfg` no PC e 61+159 no Android pra
+  `Backups/retroarch_{pc,android}_2026-08-24/`, incluindo as
+  playlists novas de Saturn/Dreamcast já dentro do snapshot.
+- **Saturn e Dreamcast saíram de `[heavy_systems]` (24/08, mesmo dia)**
+  - pedido do usuário logo depois do item acima: voltar SS/SDC a
+  sistema leve normal, gerido só por `[systems]` (sync automático via
+  Google Drive, sem gestão sob demanda). Removidos `[heavy_systems.SS]`
+  e `[heavy_systems.SDC]` de `config.toml`/`config.example.toml`
+  (`[systems.SS]`/`[systems.SDC]` continuam intactos - nunca saíram de
+  lá, é o que `fetch-covers`/`sanitize-names`/`rebuild-playlist` usam).
+  Efeito prático: `heavy-roms SS`/`SDC` agora dá "sistema pesado
+  desconhecido" (esperado), o modal "📦 ROMs Pesadas" da GUI para de
+  listar os dois, e `core/heavy_roms.py` nunca mais processa esses
+  códigos - o exemplo de sidecar multi-track `.gdi` no docstring do
+  módulo (Dreamcast, "Sonic Adventure (Track 1/2).bin") ficou só
+  histórico, atualizado pra deixar isso claro.
+
+  `COVERS_EXCLUDED` (`core/covers.py`) e o `cd_system=true` de
+  SS/SDC em `[systems]` são independentes disso e não mudaram - PS1/
+  Dreamcast/Saturn continuam fora da galeria de capas (standalone
+  DuckStation/Flycast/Kronos busca capa sozinho, motivo não tem nada a
+  ver com heavy_systems) e `organize`/rename-cascade continuam
+  reconhecendo `.cue`/`.gdi`/`.chd`/`.cdi` como ROM desses sistemas
+  normalmente. Nenhum arquivo físico precisou mover - `roms_root/SS/`
+  e `roms_root/SDC/` (PC) e `jogos_root/SS/`, `/SDC/` (celular) já
+  eram os mesmos caminhos usados tanto por `[systems]` quanto por
+  `[heavy_systems]`, só a categoria de gestão dentro do PyRetro mudou.
+  Textos de ajuda do CLI (`heavy-roms`, docstring do `rebuild-playlist`)
+  e do README atualizados pra não listar mais SS/SDC como pesado.
+- **`fetch-covers-cloud` (24/08, mesmo dia)** - usuário notou que tirar
+  SS/SDC de `heavy_systems` não bastava: eles continuavam fora de
+  `COVERS_EXCLUDED` (`core/covers.py`) e, mesmo removendo de lá,
+  `fetch-covers` sozinho não ia descobrir nada, porque só REVISA capas
+  que já existem em `capas_root` - nunca escaneia `roms_root`/nuvem do
+  zero (isso é papel de `missing_cover_labels`, que só roda em cima de
+  `roms_root` LOCAL, via GUI/organize). Saturn e Dreamcast tinham só
+  1-2 jogos baixados no PC mas dezenas na nuvem (mesma assimetria
+  achada com `rebuild-playlist` - ver entrada acima), então usar
+  `fetch-covers` normal só cobriria uma fração ridícula do acervo.
+
+  Solução: `core/covers.py` ganhou `process_system_cloud` - mesma
+  lógica de match/download de `process_system` (exato baixa, fuzzy só
+  relatório, `RateLimited` nunca vira `no_match`), mas a lista de
+  labels vem de fora, tipicamente `core/heavy_roms.list_drive_items`
+  (rclone) chamado pelo `retrosync.py` (novo comando
+  `fetch-covers-cloud`) - sem import cruzado entre módulos `core/*`.
+  `list_drive_items` não sabe nem se importa se o código está em
+  `heavy_systems` - já funcionava genérico o bastante pra reaproveitar
+  aqui sem mudar nada nele.
+
+  Achado real ao rodar pra Saturn: `cache/covers_registry.json` já
+  tinha 62 entradas `SS` marcadas `replaced_exact`/`replaced_fuzzy` -
+  de antes de `COVERS_EXCLUDED` existir, provavelmente - mas
+  `Capas/Sega - Saturn/` nem existia mais no disco (pasta inteira
+  sumiu em algum momento, registry nunca foi limpo pra combinar). A
+  primeira versão de `process_system_cloud` confiava cegamente em
+  `label in reg_sys` (mesma regra de `process_system`, que é segura
+  LÁ porque só olha label que já tem arquivo local - cache
+  `replaced_exact` corresponde sempre a arquivo real nesse caso) e ia
+  pular 32 dos 37 jogos achando que já tinham capa. Corrigido: cache
+  só é confiável se `status == "no_match"` (nada esperado, nada mudou)
+  OU se o `.png` ainda existir de verdade no disco - `no_match` sempre
+  confiável, `replaced_exact`/`replaced_fuzzy` só se o arquivo
+  sobreviver à checagem. Pego ANTES de rodar `--apply` porque
+  inspecionei o registry na mão em vez de confiar só no resumo do
+  dry-run.
+
+  Testado ponta a ponta no acervo real: Saturn 37/37 capas (nuvem
+  inteira, via libretro-thumbnails sozinho, 0 sem_match). Dreamcast
+  8/9 via libretro-thumbnails + 1 via `fetch-covers-fallback`
+  (LaunchBox) = 9/9. `validate-covers`/`convert-covers` rodados nos
+  dois depois, 0 problema (tudo PNG de verdade, nada em `.jpg`). Pra
+  qualquer jogo que ficasse sem match nas duas fontes, o usuário
+  confirmou que é pra só listar sem capa mesmo (revisão manual depois,
+  mesma regra de sempre) - não chegou a ser preciso dessa vez, as duas
+  coleções fecharam 100%.
+- **Removida a entrada "flycast" de `core/pc_backup.py` (24/08, mesmo
+  dia)** - usuário perguntou se, com Saturn/Dreamcast agora no
+  RetroArch, a sincronização de save deles ainda fazia sentido, ou se
+  só o Dolphin continuava precisando. Conferido no código antes de
+  responder: `core/emu_sync.py` (sync PC↔Drive↔Android de verdade)
+  NUNCA teve Saturn/Dreamcast - só `dolphin_gc`, `dolphin_wii`,
+  `ps2_memcards`, `ps2_sstates` desde sempre. Saturn (Kronos) também
+  nunca precisou de nada - já escreve direto em `Saves/`. A única
+  peça de código Dreamcast-específica era a entrada `"flycast"` em
+  `core/pc_backup.py` (backup unidirecional PC->Drive do VMU do
+  Flycast standalone, `~/.var/app/org.flycast.Flycast/data/flycast/
+  *.bin` -> `Saves/Flycast/`) - nunca teve perna Android (só
+  investigado em 05/08, sem ferramenta tipo `ps2vmc-tool` pra VMU).
+
+  Confirmado com o usuário que faz sentido remover: RetroArch (core
+  Flycast) escreve save normal em `saves_root`/`states_root`, mesmo
+  mecanismo que qualquer outro sistema já sincronizado via Google
+  Drive - não precisa mais escapar de sandbox nenhuma. Removido:
+  entrada `"flycast"` de `SOURCES` (`core/pc_backup.py`), chave
+  `flycast_data_root` de `config.toml`/`config.example.toml`, e as 3
+  menções em `retrosync.py` (docstring + mensagem + help do argparse
+  de `backup-saves`). `grep -r flycast_data_root` confirma zero
+  sobra. Dolphin (GC/Wii) continua intacto nos dois módulos
+  (`pc_backup.py` e `emu_sync.py`) - segue sendo standalone (decisão
+  de 24/08 mais cedo, ver conversa sobre dificuldade de RetroArch
+  pros sistemas da lista do usuário), nada muda aí.
+
+  Achado de refile ao mexer nessa área: `core/sync.py`
+  `sync_capas` tinha docstring desatualizada ("SDC e PS ficam fora")
+  de antes do `COVERS_EXCLUDED` ser reduzido pra só `{"PS"}` mais
+  cedo hoje - o código já lia `COVERS_EXCLUDED` direto (não tinha
+  "SDC" fixo em lugar nenhum, comportamento sempre esteve correto),
+  só o comentário estava errado. Corrigido pra não confundir leitura
+  futura. `docs/roadmap.md` também tinha um item de "Próximos passos"
+  sobre investigar sync de VMU do Flycast fora do RetroArch - removido
+  (não é mais um caso "fora do RetroArch" pra investigar).
+- **Neo Geo e Neo Geo CD saíram da coleção (24/08, sessão paralela)** -
+  feito em outra sessão do Claude Code rodando ao mesmo tempo neste
+  projeto, verificado depois por aqui: `ROMs/NEOGEO/`,
+  `ROMs/NEOGEOCD/`, `Capas/SNK - Neo Geo/` e `Capas/SNK - Neo Geo
+  CD/` removidos do disco; `config.toml`/`config.example.toml`
+  perderam `[systems.NEOGEO]`/`[systems.NEOGEOCD]`; código atualizado
+  em conjunto - `core/launchbox.py` (`PLATFORM_MAP`) e
+  `core/screenscraper.py` (`SYSTEM_MAP`) perderam as entradas
+  NEOGEO/NEOGEOCD, `core/organize.py` teve o comentário de extensões
+  ambíguas ajustado (não lista mais NEOGEOCD entre PS/SDC/SS/PCECD/
+  PS2). Busca por "NEOGEO" no projeto inteiro (código+config) não
+  encontrou nenhuma referência solta depois da limpeza.

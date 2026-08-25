@@ -50,8 +50,6 @@ PLATFORM_MAP = {
     "PCE": "NEC TurboGrafx-16",
     "PCECD": "NEC TurboGrafx-CD",
     "PS": "Sony Playstation",
-    "NEOGEO": "SNK Neo Geo AES",
-    "NEOGEOCD": "SNK Neo Geo CD",
     "ARCADE": "Arcade",
 }
 

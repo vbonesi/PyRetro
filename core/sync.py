@@ -119,9 +119,10 @@ def scan_pair(pc_dir: Path, android_dir: str, prev_state: dict, serial: str | No
 
 def sync_capas(cfg: dict, dry_run: bool = True, on_progress=None) -> dict:
     """Sincroniza Named_Boxarts (capas) PC <-> Android, sistema por
-    sistema. SDC e PS ficam fora - saíram da biblioteca de capas do
-    PyRetro (standalones DuckStation/Flycast baixam sozinhos), mesma
-    exclusão da tela de capas da GUI (core.covers.COVERS_EXCLUDED).
+    sistema. PS fica fora - saiu da biblioteca de capas do PyRetro
+    (standalone DuckStation baixa sozinho), mesma exclusão da tela de
+    capas da GUI (core.covers.COVERS_EXCLUDED). Dreamcast/Saturn
+    voltaram em 24/08 (agora via RetroArch) - ver docs/changelog.md.
 
     on_progress(code, relpath, direction), se passado, é chamado a cada
     arquivo copiado - direction é 'pro_android' ou 'pra_pc'."""

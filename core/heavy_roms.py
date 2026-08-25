@@ -1,21 +1,25 @@
 """
-Gestão de ROMs dos consoles "pesados" (PS, SDC, PS2, GameCube, Wii, PSP,
+Gestão de ROMs dos consoles "pesados" (PS, PS2, GameCube, Wii, PSP,
 3DS) - configurados em config.toml [heavy_systems]. Diferente de
 [systems] (sempre sincronizado com o celular via Google Drive), esses
 ficam só no PC até serem enviados sob demanda. Nintendo Switch fica de
 fora de propósito - a gestão de ROM dele é feita por fora do PyRetro.
+Saturn (SS) e Dreamcast (SDC) passaram por aqui até 24/08 - voltaram a
+ser sistema leve normal (só [systems], sync automático) a pedido do
+usuário, ver docs/changelog.md.
 
 Um "item" aqui é qualquer entrada de primeiro nível dentro de
 roms_root/<CODE>/ - normalmente um arquivo (.iso, .3ds, etc), mas o
 suporte a pasta inteira como um item só fica pra formatos que usam
 pasta por jogo (base + updates/DLC separados).
 
-PS e SDC usam .cue/.gdi + .bin separado (achado em 02/08: .cue não está
-sozinho na pasta - "Front Mission 3.cue" tem "Front Mission 3.bin" do
-lado, e formatos multi-track como .gdi têm vários ".bin" tipo
-"Sonic Adventure (Track 1).bin", "(Track 2).bin" etc). Mandar só o .cue/
-.gdi sem os .bin quebra o jogo no celular - list_local soma o tamanho
-dos sidecars no item, e send_to_phone manda todos juntos.
+PS usa .cue + .bin separado (achado em 02/08: .cue não está sozinho na
+pasta - "Front Mission 3.cue" tem "Front Mission 3.bin" do lado; o
+caso multi-track com vários ".bin" tipo "Sonic Adventure (Track 1).bin"
+era do Dreamcast, que não passa mais por este módulo - ver acima).
+Mandar só o .cue sem os .bin quebra o jogo no celular - list_local
+soma o tamanho dos sidecars no item, e send_to_phone manda todos
+juntos.
 
 Visão do Google Drive (via `rclone`, achado em 04/08 - sugestão do
 usuário): o Drive tem MUITO mais jogos do que o que já foi baixado pro

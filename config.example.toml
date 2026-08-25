@@ -10,12 +10,17 @@ capas_root        = "~/Drive/Jogos/Capas"
 saves_root        = "~/Drive/Jogos/Saves/saves"
 states_root       = "~/Drive/Jogos/Saves/states"
 runtime_logs_root = "~/Drive/Jogos/Saves/runtime-logs"
-# Raiz de dados dos apps Flatpak que guardam save dentro da própria
-# sandbox (GC/Wii do Dolphin, VMU do Flycast) - únicos que não escrevem
-# direto dentro de Saves/ (ver core/pc_backup.py). Deixe em branco ("")
-# se não usar esses emuladores.
+backups_root      = "~/Drive/Jogos/Backups"
+# Raiz do profile RetroArch (Flatpak) - retroarch.cfg fica direto
+# aqui, config/ (shaders/opcoes/remaps por core) e playlists/ sao
+# subpastas dela. Usado por "backup-config" e "rebuild-playlist".
+# Se nao usar o Flatpak, ajuste pro seu profile (ex: ~/.config/retroarch).
+retroarch_root    = "~/.var/app/org.libretro.RetroArch/config/retroarch"
+# Raiz de dados do app Flatpak que guarda save dentro da própria
+# sandbox (GC/Wii do Dolphin) - único que não escreve direto dentro de
+# Saves/ (ver core/pc_backup.py). Deixe em branco ("") se não usar
+# esse emulador.
 dolphin_data_root = "~/.var/app/org.DolphinEmu.dolphin-emu/data/dolphin-emu"
-flycast_data_root = "~/.var/app/org.flycast.Flycast/data/flycast"
 # Pasta dentro de roms_root onde ROMs novas ficam esperando organização
 # (o "upload" agora é o próprio Google Drive - joga o arquivo aqui, de
 # qualquer lado, e a GUI/CLI move pra roms_root/<CODIGO>/ certo).
@@ -55,6 +60,12 @@ thumbnails_root   = "/storage/emulated/0/RetroArch/thumbnails"
 saves_root        = "/storage/emulated/0/RetroArch/saves"
 states_root       = "/storage/emulated/0/RetroArch/states"
 runtime_logs_root = "/storage/emulated/0/RetroArch/runtime-logs"
+# Raiz publica de conteudo do RetroArch no celular - tem config/ e
+# playlists/, mas NAO o retroarch.cfg (esse mora na pasta privada do
+# app, retroarch_cfg_path, so acessivel pq o arquivo em si e 0666).
+# Usado por "backup-config" e "rebuild-playlist".
+retroarch_root     = "/storage/emulated/0/RetroArch"
+retroarch_cfg_path = "/storage/emulated/0/Android/data/com.retroarch/files/retroarch.cfg"
 
 # Uma entrada por pasta de sistema dentro de roms_root.
 # capas   = subpasta correspondente dentro de capas_root
@@ -141,17 +152,6 @@ repo  = "Sony_-_PlayStation"
 exts  = ["cue", "chd", "ccd"]
 cd_system = true
 
-[systems.NEOGEO]
-capas = "SNK - Neo Geo"
-repo  = "SNK_-_Neo_Geo"
-exts  = ["neo", "zip"]
-
-[systems.NEOGEOCD]
-capas = "SNK - Neo Geo CD"
-repo  = "SNK_-_Neo_Geo_CD"
-exts  = ["cue", "chd", "cdi"]
-cd_system = true
-
 [systems.ARCADE]
 capas = "FBNeo - Arcade Games"
 repo  = "FBNeo_-_Arcade_Games"
@@ -167,10 +167,6 @@ exts  = ["zip", "7z"]
 [heavy_systems.PS]
 nome = "Sony - PlayStation"
 exts = ["cue", "chd", "ccd"]
-
-[heavy_systems.SDC]
-nome = "Sega - Dreamcast"
-exts = ["cue", "gdi", "chd", "cdi"]
 
 [heavy_systems.PS2]
 nome = "Sony - PlayStation 2"
