@@ -1,10 +1,18 @@
 let currentSystem = null;
+let currentKind = "leve"; // "leve" | "pesado" | "biblioteca" - decide o que selectSystem/renderGallery fazem
 let systems = [];
 let currentItems = [];
 
+// Aba única pra leve/pesado/Biblioteca (pedido do usuário, 27/08: os
+// dois últimos eram popup, viraram aba com a mesma grade de capa da
+// galeria normal). activateTab/setControlsForKind ficam genéricos pra
+// não duplicar 3x a lógica de "qual aba tá ativa" / "qual barra de
+// controle mostrar".
 async function loadSystems() {
-  const res = await fetch("/api/systems");
-  systems = await res.json();
+  const [lightRes, heavyRes] = await Promise.all([fetch("/api/systems"), fetch("/api/heavy/systems")]);
+  systems = await lightRes.json();
+  heavySystems = await heavyRes.json();
+
   const tabs = document.getElementById("system-tabs");
   tabs.innerHTML = "";
   for (const sys of systems) {
@@ -16,10 +24,38 @@ async function loadSystems() {
     tab.addEventListener("click", () => selectSystem(sys.code));
     tabs.appendChild(tab);
   }
+  for (const sys of heavySystems) {
+    const tab = document.createElement("div");
+    tab.className = "tab";
+    tab.dataset.code = sys.code;
+    tab.innerHTML = `<span>📦 ${sys.code}</span>`;
+    tab.addEventListener("click", () => selectHeavyTab(sys.code));
+    tabs.appendChild(tab);
+  }
+  const libTab = document.createElement("div");
+  libTab.className = "tab";
+  libTab.dataset.code = "BIBLIOTECA";
+  libTab.innerHTML = "<span>📚 Biblioteca</span>";
+  libTab.addEventListener("click", () => selectLibraryTab());
+  tabs.appendChild(libTab);
 
   const consoleSelect = document.getElementById("global-search-console");
   consoleSelect.innerHTML = '<option value="">Todos</option>' +
     systems.map(s => `<option value="${s.code}">${s.code}</option>`).join("");
+}
+
+function activateTab(code) {
+  document.querySelectorAll("#system-tabs .tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.code === code);
+  });
+}
+
+function setControlsForKind(kind) {
+  document.getElementById("menubar").classList.toggle("hidden", kind !== "leve");
+  document.getElementById("filterbar").classList.toggle("hidden", kind !== "leve");
+  document.getElementById("library-controls").classList.toggle("hidden", kind !== "biblioteca");
+  document.getElementById("heavy-controls").classList.toggle("hidden", kind !== "pesado");
+  document.getElementById("library-add-card").classList.add("hidden"); // sempre fecha o formulário ao trocar de aba
 }
 
 let globalSearchTimer = null;
@@ -33,6 +69,11 @@ function runGlobalSearch() {
     results.innerHTML = "";
     return;
   }
+  // Unificado (pedido do usuário 27/08: "unificar a pesquisa toda na
+  // barra acima") - /api/search_library agora devolve leve + pesado +
+  // Biblioteca junto (kind por item), essa é a ÚNICA busca por nome do
+  // app inteiro (Biblioteca não tem mais campo de busca próprio).
+  const KIND_ICON = { leve: "", pesado: "📦 ", biblioteca: "📚 " };
   fetch(`/api/search_library?q=${encodeURIComponent(q)}&code=${encodeURIComponent(code)}`)
     .then(r => r.json())
     .then(items => {
@@ -43,7 +84,8 @@ function runGlobalSearch() {
         for (const item of items) {
           const row = document.createElement("div");
           row.className = "global-search-result";
-          row.innerHTML = `<span class="code">${item.code}</span><span class="label">${item.display_name || item.label}</span>`;
+          const codeShown = item.kind === "biblioteca" ? "" : (item.code || "");
+          row.innerHTML = `<span class="code">${KIND_ICON[item.kind] || ""}${codeShown}</span><span class="label">${item.display_name || item.label}</span>`;
           row.addEventListener("click", () => goToSearchResult(item));
           results.appendChild(row);
         }
@@ -55,10 +97,17 @@ function runGlobalSearch() {
 async function goToSearchResult(item) {
   document.getElementById("global-search-results").classList.add("hidden");
   document.getElementById("global-search-input").value = "";
-  if (currentSystem !== item.code) {
-    await selectSystem(item.code);
+
+  let highlightLabel = item.label;
+  if (item.kind === "pesado") {
+    if (currentSystem !== item.code || currentKind !== "pesado") await selectHeavyTab(item.code);
+  } else if (item.kind === "biblioteca") {
+    if (currentKind !== "biblioteca") await selectLibraryTab();
+  } else {
+    if (currentSystem !== item.code || currentKind !== "leve") await selectSystem(item.code);
   }
-  const card = document.querySelector(`#gallery .cover[data-label="${CSS.escape(item.label)}"]`);
+
+  const card = document.querySelector(`#gallery .cover[data-label="${CSS.escape(highlightLabel)}"]`);
   if (card) {
     card.scrollIntoView({ behavior: "smooth", block: "center" });
     card.classList.add("search-highlight");
@@ -80,9 +129,9 @@ document.addEventListener("click", (e) => {
 
 async function selectSystem(code) {
   currentSystem = code;
-  document.querySelectorAll(".system-tabs .tab").forEach(tab => {
-    tab.classList.toggle("active", tab.dataset.code === code);
-  });
+  currentKind = "leve";
+  activateTab(code);
+  setControlsForKind("leve");
   const sys = systems.find(s => s.code === code);
   document.getElementById("current-system").textContent = `${code} — ${sys.count} capas, ${sys.no_match} sem correspondência`;
   document.getElementById("btn-fetch").disabled = false;
@@ -99,21 +148,19 @@ function renderGallery() {
   gallery.innerHTML = "";
   const onlyFlagged = document.getElementById("filter-flagged").checked;
   const onlyNoMatch = document.getElementById("filter-nomatch").checked;
-  const onlyDuplicated = document.getElementById("filter-duplicated").checked;
   const onlyNoCover = document.getElementById("filter-nocover").checked;
 
   let items = currentItems;
-  if (onlyFlagged || onlyNoMatch || onlyDuplicated || onlyNoCover) {
+  if (onlyFlagged || onlyNoMatch || onlyNoCover) {
     items = items.filter(item =>
-      (onlyFlagged && item.status === "flagged_wrong") ||
+      (onlyFlagged && (item.status === "flagged_wrong" || item.status === "duplicate")) ||
       (onlyNoMatch && item.status === "no_match") ||
-      (onlyDuplicated && item.status === "duplicate") ||
       (onlyNoCover && item.status === "no_cover")
     );
   }
 
   if (items.length === 0) {
-    const msg = (onlyFlagged || onlyNoMatch || onlyDuplicated || onlyNoCover) ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
+    const msg = (onlyFlagged || onlyNoMatch || onlyNoCover) ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
     gallery.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
@@ -124,11 +171,231 @@ function renderGallery() {
 
 document.getElementById("filter-flagged").addEventListener("change", renderGallery);
 document.getElementById("filter-nomatch").addEventListener("change", renderGallery);
-document.getElementById("filter-duplicated").addEventListener("change", renderGallery);
 document.getElementById("filter-nocover").addEventListener("change", renderGallery);
 
+// Cor da nota (pedido do usuário 27/08: "colocar cor nas notas,
+// vermelho para 1 e verde para 10 e dourado para 11") - interpola entre
+// as cores de tema já existentes (--err vermelho, --ok verde) em vez de
+// vermelho/verde puros, pra combinar com o resto da UI; nota > 10
+// (só 11 visto na coleção real, nota "fora da escala") usa --warn
+// (dourado/âmbar, já é a cor de destaque do tema). Sem nota, sem cor
+// (não decide nada por quem ainda não avaliou).
+function notaColor(nota) {
+  if (nota === null || nota === undefined || nota === "") return null;
+  const n = Number(nota);
+  if (Number.isNaN(n)) return null;
+  if (n > 10) return "#e0a52c"; // --warn
+  const t = Math.max(0, Math.min(1, (n - 1) / 9)); // 1 -> 0, 10 -> 1
+  const from = [224, 92, 92];   // --err
+  const to = [76, 175, 125];    // --ok
+  const rgb = from.map((c, i) => Math.round(c + (to[i] - c) * t));
+  return `rgb(${rgb.join(",")})`;
+}
+
+function notaTexto(nota) {
+  if (nota === null || nota === undefined || nota === "") return "–";
+  return String(Number(nota)); // 8.0 -> "8", 7.1 -> "7.1"
+}
+
+// Nota vira um "chip" clicável com setinha de cada lado, em vez do
+// <input type=number> cru de antes - pedido do usuário 28/08: "o campo
+// nota ficou estranho, tá um campo escrito 'no' pois está cortando,
+// deixar ele apenas nas setinhas e um pouco mais elaborado e bonito".
+// O "no" era o placeholder "nota" cortado pela largura fixa de 44px.
+// Agora: −/+ ajustam de 0.1 em 0.1, clicar no número deixa digitar
+// direto (nota tem decimal, ex: 7.1), e a cor da nota (notaColor) pinta
+// o número, a borda e um fundo bem sutil - sem texto nenhum pra cortar.
+function buildNotaBox(nota, onChange) {
+  const box = document.createElement("div");
+  box.className = "nota-box";
+  box.innerHTML = `
+    <button class="nota-step" type="button" data-d="-1" title="Diminuir">−</button>
+    <span class="nota-valor" role="button" tabindex="0" title="Clique pra digitar a nota"></span>
+    <button class="nota-step" type="button" data-d="1" title="Aumentar">+</button>
+  `;
+  const valor = box.querySelector(".nota-valor");
+  let atual = nota;
+
+  const pinta = () => {
+    valor.textContent = notaTexto(atual);
+    const cor = notaColor(atual);
+    box.style.setProperty("--nota-cor", cor || "var(--text-dim)");
+    box.classList.toggle("sem-nota", cor === null);
+  };
+  const grava = (novo) => {
+    atual = novo;
+    pinta();
+    onChange("nota", novo);
+  };
+
+  box.querySelectorAll(".nota-step").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const base = atual === null || atual === undefined || atual === "" ? 0 : Number(atual);
+      const novo = Math.round(Math.min(11, Math.max(0, base + Number(btn.dataset.d) * 0.1)) * 10) / 10;
+      grava(novo);
+    });
+  });
+  valor.addEventListener("click", () => {
+    const digitado = prompt("Nota (0 a 11, vazio pra limpar):", atual ?? "");
+    if (digitado === null) return;
+    const limpo = digitado.trim().replace(",", ".");
+    if (limpo === "") return grava(null);
+    const n = parseFloat(limpo);
+    if (Number.isNaN(n) || n < 0 || n > 11) return alert("nota precisa ser um número entre 0 e 11");
+    grava(Math.round(n * 10) / 10);
+  });
+
+  pinta();
+  // Deixa o cascateamento (ver buildTrackingRow) preencher a nota sem
+  // simular clique: `silencioso` só pinta, sem regravar - usado quando
+  // quem chamou já está gravando o campo por conta própria.
+  box.definirNota = (novo, silencioso) => {
+    atual = novo;
+    pinta();
+    if (!silencioso) onChange("nota", novo);
+  };
+  box.notaAtual = () => atual;
+  return box;
+}
+
+// Tracking universal (iniciado/finalizado/platinado/nota/comentário) -
+// pedido do usuário 27/08: mesma edição inline que a Biblioteca já
+// tinha, reaproveitada em ROM leve E pesada; 28/08 o comentário virou
+// botão -> popup (em vez de textarea no card, que empurrava tudo pra
+// baixo e deixava a grade "jogada"). `biblioteca` pode vir null (ROM
+// ainda sem registro na Biblioteca) - trata como "tudo zerado" pra
+// exibir; a primeira mudança cria o registro sozinha (ver
+// /api/library/track). `extras` é uma lista de {icone, titulo, ativo,
+// onClick} pra botão específico do tipo de card (capa, ocultar).
+function buildTrackingRow(biblioteca, onChange, nome, extras) {
+  const b = biblioteca || { nota: null, iniciado: false, finalizado: false, platinado: false, observacoes: null };
+  const div = document.createElement("div");
+  div.className = "tracking-bar";
+
+  const notaBox = buildNotaBox(b.nota, (campo, valor) => { b.nota = valor; onChange(campo, valor); });
+  div.appendChild(notaBox);
+
+  const flags = document.createElement("div");
+  flags.className = "tracking-flags";
+  flags.innerHTML = `
+    <label class="library-check" title="Iniciado">
+      <input type="checkbox" data-field="iniciado" ${b.iniciado ? "checked" : ""}><span>▶</span>
+    </label>
+    <label class="library-check" title="Finalizado">
+      <input type="checkbox" data-field="finalizado" ${b.finalizado ? "checked" : ""}><span>✓</span>
+    </label>
+    <label class="library-check" title="Platinado">
+      <input type="checkbox" data-field="platinado" ${b.platinado ? "checked" : ""}><span>🏆</span>
+    </label>
+  `;
+  // Cascateamento das flags (pedido do usuário 28/08: "quando marcar
+  // finalizado, já marcar o iniciado também, e solicitar a nota, idem
+  // para o platinado"). Platinado implica finalizado, que implica
+  // iniciado. Ao DESMARCAR vale o contrário (desmarcar iniciado tira
+  // finalizado/platinado) - senão dá pra ficar com "platinado mas não
+  // iniciado", que foi exatamente o estado incoerente que gerou
+  // confusão. Cada campo que muda de verdade é gravado, um por um.
+  const ORDEM = ["iniciado", "finalizado", "platinado"];
+  const chk = (campo) => flags.querySelector(`input[data-field="${campo}"]`);
+
+  flags.querySelectorAll("input").forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      const campo = e.target.dataset.field;
+      const ligado = e.target.checked;
+      const i = ORDEM.indexOf(campo);
+      const alterados = [[campo, ligado]];
+
+      if (ligado) {
+        for (const anterior of ORDEM.slice(0, i)) {          // implica os de baixo
+          if (!chk(anterior).checked) { chk(anterior).checked = true; alterados.push([anterior, true]); }
+        }
+      } else {
+        for (const posterior of ORDEM.slice(i + 1)) {        // derruba os de cima
+          if (chk(posterior).checked) { chk(posterior).checked = false; alterados.push([posterior, false]); }
+        }
+      }
+
+      for (const [c, v] of alterados) { b[c] = v; onChange(c, v); }
+
+      // Pede a nota ao concluir, se ainda não tiver uma.
+      if (ligado && (campo === "finalizado" || campo === "platinado")
+          && (notaBox.notaAtual() === null || notaBox.notaAtual() === undefined)) {
+        const digitado = prompt(`Que nota você dá pra "${nome}"? (0 a 11, vazio pra deixar sem nota)`, "");
+        if (digitado !== null) {
+          const limpo = digitado.trim().replace(",", ".");
+          if (limpo !== "") {
+            const n = parseFloat(limpo);
+            if (Number.isNaN(n) || n < 0 || n > 11) {
+              alert("nota precisa ser um número entre 0 e 11 - deixei sem nota");
+            } else {
+              const nota = Math.round(n * 10) / 10;
+              notaBox.definirNota(nota, true);
+              b.nota = nota;
+              onChange("nota", nota);
+            }
+          }
+        }
+      }
+    });
+  });
+  div.appendChild(flags);
+
+  const acoes = document.createElement("div");
+  acoes.className = "tracking-acoes";
+
+  const obsBtn = document.createElement("button");
+  obsBtn.type = "button";
+  obsBtn.className = "icon-btn" + (b.observacoes || b.tempo ? " ativo" : "");
+  obsBtn.textContent = "💬";
+  obsBtn.title = "Comentário e tempo jogado";
+  obsBtn.addEventListener("click", () => {
+    openObs(nome, b, (campos) => {
+      for (const [campo, valor] of Object.entries(campos)) {
+        if (valor === (b[campo] ?? null)) continue; // só grava o que mudou de verdade
+        b[campo] = valor;
+        onChange(campo, valor);
+      }
+      obsBtn.classList.toggle("ativo", !!(b.observacoes || b.tempo));
+    });
+  });
+  acoes.appendChild(obsBtn);
+
+  for (const extra of extras || []) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "icon-btn" + (extra.ativo ? " ativo" : "");
+    btn.textContent = extra.icone;
+    btn.title = extra.titulo;
+    if (extra.arquivo) {
+      // Upload de capa precisa de <input type=file> de verdade - o
+      // botão só dispara o clique nele (escondido).
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/png,image/jpeg";
+      input.hidden = true;
+      input.addEventListener("change", (e) => { if (e.target.files[0]) extra.onClick(e.target.files[0]); });
+      btn.addEventListener("click", () => input.click());
+      acoes.appendChild(input);
+    } else {
+      btn.addEventListener("click", () => extra.onClick(btn));
+    }
+    acoes.appendChild(btn);
+  }
+  div.appendChild(acoes);
+  return div;
+}
+
+// `code` (código do sistema, ex: "SFC"/"PS2") é obrigatório - o
+// servidor só cruza/cria registro pra ROM quando nome E plataforma
+// batem com esse código (core.library.rom_code_for_plataforma), nunca
+// só por nome (achado 27/08: nome igual em plataforma diferente pode
+// ser jogo DIFERENTE de verdade - ver PLATAFORMA_ROM_CODES).
+async function trackGame(nome, code, plataforma, fonte, field, value) {
+  return salvarCampo("/api/library/track", { nome, code, plataforma, fonte, field, value });
+}
+
 function buildCoverCard(code, item, cacheBust) {
-  const { file, label, flagged, duplicated, status, has_save, has_state, display_name } = item;
+  const { file, label, flagged, duplicated, status, has_save, has_state, display_name, biblioteca } = item;
   // display_name só existe pro Arcade (nome real do jogo, ex: "Metal
   // Slug 2") - o romset continua se chamando "mslug2" no arquivo, no
   // rename, em tudo que mexe em disco. Isso aqui é só pra tela: mostra
@@ -137,16 +404,35 @@ function buildCoverCard(code, item, cacheBust) {
   const noCover = status === "no_cover"; // ROM já organizada, mas sem capa nenhuma ainda (ver missing_cover_labels)
   const renamedPending = status === "renamed_pending";
   const src = file ? `/images/${code}/${encodeURIComponent(file)}` + (cacheBust ? `?t=${Date.now()}` : "") : null;
+  // Cruzamento com a Biblioteca (server já casou por nome normalizado,
+  // ver gui/server.py) - só mostra o que já está lá, não edita nada
+  // daqui (edição continua na aba Biblioteca).
+  const libBadges = [];
+  if (biblioteca) {
+    if (biblioteca.platinado) libBadges.push("🏆");
+    else if (biblioteca.finalizado) libBadges.push("✓");
+    else if (biblioteca.iniciado) libBadges.push("▶");
+    if (biblioteca.nota !== null) libBadges.push(`★${biblioteca.nota}`);
+  }
+  // Errada e Duplicada eram 2 flags separadas - unificadas numa só
+  // ("marcada"): com a galeria mais consolidada, o usuário mesmo olha
+  // e decide se é duplicata ou capa errada, não precisa o sistema
+  // distinguir os dois (pedido do usuário, 27/08). Item antigo
+  // marcado "duplicate" no registry continua tratado como "marcado"
+  // aqui - Desmarcar chama /api/cover/unflag, que já limpa qualquer
+  // status (não só flagged_wrong), então nada fica preso no estado
+  // antigo.
+  const attention = flagged || duplicated;
   const div = document.createElement("div");
-  div.className = "cover" + (flagged ? " flagged" : "") + (duplicated ? " duplicated" : "") + (renamedPending ? " renamed" : "") + (noCover ? " no-cover" : "");
+  div.className = "cover" + (attention ? " flagged" : "") + (renamedPending ? " renamed" : "") + (noCover ? " no-cover" : "");
   div.dataset.label = label;
   div.innerHTML = `
     <div class="cover-img-wrap">
       ${noCover
         ? '<div class="cover-placeholder">🖼<br>sem capa</div>'
         : `<img src="${src}" alt="${shown}">
-           ${flagged ? '<span class="flag-badge">⚑ marcada</span>' : ""}
-           ${duplicated ? '<span class="dup-badge">⧉ duplicada</span>' : ""}
+           ${attention ? '<span class="flag-badge">⚑ marcada</span>' : ""}
+           ${libBadges.length ? `<span class="lib-badge" title="Biblioteca">${libBadges.join(" ")}</span>` : ""}
            ${renamedPending ? '<span class="rename-badge">✎ renomeada</span>' : ""}`}
     </div>
     <div class="label" title="${label}">${shown}</div>
@@ -155,31 +441,31 @@ function buildCoverCard(code, item, cacheBust) {
       ${has_state ? '<button class="tiny secondary" data-action="delete-state" title="Apagar state">⏱ State</button>' : ""}
     </div>` : ""}
     <div class="cover-actions">
-      ${noCover ? "" : `
-      <button class="tiny ${flagged ? "" : "secondary"}" data-action="flag">${flagged ? "Desmarcar" : "⚑ Errada"}</button>
-      <button class="tiny ${duplicated ? "" : "secondary"}" data-action="duplicate">${duplicated ? "Desmarcar" : "⧉ Duplicada"}</button>
-      <button class="tiny secondary" data-action="rename">✎ Renomear</button>`}
-      <button class="tiny secondary" data-action="search">🔍 Buscar</button>
-      <button class="tiny secondary" data-action="upload">⬆ ${noCover ? "Adicionar" : "Trocar"}</button>
+      ${noCover ? "" : `<button class="tiny ${attention ? "" : "secondary"}" data-action="flag">${attention ? "Desmarcar" : "⚑ Marcar"}</button>`}
+      <button class="tiny secondary" data-action="edit">✎ Editar</button>
       ${noCover ? "" : '<button class="tiny danger" data-action="delete">🗑 Apagar</button>'}
-      <input type="file" accept="image/png,image/jpeg" class="upload-input" hidden>
     </div>
   `;
   if (!noCover) {
     div.querySelector("img").addEventListener("click", () => openLightbox(src, label, display_name));
-    div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, flagged));
-    div.querySelector('[data-action="duplicate"]').addEventListener("click", () => toggleDuplicate(code, label, duplicated));
-    div.querySelector('[data-action="rename"]').addEventListener("click", () => renameCover(code, label, display_name));
+    div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, attention));
     div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteCover(code, label));
   }
-  div.querySelector('[data-action="search"]').addEventListener("click", () => openSearch(code, label, display_name));
-  const fileInput = div.querySelector(".upload-input");
-  div.querySelector('[data-action="upload"]').addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => uploadCover(code, label, fileInput.files[0]));
+  div.querySelector('[data-action="edit"]').addEventListener("click", () => openEdit(code, label, display_name, noCover));
   const delSaveBtn = div.querySelector('[data-action="delete-save"]');
   if (delSaveBtn) delSaveBtn.addEventListener("click", () => deleteSaveOrState(label, "save", delSaveBtn));
   const delStateBtn = div.querySelector('[data-action="delete-state"]');
   if (delStateBtn) delStateBtn.addEventListener("click", () => deleteSaveOrState(label, "state", delStateBtn));
+
+  // Tracking universal (iniciado/finalizado/platinado/nota) - pedido do
+  // usuário 27/08: mesma edição inline que a Biblioteca já tinha, agora
+  // em qualquer ROM leve também (cria o registro na Biblioteca sozinho
+  // na primeira edição, ver /api/library/track).
+  const sysLabel = (systems.find(s => s.code === code) || {}).capas || code;
+  div.appendChild(buildTrackingRow(biblioteca, (field, value) => {
+    item.biblioteca = { ...(item.biblioteca || { nota: null, iniciado: false, finalizado: false, platinado: false }), [field]: value };
+    trackGame(shown, code, sysLabel, `rom:${code}`, field, value);
+  }, shown));
   return div;
 }
 
@@ -237,22 +523,24 @@ async function deleteCover(code, label) {
  * atualiza currentItems (a fonte de verdade dos filtros) e some com o
  * card se ele deixou de bater com o filtro ativo (ex: desmarcar uma
  * capa com "só marcadas" ligado). */
-function refreshCard(code, label, flagged, knownFile, duplicated = false) {
+function refreshCard(code, label, flagged, knownFile) {
   const idx = currentItems.findIndex(i => i.label === label);
   const old = document.querySelector(`#gallery .cover[data-label="${CSS.escape(label)}"]`);
   const file = knownFile || (old && decodeURIComponent(old.querySelector("img").src.split("/").pop().split("?")[0]));
-  const status = flagged ? "flagged_wrong" : (duplicated ? "duplicate" : "manual");
+  // Flag/Desmarcar sempre grava "flagged_wrong" agora (flag única,
+  // duplicate/flagged_wrong unificados - ver buildCoverCard) - item
+  // antigo com status "duplicate" só reaparece assim depois do
+  // próximo toggle, até lá continua exibido via `duplicated` (abaixo).
+  const status = flagged ? "flagged_wrong" : "manual";
 
   if (idx >= 0) {
-    currentItems[idx] = { ...currentItems[idx], file: file || currentItems[idx].file, flagged, duplicated, status };
+    currentItems[idx] = { ...currentItems[idx], file: file || currentItems[idx].file, flagged, duplicated: false, status };
   }
 
   const onlyFlagged = document.getElementById("filter-flagged").checked;
   const onlyNoMatch = document.getElementById("filter-nomatch").checked;
-  const onlyDuplicated = document.getElementById("filter-duplicated").checked;
-  const stillMatchesFilter = !(onlyFlagged || onlyNoMatch || onlyDuplicated) ||
-    (onlyFlagged && status === "flagged_wrong") || (onlyNoMatch && status === "no_match") ||
-    (onlyDuplicated && status === "duplicate");
+  const stillMatchesFilter = !(onlyFlagged || onlyNoMatch) ||
+    (onlyFlagged && status === "flagged_wrong") || (onlyNoMatch && status === "no_match");
 
   if (!old) {
     if (stillMatchesFilter) return selectSystem(code); // card não estava visível - recarrega tudo pra achar posição certa
@@ -264,8 +552,9 @@ function refreshCard(code, label, flagged, knownFile, duplicated = false) {
   }
   const prev = idx >= 0 ? currentItems[idx] : {};
   const newCard = buildCoverCard(code, {
-    file, label, flagged, duplicated, status,
+    file, label, flagged, duplicated: false, status,
     has_save: prev.has_save, has_state: prev.has_state, display_name: prev.display_name,
+    biblioteca: prev.biblioteca,
   }, true);
   old.replaceWith(newCard);
 }
@@ -280,16 +569,6 @@ async function toggleFlag(code, label, currentlyFlagged) {
   refreshCard(code, label, !currentlyFlagged);
 }
 
-async function toggleDuplicate(code, label, currentlyDuplicated) {
-  const endpoint = currentlyDuplicated ? "unduplicate" : "duplicate";
-  await fetch(`/api/cover/${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, label }),
-  });
-  refreshCard(code, label, false, null, !currentlyDuplicated);
-}
-
 function describeCascade(cascade) {
   const parts = [];
   const romMsg = {
@@ -302,30 +581,6 @@ function describeCascade(cascade) {
   if (cascade.saves.length) parts.push(`${cascade.saves.length} save(s) renomeado(s)`);
   if (cascade.states.length) parts.push(`${cascade.states.length} state(s) renomeado(s)`);
   return parts.join(" · ");
-}
-
-async function renameCover(code, label, displayName) {
-  // O prefill do prompt fica sempre no nome curto de verdade (label) -
-  // é ele que vira arquivo em disco. displayName só entra no texto da
-  // pergunta, pra quem tá renomeando um romset de Arcade saber qual
-  // jogo é "mslug2" sem precisar decorar.
-  const hint = displayName ? ` ("${displayName}")` : "";
-  const input = prompt(`Novo nome da capa${hint} (sem extensão) - também tenta renomear ROM e save/state junto:`, label);
-  if (input === null) return;
-  const newLabel = input.trim();
-  if (!newLabel || newLabel === label) return;
-  const res = await fetch("/api/cover/rename", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, label, new_label: newLabel }),
-  });
-  const data = await res.json();
-  if (res.ok) {
-    selectSystem(code); // ordem alfabetica muda de posicao - recarrega a galeria inteira
-    if (data.cascade) alert(describeCascade(data.cascade));
-  } else {
-    alert(`erro ao renomear: ${data.error || "falha"}`);
-  }
 }
 
 function uploadCover(code, label, file) {
@@ -362,7 +617,7 @@ function closeLightbox() {
 
 document.getElementById("lightbox").addEventListener("click", closeLightbox);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { closeLightbox(); closeSettings(); closeSearch(); closeHeavy(); closeOrganize(); }
+  if (e.key === "Escape") { closeLightbox(); closeSettings(); closeEdit(); closeOrganize(); closeSortear(); closeMaint(); closeObs(); closeLista(); closeCapa(); closeEditar(); }
 });
 
 async function openSettings() {
@@ -425,20 +680,27 @@ document.getElementById("settings-modal").addEventListener("click", (e) => {
 
 let searchCtx = { code: null, label: null };
 
-function openSearch(code, label, displayName) {
+function openEdit(code, label, displayName, noCover) {
   // searchCtx.label é sempre o nome curto de verdade (o que vira
-  // arquivo em disco) - displayName só melhora o que aparece na tela
-  // e o termo de busca pré-preenchido (buscar "Metal Slug 2" nas
-  // fontes de capa dá resultado bem melhor que buscar "mslug2").
-  searchCtx = { code, label };
+  // arquivo em disco) - displayName só melhora o que aparece na tela,
+  // o campo de renomear (prefill) e o termo de busca pré-preenchido
+  // (buscar "Metal Slug 2" nas fontes de capa dá resultado bem melhor
+  // que buscar "mslug2"). Um modal só pras 3 ações que antes eram
+  // botões separados (Renomear/Buscar/Trocar) - pedido do usuário
+  // (27/08): "unificar... e ai sim abre um popup pra ver se vai mudar
+  // capa ou nome". Sem capa ainda (noCover) esconde Renomear (não tem
+  // o que renomear até existir uma capa de verdade).
+  searchCtx = { code, label, displayName };
   document.getElementById("search-label").textContent = displayName || label;
+  document.getElementById("edit-rename-row").classList.toggle("hidden", noCover);
+  document.getElementById("edit-rename-input").value = label;
   document.getElementById("search-query").value = displayName || label;
   document.getElementById("search-results").innerHTML = "";
   document.getElementById("search-modal").classList.remove("hidden");
   runSearch();
 }
 
-function closeSearch() {
+function closeEdit() {
   document.getElementById("search-modal").classList.add("hidden");
 }
 
@@ -496,7 +758,7 @@ async function selectCandidate(item) {
     return;
   }
   if (res.ok) {
-    closeSearch();
+    closeEdit();
     refreshCard(searchCtx.code, searchCtx.label, false, searchCtx.label + ".png");
   } else {
     const data = await res.json();
@@ -504,13 +766,36 @@ async function selectCandidate(item) {
   }
 }
 
-document.getElementById("btn-search-close").addEventListener("click", closeSearch);
+document.getElementById("btn-search-close").addEventListener("click", closeEdit);
 document.getElementById("btn-search-go").addEventListener("click", runSearch);
 document.getElementById("search-query").addEventListener("keydown", (e) => {
   if (e.key === "Enter") runSearch();
 });
 document.getElementById("search-modal").addEventListener("click", (e) => {
-  if (e.target.id === "search-modal") closeSearch();
+  if (e.target.id === "search-modal") closeEdit();
+});
+document.getElementById("btn-edit-rename").addEventListener("click", async () => {
+  const newLabel = document.getElementById("edit-rename-input").value.trim();
+  if (!newLabel || newLabel === searchCtx.label) return;
+  const res = await fetch("/api/cover/rename", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: searchCtx.code, label: searchCtx.label, new_label: newLabel }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    closeEdit();
+    selectSystem(searchCtx.code); // ordem alfabetica muda de posicao - recarrega a galeria inteira
+    if (data.cascade) alert(describeCascade(data.cascade));
+  } else {
+    alert(`erro ao renomear: ${data.error || "falha"}`);
+  }
+});
+document.getElementById("edit-upload-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  closeEdit();
+  uploadCover(searchCtx.code, searchCtx.label, file);
 });
 
 function startFetch(fallbackSource) {
@@ -570,102 +855,118 @@ document.getElementById("btn-fallback-launchbox").addEventListener("click", () =
 document.getElementById("btn-fallback-screenscraper").addEventListener("click", () => startFetch("screenscraper"));
 
 let heavySystems = [];
-let currentHeavy = null;
 let heavyItems = [];
-
-function openHeavy() {
-  document.getElementById("heavy-modal").classList.remove("hidden");
-  loadHeavySystems();
-}
-
-function closeHeavy() {
-  document.getElementById("heavy-modal").classList.add("hidden");
-}
-
-async function loadHeavySystems() {
-  const res = await fetch("/api/heavy/systems");
-  heavySystems = await res.json();
-  const tabs = document.getElementById("heavy-tabs");
-  tabs.innerHTML = "";
-  for (const sys of heavySystems) {
-    const tab = document.createElement("div");
-    tab.className = "tab";
-    tab.dataset.code = sys.code;
-    tab.textContent = sys.code;
-    tab.addEventListener("click", () => selectHeavySystem(sys.code));
-    tabs.appendChild(tab);
-  }
-  if (heavySystems.length === 0) {
-    document.getElementById("heavy-list").innerHTML =
-      '<div class="empty-state">Nenhum sistema pesado configurado em config.toml [heavy_systems].</div>';
-    return;
-  }
-  selectHeavySystem(currentHeavy && heavySystems.some(s => s.code === currentHeavy) ? currentHeavy : heavySystems[0].code);
-}
 
 function formatGB(bytes) {
   return (bytes / (1024 ** 3)).toFixed(2) + " GB";
 }
 
-async function selectHeavySystem(code) {
-  currentHeavy = code;
-  document.querySelectorAll("#heavy-tabs .tab").forEach(tab => {
-    tab.classList.toggle("active", tab.dataset.code === code);
-  });
-  const list = document.getElementById("heavy-list");
-  list.innerHTML = '<div class="empty-state">carregando...</div>';
+// ROMs pesadas agora é aba do #system-tabs, não popup (pedido do
+// usuário, 27/08: "mesma visualização das ROMs normais") - grade de
+// capa igual a galeria leve, com botões próprios (Enviar/Baixar no
+// lugar de Editar, já que não faz sentido editar capa/nome de um item
+// que pode nem estar baixado ainda).
+async function selectHeavyTab(code) {
+  currentSystem = code;
+  currentKind = "pesado";
+  activateTab(code);
+  setControlsForKind("pesado");
+  const sys = heavySystems.find(s => s.code === code);
+  document.getElementById("current-system").textContent = `${code} — ${sys.nome} (pesado)`;
+
+  const gallery = document.getElementById("gallery");
+  gallery.innerHTML = '<div class="empty-state">carregando (catálogo do Drive pode demorar)...</div>';
   const res = await fetch(`/api/heavy/roms/${code}`);
   const data = await res.json();
   heavyItems = data.items;
-  document.getElementById("heavy-status").textContent = data.android_ok ? "" : "(celular não conectado)";
-  renderHeavyList();
+  if (!data.android_ok) {
+    document.getElementById("current-system").textContent += " · celular não conectado";
+  }
+  renderHeavyGrid();
 }
 
-function renderHeavyList() {
-  const list = document.getElementById("heavy-list");
-  list.innerHTML = "";
+function renderHeavyGrid() {
+  const gallery = document.getElementById("gallery");
+  gallery.innerHTML = "";
+  const onlyNoCover = document.getElementById("heavy-filter-nocover").checked;
+  const items = onlyNoCover ? heavyItems.filter(i => !i.capa) : heavyItems;
+
   if (heavyItems.length === 0) {
-    list.innerHTML = `<div class="empty-state">Nada em roms_root/${currentHeavy}/</div>`;
+    gallery.innerHTML = `<div class="empty-state">Nada em roms_root/${currentSystem}/ nem no Drive.</div>`;
     return;
   }
-  for (const item of heavyItems) {
-    const onCelular = item.status === "no_celular";
-    const row = document.createElement("div");
-    row.className = "heavy-item";
-    row.dataset.name = item.name;
-
-    if (!item.in_pc) {
-      // só existe no Drive - nada local pra renomear/enviar/apagar ainda
-      row.innerHTML = `
-        <div class="heavy-item-name" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
-        <div class="heavy-item-size">${formatGB(item.size)}</div>
-        <div class="heavy-item-status">☁ só no Drive</div>
-        <button class="tiny" data-action="download">⬇ Baixar do Drive</button>
-      `;
-      row.querySelector('[data-action="download"]').addEventListener("click", () => downloadHeavyItem(currentHeavy, item.name));
-      list.appendChild(row);
-      continue;
-    }
-
-    const driveBadge = item.in_drive ? " · ☁ no Drive" : "";
-    row.innerHTML = `
-      <div class="heavy-item-name" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
-      <div class="heavy-item-size">${formatGB(item.size)}</div>
-      <div class="heavy-item-status ${onCelular ? "ok" : ""}">${onCelular ? "no celular" : "só no PC"}${driveBadge}</div>
-      <button class="tiny secondary" data-action="rename">✎ Renomear</button>
-      <button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>
-      <button class="tiny danger" data-action="delete">🗑 Apagar</button>
-    `;
-    row.querySelector('[data-action="send"]').addEventListener("click", () => sendHeavyItem(currentHeavy, item.name, onCelular));
-    row.querySelector('[data-action="rename"]').addEventListener("click", () => renameHeavyItem(currentHeavy, item));
-    row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHeavyItem(currentHeavy, item));
-    list.appendChild(row);
+  if (items.length === 0) {
+    gallery.innerHTML = '<div class="empty-state">Nada bate com esse filtro.</div>';
+    return;
   }
+  for (const item of items) {
+    gallery.appendChild(buildHeavyCard(currentSystem, item));
+  }
+}
+
+document.getElementById("heavy-filter-nocover").addEventListener("change", renderHeavyGrid);
+
+function stemOf(item) {
+  if (item.is_dir) return item.name;
+  const idx = item.name.lastIndexOf(".");
+  return idx > 0 ? item.name.slice(0, idx) : item.name;
+}
+
+function buildHeavyCard(code, item) {
+  const notInPc = !item.in_pc;
+  const onCelular = item.status === "no_celular";
+  const div = document.createElement("div");
+  div.className = "cover";
+  div.dataset.label = item.name;
+  // item.capa já vem conferido pelo servidor (existe no disco ou não,
+  // ver gui/server.py) - evita <img> quebrada gerando 404 no console
+  // pra todo item sem match exato (PS1 nunca tem, ver COVERS_EXCLUDED).
+  const coverHtml = item.capa
+    ? `<img src="${item.capa}" alt="${item.name}">`
+    : `<div class="cover-placeholder">${item.is_dir ? "📁" : "🖼<br>sem capa"}</div>`;
+  div.innerHTML = `
+    <div class="cover-img-wrap">
+      ${coverHtml}
+      ${notInPc ? '<span class="lib-badge">☁ só no Drive</span>' : (item.in_drive ? '<span class="lib-badge">☁ no Drive</span>' : "")}
+    </div>
+    <div class="label" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
+    <div class="card-meta">${notInPc ? "só no Drive" : (onCelular ? "no celular" : "só no PC")}</div>
+    <div class="cover-actions">
+      ${notInPc
+        ? '<button class="tiny" data-action="download">⬇ Baixar</button>'
+        : `<button class="tiny secondary" data-action="rename">✎ Renomear</button>
+           <button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>
+           <button class="tiny danger" data-action="delete">🗑 Apagar</button>`}
+    </div>
+  `;
+
+  if (notInPc) {
+    div.querySelector('[data-action="download"]').addEventListener("click", () => downloadHeavyItem(code, item.name));
+  } else {
+    div.querySelector('[data-action="rename"]').addEventListener("click", () => renameHeavyItem(code, item));
+    div.querySelector('[data-action="send"]').addEventListener("click", () => sendHeavyItem(code, item.name, onCelular));
+    div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHeavyItem(code, item));
+  }
+
+  // Tracking universal (iniciado/finalizado/platinado/nota) - mesmo
+  // mecanismo da ROM leve (ver buildCoverCard), fonte "rom:<CODIGO>" e
+  // nome sempre o stem sem extensão (mesmo valor que a Biblioteca já
+  // cruza, ver biblioteca_info em /api/heavy/roms).
+  const sysLabel = (heavySystems.find(s => s.code === code) || {}).nome || code;
+  const nome = stemOf(item);
+  div.appendChild(buildTrackingRow(item.biblioteca, (field, value) => {
+    item.biblioteca = { ...(item.biblioteca || { nota: null, iniciado: false, finalizado: false, platinado: false }), [field]: value };
+    trackGame(nome, code, sysLabel, `rom:${code}`, field, value);
+  }, nome, [
+    { icone: "🖼", titulo: "Buscar/trocar capa",
+      onClick: () => openCapa(nome, { kind: "rom", code, label: nome }, () => selectHeavyTab(code)) },
+  ]));
+  return div;
 }
 
 function sendHeavyItem(code, name, overwrite) {
   if (overwrite && !confirm(`"${name}" já está no celular. Sobrescrever?`)) return;
-  const row = document.querySelector(`.heavy-item[data-name="${CSS.escape(name)}"]`);
+  const row = document.querySelector(`.cover[data-label="${CSS.escape(name)}"]`);
   const btn = row && row.querySelector('[data-action="send"]');
   if (btn) { btn.disabled = true; btn.textContent = "Enviando..."; }
 
@@ -687,14 +988,14 @@ function sendHeavyItem(code, name, overwrite) {
           alert(`erro: ${data.message}`);
         } else if (data.type === "job_done") {
           evtSource.close();
-          if (currentHeavy === code) selectHeavySystem(code); // recarrega status
+          if (currentSystem === code) selectHeavyTab(code); // recarrega status
         }
       };
     });
 }
 
 function downloadHeavyItem(code, name) {
-  const row = document.querySelector(`.heavy-item[data-name="${CSS.escape(name)}"]`);
+  const row = document.querySelector(`.cover[data-label="${CSS.escape(name)}"]`);
   const btn = row && row.querySelector('[data-action="download"]');
   if (btn) { btn.disabled = true; btn.textContent = "Baixando..."; }
 
@@ -714,16 +1015,10 @@ function downloadHeavyItem(code, name) {
           alert(`erro: ${data.message}`);
         } else if (data.type === "job_done") {
           evtSource.close();
-          if (currentHeavy === code) selectHeavySystem(code); // recarrega status
+          if (currentSystem === code) selectHeavyTab(code); // recarrega status
         }
       };
     });
-}
-
-function stemOf(item) {
-  if (item.is_dir) return item.name;
-  const idx = item.name.lastIndexOf(".");
-  return idx > 0 ? item.name.slice(0, idx) : item.name;
 }
 
 async function renameHeavyItem(code, item) {
@@ -740,7 +1035,7 @@ async function renameHeavyItem(code, item) {
   const data = await res.json();
   if (res.ok) {
     if (data.cascade) alert(describeCascade(data.cascade));
-    selectHeavySystem(code);
+    selectHeavyTab(code);
   } else {
     alert(`erro ao renomear: ${data.error || "falha"}`);
   }
@@ -757,17 +1052,11 @@ async function deleteHeavyItem(code, item) {
   const data = await res.json();
   if (res.ok) {
     alert(describeDeleteCascade(data.cascade));
-    selectHeavySystem(code);
+    selectHeavyTab(code);
   } else {
     alert(`erro ao apagar: ${data.error || "falha"}`);
   }
 }
-
-document.getElementById("btn-heavy").addEventListener("click", openHeavy);
-document.getElementById("btn-heavy-close").addEventListener("click", closeHeavy);
-document.getElementById("heavy-modal").addEventListener("click", (e) => {
-  if (e.target.id === "heavy-modal") closeHeavy();
-});
 
 function openOrganize() {
   document.getElementById("organize-modal").classList.remove("hidden");
@@ -1211,6 +1500,827 @@ document.getElementById("btn-saves-add-toggle").addEventListener("click", () => 
   document.getElementById("saves-add-card").classList.toggle("hidden");
 });
 document.getElementById("saves-add-confirm").addEventListener("click", addMemcard);
+
+// Biblioteca - jogos "de fora" das ROMs (Steam/Heroic/PSN/Xbox +
+// planilha importada, ver core/library.py). V1 é só visualização/busca
+// - carrega tudo de uma vez (few centenas de jogos, não escala mal) e
+// filtra no cliente; cadastro continua via CLI (library-add etc).
+let libraryGames = [];
+
+async function selectLibraryTab() {
+  currentSystem = "BIBLIOTECA";
+  currentKind = "biblioteca";
+  activateTab("BIBLIOTECA");
+  setControlsForKind("biblioteca");
+  await loadLibrary();
+}
+
+async function loadLibrary() {
+  document.getElementById("gallery").innerHTML = '<div class="empty-state">carregando...</div>';
+  const res = await fetch("/api/library");
+  libraryGames = await res.json();
+  renderLibraryGroupTabs();
+  renderLibraryGrid();
+}
+
+// Rótulo amigável pra fonte técnica - só exibição, não muda o dado
+// (mantém "psn"/"heroic:epic"/etc no library.json, que é o que o CLI
+// grava/lê). Fonte sem entrada aqui (jogo sem loja associada, veio só
+// da planilha) usa a própria plataforma como agrupamento (ver
+// libraryGroupsFor) em vez de um genérico "(sem fonte)" que escondia
+// que aquele jogo é, por exemplo, "Arcade" ou "Xbox One" físico.
+const FONTE_LABELS = {
+  "steam": "Steam",
+  "xbox": "Xbox",
+  "psn": "PSN (digital)",
+  "psn:fisico": "PSN (físico)",
+  "heroic:epic": "Epic Games",
+  "heroic:gog": "GOG",
+  "heroic:amazon": "Amazon Games",
+  // "switch" (27/08) precisa bater com o mesmo rótulo que a plataforma
+  // "Nintendo Switch" já usa (jogo de planilha sem fonte cai no
+  // fallback plataforma, ver libraryGroupsFor) - senão os 22 jogos
+  // recém importados (fonte "switch") viravam uma aba própria
+  // "switch" em vez de se juntar aos que já existiam na planilha.
+  "switch": "Nintendo Switch",
+};
+
+function fonteLabel(f) {
+  return FONTE_LABELS[f] || f;
+}
+
+// Fonte(s) de loja E plataforma, juntas (mudança 28/08) - antes era
+// "fonte se tiver, senão plataforma", o que escondia metade da verdade
+// pra jogo que o usuário tem em mais de um lugar: "A Plague Tale:
+// Innocence" está com plataforma "Xbox One" (onde ele FECHOU) e fonte
+// "heroic:epic" (onde também é dono), e só aparecia na aba Epic - o
+// Xbox, que é onde o progresso aconteceu, ficava de fora. Mesmo caso de
+// Overcooked/The Escapists 2/Mortal Kombat X. Agora aparece nas duas,
+// que é o que reflete a realidade. Rótulo repetido é deduplicado em
+// libraryTabGroupsFor.
+function libraryGroupsFor(g) {
+  return [...new Set([...g.fontes, g.plataforma])];
+}
+
+// Curadoria manual de agrupamento pra NAVEGAÇÃO (sub-abas) - nunca
+// mexe no dado gravado (plataforma do card continua mostrando o
+// modelo exato), só junta grupo quase-duplicado pra não poluir a
+// barra de abas. Pedido do usuário 27/08: "unir iOS e Android em
+// Mobile" + "curar melhor Xbox, pois tem só Xbox e lá tem por modelo e
+// tem os outros separados, series, 360 e one" - 4 variações de Xbox
+// (fonte "xbox" + plataforma "Xbox 360"/"Xbox One"/"Xbox Series S")
+// viram uma aba só. Aplicado sobre o RÓTULO amigável (pós-fonteLabel),
+// não sobre a chave técnica - por isso funciona pra fonte E plataforma
+// ao mesmo tempo (ambas já viraram rótulo antes de chegar aqui).
+const GROUP_TAB_ALIASES = {
+  "iOS": "Mobile",
+  "Android": "Mobile",
+  "Xbox 360": "Xbox",
+  "Xbox One": "Xbox",
+  "Xbox Series S": "Xbox",
+  // Mesma loja com dois nomes (plataforma gravada vs rótulo da fonte)
+  // - sem isso a união fonte+plataforma (ver libraryGroupsFor) criaria
+  // duas abas pro mesmo lugar.
+  "Epic Games Store": "Epic Games",
+  "PSN (PS4)": "PSN (digital)",
+  "PSN (PS5)": "PSN (digital)",
+  "PSN físico (PS4)": "PSN (físico)",
+};
+
+// Rótulos que descrevem COMO o jogo é possuído, não ONDE ele está -
+// aparecem no card, mas nunca viram aba própria (correção 28/08: o
+// usuário pediu "o ideal é ter PlayStation 3 e PlayStation 4 apenas, e
+// no jogo colocar a label PSN (digital) e Físico", e eu tinha deixado
+// os dois virarem aba ao lado das plataformas). A informação não se
+// perde: continua na linha de meta do card, ex: "PlayStation 4 · PSN
+// (físico)".
+const TAB_NAO_AGRUPA = new Set(["PSN (digital)", "PSN (físico)"]);
+
+function libraryTabGroupsFor(g) {
+  const labels = libraryGroupsFor(g)
+    .map(f => GROUP_TAB_ALIASES[fonteLabel(f)] || fonteLabel(f))
+    .filter(label => !TAB_NAO_AGRUPA.has(label));
+  return [...new Set(labels)];
+}
+
+// Sub-abas por plataforma/loja (pedido do usuário 27/08: "separar a
+// Biblioteca por plataforma, GOG, Amazon, Steam, PS4 e Xbox Series S")
+// - mesmo agrupamento de sempre (fonte da loja, ou a própria plataforma
+// pra jogo só de planilha sem loja associada, com a curadoria acima em
+// cima), só que virou aba em vez de <select>, mais fácil de "separar
+// visualmente" como pedido. "Todos" é a aba default (equivalente ao
+// "Todas as fontes" de antes).
+let currentLibraryGroup = "";
+
+function renderLibraryGroupTabs() {
+  const nav = document.getElementById("library-group-tabs");
+  const groups = new Set();
+  for (const g of libraryGames) {
+    for (const label of libraryTabGroupsFor(g)) groups.add(label);
+  }
+  if (!groups.has(currentLibraryGroup)) currentLibraryGroup = "";
+
+  nav.innerHTML = "";
+  const allTab = document.createElement("div");
+  allTab.className = "tab" + (currentLibraryGroup === "" ? " active" : "");
+  allTab.textContent = "Todos";
+  allTab.addEventListener("click", () => { currentLibraryGroup = ""; renderLibraryGroupTabs(); renderLibraryGrid(); });
+  nav.appendChild(allTab);
+
+  for (const label of [...groups].sort()) {
+    const tab = document.createElement("div");
+    tab.className = "tab" + (currentLibraryGroup === label ? " active" : "");
+    tab.textContent = label;
+    tab.addEventListener("click", () => { currentLibraryGroup = label; renderLibraryGroupTabs(); renderLibraryGrid(); });
+    nav.appendChild(tab);
+  }
+}
+
+function libraryMatchesFilters(g, fonte, status, noCover, mostrarOcultos) {
+  if (g.oculto && !mostrarOcultos) return false;
+  if (fonte && !libraryTabGroupsFor(g).includes(fonte)) return false;
+  if (noCover && g.capa) return false;
+  if (status === "iniciado" && !g.iniciado) return false;
+  if (status === "finalizado" && !g.finalizado) return false;
+  if (status === "nao_finalizado" && g.finalizado) return false;
+  if (status === "platinado" && !g.platinado) return false;
+  return true;
+}
+
+function renderLibraryGrid() {
+  const gallery = document.getElementById("gallery");
+  const status = document.getElementById("library-filter-status").value;
+  const noCover = document.getElementById("library-filter-nocover").checked;
+  const mostrarOcultos = document.getElementById("library-filter-ocultos").checked;
+  const sortBy = document.getElementById("library-sort").value;
+
+  let filtered = libraryGames.filter(g => libraryMatchesFilters(g, currentLibraryGroup, status, noCover, mostrarOcultos));
+  if (sortBy === "nota") {
+    // Ranking: maior nota primeiro, sem nota vai pro final (não é
+    // "nota zero" nem some da lista, só não participa da ordenação).
+    filtered = filtered
+      .filter(g => g.nota !== null)
+      .sort((a, b) => b.nota - a.nota || a.nome.localeCompare(b.nome));
+  } else {
+    filtered.sort((a, b) => a.nome.localeCompare(b.nome));
+  }
+
+  document.getElementById("current-system").textContent = `📚 Biblioteca — ${filtered.length} de ${libraryGames.length} jogo(s)`;
+
+  gallery.innerHTML = "";
+  if (filtered.length === 0) {
+    gallery.innerHTML = sortBy === "nota"
+      ? '<div class="empty-state">Nenhum jogo com nota pra rankear (ajuste os filtros ou dê uma nota primeiro).</div>'
+      : '<div class="empty-state">Nenhum jogo encontrado.</div>';
+    return;
+  }
+  filtered.forEach((g, i) => {
+    gallery.appendChild(buildLibraryCard(g, sortBy === "nota" ? i + 1 : null));
+  });
+}
+
+function buildLibraryCard(g, rank) {
+  // Badge só quando diz algo que a linha de plataforma já não diz -
+  // achado 27/08 (print do usuário): jogo sem fonte de loja mostra
+  // [plataforma] como badge também (libraryGroupsFor cai pra
+  // `[g.plataforma]` quando não tem fonte), duplicando o texto que já
+  // aparece uma linha acima; e jogo com UMA fonte só, cujo rótulo
+  // amigável é igual à plataforma gravada (ex: plataforma "Steam" +
+  // fonte "steam" -> "Steam"), duplicava do mesmo jeito. Só filtra o
+  // que é idêntico (case-insensitive) à plataforma - jogo com mais de
+  // uma fonte (ex: mesclado por nome com uma loja a mais) continua
+  // mostrando a(s) outra(s) como badge normalmente.
+  // Meta numa linha só (plataforma + loja extra) em vez de duas linhas
+  // separadas + fileira de badges - pedido do usuário 28/08 olhando o
+  // print do GOG: "os campos todos meio jogados ainda". Badge só quando
+  // diz algo que a plataforma já não diz (jogo sem fonte de loja tem
+  // badge = a própria plataforma, ver libraryGroupsFor; e fonte cujo
+  // rótulo é igual à plataforma duplicava do mesmo jeito).
+  // Dedup pelo APELIDO, não pelo texto cru (correção 28/08): "Epic
+  // Games Store" (plataforma) e "Epic Games" (rótulo da fonte
+  // heroic:epic) são a mesma loja escrita de dois jeitos, e apareciam
+  // as duas lado a lado ("Epic Games Store · Epic Games"); mesma coisa
+  // em "PSN físico (PS4) · PSN (físico)". GROUP_TAB_ALIASES já sabe
+  // quem é quem (é o mesmo mapa que junta as abas), então passar os
+  // dois lados por ele antes de comparar resolve.
+  const apelido = (s) => GROUP_TAB_ALIASES[s] || s;
+  const platApelido = apelido(g.plataforma);
+  const extras = [...new Set(
+    g.fontes.map(f => fonteLabel(f)).filter(label => apelido(label) !== platApelido)
+  )];
+  const meta = [g.plataforma, ...extras].join(" · ");
+
+  const div = document.createElement("div");
+  div.className = "cover" + (g.oculto ? " oculto" : "");
+  div.dataset.label = g.id;
+  div.innerHTML = `
+    <div class="cover-img-wrap">
+      ${g.capa_url
+        ? `<img src="${g.capa_url}" alt="">`
+        : `<div class="cover-placeholder">🖼<br>sem capa</div>`}
+      ${rank ? `<span class="lib-badge">#${rank}</span>` : ""}
+    </div>
+    <div class="label" title="${g.nome}">${g.nome}</div>
+    <div class="card-meta" title="${meta}">${meta}</div>
+  `;
+
+  div.appendChild(buildTrackingRow(g, (field, value) => {
+    g[field] = value;
+    updateLibraryField(g.id, field, value);
+  }, g.nome, [
+    { icone: "🖼", titulo: "Buscar/trocar capa",
+      // Recarrega do servidor em vez de só mexer no objeto local: é
+      // ele que monta a capa_url com a versão nova (ver com_versao),
+      // e sem isso o navegador continuaria mostrando a capa antiga.
+      onClick: () => openCapa(g.nome, { kind: "biblioteca", id: g.id }, () => loadLibrary()) },
+    { icone: "✎", titulo: "Editar dados do jogo",
+      onClick: () => openEditar(g, () => loadLibrary()) },
+    {
+      icone: "👁", titulo: g.oculto ? "Mostrar de novo" : "Ocultar da Biblioteca", ativo: g.oculto,
+      onClick: (btn) => {
+        g.oculto = !g.oculto;
+        btn.classList.toggle("ativo", g.oculto);
+        btn.title = g.oculto ? "Mostrar de novo" : "Ocultar da Biblioteca";
+        div.classList.toggle("oculto", g.oculto);
+        updateLibraryField(g.id, "oculto", g.oculto);
+        // Com "mostrar ocultos" desligado, o card some na hora de quem
+        // acabou de ser ocultado (senão fica um card "fantasma" que já
+        // não bate mais com o filtro ativo).
+        if (g.oculto && !document.getElementById("library-filter-ocultos").checked) div.remove();
+      },
+    },
+  ]));
+  return div;
+}
+
+// Erro de gravação precisa ser VISÍVEL e deixar claro que a tela ficou
+// diferente do disco (achado 28/08: o usuário clicou numa flag enquanto
+// o servidor estava fora do ar - a tela marcou, o disco não, e ficou a
+// impressão de "bugou"; só um F5 mostrava a verdade). Erro de rede
+// estourava sem try/catch nenhum e nem o alert aparecia.
+async function salvarCampo(url, corpo) {
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    if (res.ok) return true;
+    const data = await res.json().catch(() => ({}));
+    alert(`Não consegui salvar: ${data.error || "falha"}\n\nRecarregue a página (F5) - a tela pode estar mostrando algo diferente do que está salvo.`);
+  } catch (e) {
+    alert(`Não consegui salvar (servidor fora do ar?): ${e.message}\n\nRecarregue a página (F5) - a tela pode estar mostrando algo diferente do que está salvo.`);
+  }
+  return false;
+}
+
+async function updateLibraryField(gameId, field, value) {
+  return salvarCampo("/api/library/update", { id: gameId, field, value });
+}
+
+// Sorteio - traz a mesma lógica do comando "sortear" (core/sortear.py)
+// pra tela: pool único leve (local) + pesado (catálogo cacheado), peso
+// por jogo. Carrega a lista de sistemas só na primeira abertura.
+let sortearSystemsLoaded = false;
+
+function openSortear() {
+  document.getElementById("sortear-modal").classList.remove("hidden");
+  if (!sortearSystemsLoaded) {
+    loadSortearSystems();
+    sortearSystemsLoaded = true;
+  }
+}
+
+function closeSortear() {
+  document.getElementById("sortear-modal").classList.add("hidden");
+}
+
+async function loadSortearSystems() {
+  const select = document.getElementById("sortear-system");
+  const res = await fetch("/api/sortear/systems");
+  const systems = await res.json();
+  select.innerHTML = '<option value="">Sortear de tudo</option>' +
+    systems.map(s => `<option value="${s.code}">${s.label} (${s.kind})</option>`).join("");
+}
+
+async function runSortear() {
+  const result = document.getElementById("sortear-result");
+  const system = document.getElementById("sortear-system").value;
+  result.innerHTML = '<div class="empty-state">sorteando...</div>';
+
+  const res = await fetch(`/api/sortear?system=${encodeURIComponent(system)}`);
+  const data = await res.json();
+  if (!res.ok) {
+    result.innerHTML = `<div class="empty-state">${data.error || "falha ao sortear"}</div>`;
+    return;
+  }
+
+  let extra = "";
+  if (data.kind === "pesado") {
+    extra = data.local
+      ? '<div class="sortear-note">já está no PC</div>'
+      : `<div class="sortear-note">só no Drive - baixe com "heavy-roms ${data.codigo} --download"</div>`;
+  }
+  const cover = data.capa
+    ? `<img class="sortear-cover" src="${data.capa}" alt="">`
+    : "";
+  result.innerHTML = `
+    <div class="sortear-body">
+      ${cover}
+      <div>
+        <div class="sortear-nome">${data.nome}</div>
+        <div class="sortear-meta">${data.codigo} - ${data.label} (${data.kind}, ${data.pool_size} jogo(s) no pool)</div>
+        ${extra}
+      </div>
+    </div>
+  `;
+}
+
+// Editor de todos os campos de um jogo da Biblioteca (pedido do
+// usuário 28/08: "estender o editar nome para todos os campos" - o
+// gatilho foi um nome errado herdado da planilha que ele não tinha como
+// consertar pela tela). Grava tudo de uma vez em /api/library/edit
+// (tudo-ou-nada); nota/flags continuam na barra do card, que é edição
+// de um clique só. `id` e `fontes` ficam de fora de propósito - ver
+// EDITABLE_FIELDS em core/library.py.
+const EDITAR_CAMPOS = [
+  { campo: "nome", rotulo: "Nome" },
+  { campo: "plataforma", rotulo: "Plataforma" },
+  { campo: "genero", rotulo: "Gênero" },
+  { campo: "subgenero", rotulo: "Subgênero" },
+  { campo: "desenvolvedora", rotulo: "Desenvolvedora" },
+  { campo: "lancamento", rotulo: "Lançamento", dica: "aaaa-mm-dd" },
+  { campo: "data_final", rotulo: "Data que finalizou", dica: "aaaa-mm-dd" },
+  { campo: "tempo", rotulo: "Tempo jogado", dica: "ex: 31:40:00" },
+  { campo: "meta", rotulo: "Meta" },
+  { campo: "observacoes", rotulo: "Comentário", textarea: true },
+];
+
+let editarCtx = { id: null, onDone: null };
+
+function openEditar(g, onDone) {
+  editarCtx = { id: g.id, onDone };
+  const box = document.getElementById("editar-campos");
+  box.innerHTML = EDITAR_CAMPOS.map(({ campo, rotulo, dica, textarea }) => `
+    <label class="obs-campo">${rotulo}${dica ? ` <span class="dica">(${dica})</span>` : ""}
+      ${textarea
+        ? `<textarea data-campo="${campo}" rows="4"></textarea>`
+        : `<input type="text" data-campo="${campo}">`}
+    </label>
+  `).join("");
+  // Valor via .value (não no HTML) pra não precisar escapar aspas do
+  // conteúdo - nome de jogo tem apóstrofo o tempo todo ("Where's...").
+  for (const { campo } of EDITAR_CAMPOS) {
+    box.querySelector(`[data-campo="${campo}"]`).value = g[campo] ?? "";
+  }
+  document.getElementById("editar-status").textContent = "";
+  document.getElementById("editar-modal").classList.remove("hidden");
+}
+
+function closeEditar() {
+  document.getElementById("editar-modal").classList.add("hidden");
+  editarCtx = { id: null, onDone: null };
+}
+
+async function salvarEditar() {
+  if (!editarCtx.id) return;
+  const campos = {};
+  document.querySelectorAll("#editar-campos [data-campo]").forEach((el) => {
+    campos[el.dataset.campo] = el.value.trim() || null;
+  });
+  const status = document.getElementById("editar-status");
+  status.textContent = "salvando...";
+  status.style.color = "";
+  const res = await fetch("/api/library/edit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: editarCtx.id, campos }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    status.textContent = `erro: ${data.error || "falha"}`;
+    status.style.color = "var(--err)";
+    return;
+  }
+  const done = editarCtx.onDone;
+  closeEditar();
+  if (done) done();
+}
+
+document.getElementById("btn-editar-close").addEventListener("click", closeEditar);
+document.getElementById("btn-editar-save").addEventListener("click", salvarEditar);
+document.getElementById("editar-modal").addEventListener("click", (e) => {
+  if (e.target.id === "editar-modal") closeEditar();
+});
+
+// Capa: busca (SteamGridDB) + upload num popup só, servindo as TRÊS
+// abas (pedido do usuário 28/08: "para todos os itens da biblioteca,
+// não consigo buscar nem alterar capa... quero ir capeando todos os
+// jogos de todas as abas"). ROM leve já tinha isso via "✎ Editar" com
+// as fontes dela (libretro/LaunchBox/ScreenScraper); Biblioteca e ROM
+// pesada não tinham busca nenhuma, só upload. `alvo` é
+// {kind:"biblioteca", id} ou {kind:"rom", code, label}.
+let capaCtx = { alvo: null, onDone: null };
+
+function openCapa(nome, alvo, onDone) {
+  capaCtx = { alvo, onDone };
+  document.getElementById("capa-label").textContent = nome;
+  document.getElementById("capa-query").value = nome;
+  document.getElementById("capa-results").innerHTML = "";
+  document.getElementById("capa-modal").classList.remove("hidden");
+  buscarCapa();
+}
+
+function closeCapa() {
+  document.getElementById("capa-modal").classList.add("hidden");
+  capaCtx = { alvo: null, onDone: null };
+}
+
+async function buscarCapa() {
+  const box = document.getElementById("capa-results");
+  const q = document.getElementById("capa-query").value.trim();
+  if (q.length < 2) return;
+  box.innerHTML = '<div class="empty-state">buscando...</div>';
+  let itens;
+  try {
+    const res = await fetch(`/api/cover/search_sgdb?q=${encodeURIComponent(q)}`);
+    itens = await res.json();
+    if (itens.error) throw new Error(itens.error);
+  } catch (e) {
+    box.innerHTML = `<div class="empty-state">erro: ${e.message}</div>`;
+    return;
+  }
+  if (!itens.length) {
+    box.innerHTML = '<div class="empty-state">Nada encontrado - tenta outro termo.</div>';
+    return;
+  }
+  box.innerHTML = "";
+  for (const item of itens) {
+    const card = document.createElement("div");
+    card.className = "search-result";
+    card.innerHTML = `
+      <img src="${item.url}" loading="lazy" alt="${item.nome}">
+      <div class="search-result-name" title="${item.nome}">${item.nome}</div>
+      <div class="search-result-source">SteamGridDB</div>
+    `;
+    card.addEventListener("click", () => aplicarCapa(item.url));
+    box.appendChild(card);
+  }
+}
+
+async function aplicarCapa(url) {
+  const box = document.getElementById("capa-results");
+  box.innerHTML = '<div class="empty-state">aplicando...</div>';
+  const res = await fetch("/api/cover/apply_url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...capaCtx.alvo, url }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    box.innerHTML = `<div class="empty-state">erro: ${data.error || "falha"}</div>`;
+    return;
+  }
+  const done = capaCtx.onDone;
+  closeCapa();
+  if (done) done(data.file);
+}
+
+document.getElementById("btn-capa-close").addEventListener("click", closeCapa);
+document.getElementById("btn-capa-go").addEventListener("click", buscarCapa);
+document.getElementById("capa-query").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") buscarCapa();
+});
+document.getElementById("capa-modal").addEventListener("click", (e) => {
+  if (e.target.id === "capa-modal") closeCapa();
+});
+document.getElementById("capa-upload").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file || !capaCtx.alvo) return;
+  const alvo = capaCtx.alvo, done = capaCtx.onDone;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = reader.result.split(",")[1];
+    const url = alvo.kind === "biblioteca" ? "/api/library/cover_upload" : "/api/cover/upload";
+    const body = alvo.kind === "biblioteca"
+      ? { id: alvo.id, filename: file.name, data: base64 }
+      : { code: alvo.code, label: alvo.label, filename: file.name, data: base64 };
+    const res = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) return alert(`erro no upload: ${data.error || "falha"}`);
+    closeCapa();
+    if (done) done(data.file);
+  };
+  reader.readAsDataURL(file);
+  e.target.value = "";
+});
+
+// Comentário + tempo saíram do card pra um popup (pedido do usuário
+// 28/08: "o campo comentario, transformar em um botão -> pop up") - a
+// textarea no card empurrava tudo pra baixo e era o que mais deixava a
+// grade "jogada". Genérico: serve pro card da Biblioteca e pro de ROM
+// (leve/pesada), cada um passa seu próprio `onSave`.
+let obsCtx = { onSave: null };
+
+function openObs(nome, estado, onSave) {
+  obsCtx = { onSave };
+  document.getElementById("obs-label").textContent = nome;
+  document.getElementById("obs-tempo").value = estado.tempo ?? "";
+  document.getElementById("obs-text").value = estado.observacoes ?? "";
+  document.getElementById("obs-status").textContent = "";
+  document.getElementById("obs-modal").classList.remove("hidden");
+  document.getElementById("obs-text").focus();
+}
+
+function closeObs() {
+  document.getElementById("obs-modal").classList.add("hidden");
+  obsCtx = { onSave: null };
+}
+
+function salvarObs() {
+  if (!obsCtx.onSave) return;
+  obsCtx.onSave({
+    tempo: document.getElementById("obs-tempo").value.trim() || null,
+    observacoes: document.getElementById("obs-text").value.trim() || null,
+  });
+  document.getElementById("obs-status").textContent = "salvo";
+  setTimeout(closeObs, 400);
+}
+
+document.getElementById("btn-obs-close").addEventListener("click", closeObs);
+document.getElementById("btn-obs-save").addEventListener("click", salvarObs);
+document.getElementById("obs-modal").addEventListener("click", (e) => {
+  if (e.target.id === "obs-modal") closeObs();
+});
+
+// Ranking e Iniciados (pedido do usuário 28/08: botões próprios ao lado
+// de Sortear). Diferente das abas, cruzam a coleção INTEIRA de uma vez
+// - ROM leve, pesada e Biblioteca juntas - porque desde o tracking
+// universal o library.json é a fonte única de progresso pra qualquer
+// tipo de jogo (ver GET /api/ranking e /api/iniciados). Só leitura:
+// pra editar, o usuário vai no card do jogo na aba dele.
+async function openLista(tipo) {
+  const titulo = tipo === "ranking" ? "🏅 Ranking (por nota)" : "▶ Iniciados (ainda não finalizados)";
+  document.getElementById("lista-titulo").textContent = titulo;
+  const box = document.getElementById("lista-conteudo");
+  box.innerHTML = '<div class="empty-state">carregando...</div>';
+  document.getElementById("lista-modal").classList.remove("hidden");
+
+  const res = await fetch(`/api/${tipo}`);
+  const jogos = await res.json();
+  if (!jogos.length) {
+    box.innerHTML = `<div class="empty-state">${tipo === "ranking"
+      ? "Nenhum jogo com nota ainda."
+      : "Nenhum jogo em andamento - comece algum e marque ▶."}</div>`;
+    return;
+  }
+
+  box.innerHTML = "";
+  jogos.forEach((g, i) => {
+    const linha = document.createElement("div");
+    linha.className = "lista-item";
+    const cor = notaColor(g.nota);
+    linha.innerHTML = `
+      ${tipo === "ranking" ? `<span class="lista-pos">${i + 1}</span>` : ""}
+      ${g.capa_url
+        ? `<img class="lista-capa" src="${g.capa_url}" alt="" loading="lazy" title="Ampliar capa">`
+        : '<span class="lista-capa lista-capa-vazia">🖼</span>'}
+      <span class="lista-nome" title="${g.nome}">${g.nome}</span>
+      <span class="lista-plataforma">${g.plataforma}</span>
+      ${g.nota !== null ? `<span class="lista-nota" style="color:${cor};border-color:${cor}">${notaTexto(g.nota)}</span>` : ""}
+      <button class="icon-btn${g.observacoes || g.tempo ? " ativo" : ""}" type="button"
+              title="Comentário e tempo jogado">💬</button>
+    `;
+    // Capa amplia; 💬 abre o comentário (pedido do usuário 28/08:
+    // "em ranking e iniciados, permitir abrir a capa do jogo e ver o
+    // comentario feito"). Editável aqui também - grava por id, igual
+    // o card da Biblioteca (vale pra ROM também: desde o tracking
+    // universal todo jogo com progresso tem registro no library.json).
+    const img = linha.querySelector("img.lista-capa");
+    if (img) img.addEventListener("click", () => openLightbox(g.capa_url, g.nome));
+    linha.querySelector(".icon-btn").addEventListener("click", (e) => {
+      const btn = e.currentTarget;
+      openObs(g.nome, g, (campos) => {
+        for (const [campo, valor] of Object.entries(campos)) {
+          if (valor === (g[campo] ?? null)) continue;
+          g[campo] = valor;
+          updateLibraryField(g.id, campo, valor);
+        }
+        btn.classList.toggle("ativo", !!(g.observacoes || g.tempo));
+      });
+    });
+    box.appendChild(linha);
+  });
+}
+
+function closeLista() {
+  document.getElementById("lista-modal").classList.add("hidden");
+}
+
+document.getElementById("btn-ranking").addEventListener("click", () => openLista("ranking"));
+document.getElementById("btn-iniciados").addEventListener("click", () => openLista("iniciados"));
+document.getElementById("btn-lista-close").addEventListener("click", closeLista);
+document.getElementById("lista-modal").addEventListener("click", (e) => {
+  if (e.target.id === "lista-modal") closeLista();
+});
+
+document.getElementById("btn-sortear").addEventListener("click", openSortear);
+document.getElementById("btn-sortear-close").addEventListener("click", closeSortear);
+document.getElementById("sortear-modal").addEventListener("click", (e) => {
+  if (e.target.id === "sortear-modal") closeSortear();
+});
+document.getElementById("btn-sortear-go").addEventListener("click", runSortear);
+
+// Executor genérico de job (SSE) - usado por tudo que só tem
+// ação/lista simples (sem "por item" estruturado que valha renderizar
+// individual): refresh/add/capas da Biblioteca, e toda a Manutenção
+// (backup/sanitize/playlist/emu-sync/catálogo). Cada job emite
+// {"type":"log","line":...} (texto livre, mesmo conteúdo que a CLI já
+// imprimia) - "progress" (só library-fetch-covers usa, tem "por item"
+// real), "error" e "job_done" fecham a stream.
+function runJob(startUrl, options, logEl, onDone) {
+  logEl.classList.remove("hidden");
+  logEl.innerHTML = "";
+
+  const appendLine = (text, isError) => {
+    const line = document.createElement("div");
+    line.className = "job-log-line" + (isError ? " error" : "");
+    line.textContent = text;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  fetch(startUrl, options)
+    .then(r => r.json())
+    .then(({ job, error }) => {
+      if (error) {
+        appendLine(error, true);
+        if (onDone) onDone();
+        return;
+      }
+      const evtSource = new EventSource(`/api/fetch/stream?job=${job}`);
+      evtSource.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "log") {
+          appendLine(data.line);
+        } else if (data.type === "progress") {
+          appendLine(`[${data.i}/${data.total}] ${data.label} — ${data.status}`);
+        } else if (data.type === "error") {
+          appendLine(data.message, true);
+        } else if (data.type === "job_done") {
+          evtSource.close();
+          if (onDone) onDone();
+        }
+      };
+    });
+}
+
+function libraryApply() {
+  return document.getElementById("library-apply").checked ? "1" : "0";
+}
+
+document.getElementById("btn-library-refresh-heroic").addEventListener("click", () => {
+  runJob(`/api/library/refresh?source=heroic&apply=${libraryApply()}`, { method: "POST" },
+    document.getElementById("library-job-log"), loadLibrary);
+});
+document.getElementById("btn-library-refresh-steam").addEventListener("click", () => {
+  runJob(`/api/library/refresh?source=steam&apply=${libraryApply()}`, { method: "POST" },
+    document.getElementById("library-job-log"), loadLibrary);
+});
+document.getElementById("btn-library-refresh-switch").addEventListener("click", () => {
+  runJob(`/api/library/refresh?source=switch&apply=${libraryApply()}`, { method: "POST" },
+    document.getElementById("library-job-log"), loadLibrary);
+});
+document.getElementById("btn-library-fetch-covers").addEventListener("click", () => {
+  runJob(`/api/library/fetch_covers?apply=${libraryApply()}`, { method: "POST" },
+    document.getElementById("library-job-log"), loadLibrary);
+});
+document.getElementById("btn-library-add-toggle").addEventListener("click", () => {
+  document.getElementById("library-add-card").classList.toggle("hidden");
+});
+// Preset de plataforma no cadastro manual (pedido do usuário 28/08:
+// "permitir em PS4, PS3, Nintendo Switch adicionar jogos manualmente")
+// - antes era preciso saber e digitar a tag técnica da fonte
+// ("psn:fisico"), o que na prática impedia usar. "Outra" revela os
+// campos livres, pro caso de uma plataforma fora da lista.
+function presetAdicionar() {
+  const [plataforma, fonte] = (document.getElementById("library-add-preset").value || "|").split("|");
+  const livre = !plataforma;
+  document.getElementById("library-add-plataforma").classList.toggle("hidden", !livre);
+  document.getElementById("library-add-fonte").classList.toggle("hidden", !livre);
+  return { plataforma, fonte, livre };
+}
+
+document.getElementById("library-add-preset").addEventListener("change", presetAdicionar);
+
+document.getElementById("library-add-confirm").addEventListener("click", () => {
+  const games = document.getElementById("library-add-games").value;
+  const preset = presetAdicionar();
+  const plataforma = preset.livre
+    ? document.getElementById("library-add-plataforma").value.trim() : preset.plataforma;
+  const fonte = preset.livre
+    ? document.getElementById("library-add-fonte").value.trim() : preset.fonte;
+  const apply = document.getElementById("library-add-apply").checked;
+  if (!plataforma || !fonte || !games.trim()) {
+    alert("preencha plataforma, fonte e a lista de jogos");
+    return;
+  }
+  runJob("/api/library/add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ games, plataforma, fonte, apply }),
+  }, document.getElementById("library-job-log"), loadLibrary);
+});
+
+document.getElementById("btn-heavy-catalog").addEventListener("click", () => {
+  runJob("/api/heavy_catalog", { method: "POST" },
+    document.getElementById("heavy-catalog-log"), null);
+});
+document.getElementById("btn-heavy-fetch-covers").addEventListener("click", () => {
+  if (!currentSystem || currentKind !== "pesado") return;
+  const apply = document.getElementById("heavy-apply").checked ? "1" : "0";
+  runJob(`/api/heavy/fetch_covers?code=${encodeURIComponent(currentSystem)}&apply=${apply}`, { method: "POST" },
+    document.getElementById("heavy-catalog-log"), () => selectHeavyTab(currentSystem));
+});
+
+// Manutenção - operações administrativas do CLI (backup, sanitize,
+// rebuild-playlist, emu-sync) que não tinham tela nenhuma ainda.
+// Um botão por ação, todas passando pelo mesmo runJob - o "Aplicar"
+// de cada uma espelha o --apply da CLI (padrão do projeto: sempre
+// simula por padrão).
+let maintLoaded = false;
+
+function openMaint() {
+  document.getElementById("maint-modal").classList.remove("hidden");
+  if (!maintLoaded) {
+    loadMaintDropdowns();
+    maintLoaded = true;
+  }
+}
+
+function closeMaint() {
+  document.getElementById("maint-modal").classList.add("hidden");
+}
+
+async function loadMaintDropdowns() {
+  const sysRes = await fetch("/api/systems");
+  const systems = await sysRes.json();
+  document.getElementById("maint-playlist-system").innerHTML =
+    systems.map(s => `<option value="${s.code}">${s.code}</option>`).join("");
+
+  const srcRes = await fetch("/api/emu_sync/sources");
+  const sources = await srcRes.json();
+  document.getElementById("maint-emu-sync-source").innerHTML =
+    '<option value="all">Todos</option>' +
+    sources.map(s => `<option value="${s.code}">${s.nome}</option>`).join("");
+}
+
+function runMaintAction(action) {
+  const log = document.getElementById("maint-log");
+  let url;
+
+  if (action === "backup-config") {
+    const target = document.getElementById("maint-backup-config-target").value;
+    const apply = document.getElementById("maint-backup-config-apply").checked ? "1" : "0";
+    url = `/api/backup_config?target=${target}&apply=${apply}`;
+  } else if (action === "backup-saves") {
+    const apply = document.getElementById("maint-backup-saves-apply").checked ? "1" : "0";
+    url = `/api/backup_saves?apply=${apply}`;
+  } else if (action === "sanitize-names") {
+    const target = document.getElementById("maint-sanitize-target").value;
+    const apply = document.getElementById("maint-sanitize-apply").checked ? "1" : "0";
+    url = `/api/sanitize_names?target=${target}&apply=${apply}`;
+  } else if (action === "rebuild-playlist") {
+    const system = document.getElementById("maint-playlist-system").value;
+    const target = document.getElementById("maint-playlist-target").value;
+    const apply = document.getElementById("maint-playlist-apply").checked ? "1" : "0";
+    url = `/api/rebuild_playlist/${system}?target=${target}&apply=${apply}`;
+  } else if (action === "emu-sync") {
+    const source = document.getElementById("maint-emu-sync-source").value;
+    const apply = document.getElementById("maint-emu-sync-apply").checked ? "1" : "0";
+    url = `/api/emu_sync?source=${source}&apply=${apply}`;
+  } else {
+    return;
+  }
+
+  runJob(url, { method: "POST" }, log, null);
+}
+
+document.getElementById("btn-maint").addEventListener("click", openMaint);
+document.getElementById("btn-maint-close").addEventListener("click", closeMaint);
+document.getElementById("maint-modal").addEventListener("click", (e) => {
+  if (e.target.id === "maint-modal") closeMaint();
+});
+document.querySelectorAll("#maint-modal [data-action]").forEach((btn) => {
+  btn.addEventListener("click", () => runMaintAction(btn.dataset.action));
+});
+
+document.getElementById("library-filter-nocover").addEventListener("change", renderLibraryGrid);
+document.getElementById("library-filter-ocultos").addEventListener("change", renderLibraryGrid);
+document.getElementById("library-filter-status").addEventListener("change", renderLibraryGrid);
+document.getElementById("library-sort").addEventListener("change", renderLibraryGrid);
 
 // 2 etapas, a pedido do usuário: 0 = tudo visível, 1 = esconde
 // busca/filtro de capas (menubar+filterbar), 2 = esconde também o

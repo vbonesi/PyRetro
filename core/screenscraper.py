@@ -52,12 +52,28 @@ SYSTEM_MAP = {
     "MD": 1,
     "SMS": 2,
     "GG": 21,
-    "SS": 22,
-    "SDC": 23,
     "PCE": 31,
     "PCECD": 114,   # override manual - nom_launchbox = "NEC PC Engine-CD"
     "PS": 57,
     "ARCADE": 75,   # bucket genérico "Mame" - ScreenScraper não tem 1 id por FBNeo
+    # Sistemas pesados (28/08) - antes a busca de capa deles só tinha
+    # libretro-thumbnails + SteamGridDB; o ScreenScraper cobre todos e
+    # tem curadoria melhor (é a fonte preferida do usuário, ver
+    # search_cover_candidates). Cada id foi CONFERIDO com uma busca
+    # real contra a API antes de entrar aqui (PS2->Gran Turismo 4,
+    # NGC->Metroid Prime, WII->Super Mario Galaxy, PSP->Daxter,
+    # 3DS->Fire Emblem Awakening).
+    "PS2": 58,
+    "NGC": 13,
+    "WII": 16,
+    "PSP": 61,
+    "3DS": 17,
+    # Switch não é sistema de ROM do PyRetro (não roda via RetroArch,
+    # ver core/library.read_switch_library) - entra aqui só como fonte
+    # de CAPA pros jogos de Switch da Biblioteca, que são 57 dos que
+    # ficaram sem capa depois de Steam+SteamGridDB. Id conferido contra
+    # a API real (Astral Chain).
+    "NSW": 225,
 }
 
 API_BASE = "https://api.screenscraper.fr/api2/"

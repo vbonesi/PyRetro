@@ -10,6 +10,10 @@ Comandos:
     retrosync fetch-covers <SISTEMA|all> [--apply]
     retrosync fetch-covers-cloud <SISTEMA|all> [--apply]
     retrosync fix-cues <pasta|all> [--rename-files] [--apply]     (ainda não implementado)
+    retrosync heavy-catalog [--apply]
+    retrosync sortear [SISTEMA]
+    retrosync library-import-sheet <CSV> [--apply]
+    retrosync library-refresh heroic [--apply]
 
 Todo comando roda em modo de simulação por padrão (mostra o que faria)
 e só escreve/copia com --apply. Nenhum comando deleta arquivos. Fuzzy
@@ -28,14 +32,17 @@ from core import covers as covers_mod
 from core import emu_sync as emu_sync_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
+from core import library as library_mod
 from core import organize as organize_mod
 from core import pc_backup as pc_backup_mod
 from core import playlist as playlist_mod
 from core import sanitize as sanitize_mod
+from core import sortear as sortear_mod
 from core import sync as sync_mod
 
 CONFIG_PATH = Path(__file__).parent / "config.toml"
 REGISTRY_PATH = Path(__file__).parent / "cache" / "covers_registry.json"
+HEAVY_CATALOG_PATH = Path(__file__).parent / "cache" / "heavy_catalog.json"
 
 
 def load_config() -> dict:
@@ -124,17 +131,26 @@ def cmd_fetch_covers_cloud(args) -> None:
     ja foi baixado pro PC - nao baixa ROM nenhuma, so a capa. Depois
     de rodar isso, "fetch-covers-fallback <SISTEMA>" funciona
     normalmente em cima do que sobrou sem match (le do registry, nao
-    de arquivo local)."""
+    de arquivo local).
+
+    "all" só cobre [systems] (leve) - sistema pesado (PS/PS2/GameCube/
+    Wii/PSP/3DS) precisa ser pedido pelo código explicitamente (ex:
+    "PS2"), pra "all" não ficar lento à toa cada vez que só se quer
+    atualizar os leves (list_drive_items pode levar ~90s por sistema
+    pesado, ver core/heavy_roms.py). Capa de pesado é só pra EXIBIÇÃO
+    (Biblioteca/galeria) - não afeta send/download de ROM (core/
+    heavy_roms.py), que continua sob demanda igual sempre foi."""
     cfg = load_config()
     capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
     systems = cfg["systems"]
+    heavy = heavy_mod.load_heavy_systems(cfg)
     targets = list(systems.keys()) if args.system.lower() == "all" else [args.system.upper()]
 
     registry = json.loads(REGISTRY_PATH.read_text()) if REGISTRY_PATH.exists() else {}
 
     all_fuzzy = []
     for code in targets:
-        sysinfo = systems.get(code)
+        sysinfo = systems.get(code) or heavy.get(code)
         if not sysinfo:
             print(f"[{code}] sistema desconhecido no config.toml, pulando")
             continue
@@ -339,6 +355,245 @@ def cmd_heavy_roms(args) -> None:
         print(f"  [{tag:7}] {name:55} {gb:6.2f} GB   [{', '.join(flags)}]")
     if not android_ok:
         print("\n(celular desconectado - status \"no celular\" não pôde ser conferido)")
+
+
+def cmd_heavy_catalog(args) -> None:
+    """Atualiza cache/heavy_catalog.json com o catálogo completo (via
+    rclone) de cada sistema pesado - é o que permite o comando
+    `sortear` incluir jogos que ainda nem foram baixados pro PC (ver
+    core/sortear.py). Pode demorar - até ~90s por sistema pesado
+    configurado, mesma limitação de heavy_roms.list_drive_items."""
+    cfg = load_config()
+    print("consultando o Google Drive (pode demorar - ~90s por sistema)...")
+    catalog = sortear_mod.refresh_heavy_catalog(cfg)
+    for code, names in catalog.items():
+        print(f"  {code:6} {len(names)} jogo(s)")
+    total = sum(len(n) for n in catalog.values())
+
+    if args.apply:
+        sortear_mod.save_heavy_catalog(HEAVY_CATALOG_PATH, catalog)
+        print(f"\ncatálogo salvo em {HEAVY_CATALOG_PATH} ({total} jogo(s) no total)")
+    else:
+        print(f"\ntotal: {total} jogo(s) (modo simulação - nada foi salvo, rode com --apply)")
+
+
+def cmd_sortear(args) -> None:
+    """Sorteia um jogo aleatório da coleção - leve (roms_root, sempre
+    local) e pesado (a partir do catálogo cacheado por
+    `heavy-catalog`). Sem argumento, sorteia entre tudo; com um código
+    de sistema (leve ou pesado), restringe o sorteio a ele."""
+    cfg = load_config()
+    roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+    catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
+
+    try:
+        pool = sortear_mod.build_pool(cfg, roms_root, catalog, args.system)
+    except ValueError:
+        sys.exit(f"sistema desconhecido: '{args.system.upper()}'")
+
+    if not args.system and not catalog:
+        print("(aviso: catálogo de pesados vazio ou nunca atualizado - rode "
+              "'retrosync heavy-catalog --apply' pra incluir PS/PS2/etc no sorteio)\n")
+
+    if not pool:
+        alvo = f" em '{args.system.upper()}'" if args.system else ""
+        sys.exit(f"nenhum jogo encontrado pra sortear{alvo}")
+
+    code, name, kind = sortear_mod.draw(pool)
+    heavy = heavy_mod.load_heavy_systems(cfg)
+    label = cfg["systems"][code]["capas"] if kind == "leve" else heavy[code].get("nome", code)
+
+    print(f"sorteado: {name}")
+    print(f"sistema:  {code} - {label} ({kind}, {len(pool)} jogo(s) no pool)")
+
+    if kind == "pesado":
+        sysinfo = heavy[code]
+        local_names = {i["name"] for i in heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))}
+        if name in local_names:
+            print("já está no PC")
+        else:
+            print(f"só no Drive - baixe com: retrosync heavy-roms {code} --download \"{name}\"")
+
+
+def cmd_library_import_sheet(args) -> None:
+    """Importa o CSV exportado da planilha de acompanhamento (Google
+    Sheets: Arquivo > Fazer download > CSV) pra dentro de
+    library_root/library.json. Pensado pra rodar mais de uma vez -
+    upsert por nome+plataforma (core/library.py), então rodar de novo
+    com um CSV atualizado não duplica, só atualiza quem já existe."""
+    cfg = load_config()
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    library = library_mod.load_library(library_path)
+
+    csv_path = Path(args.csv).expanduser()
+    if not csv_path.exists():
+        sys.exit(f"CSV não encontrado: {csv_path}")
+
+    result = library_mod.import_sheet_csv(library, csv_path)
+    print(f"novo(s): {result['added']}  atualizado(s): {result['updated']}")
+
+    if args.apply:
+        library_mod.save_library(library_path, library)
+        print(f"\nsalvo em {library_path} ({len(library['games'])} jogo(s) no total)")
+    else:
+        print("\n(modo simulação - nada foi salvo, rode com --apply)")
+
+
+def cmd_library_refresh(args) -> None:
+    """Cruza library_root/library.json com jogos possuídos em outra
+    fonte:
+    - 'heroic' - Epic/GOG/Amazon via cache local do Heroic Games
+      Launcher, sem tocar rede (core/library.read_heroic_libraries).
+    - 'steam' - API Web oficial, precisa de [steam] api_key+steamid64.
+    - 'switch' - lê roms_root/NSW/ (nome da pasta, tag [NSP]/[NSZ]
+      removida) - sem gestão de arquivo, só confirma posse e cruza
+      nota/observações já existentes na planilha por nome.
+    - 'psn' - troféus da PSN (só jogo já aberto ao menos 1x), precisa
+      de [psn] npsso (token manual, válido ~2 meses).
+    - 'xbox' - OpenXBL (não-oficial), precisa de [xbox] api_key."""
+    cfg = load_config()
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    library = library_mod.load_library(library_path)
+
+    if args.source == "heroic":
+        heroic_cfg = cfg.get("heroic", {})
+        owned = library_mod.read_heroic_libraries(heroic_cfg)
+        if not owned:
+            config_dir = heroic_cfg.get("config_dir") or "~/.config/heroic"
+            sys.exit(f"nada encontrado em {config_dir}/store_cache/ - Heroic instalado "
+                      f"e com pelo menos uma loja logada?")
+        fonte_label = "heroic: {n} jogo(s) possuído(s) no total (Epic+GOG+Amazon)"
+    elif args.source == "steam":
+        try:
+            owned = library_mod.read_steam_library(cfg.get("steam", {}))
+        except (ValueError, RuntimeError) as e:
+            sys.exit(str(e))
+        fonte_label = "steam: {n} jogo(s) possuído(s)"
+    elif args.source == "switch":
+        roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+        owned = library_mod.read_switch_library(roms_root, cfg)
+        if not owned:
+            sys.exit(f"nada encontrado em {roms_root / 'NSW'}")
+        fonte_label = "switch: {n} jogo(s) em roms_root/NSW/"
+    elif args.source == "psn":
+        try:
+            owned = library_mod.read_psn_library(cfg.get("psn", {}))
+        except (ValueError, RuntimeError) as e:
+            sys.exit(str(e))
+        fonte_label = "psn: {n} jogo(s) na biblioteca (compras PS4/PS5)"
+    elif args.source == "xbox":
+        try:
+            owned = library_mod.read_xbox_library(cfg.get("xbox", {}))
+        except (ValueError, RuntimeError) as e:
+            sys.exit(str(e))
+        fonte_label = "xbox: {n} jogo(s) jogado(s) (histórico, NÃO é biblioteca - mistura Game Pass/comprado/disco antigo)"
+    else:
+        sys.exit(f"fonte '{args.source}' ainda não implementada")
+
+    result = library_mod.merge_owned(library, owned)
+    print(fonte_label.format(n=len(owned)))
+    print(f"  novo(s): {result['added']}   já rastreado(s): {result['merged']}")
+    if result["possible_dupes"]:
+        print(f"\n=== {len(result['possible_dupes'])} possível(is) duplicata(s) "
+              f"(revisar na mão, NÃO foi mesclado) ===")
+        for owned_name, existing_name in result["possible_dupes"]:
+            print(f"  '{owned_name}'  ~  '{existing_name}'")
+
+    if args.apply:
+        library_mod.save_library(library_path, library)
+        print(f"\nsalvo em {library_path} ({len(library['games'])} jogo(s) no total)")
+    else:
+        print("\n(modo simulação - nada foi salvo, rode com --apply)")
+
+
+def cmd_library_add(args) -> None:
+    """Cadastro manual de jogos possuídos - pra fonte sem API confiável
+    (PSN/Xbox, decisão do usuário em 27/08: ver docs/changelog.md) ou
+    qualquer lista avulsa. Arquivo texto, um jogo por linha. Mesmo merge
+    seguro de library-refresh (nome exato -> anota fonte no jogo que já
+    existe; sem bater -> registro novo; parecido demais -> só
+    relatório, nunca mesclado sozinho)."""
+    cfg = load_config()
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    library = library_mod.load_library(library_path)
+
+    txt_path = Path(args.arquivo).expanduser()
+    if not txt_path.exists():
+        sys.exit(f"arquivo não encontrado: {txt_path}")
+
+    owned = library_mod.read_manual_list(txt_path, args.plataforma, args.fonte)
+    if not owned:
+        sys.exit("arquivo vazio (ou só tinha linha em branco/comentário)")
+
+    result = library_mod.merge_owned(library, owned)
+    print(f"{args.fonte} ({args.plataforma}): {len(owned)} jogo(s) na lista")
+    print(f"  novo(s): {result['added']}   já rastreado(s): {result['merged']}")
+    if result["possible_dupes"]:
+        print(f"\n=== {len(result['possible_dupes'])} possível(is) duplicata(s) (revisar na mão, NÃO foi mesclado) ===")
+        for a, b in result["possible_dupes"]:
+            print(f"  '{a}'  ~  '{b}'")
+
+    if args.apply:
+        library_mod.save_library(library_path, library)
+        print(f"\nsalvo em {library_path} ({len(library['games'])} jogo(s) no total)")
+    else:
+        print("\n(modo simulação - nada foi salvo, rode com --apply)")
+
+
+def cmd_library_fetch_covers(args) -> None:
+    """Busca capa (SteamGridDB) pra todo jogo da biblioteca que ainda
+    não tem `capa` - salva em library_root/capas/<id>.png. Precisa de
+    [steamgriddb] api_key no config.toml (grátis, steamgriddb.com >
+    Preferences > API). Match exato só (nome normalizado igual ao 1º
+    resultado da busca) - sem match vira só um contador, não trava nem
+    lista tudo (potencialmente centenas)."""
+    cfg = load_config()
+    api_key = cfg.get("steamgriddb", {}).get("api_key")
+    if not api_key:
+        sys.exit("faltando api_key em [steamgriddb] no config.toml")
+
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    library = library_mod.load_library(library_path)
+    capas_dir = library_root / "capas"
+
+    pending = sum(1 for g in library["games"] if not g["capa"] and not g.get("oculto"))
+    if pending == 0:
+        print("todo jogo já tem capa (ou a biblioteca está vazia)")
+        return
+    print(f"{pending} jogo(s) sem capa")
+
+    if not args.apply:
+        print("(modo simulação - rode com --apply pra baixar de verdade)")
+        return
+
+    # Capa oficial da Steam primeiro (ver core/library.fetch_covers),
+    # SteamGridDB pro resto.
+    steam_appids = library_mod.steam_appid_index(cfg.get("steam", {}))
+    print(f"{len(steam_appids)} jogo(s) da Steam com capa oficial disponível")
+    print("buscando (pode demorar)...")
+
+    # Salva a cada 20 jogos, não só no final - são 2 chamadas de rede
+    # por jogo, um lote de centenas demora minutos, e sem isso um
+    # Ctrl+C ou erro no meio perde a marcação de TUDO que já foi
+    # baixado até ali (os arquivos .png ficam no disco de qualquer
+    # jeito, mas sem o campo "capa" gravado o próximo run baixa de
+    # novo à toa).
+    counter = {"n": 0}
+
+    def on_progress(nome, status):
+        counter["n"] += 1
+        if counter["n"] % 20 == 0:
+            library_mod.save_library(library_path, library)
+
+    result = library_mod.fetch_covers(library, capas_dir, api_key, on_progress=on_progress,
+                                      steam_appids=steam_appids, cfg=cfg)
+    library_mod.save_library(library_path, library)
+    print(f"baixado(s): {result['baixado']} ({result['via_steam']} Steam, {result['via_ss']} ScreenScraper)   "
+          f"sem_match: {result['sem_match']}   erro: {result['erro']}")
 
 
 def cmd_sanitize_names(args) -> None:
@@ -667,6 +922,50 @@ def build_parser() -> argparse.ArgumentParser:
     heavy.add_argument("--download", metavar="NOME", help="baixa esse item do Google Drive pro PC (via rclone)")
     heavy.add_argument("--overwrite", action="store_true", help="sobrescreve se ja existir no celular")
 
+    heavy_catalog = sub.add_parser(
+        "heavy-catalog",
+        help="atualiza o cache com o catalogo completo de jogos pesados no Google Drive (usado pelo sortear)",
+    )
+    heavy_catalog.add_argument("--apply", action="store_true")
+
+    sortear = sub.add_parser(
+        "sortear",
+        help="sorteia um jogo aleatorio da colecao (roms_root + catalogo de pesados)",
+    )
+    sortear.add_argument(
+        "system", nargs="?",
+        help="codigo do sistema (leve ou pesado) pra restringir o sorteio - se omitido, sorteia de tudo",
+    )
+
+    lib_import = sub.add_parser(
+        "library-import-sheet",
+        help="importa o CSV da planilha de acompanhamento pra library.json (upsert por nome+plataforma)",
+    )
+    lib_import.add_argument("csv", help="caminho do CSV exportado (Google Sheets: Arquivo > Fazer download > CSV)")
+    lib_import.add_argument("--apply", action="store_true")
+
+    lib_refresh = sub.add_parser(
+        "library-refresh",
+        help="cruza a biblioteca com jogos possuidos em outra fonte (heroic = Epic/GOG/Amazon)",
+    )
+    lib_refresh.add_argument("source", choices=["heroic", "steam", "switch", "psn", "xbox"], help="fonte a consultar")
+
+    lib_add = sub.add_parser(
+        "library-add",
+        help="cadastro manual de jogos possuidos a partir de um arquivo texto (um nome por linha)",
+    )
+    lib_add.add_argument("arquivo", help="arquivo texto, um nome de jogo por linha")
+    lib_add.add_argument("--plataforma", required=True, help="plataforma a registrar (ex: Xbox, 'PSN (PS4)')")
+    lib_add.add_argument("--fonte", required=True, help="tag de fonte a registrar (ex: xbox, psn, psn:fisico)")
+    lib_add.add_argument("--apply", action="store_true")
+
+    lib_covers = sub.add_parser(
+        "library-fetch-covers",
+        help="busca capa (SteamGridDB) pra jogo da biblioteca que ainda nao tem",
+    )
+    lib_covers.add_argument("--apply", action="store_true")
+    lib_refresh.add_argument("--apply", action="store_true")
+
     sanitize = sub.add_parser("sanitize-names", help="troca & : * por caracteres aceitos pelo RetroArch")
     sanitize.add_argument("target", choices=["capas", "roms", "all"], default="all", nargs="?")
     sanitize.add_argument("--apply", action="store_true")
@@ -706,6 +1005,18 @@ def main() -> None:
         cmd_organize(args)
     elif args.command == "heavy-roms":
         cmd_heavy_roms(args)
+    elif args.command == "heavy-catalog":
+        cmd_heavy_catalog(args)
+    elif args.command == "sortear":
+        cmd_sortear(args)
+    elif args.command == "library-import-sheet":
+        cmd_library_import_sheet(args)
+    elif args.command == "library-refresh":
+        cmd_library_refresh(args)
+    elif args.command == "library-add":
+        cmd_library_add(args)
+    elif args.command == "library-fetch-covers":
+        cmd_library_fetch_covers(args)
     elif args.command == "sanitize-names":
         cmd_sanitize_names(args)
     else:

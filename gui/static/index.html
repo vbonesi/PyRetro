@@ -14,8 +14,11 @@
         <h1>PyRetro</h1>
         <div class="topbar-buttons">
           <button id="btn-organize" class="secondary" type="button">🗂 Organizar</button>
-          <button id="btn-heavy" class="secondary" type="button">📦 ROMs Pesadas</button>
           <button id="btn-saves" class="secondary" type="button">💾 Saves</button>
+          <button id="btn-sortear" class="secondary" type="button">🎲 Sortear</button>
+          <button id="btn-ranking" class="secondary" type="button">🏅 Ranking</button>
+          <button id="btn-iniciados" class="secondary" type="button">▶ Iniciados</button>
+          <button id="btn-maint" class="secondary" type="button">🛠 Manutenção</button>
           <button id="btn-settings" class="secondary" type="button">⚙ Configurações</button>
         </div>
       </div>
@@ -27,8 +30,9 @@
       <nav id="system-tabs" class="system-tabs"></nav>
     </header>
 
-    <div class="menubar">
-      <h2 id="current-system">Selecione um sistema</h2>
+    <h2 id="current-system" class="current-system-heading">Selecione um sistema</h2>
+
+    <div id="menubar" class="menubar">
       <div class="actions">
         <label class="apply-toggle">
           <input type="checkbox" id="apply-toggle">
@@ -40,23 +44,82 @@
       </div>
     </div>
 
-    <div class="filterbar">
+    <div id="filterbar" class="filterbar">
       <label class="filter-toggle">
         <input type="checkbox" id="filter-flagged">
-        ⚑ Só marcadas como erradas
+        ⚑ Só marcadas
       </label>
       <label class="filter-toggle">
         <input type="checkbox" id="filter-nomatch">
         Só sem correspondência
       </label>
       <label class="filter-toggle">
-        <input type="checkbox" id="filter-duplicated">
-        ⧉ Só duplicadas
-      </label>
-      <label class="filter-toggle">
         <input type="checkbox" id="filter-nocover">
         🖼 Só sem capa
       </label>
+    </div>
+
+    <div id="library-controls" class="hidden">
+      <details id="library-admin-details" class="collapsible">
+        <summary>⚙ Ações (Heroic/Steam/Switch/Capas/Lista)</summary>
+        <div class="menubar">
+          <label class="tiny apply-toggle"><input type="checkbox" id="library-apply"> aplicar</label>
+          <button id="btn-library-refresh-heroic" class="tiny secondary" type="button">🔄 Heroic</button>
+          <button id="btn-library-refresh-steam" class="tiny secondary" type="button">🔄 Steam</button>
+          <button id="btn-library-refresh-switch" class="tiny secondary" type="button">🔄 Switch</button>
+          <button id="btn-library-fetch-covers" class="tiny secondary" type="button">🖼 Capas</button>
+          <button id="btn-library-add-toggle" class="tiny secondary" type="button">+ Lista</button>
+        </div>
+        <div id="library-add-card" class="saves-add-card hidden">
+          <select id="library-add-preset">
+            <option value="Nintendo Switch|switch">Nintendo Switch</option>
+            <option value="PlayStation 4|psn">PlayStation 4 (PSN digital)</option>
+            <option value="PlayStation 4|psn:fisico">PlayStation 4 (físico)</option>
+            <option value="PlayStation 3|psn">PlayStation 3 (PSN digital)</option>
+            <option value="PlayStation 3|psn:fisico">PlayStation 3 (físico)</option>
+            <option value="">Outra (digitar)</option>
+          </select>
+          <input id="library-add-plataforma" type="text" placeholder="Plataforma (ex: Xbox)" class="hidden">
+          <input id="library-add-fonte" type="text" placeholder="Fonte (ex: xbox)" class="hidden">
+          <textarea id="library-add-games" placeholder="Um jogo por linha" rows="3"></textarea>
+          <label class="tiny"><input id="library-add-apply" type="checkbox"> aplicar de verdade</label>
+          <button id="library-add-confirm" class="tiny" type="button">Adicionar</button>
+        </div>
+        <div id="library-job-log" class="job-log hidden"></div>
+      </details>
+      <nav id="library-group-tabs" class="system-tabs sub-tabs"></nav>
+      <div class="search-bar">
+        <label class="filter-toggle">
+          <input type="checkbox" id="library-filter-nocover">
+          🖼 Só sem capa
+        </label>
+        <label class="filter-toggle">
+          <input type="checkbox" id="library-filter-ocultos">
+          👁 Mostrar ocultos
+        </label>
+        <select id="library-filter-status">
+          <option value="">Todos</option>
+          <option value="iniciado">Iniciado</option>
+          <option value="finalizado">Finalizado</option>
+          <option value="nao_finalizado">Não finalizado</option>
+          <option value="platinado">Platinado</option>
+        </select>
+        <select id="library-sort">
+          <option value="nome">Ordenar: nome</option>
+          <option value="nota">Ordenar: ranking (nota)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="heavy-controls" class="menubar hidden">
+      <label class="tiny apply-toggle"><input type="checkbox" id="heavy-apply"> aplicar</label>
+      <button id="btn-heavy-catalog" class="tiny secondary" type="button">🔄 Atualizar catálogo</button>
+      <button id="btn-heavy-fetch-covers" class="tiny secondary" type="button">🖼 Buscar capas</button>
+      <label class="filter-toggle">
+        <input type="checkbox" id="heavy-filter-nocover">
+        🖼 Só sem capa
+      </label>
+      <div id="heavy-catalog-log" class="job-log hidden"></div>
     </div>
 
     <div id="progress-panel" class="progress-panel hidden">
@@ -89,25 +152,19 @@
   <div id="search-modal" class="modal hidden">
     <div class="modal-box modal-box-wide">
       <div class="modal-header">
-        <h3>Buscar capa - <span id="search-label"></span></h3>
+        <h3>✎ Editar - <span id="search-label"></span></h3>
         <button id="btn-search-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div id="edit-rename-row" class="search-bar">
+        <input type="text" id="edit-rename-input" placeholder="novo nome (sem extensão)">
+        <button id="btn-edit-rename" type="button" class="secondary">✎ Renomear</button>
+        <label class="secondary import-label">⬆ Trocar capa<input type="file" id="edit-upload-input" accept="image/png,image/jpeg" hidden></label>
       </div>
       <div class="search-bar">
         <input type="text" id="search-query" placeholder="termo de busca">
-        <button id="btn-search-go" type="button">Buscar</button>
+        <button id="btn-search-go" type="button">🔍 Buscar</button>
       </div>
       <div id="search-results" class="search-results"></div>
-    </div>
-  </div>
-
-  <div id="heavy-modal" class="modal hidden">
-    <div class="modal-box modal-box-wide">
-      <div class="modal-header">
-        <h3>ROMs pesadas <span id="heavy-status" class="heavy-status"></span></h3>
-        <button id="btn-heavy-close" class="secondary" type="button">Fechar</button>
-      </div>
-      <nav id="heavy-tabs" class="system-tabs"></nav>
-      <div id="heavy-list" class="heavy-list"></div>
     </div>
   </div>
 
@@ -118,6 +175,136 @@
         <button id="btn-organize-close" class="secondary" type="button">Fechar</button>
       </div>
       <div id="organize-list" class="heavy-list"></div>
+    </div>
+  </div>
+
+  <div id="maint-modal" class="modal hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h3>🛠 Manutenção</h3>
+        <button id="btn-maint-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div class="heavy-list">
+        <div class="heavy-item">
+          <span class="heavy-item-name">Backup de configs (retroarch.cfg + config/ + playlists/)</span>
+          <select id="maint-backup-config-target">
+            <option value="all">PC + Android</option>
+            <option value="pc">Só PC</option>
+            <option value="android">Só Android</option>
+          </select>
+          <label class="tiny"><input type="checkbox" id="maint-backup-config-apply"> aplicar</label>
+          <button class="tiny" data-action="backup-config" type="button">Rodar</button>
+        </div>
+        <div class="heavy-item">
+          <span class="heavy-item-name">Backup de saves (Dolphin GameCube/Wii)</span>
+          <label class="tiny"><input type="checkbox" id="maint-backup-saves-apply"> aplicar</label>
+          <button class="tiny" data-action="backup-saves" type="button">Rodar</button>
+        </div>
+        <div class="heavy-item">
+          <span class="heavy-item-name">Sanitizar nomes (remove &amp; : *)</span>
+          <select id="maint-sanitize-target">
+            <option value="all">Capas + ROMs</option>
+            <option value="capas">Só Capas</option>
+            <option value="roms">Só ROMs</option>
+          </select>
+          <label class="tiny"><input type="checkbox" id="maint-sanitize-apply"> aplicar</label>
+          <button class="tiny" data-action="sanitize-names" type="button">Rodar</button>
+        </div>
+        <div class="heavy-item">
+          <span class="heavy-item-name">Reconstruir playlist do RetroArch</span>
+          <select id="maint-playlist-system"></select>
+          <select id="maint-playlist-target">
+            <option value="all">PC + Android</option>
+            <option value="pc">Só PC</option>
+            <option value="android">Só Android</option>
+          </select>
+          <label class="tiny"><input type="checkbox" id="maint-playlist-apply"> aplicar</label>
+          <button class="tiny" data-action="rebuild-playlist" type="button">Rodar</button>
+        </div>
+        <div class="heavy-item">
+          <span class="heavy-item-name">Sincronizar saves de emulador (PC/Drive/Android)</span>
+          <select id="maint-emu-sync-source">
+            <option value="all">Todos</option>
+          </select>
+          <label class="tiny"><input type="checkbox" id="maint-emu-sync-apply"> aplicar</label>
+          <button class="tiny" data-action="emu-sync" type="button">Rodar</button>
+        </div>
+      </div>
+      <div id="maint-log" class="job-log"></div>
+    </div>
+  </div>
+
+  <div id="editar-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>✎ Editar</h3>
+        <button id="btn-editar-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div id="editar-campos" class="editar-campos"></div>
+      <div class="modal-footer">
+        <span id="editar-status" class="settings-status"></span>
+        <button id="btn-editar-save" type="button">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="capa-modal" class="modal hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h3>🖼 Capa - <span id="capa-label"></span></h3>
+        <button id="btn-capa-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="capa-query" placeholder="buscar capa...">
+        <button id="btn-capa-go" type="button">🔍 Buscar</button>
+        <label class="secondary import-label">⬆ Subir arquivo<input type="file" id="capa-upload" accept="image/png,image/jpeg" hidden></label>
+      </div>
+      <div id="capa-results" class="search-results"></div>
+    </div>
+  </div>
+
+  <div id="obs-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>💬 <span id="obs-label"></span></h3>
+        <button id="btn-obs-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <label class="obs-campo">Tempo jogado
+        <input type="text" id="obs-tempo" placeholder="ex: 31:40:00">
+      </label>
+      <label class="obs-campo">Comentário
+        <textarea id="obs-text" rows="7" placeholder="seu comentário sobre o jogo..."></textarea>
+      </label>
+      <div class="modal-footer">
+        <span id="obs-status" class="settings-status"></span>
+        <button id="btn-obs-save" type="button">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lista-modal" class="modal hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h3 id="lista-titulo"></h3>
+        <button id="btn-lista-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div id="lista-conteudo" class="lista-conteudo"></div>
+    </div>
+  </div>
+
+  <div id="sortear-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>🎲 Sortear</h3>
+        <button id="btn-sortear-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div class="search-bar">
+        <select id="sortear-system">
+          <option value="">Sortear de tudo</option>
+        </select>
+        <button id="btn-sortear-go" type="button">Sortear!</button>
+      </div>
+      <div id="sortear-result" class="sortear-result"></div>
     </div>
   </div>
 

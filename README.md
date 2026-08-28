@@ -115,6 +115,19 @@ de Saturn marcadas `replaced_exact` de antes do sistema entrar em
 "replaced_exact"/"replaced_fuzzy" se o `.png` ainda existir de verdade;
 `no_match` continua confiável sempre.
 
+Também funciona pra **sistema pesado** (PS2/GameCube/Wii/PSP/3DS -
+PS1 fica de fora, `COVERS_EXCLUDED`), desde que o código seja passado
+explícito (`"all"` continua só leve, de propósito - `list_drive_items`
+pode levar ~90s por sistema pesado, não vale rodar à toa em todo "all"):
+
+```bash
+python3 retrosync.py fetch-covers-cloud PS2 --apply
+```
+
+Capa de pesado é só pra **exibição** (Biblioteca/galeria) - não afeta
+`heavy-roms --send`/`--download`, que continua sob demanda igual
+sempre foi.
+
 ### `fetch-covers-fallback` — segunda fonte pros que sobraram (LaunchBox Games DB)
 
 ```bash
@@ -240,6 +253,127 @@ mostra o que existe em `roms_root/<CODIGO>/`, no Google Drive (via
 `roms_root/<CODIGO>/` - nunca escreve direto na pasta sincronizada pelo
 Google Drive Desktop.
 
+### `heavy-catalog` — cacheia o catálogo de pesados pro `sortear`
+
+```bash
+python3 retrosync.py heavy-catalog --apply
+```
+
+Consulta o Google Drive (via `rclone`) pra cada sistema de
+`[heavy_systems]` e salva a lista completa (nome, tamanho, se é pasta)
+em `cache/heavy_catalog.json`. Existe porque listar isso ao vivo pode
+levar até ~90s por sistema (ver `heavy-roms` acima) - inviável fazer
+isso toda vez que o `sortear` roda, ainda mais sorteando "de tudo" (6
+sistemas pesados = minutos de espera). Rode de novo depois que a nuvem
+mudar (jogo novo baixado no Drive) pra manter o catálogo em dia; sem
+rodar nunca, `sortear` funciona só com sistemas leves.
+
+A aba "ROMs Pesadas" da GUI (ver abaixo) lê o mesmo arquivo em vez de
+consultar o Drive ao vivo a cada troca de aba - sem cache ainda pra um
+sistema, ela cai pra consulta ao vivo uma vez e já popula o cache
+sozinha pra próxima. Rodar `heavy-catalog --apply` (CLI) ou o botão
+"🔄 Atualizar catálogo" (GUI, dentro da própria aba) faz a mesma coisa.
+
+### `sortear` — sorteia um jogo aleatório da coleção
+
+```bash
+python3 retrosync.py sortear        # de tudo (leve local + pesado cacheado)
+python3 retrosync.py sortear SFC    # só Super Nintendo
+python3 retrosync.py sortear PS2    # só PlayStation 2 (a partir do catálogo)
+```
+
+Junta sistemas leves (lidos ao vivo de `roms_root/<CODE>/`) e pesados
+(lidos do cache gerado por `heavy-catalog`) num pool só, cada JOGO com
+peso igual - um sistema com mais jogos tem mais chance de propósito
+(reflete o tamanho real da coleção). Se o sorteado for de um sistema
+pesado que ainda não está no PC, avisa e sugere o `heavy-roms
+<CODIGO> --download` certo pra baixar antes de jogar.
+
+### `library-import-sheet` / `library-refresh` — biblioteca de jogos "de fora"
+
+```bash
+python3 retrosync.py library-import-sheet "Games do Bonis.csv" --apply   # planilha -> library.json
+python3 retrosync.py library-refresh heroic --apply                      # cruza com Epic/GOG/Amazon
+python3 retrosync.py library-refresh steam --apply                       # cruza com a Steam
+python3 retrosync.py library-refresh switch --apply                      # cruza com roms_root/NSW/
+python3 retrosync.py library-refresh psn --apply                         # cruza com a PSN
+python3 retrosync.py library-refresh xbox --apply                        # cruza com a Xbox
+```
+
+Registro dos jogos que não são ROM - possuídos em lojas digitais
+(Steam, PSN, Xbox e, via Heroic, GOG/Epic/Amazon) e o acompanhamento pessoal
+(iniciado/finalizado/platinado/nota/tempo/observações) que antes vivia
+numa planilha do Google Sheets. Fica em `library_root/library.json`
+(`~/Drive/Jogos/Biblioteca/`, mesma pasta que o Google Drive Desktop já
+sincroniza pra ROMs/Capas/Saves) - o celular só **lê** esse arquivo,
+nunca gera sozinho (ver `core/library.py`).
+
+`library-import-sheet` faz upsert por nome+plataforma a partir do CSV
+exportado da planilha (Arquivo > Fazer download > CSV) - roda de novo
+com um export mais recente sem duplicar. `library-refresh <fonte>` lê
+os jogos possuídos e cruza pelo nome: bateu exato, só anota a fonte no
+jogo que já existe; não bateu, vira registro novo (possuído, ainda sem
+acompanhamento). Possíveis duplicatas por nome parecido entram só num
+relatório - nunca são mescladas sozinhas, mesmo cuidado que o
+`fetch-covers` já tem com fuzzy match de capa. Fontes de jogo possuído hoje:
+
+- **`heroic`** - lê os 3 caches que o Heroic Games Launcher já mantém
+  sozinho (`store_cache/{legendary,gog,nile}_library.json` -
+  Epic/GOG/Amazon), zero login feito pelo PyRetro, zero rede. Caminho
+  configurável em `[heroic] config_dir` no `config.toml`.
+- **`steam`** - API Web oficial (`IPlayerService/GetOwnedGames`), via
+  `[steam] api_key`/`steamid64` no `config.toml` (chave grátis em
+  steamcommunity.com/dev/apikey). Só funciona com "Detalhes do jogo"
+  público no perfil Steam - senão a API devolve biblioteca vazia sem
+  erro nenhum.
+- **`switch`** (27/08) - lê `roms_root/NSW/` (cada jogo é uma pasta,
+  ex: `Nine Sols [NSZ]`), removendo qualquer tag entre colchetes do
+  nome (formato do dump, não é parte do nome do jogo). Sem gestão de
+  arquivo (send/download/rename/apagar não fazem sentido pra Switch -
+  não roda via RetroArch) - só confirma posse e cruza pelo nome com o
+  que a planilha já tem (nota/comentário preservados). Jogo que faz
+  parte de uma coletânea sem nome exato igual ao da planilha não é
+  forçado a casar - vira possível duplicata (relatório) ou registro
+  novo separado, nunca mesclado às cegas.
+- **`psn`/`xbox`** - implementados em `core/library.py`
+  (`read_psn_library`, `read_psn_trophy_titles`, `read_xbox_library`) e
+  funcionais, mas **não usados via `library-refresh`** por decisão do
+  usuário (27/08) - PSN via API é impreciso (troféu mistura
+  físico+digital) e Xbox não tem como separar Game Pass de comprado com
+  confiança (ver `docs/changelog.md`). Essas duas entram por
+  **`library-add`** (cadastro manual) em vez disso.
+
+### `library-add` — cadastro manual (PSN/Xbox e qualquer lista avulsa)
+
+```bash
+python3 retrosync.py library-add jogos.txt --plataforma "Xbox" --fonte "xbox" --apply
+```
+
+Arquivo texto, um nome de jogo por linha (linha vazia ou `#` é
+ignorada) - mesmo merge seguro de `library-refresh` (nome exato entra
+como fonte a mais; parecido demais só é reportado). Existe porque PSN e
+Xbox não têm fonte automatizada confiável (ver acima) - o usuário
+levanta a lista real (ex: olhando a própria conta) e cadastra assim, e
+repete conforme for comprando jogo novo.
+
+### `library-fetch-covers` — capa dos jogos digitais (SteamGridDB)
+
+```bash
+python3 retrosync.py library-fetch-covers --apply
+```
+
+Busca capa (grid 600x900, estilo "alternate" - mesmo formato retrato
+que Steam/Heroic usam) via [SteamGridDB](https://www.steamgriddb.com)
+pra todo jogo da Biblioteca que ainda não tem `capa` - chave grátis em
+`[steamgriddb] api_key` no `config.toml` (steamgriddb.com > Preferences
+> API). Match exato só (nome normalizado igual ao 1º resultado da
+busca) - sem match não trava nem é listado (potencialmente centenas),
+só entra num contador. Salva em `library_root/capas/<id>.png` e grava
+o caminho relativo em `capa`; salva o `library.json` a cada 20 jogos
+processados (não só no final) - um lote de centenas demora minutos (2
+chamadas de rede por jogo), sem isso um erro no meio perderia a
+marcação de tudo já baixado até ali.
+
 ### `organize` — lista ROMs esperando organização
 
 ```bash
@@ -303,6 +437,229 @@ app diferente de `config/`/`playlists/` (que ficam em
 porque o arquivo em si é `0666` (confirmado com `adb shell stat` em
 24/08).
 
+### Navegação unificada: leve + pesado + Biblioteca na mesma fila de abas
+
+`#system-tabs` lista os três juntos (`GET /api/systems` + `GET
+/api/heavy/systems` + uma aba fixa "📚 Biblioteca") - ROMs Pesadas e
+Biblioteca eram popup até 27/08, viraram aba com a mesma grade de capa
+da galeria normal a pedido do usuário ("deixando a visualização igual
+das ROMs normais"). `currentKind` ("leve"/"pesado"/"biblioteca") decide
+qual barra de controle aparece acima da grade - capas (leve),
+🔄 Atualizar catálogo (pesado), busca/filtro/+Lista (Biblioteca, ver
+abaixo) - só uma por vez, nunca as três juntas.
+
+Card por tipo, todos com a mesma classe `.cover` (grade igual, ações
+diferentes):
+- **leve**: ✎ Editar, ⚑ Marcar, 🗑 Apagar.
+- **pesado**: Enviar/Baixar (conforme já está no PC ou só no Drive),
+  Renomear, Apagar, 🖼 Capa (upload manual) - reaproveita os mesmos
+  endpoints/funções que o antigo modal "ROMs Pesadas" já usava.
+- **Biblioteca**: 🖼 Capa (upload manual) + nota/tempo/checkboxes
+  (iniciado/finalizado/platinado) direto no card.
+
+Tracking universal (27/08): leve e pesado ganharam a mesma fileira de
+iniciado/finalizado/platinado/nota que a Biblioteca já tinha (sem
+"tempo" - só esse campo continua exclusivo do card completo da
+Biblioteca). Grava via `POST /api/library/track`
+(nome/**code**/plataforma/fonte/campo/valor, ver `core/library.
+get_or_create_for_rom`) em vez de `/api/library/update` - acha o jogo
+certo na Biblioteca e, sem bater, CRIA o registro sozinho na primeira
+edição (`plataforma` = nome amigável do sistema, `fonte =
+"rom:<CODIGO>"`) - nenhuma ROM precisa estar pré-cadastrada pra ganhar
+acompanhamento. Card de ROM também mostra o que já existe
+(`GET /api/covers/<code>` e `GET /api/heavy/roms/<code>`).
+
+**Nome sozinho nunca é suficiente pra decidir "é o mesmo jogo"** -
+achado em produção no mesmo dia (27/08): o usuário tem "Celeste" na
+Steam, no Xbox e também um `Celeste.gba` (ROM-hack/demake, jogo
+diferente de verdade) - cruzar só por nome misturava os três. Corrigido
+com `core/library.PLATAFORMA_ROM_CODES`: mapeia o texto de `plataforma`
+(livre, vindo da planilha ou de loja) pro código de sistema ROM
+equivalente, só pros textos que realmente significam aquele console
+("PlayStation 2"/"SNES"/"Arcade"/"Game Boy Advanced" etc. → PS2/SFC/
+ARCADE/GBA); texto de loja ("Steam"/"Xbox One"/"GOG"/...) não mapeia
+pra nada, então nunca cruza com ROM nenhuma. Todo cruzamento ROM↔
+Biblioteca (tracking no card, exclusão da Biblioteca abaixo, find-or-
+create do `/api/library/track`) agora exige nome **e** plataforma
+batendo (`core/library.find_for_rom`/`is_rom_backed` em
+`gui/server.py`) - texto de plataforma não mapeado nunca cruza às
+cegas, o oposto do fuzzy match (aqui errar por "não uniu" é o lado
+seguro).
+
+Cover upload (leve já tinha, 27/08 estendeu pra pesado e Biblioteca):
+`_cover_path` (`gui/server.py`) passou a resolver sistema pesado além
+de leve, então `/api/cover/upload` funciona pros dois sem endpoint
+novo. Biblioteca usa pasta própria (`library_root/capas/`, fora de
+`capas_root`) - ganhou `POST /api/library/cover_upload` dedicado.
+Filtro "🖼 Só sem capa" (mesmo padrão da galeria leve) também chegou em
+`#heavy-controls` e `#library-controls`.
+
+### Busca unificada (barra do topo)
+
+Uma barra só (`#global-search-input`) busca nos três tipos de uma vez -
+`GET /api/search_library` (substring, acento/case-insensitive) cobre
+ROM leve (sempre), e desde 27/08 também ROM pesada (catálogo cacheado)
+e Biblioteca (excluindo quem já é ROM de verdade - nome e plataforma
+batendo, ver "Aba Biblioteca" abaixo - evita resultado duplicado do
+mesmo jogo), quando o `<select>` de sistema ao lado está
+em "Todos" (selecionar um sistema leve específico restringe a busca só
+a ele, como antes). Cada resultado vem com `kind`
+(`leve`/`pesado`/`biblioteca`); clicar navega pra aba certa
+(`selectSystem`/`selectHeavyTab`/`selectLibraryTab`) e destaca o card.
+Substituiu o campo de busca que a Biblioteca tinha só pra si
+(`#library-search`, removido) - agora é a única busca por nome do app.
+
+### Aba "📚 Biblioteca"
+
+Visualização (status iniciado/finalizado/platinado, nota) + edição
+inline de nota/tempo/iniciado/finalizado/platinado/observações direto
+no card. `GET /api/library` só lê `library_root/library.json`; `POST
+/api/library/update` grava um campo por vez (só os 6 editáveis,
+`core/library.EDITABLE_FIELDS` - nome/plataforma/fontes continuam só
+via CLI, pra não arriscar quebrar o `id`). Cadastro de jogo novo (nome/
+fonte) tem botão também (ver "Ações de fundo" abaixo) -
+`library-import-sheet` segue só CLI (migração pontual, não é ação do
+dia a dia). Diferente das fontes automatizadas (Heroic/Steam,
+PC-only), a edição inline é só leitura+escrita de arquivo local -
+funciona igual em modo Android (Termux). `observacoes` (comentário
+livre) já vinha da planilha importada mas não tinha campo na tela
+(27/08) - textarea no card corrige isso.
+
+Ações de importação (Heroic/Steam/Switch/Capas/+Lista) ficam dentro de
+um `<details>` retrátil, fechado por padrão (27/08, pedido do usuário
+de economizar espaço de tela - ver também o fix de `.hidden` em
+"Estrutura do projeto"/changelog: as barras de controle de leve/pesado
+ficavam vazando pra qualquer aba antes disso). Badge de plataforma/
+fonte só aparece quando diz algo que a linha de `plataforma` já não diz
+- jogo sem fonte de loja (badge = a própria plataforma) ou com fonte
+cujo rótulo é idêntico à plataforma gravada não duplica mais o texto.
+
+Jogo cujo nome **e** plataforma batem com uma ROM de verdade (leve ou
+pesada) não aparece aqui (27/08) - o dado passa a "morar" na aba da ROM
+correspondente em vez de duplicar a visualização (ver "Tracking
+universal" acima, inclusive o porquê de exigir plataforma também, não
+só nome). `GET /api/library` calcula isso a cada chamada
+(`rom_normalized_names_by_code` + `is_rom_backed` em `gui/server.py`) -
+nunca apaga o registro, só filtra essa UMA listagem. Um jogo com o
+mesmo nome mas plataforma de loja (Steam/Xbox/GOG/...) continua
+aparecendo normalmente, mesmo que exista uma ROM com esse nome em
+algum sistema - só sistemas com que a `plataforma` gravada
+literalmente corresponde entram na exclusão.
+
+Sub-abas por plataforma/loja (27/08, `#library-group-tabs`) substituem
+o antigo `<select>` de fonte - mesmo agrupamento de sempre
+(`libraryGroupsFor`: fonte de loja quando existe, senão a própria
+`plataforma`), só que virou navegação em vez de dropdown. Rótulo de
+fonte é amigável (`FONTE_LABELS` em `gui/static/app.js`: psn -> "PSN
+(digital)", heroic:epic -> "Epic Games", etc - só exibição, não muda o
+dado gravado) - jogo sem fonte de loja (veio só da planilha) usa a
+própria `plataforma` como agrupamento em vez de um "(sem fonte)"
+genérico, então uma aba "Arcade" ou "Xbox One" aparece do mesmo jeito
+que "Steam". `libraryTabGroupsFor` (27/08) aplica uma curadoria por
+cima disso só pra navegação - iOS+Android viram uma aba "Mobile", e
+Xbox/Xbox 360/Xbox One/Xbox Series S viram uma aba "Xbox" só
+(`GROUP_TAB_ALIASES`) - o modelo específico continua na linha de
+plataforma do card, só a lista de abas fica mais enxuta.
+
+Nota tem cor (27/08): `notaColor()` interpola entre as cores de tema
+`--err`/`--ok` proporcionalmente de 1 a 10, e usa `--warn` (dourado)
+acima de 10 - aplicado na borda+texto do campo de nota, tanto na
+Biblioteca quanto no tracking universal de ROM leve/pesada.
+
+Ranking: o mesmo select de ordenação (nome ou nota) - "por nota" filtra
+pra só quem já tem nota (sem nota não é "nota zero", só fica de fora do
+ranking) e numera #1, #2... do maior pro menor. Não é uma tela
+separada, é um jeito de olhar a mesma grade.
+
+Capas (`library-fetch-covers`, ou busca/upload manual pelo 🖼 do
+card), servidas por `GET /library-images/<caminho>` a partir do `capa`
+de cada registro (`gui/server.py`, com checagem de path traversal).
+Três fontes automáticas, nessa ordem (28/08):
+1. **CDN oficial da Steam** - a mesma arte 600x900 que o cliente da
+   Steam mostra, sem chave nem login, só com o `appid` que a API já
+   devolve (`steam_appid_index`/`find_cover_steam_cdn`). É a de melhor
+   qualidade e não depende de curadoria de terceiro, por isso vem
+   primeiro.
+2. **ScreenScraper** pras plataformas de console que ele cobre
+   (`PLATAFORMA_SCREENSCRAPER`) - curadoria melhor que o SteamGridDB, e
+   é o que resolve os jogos de Switch.
+3. **SteamGridDB** pro resto (Epic/GOG/...). Match exato como sempre,
+   mas varrendo TODOS os resultados da busca (não só o 1º) e com uma
+   segunda passada `loose` que ignora parênteses - nunca aplica capa de
+   outro jogo por aproximação.
+
+O 🖼 de cada card abre um popup com **busca + upload** juntos, pra
+capear na mão o que nenhuma fonte resolveu (`/api/cover/search_sgdb` +
+`/api/cover/apply_url`) - funciona igual na Biblioteca e nas ROMs
+pesadas.
+
+Editar (✎ no card): formulário com TODOS os campos de texto do jogo -
+nome, plataforma, gênero, subgênero, desenvolvedora, datas, tempo, meta
+e comentário (`POST /api/library/edit`, grava tudo de uma vez ou nada).
+`nome`/`plataforma` são editáveis porque o `id` nunca é recalculado -
+ele é chave opaca desde a criação. `id` e `fontes` ficam de fora
+(`fontes` é posse confirmada por API, muda via `library-refresh`).
+
+Toda URL de capa sai do servidor com `?v=<mtime>` (`com_versao` em
+`gui/server.py`) - sem isso, trocar a capa não aparecia na tela: o
+arquivo mudava mas a URL não, e o navegador servia a imagem antiga do
+cache. Com a versão, arquivo trocado = URL nova = imagem nova na hora,
+e arquivo intocado segue cacheado.
+
+Ocultar (👁 no card, campo `oculto`): tira o jogo da listagem sem
+apagar nada - pra jogo online/de serviço que está na conta mas não faz
+sentido acompanhar. O filtro "👁 Mostrar ocultos" traz eles de volta pra
+desfazer; busca de capa, Ranking e Iniciados ignoram o que está oculto.
+
+### Botões "🏅 Ranking" e "▶ Iniciados"
+
+Duas listas que cruzam a coleção INTEIRA de uma vez - ROM leve, pesada
+e Biblioteca juntas (`GET /api/ranking`, `GET /api/iniciados`) - o que
+só faz sentido porque, desde o tracking universal, `library.json` é a
+fonte única de progresso pra qualquer tipo de jogo. Ranking numera do
+maior pro menor com a nota colorida; Iniciados lista o que começou e
+ainda não terminou. Só leitura - pra editar, o card do jogo na aba
+dele. A capa é resolvida pelo servidor nos dois mundos (pasta do
+sistema pra ROM, `library_root/capas/` pra Biblioteca).
+
+### Botão "🎲 Sortear" na GUI
+
+Traz o comando `sortear` pra tela - `<select>` de sistema (leve+pesado
+juntos, via `GET /api/sortear/systems`) + botão "Sortear!"
+(`GET /api/sortear?system=<código>`). Reaproveita `core/sortear.py`
+inteiro, sem duplicar a lógica de pool/peso no servidor da GUI. Se o
+sorteado for pesado e só existir no Drive, mostra a mesma dica do CLI
+("heavy-roms CODIGO --download"). Primeiro item de trazer o resto do
+CLI (heavy-roms/organize/saves já tinham GUI; sortear era o que
+faltava mais visível). Mostra a capa do sorteado quando existe (mesma
+pasta que a galeria usa, incluindo pesado - `/images/<code>/<arquivo>`
+aceita os dois desde a unificação acima).
+
+### Manutenção e ações de fundo na GUI
+
+Todo comando do CLI que ainda não tinha tela ganhou uma - decisão do
+usuário de cobertura completa em vez de deixar operação administrativa
+só no terminal. Mecanismo comum a todos: `_start_job` (`gui/server.py`)
+roda a função em thread separada emitindo linha de log
+(`{"type":"log","line":...}`) na mesma fila/stream SSE que a busca de
+capas já usava (`GET /api/fetch/stream?job=<id>`) - o mesmo texto que a
+CLI já imprimia, só que na tela. Front consome via `runJob()`, um
+wrapper genérico (evita reimplementar `EventSource` pra cada botão).
+
+- **Biblioteca**: `🔄 Heroic`/`🔄 Steam` (`library-refresh`), `🖼 Capas`
+  (`library-fetch-covers`), `+ Lista` (`library-add` - textarea +
+  campo plataforma + campo fonte), na barra de controles que aparece
+  acima da grade quando a aba está ativa. Um checkbox "aplicar" único
+  governa os três - **sem marcar, só mostra o preview em memória, nunca
+  escreve** (mesmo princípio "simula por padrão" do resto do projeto;
+  psn/xbox não ganharam botão de propósito, ver seção acima).
+- **ROMs pesadas**: `🔄 Atualizar catálogo` (`heavy-catalog`), mesmo
+  esquema de barra de controles acima da grade.
+- **🛠 Manutenção** (modal novo): `backup-config`, `backup-saves`,
+  `sanitize-names`, `rebuild-playlist` (com `<select>` de sistema) e
+  `emu-sync` (com `<select>` de fonte) - cada um com seu próprio
+  checkbox "aplicar" local.
+
 ## Interface gráfica (Fase 1)
 
 ```bash
@@ -320,22 +677,25 @@ O que tem até agora:
 - Botões pra rodar `fetch-covers` e `fetch-covers-fallback` com progresso ao
   vivo (via Server-Sent Events), incluindo o toggle simulação/aplicar de
   verdade que os comandos de CLI já tinham
-- Zoom, marcar capa errada, upload manual, busca visual nas duas fontes
-  (ver seção de comandos acima pro que cada uma faz)
-- Renomear capa **com cascata**: tenta renomear a ROM e qualquer
-  save/state correspondente na mesma hora (inclusive corrigindo a
-  referência `.bin` dentro de `.cue`/`.gdi` pra PS/SDC). Se a ROM não
+- Zoom e badge da Biblioteca (✓/🏆/▶ + ★nota) direto na capa
+- **✎ Editar** - um popup só pras 3 ações que antes eram botão separado
+  (Renomear/Buscar/Trocar, unificadas 27/08 a pedido do usuário):
+  campo de renomear **com cascata** (tenta renomear a ROM e qualquer
+  save/state correspondente na mesma hora, inclusive corrigindo a
+  referência `.bin` dentro de `.cue`/`.gdi` pra PS/SDC - se a ROM não
   for encontrada, cair em conflito, ou tiver mais de uma batendo, a
-  capa ainda é renomeada mas fica marcada (`renamed_pending`) - o
-  fallback antigo continua existindo pra esses casos
-- Marcar capa como duplicada (`⧉ Duplicada` - sinaliza que capa+ROM
-  precisam ser removidas)
+  capa ainda é renomeada mas fica marcada `renamed_pending`), upload
+  manual, e busca visual nas duas fontes (ver seção de comandos acima
+  pro que cada uma faz)
+- **⚑ Marcar** - flag única (`Errada`/`Duplicada` eram 2 botões
+  separados até 27/08, unificados: "com a galeria mais consolidada, o
+  usuário mesmo decide se é duplicata ou capa errada")
 - **Apagar com cascata** (`🗑 Apagar`): apaga capa + ROM + save/state
   de uma vez, com confirmação antes (ação irreversível). Único item por
   vez - não agrupa discos múltiplos como o rename faz, por segurança
   (apagar "Jogo (Disc 2)" não apaga o Disc 1/3 do mesmo jogo)
-- Filtros "só marcadas como erradas" / "só sem correspondência" / "só
-  duplicadas", combináveis entre si (união, não interseção)
+- Filtros "⚑ só marcadas" / "só sem correspondência" / "só sem capa",
+  combináveis entre si (união, não interseção)
 - **💾/⏱ Save/State por jogo**: badges na própria capa quando o jogo
   tem save e/ou state (convenção achatada do RetroArch, `saves_root`/
   `states_root`) - clicar apaga só aquele save ou state, sem mexer na
@@ -461,6 +821,8 @@ PyRetro/
 │   ├── memcard.py          # editor de memory card PS1/PS2 (ps1vmc-tool/ps2vmc-tool) - implementado e testado
 │   ├── serials.py          # serial -> nome do jogo (DAT de redump), usado por memcard.py/emu_saves.py - implementado e testado
 │   ├── emu_saves.py         # backup de save individualizado Dolphin(GC)/PPSSPP via adb - implementado e testado
+│   ├── sortear.py           # sorteio aleatorio (leve local + pesado via catalogo cacheado) - implementado
+│   ├── library.py           # biblioteca de jogos fora de ROM (lojas + planilha importada) - implementado
 │   └── adb.py              # wrapper de adb com retry - implementado
 ├── gui/
 │   ├── server.py          # servidor local da interface gráfica (Fase 1)
@@ -473,7 +835,8 @@ PyRetro/
 │   ├── memory_card_editor.md          # editor de memory card PS1/PS2 - pesquisa + implementação
 │   └── termux_setup.md                # rodar o PyRetro direto no Android
 ├── cache/
-│   └── covers_registry.json   # histórico do que já foi processado por fetch-covers
+│   ├── covers_registry.json   # histórico do que já foi processado por fetch-covers
+│   └── heavy_catalog.json     # catálogo de pesados no Drive, gerado por heavy-catalog - usado pelo sortear
 └── logs/
 ```
 
@@ -496,7 +859,9 @@ PyRetro/
 | `core/emu_saves.py` | Implementado e testado no aparelho real - lista/baixa save individualizado do Dolphin(GameCube)/PPSSPP via adb, espelhando a estrutura de pastas que o usuário já mantém manualmente |
 | `core/playlist.py` | Implementado e testado ponta a ponta com o celular real (24/08) - monta `.lpl` a partir do que existe em `roms_root`/`jogos_root`, `core_path`/`core_name` "DETECT" por item, PC e Android tratados separado (sistemas pesados não sincronizam sozinhos, cada lado pode ter jogos diferentes) |
 | `core/config_backup.py` | Implementado e testado ponta a ponta (24/08) - snapshot datado de `retroarch.cfg`+`config/`+`playlists/` pro PC (cópia local) e Android (`adb pull`), pasta nova por data, nunca sobrescreve |
-| `retrosync.py` | `fetch-covers`, `fetch-covers-cloud`, `fetch-covers-fallback`, `convert-covers`, `validate-covers`, `sanitize-names`, `sync covers`, `heavy-roms`, `organize`, `rebuild-playlist` e `backup-config` conectados de verdade; `sync saves/states/metrics` (cancelado) e `fix-cues` (auditoria) levantam `NotImplementedError` |
+| `core/sortear.py` | Implementado e testado ponta a ponta contra a coleção real (27/08) - pool único leve+pesado com peso por jogo, catálogo de pesados lido do cache (`heavy_catalog.json`, gerado por `heavy-catalog`) pra não depender de `rclone` ao vivo a cada sorteio |
+| `core/library.py` | Implementado e testado ponta a ponta com dados reais (27/08). `library.json`: planilha (94) + heroic (198) + steam (102) via `library-refresh`, e PSN (9, digital+físico) + Xbox (55) via `library-add` (cadastro manual, listas levantadas pelo usuário) = **417 jogos**, merge por nome exato, fuzzy só reportado (nunca aplicado sozinho). `read_psn_library`/`read_psn_trophy_titles`/`read_xbox_library` (API) implementados e testados contra conta real mas não usados por decisão do usuário - ver `docs/changelog.md`. Capa via `library-fetch-covers` (SteamGridDB) testada nos 417: 340 baixadas, 76 sem match exato, 1 erro de rede. `get_or_create_for_rom` (27/08, revisado no mesmo dia pra exigir plataforma além de nome - ver `PLATAFORMA_ROM_CODES`) permite criar/achar registro por nome+plataforma, base do tracking universal na GUI; a aba Biblioteca mostra 405 dos 417 (12 já são ROM de verdade numa plataforma que bate de fato, filtrados dinamicamente - ver `docs/changelog.md`) |
+| `retrosync.py` | `fetch-covers`, `fetch-covers-cloud` (leve + pesado), `fetch-covers-fallback`, `convert-covers`, `validate-covers`, `sanitize-names`, `sync covers`, `heavy-roms`, `heavy-catalog`, `sortear`, `library-import-sheet`, `library-refresh` (heroic/steam/psn/xbox), `library-add`, `library-fetch-covers`, `organize`, `rebuild-playlist` e `backup-config` conectados de verdade; `sync saves/states/metrics` (cancelado) e `fix-cues` (auditoria) levantam `NotImplementedError` |
 
 Roadmap atual e próximos passos: [`docs/roadmap.md`](docs/roadmap.md).
 Histórico detalhado (bugs achados, testes, decisões de desenho):

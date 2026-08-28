@@ -13,6 +13,7 @@ precisam estar na mesma rede).
 """
 import base64
 import bisect
+import copy
 import json
 import queue
 import re
@@ -22,25 +23,33 @@ import threading
 import tomllib
 import unicodedata
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 from core import adb as adb_mod
+from core import config_backup as config_backup_mod
 from core import covers as covers_mod
 from core import emu_saves as emu_saves_mod
+from core import emu_sync as emu_sync_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
+from core import library as library_mod
 from core import memcard as memcard_mod
 from core import organize as organize_mod
+from core import pc_backup as pc_backup_mod
+from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
 from core import sanitize as sanitize_mod
 from core import screenscraper as screenscraper_mod
 from core import serials as serials_mod
+from core import sortear as sortear_mod
 
 CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
+HEAVY_CATALOG_PATH = ROOT / "cache" / "heavy_catalog.json"
 STATIC_DIR = Path(__file__).parent / "static"
 
 COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
@@ -48,11 +57,139 @@ COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
 _jobs: dict[str, "queue.Queue"] = {}
 _jobs_lock = threading.Lock()
 
+# Serializa TODO ciclo ler-modificar-gravar do library.json. A GUI é
+# multi-thread (ThreadingHTTPServer) e ainda pode ter job de fundo
+# mexendo no mesmo arquivo (library-refresh, fetch-covers) enquanto o
+# usuário clica na tela pelo celular - sem isso, duas escritas
+# simultâneas viram "lost update": as duas carregam a mesma versão, e a
+# última a gravar apaga a alteração da outra (ex: marcar "finalizado"
+# some sozinho). A gravação em si já é atômica (ver
+# core/library.save_library); esta trava cuida do outro lado, que é a
+# leitura ficar consistente com a escrita que vem depois.
+_library_lock = threading.RLock()
+
+
+def _start_job(worker) -> str:
+    """Cria um job genérico rodando `worker(emit)` em thread separada -
+    `emit(dict)` empilha um evento na mesma fila/stream SSE que
+    /api/fetch/stream já serve (genérico por job_id, não olha o tipo).
+    Qualquer exceção não tratada dentro de `worker` vira um evento
+    "error" em vez de derrubar o servidor; "job_done" sempre é emitido
+    por último, mesmo em erro, pra quem está ouvindo saber que acabou."""
+    job_id = f"job-{threading.get_ident()}-{id(object())}"
+    q: "queue.Queue" = queue.Queue()
+    with _jobs_lock:
+        _jobs[job_id] = q
+
+    def emit(event: dict) -> None:
+        q.put(event)
+
+    def run():
+        try:
+            worker(emit)
+        except Exception as e:
+            emit({"type": "error", "message": str(e)})
+        finally:
+            emit({"type": "job_done"})
+
+    threading.Thread(target=run, daemon=True).start()
+    return job_id
+
 # "code:ss_id" -> media_url real do ScreenScraper (com credenciais
 # embutidas) - NUNCA mandado pro cliente, só usado pelo proxy de
 # preview e pelo download final. Em memória, por processo - some ao
 # reiniciar o servidor, o que é aceitável (busca de novo re-popula).
 _ss_media_cache: dict[str, str] = {}
+
+
+def arcade_romname_dat(code: str) -> dict | None:
+    """Nome de exibição do Arcade (romset curto -> título completo,
+    ver core.covers.arcade_display_name) - só pra ARCADE, e nunca
+    deixa uma falha de rede derrubar quem chama (diferente de
+    core.covers.load_romname_dat, chamada aqui fora do contexto de job
+    em background que já tem seu próprio try/except)."""
+    if code not in covers_mod.ROMNAME_DATS:
+        return None
+    try:
+        dat_url, dat_cache_name = covers_mod.ROMNAME_DATS[code]
+        return covers_mod.load_romname_dat(dat_url, dat_cache_name)
+    except Exception:
+        return None
+
+
+def light_rom_display_names(code: str, info: dict, roms_root: Path) -> list:
+    """Nomes de exibição (display_name se Arcade, senão o nome do
+    arquivo sem extensão) de toda ROM local de `code` - mesmo valor
+    que a galeria de capas usa como "nome do jogo" pra cruzar com a
+    Biblioteca (ver biblioteca_info em /api/covers)."""
+    names = playlist_mod.list_local_names(code, roms_root, info.get("exts", []))
+    romname_dat = arcade_romname_dat(code)
+    out = []
+    for n in names:
+        label = Path(n).stem
+        display = covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None
+        out.append(display or label)
+    return out
+
+
+def com_versao(url: str, arquivo: Path) -> str:
+    """`url` + "?v=<mtime>" - achado 28/08: trocar a capa de um jogo
+    parecia não funcionar ("não é possível substituir capa"). O arquivo
+    ERA substituído no disco, mas /images e /library-images servem sem
+    nenhum header de cache, então o navegador continuava mostrando a
+    imagem antiga (cache heurístico) - a URL era idêntica, ele não
+    tinha motivo pra buscar de novo. Com o mtime na query, trocar o
+    arquivo troca a URL e o navegador busca; arquivo que não mudou
+    mantém a URL e segue cacheado (importante: a galeria tem centenas
+    de imagens, desligar cache pra todas seria pior)."""
+    try:
+        return f"{url}?v={int(arquivo.stat().st_mtime)}"
+    except OSError:
+        return url
+
+
+def rom_normalized_names_by_code(cfg: dict) -> dict:
+    """{codigo: {nomes normalizados}} de TODA ROM que existe de verdade
+    - leve (arquivo local, todo sistema) + pesada (catálogo cacheado).
+    Por código (não um set achatado) porque cruzar com a Biblioteca
+    exige nome E plataforma batendo (ver core.library.
+    rom_code_for_plataforma e is_rom_backed abaixo) - nome igual em
+    sistemas diferentes pode ser jogo DIFERENTE de verdade (achado
+    27/08: "Celeste" comprado no Xbox e um "Celeste.gba" - quase
+    certamente ROM-hack/demake amador - são jogos diferentes que só
+    têm o nome igual; cruzar só por nome misturava os dois, contra o
+    pedido explícito do usuário de separar por plataforma)."""
+    roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+    by_code = {}
+
+    for code, info in cfg["systems"].items():
+        by_code[code] = {covers_mod.normalize(d) for d in light_rom_display_names(code, info, roms_root)}
+
+    heavy = heavy_mod.load_heavy_systems(cfg)
+    catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
+    for code in heavy:
+        names = set()
+        for item in catalog.get(code, []):
+            stem = item["name"] if item["is_dir"] else Path(item["name"]).stem
+            names.add(covers_mod.normalize(stem))
+        by_code[code] = names
+
+    return by_code
+
+
+def is_rom_backed(game: dict, rom_names_by_code: dict) -> bool:
+    """True quando `game` (registro da Biblioteca) é, na verdade, uma
+    ROM que já mora numa aba de sistema - plataforma gravada mapeia pra
+    um código ROM conhecido (`core.library.rom_code_for_plataforma`,
+    nunca um fuzzy guess) E o nome bate com um item real desse mesmo
+    código. Plataforma não mapeada (Steam/Xbox/GOG/etc, ou qualquer
+    texto não reconhecido) nunca retorna True, mesmo que o nome
+    coincida com alguma ROM de outro sistema - ver docstring de
+    PLATAFORMA_ROM_CODES em core/library.py."""
+    code = library_mod.rom_code_for_plataforma(game["plataforma"])
+    if not code:
+        return False
+    return covers_mod.normalize(game["nome"]) in rom_names_by_code.get(code, set())
 
 
 def load_config() -> dict:
@@ -373,6 +510,419 @@ def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
         emit({"type": "job_done"})
 
 
+# A partir daqui: jobs que usam o helper genérico _start_job (evento
+# {"type": "log", "line": ...} - texto livre, mesmo conteúdo que a CLI
+# já printava) em vez do formato progress/system_done específico de
+# capas acima - operações administrativas não têm "por item" natural
+# que valha a pena estruturar (backup, sync, sanitize são por lote).
+
+def run_library_refresh_job(emit, source: str, apply: bool) -> None:
+    """heroic/steam/switch via core/library.py - psn/xbox de propósito
+    não entram aqui (decisão do usuário, ver docs/changelog.md 27/08).
+    Mesmo princípio de sempre (nunca escreve sem apply explícito):
+    calcula e mostra o merge de qualquer jeito (só em memória), só
+    grava em disco se `apply`."""
+    cfg = load_config()
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    library = library_mod.load_library(library_path)
+
+    if source == "heroic":
+        owned = library_mod.read_heroic_libraries(cfg.get("heroic", {}))
+        label = "Heroic (Epic+GOG+Amazon)"
+    elif source == "steam":
+        owned = library_mod.read_steam_library(cfg.get("steam", {}))
+        label = "Steam"
+    elif source == "switch":
+        roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+        owned = library_mod.read_switch_library(roms_root, cfg)
+        label = "Nintendo Switch (roms_root/NSW/)"
+    else:
+        emit({"type": "log", "line": f"fonte desconhecida: {source}"})
+        return
+
+    emit({"type": "log", "line": f"{label}: {len(owned)} jogo(s) possuído(s)"})
+    result = library_mod.merge_owned(library, owned)
+    emit({"type": "log", "line": f"novo(s): {result['added']}   já rastreado(s): {result['merged']}"})
+    for a, b in result["possible_dupes"]:
+        emit({"type": "log", "line": f"possível duplicata: '{a}' ~ '{b}' (não mesclado)"})
+
+    if apply:
+        library_mod.save_library(library_path, library)
+        emit({"type": "log", "line": f"salvo - {len(library['games'])} jogo(s) no total"})
+    else:
+        emit({"type": "log", "line": "(modo simulação - nada foi salvo, marque \"aplicar\")"})
+
+
+def run_library_add_job(emit, games_text: str, plataforma: str, fonte: str, apply: bool) -> None:
+    cfg = load_config()
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    library = library_mod.load_library(library_path)
+
+    owned = [
+        {"nome": line.strip(), "plataforma": plataforma, "fonte": fonte}
+        for line in games_text.splitlines() if line.strip() and not line.strip().startswith("#")
+    ]
+    if not owned:
+        emit({"type": "log", "line": "lista vazia"})
+        return
+
+    result = library_mod.merge_owned(library, owned)
+    emit({"type": "log", "line": f"{len(owned)} jogo(s) na lista - novo(s): {result['added']}   "
+                                  f"já rastreado(s): {result['merged']}"})
+    for a, b in result["possible_dupes"]:
+        emit({"type": "log", "line": f"possível duplicata: '{a}' ~ '{b}' (não mesclado)"})
+
+    if apply:
+        library_mod.save_library(library_path, library)
+        emit({"type": "log", "line": f"salvo - {len(library['games'])} jogo(s) no total"})
+    else:
+        emit({"type": "log", "line": "(modo simulação - nada foi salvo)"})
+
+
+def run_library_fetch_covers_job(emit, apply: bool) -> None:
+    cfg = load_config()
+    api_key = cfg.get("steamgriddb", {}).get("api_key")
+    if not api_key:
+        emit({"type": "log", "line": "faltando api_key em [steamgriddb] no config.toml"})
+        return
+
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    library = library_mod.load_library(library_path)
+    capas_dir = library_root / "capas"
+
+    total = sum(1 for g in library["games"] if not g["capa"])
+    if total == 0:
+        emit({"type": "log", "line": "todo jogo já tem capa"})
+        return
+    emit({"type": "log", "line": f"{total} jogo(s) sem capa"})
+
+    if not apply:
+        emit({"type": "log", "line": "(modo simulação - marque \"aplicar\" pra baixar de verdade)"})
+        return
+    emit({"type": "log", "line": "montando índice de appid da Steam (capa oficial)..."})
+    steam_appids = library_mod.steam_appid_index(cfg.get("steam", {}))
+    emit({"type": "log", "line": f"{len(steam_appids)} jogo(s) da Steam com capa oficial disponível"})
+    emit({"type": "log", "line": "buscando capas (Steam + SteamGridDB, pode demorar)..."})
+
+    counter = {"i": 0}
+
+    def on_progress(nome, status):
+        counter["i"] += 1
+        emit({"type": "progress", "code": "biblioteca", "label": nome, "status": status,
+              "i": counter["i"], "total": total})
+        if counter["i"] % 20 == 0:
+            library_mod.save_library(library_path, library)
+
+    result = library_mod.fetch_covers(library, capas_dir, api_key, on_progress=on_progress,
+                                      steam_appids=steam_appids, cfg=cfg)
+    library_mod.save_library(library_path, library)
+    emit({"type": "log", "line": f"baixado(s): {result['baixado']} ({result['via_steam']} Steam, {result['via_ss']} ScreenScraper)   "
+                                  f"sem_match: {result['sem_match']}   erro: {result['erro']}"})
+
+
+def run_heavy_fetch_covers_job(emit, code: str, apply: bool) -> None:
+    """Capa pra ROM pesada usando TODAS as fontes do projeto, em
+    cascata - cada passada só tenta o que a anterior não resolveu
+    (pedido do usuário 28/08: "e as outras fontes que usamos, não é
+    melhor? faz ele procurar em todas"). Ordem = qualidade de
+    curadoria, do melhor pro mais genérico:
+    1. libretro-thumbnails (`covers.process_system_cloud`) - mesma
+       lógica/match do `fetch-covers-cloud` da CLI, só que lendo a
+       lista de jogos do catálogo CACHEADO em vez de chamar rclone ao
+       vivo (~90s por sistema, inviável num botão). Pulado no PS1, que
+       está em COVERS_EXCLUDED (repo grande demais pra API do GitHub).
+    2. ScreenScraper - a fonte de melhor curadoria segundo o usuário
+       (ver ordem em search_cover_candidates). Passou a cobrir os
+       sistemas pesados em 28/08 (ids conferidos contra a API real,
+       ver SYSTEM_MAP).
+    3. LaunchBox - idem, cobertura nova pros pesados (PLATFORM_MAP).
+    4. SteamGridDB pro que ainda sobrou - o mais genérico, mas o único
+       que pega jogo obscuro/fan-art.
+    As passadas 2 e 3 reaproveitam `process_system_fallback` dos
+    módulos, que já lê o registry pra saber quem ficou sem match."""
+    cfg = load_config()
+    heavy = heavy_mod.load_heavy_systems(cfg)
+    sysinfo = heavy.get(code)
+    if not sysinfo:
+        emit({"type": "log", "line": f"sistema pesado desconhecido: {code}"})
+        return
+
+    capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+    capas_dir = capas_root / sysinfo["capas"] / "Named_Boxarts"
+    catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
+    items = catalog.get(code, [])
+    if not items:
+        emit({"type": "log", "line": f"catálogo de {code} vazio - rode \"🔄 Atualizar catálogo\" antes"})
+        return
+    labels = sorted({(i["name"] if i["is_dir"] else Path(i["name"]).stem) for i in items})
+    emit({"type": "log", "line": f"{len(labels)} jogo(s) no catálogo de {code}"})
+
+    faltando = [lb for lb in labels if not any((capas_dir / f"{lb}{e}").is_file() for e in (".png", ".jpg"))]
+    emit({"type": "log", "line": f"{len(faltando)} sem capa ainda"})
+    if not faltando:
+        return
+    if not apply:
+        emit({"type": "log", "line": "(modo simulação - marque \"aplicar\" pra baixar de verdade)"})
+        return
+
+    def ainda_sem_capa():
+        return [lb for lb in faltando
+                if not any((capas_dir / f"{lb}{e}").is_file() for e in (".png", ".jpg"))]
+
+    registry = load_registry()
+    if code not in COVERS_EXCLUDED:
+        emit({"type": "log", "line": "1/4 libretro-thumbnails..."})
+        result = covers_mod.process_system_cloud(
+            code, sysinfo["capas"], sysinfo["repo"], capas_root, faltando, registry, apply=True,
+        )
+        save_registry(registry)
+        emit({"type": "log", "line": f"  exato: {result['exact']}   fuzzy (não aplicado): {len(result['fuzzy'])}   "
+                                      f"sem_match: {result['no_match']}"})
+    else:
+        emit({"type": "log", "line": f"1/4 libretro-thumbnails pulado ({code} está em COVERS_EXCLUDED)"})
+
+    # ScreenScraper e LaunchBox trabalham em cima do registry (só
+    # reprocessam quem ficou "no_match"), então quem nunca passou pelo
+    # libretro (PS1) precisa ser marcado antes, senão as duas não têm o
+    # que reprocessar.
+    reg_sys = registry.setdefault(code, {})
+    for label in ainda_sem_capa():
+        if label not in reg_sys:
+            reg_sys[label] = {"status": "no_match"}
+    save_registry(registry)
+
+    for passo, (nome_fonte, mod, suportado) in enumerate([
+        ("ScreenScraper", screenscraper_mod, code in screenscraper_mod.SYSTEM_MAP),
+        ("LaunchBox", launchbox_mod, code in launchbox_mod.PLATFORM_MAP),
+    ], start=2):
+        restam = len(ainda_sem_capa())
+        if not restam:
+            break
+        if not suportado:
+            emit({"type": "log", "line": f"{passo}/4 {nome_fonte} pulado ({code} não mapeado)"})
+            continue
+        emit({"type": "log", "line": f"{passo}/4 {nome_fonte} pros {restam} restantes..."})
+        try:
+            if mod is screenscraper_mod:
+                achou = mod.process_system_fallback(
+                    code, sysinfo["capas"], capas_root, registry, cfg, apply=True)
+            else:
+                achou = mod.process_system_fallback(
+                    code, sysinfo["capas"], capas_root, registry, mod.build_index(), apply=True)
+            save_registry(registry)
+            emit({"type": "log", "line": f"  achou: {achou}"})
+        except Exception as e:
+            emit({"type": "log", "line": f"  {nome_fonte} falhou: {type(e).__name__}: {str(e)[:120]}"})
+
+    api_key = cfg.get("steamgriddb", {}).get("api_key")
+    if not api_key:
+        emit({"type": "log", "line": "4/4 SteamGridDB pulado (faltando api_key em [steamgriddb])"})
+        return
+
+    ainda_faltando = ainda_sem_capa()
+    emit({"type": "log", "line": f"4/4 SteamGridDB pros {len(ainda_faltando)} restantes..."})
+    baixado = sem_match = erro = 0
+    for i, label in enumerate(ainda_faltando, 1):
+        try:
+            url = library_mod.find_cover_steamgriddb(label, api_key)
+        except Exception:
+            erro += 1
+            continue
+        if not url:
+            sem_match += 1
+            emit({"type": "progress", "code": code, "label": label, "status": "sem_match",
+                  "i": i, "total": len(ainda_faltando)})
+            continue
+        capas_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": library_mod._BROWSER_USER_AGENT})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = r.read()
+        except Exception:
+            erro += 1
+            continue
+        # Mesmo cuidado do upload manual: grava num temporário e só
+        # converte pro .png final (o formato que o RetroArch exibe).
+        tmp = capas_dir / f"{label}.sgdb.tmp"
+        tmp.write_bytes(data)
+        conv = subprocess.run(["convert", str(tmp), str(capas_dir / f"{label}.png")],
+                              capture_output=True, text=True)
+        tmp.unlink(missing_ok=True)
+        if conv.returncode == 0:
+            baixado += 1
+            registry.setdefault(code, {})[label] = {"status": "manual", "source": "steamgriddb"}
+            emit({"type": "progress", "code": code, "label": label, "status": "baixado",
+                  "i": i, "total": len(ainda_faltando)})
+        else:
+            erro += 1
+    save_registry(registry)
+    emit({"type": "log", "line": f"  baixado: {baixado}   sem_match: {sem_match}   erro: {erro}"})
+
+
+def run_heavy_catalog_job(emit) -> None:
+    cfg = load_config()
+    emit({"type": "log", "line": "consultando o Google Drive (pode demorar - ~90s por sistema)..."})
+    catalog = sortear_mod.refresh_heavy_catalog(cfg)
+    for code, names in catalog.items():
+        emit({"type": "log", "line": f"{code}: {len(names)} jogo(s)"})
+    sortear_mod.save_heavy_catalog(HEAVY_CATALOG_PATH, catalog)
+    total = sum(len(n) for n in catalog.values())
+    emit({"type": "log", "line": f"catálogo salvo - {total} jogo(s) no total"})
+
+
+def run_backup_config_job(emit, target: str, apply: bool) -> None:
+    cfg = load_config()
+    backups_root = Path(cfg["pc"]["backups_root"]).expanduser()
+    targets = ["pc", "android"] if target == "all" else [target]
+
+    if "pc" in targets:
+        plan = config_backup_mod.backup_pc(cfg, backups_root, apply=apply)
+        emit({"type": "log", "line": f"[PC] -> {plan['dest']}"})
+        if apply:
+            for k, v in plan["counts"].items():
+                emit({"type": "log", "line": f"  {k}: {v} arquivo(s) copiado(s)"})
+
+    if "android" in targets:
+        try:
+            serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+        except adb_mod.AdbError as e:
+            emit({"type": "log", "line": f"[Android] erro de adb: {e}"})
+            serial = None
+        if serial:
+            plan = config_backup_mod.backup_android(cfg, backups_root, serial, apply=apply)
+            emit({"type": "log", "line": f"[Android] -> {plan['dest']}"})
+            if apply:
+                for k, v in plan["counts"].items():
+                    ok = plan["ok"][k]
+                    emit({"type": "log", "line": f"  {k}: {v} arquivo(s)" + ("" if ok else "  FALHOU")})
+
+    if not apply:
+        emit({"type": "log", "line": "(modo simulação - nada foi copiado)"})
+
+
+def run_backup_saves_job(emit, apply: bool) -> None:
+    cfg = load_config()
+    items = pc_backup_mod.plan(cfg)
+    if not items:
+        emit({"type": "log", "line": "nada pra fazer backup (tudo já copiado, ou dolphin_data_root vazio)"})
+        return
+    for item in items:
+        emit({"type": "log", "line": f"[{item['action']}] {item['rel_path']}"})
+    if apply:
+        pc_backup_mod.apply(items)
+        emit({"type": "log", "line": f"copiado: {len(items)} arquivo(s)"})
+    else:
+        emit({"type": "log", "line": f"total: {len(items)} arquivo(s) (modo simulação)"})
+
+
+def run_sanitize_names_job(emit, target: str, apply: bool) -> None:
+    cfg = load_config()
+    capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+    roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+    roots = []
+    if target in ("all", "capas"):
+        roots.append(("Capas", capas_root))
+    if target in ("all", "roms"):
+        roots.append(("ROMs", roms_root))
+
+    for label, root in roots:
+        results = sanitize_mod.scan_and_rename(root, apply=apply)
+        if not results:
+            emit({"type": "log", "line": f"{label}: nada pra renomear"})
+            continue
+        for r in results:
+            old_name, new_name = Path(r["old"]).name, Path(r["new"]).name
+            emit({"type": "log", "line": f"[{label}] {r['status']}: {old_name} -> {new_name}"})
+
+    if not apply:
+        emit({"type": "log", "line": "(modo simulação - nada foi renomeado)"})
+
+
+def run_rebuild_playlist_job(emit, code: str, target: str, apply: bool) -> None:
+    cfg = load_config()
+    sysinfo = cfg["systems"].get(code)
+    if not sysinfo:
+        emit({"type": "log", "line": f"sistema desconhecido em [systems]: '{code}'"})
+        return
+    db_name = f"{sysinfo['capas']}.lpl"
+    exts = sysinfo.get("exts", [])
+    targets = ["pc", "android"] if target == "all" else [target]
+
+    if "pc" in targets:
+        roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+        content_dir = roms_root / code
+        dest = Path(cfg["pc"]["retroarch_root"]).expanduser() / "playlists" / db_name
+        names = playlist_mod.list_local_names(code, roms_root, exts)
+        emit({"type": "log", "line": f"[PC] {len(names)} jogo(s) em {content_dir}"})
+        if apply and names:
+            items = [(str(content_dir / n), Path(n).stem) for n in names]
+            pl = playlist_mod.make_playlist(items, str(content_dir), exts, db_name)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(json.dumps(pl, indent=1, ensure_ascii=False))
+            emit({"type": "log", "line": f"[PC] gravado em {dest}"})
+
+    if "android" in targets:
+        jogos_root = cfg["android"]["jogos_root"]
+        remote_content_dir = f"{jogos_root.rstrip('/')}/{code}"
+        remote_dest = f"{cfg['android']['retroarch_root'].rstrip('/')}/playlists/{db_name}"
+        try:
+            serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+        except adb_mod.AdbError as e:
+            emit({"type": "log", "line": f"[Android] erro de adb: {e}"})
+            return
+        names = playlist_mod.list_remote_names(code, jogos_root, exts, serial)
+        emit({"type": "log", "line": f"[Android] {len(names)} jogo(s) em {remote_content_dir}"})
+        if apply and names:
+            items = [(f"{remote_content_dir}/{n}", Path(n).stem) for n in names]
+            pl = playlist_mod.make_playlist(items, remote_content_dir, exts, db_name)
+            tmp_dir = ROOT / "cache" / "playlists_tmp"
+            ok = playlist_mod.push_playlist(pl, remote_dest, serial, tmp_dir)
+            emit({"type": "log", "line": f"[Android] {'enviado' if ok else 'FALHOU'}"})
+
+    if not apply:
+        emit({"type": "log", "line": "(modo simulação - nada foi escrito)"})
+
+
+def run_emu_sync_job(emit, source: str, apply: bool) -> None:
+    cfg = load_config()
+    sources = list(emu_sync_mod.SOURCES) if source == "all" else [source]
+    local_mode = emu_sync_mod.running_in_termux()
+    serial = None
+    if not local_mode:
+        try:
+            serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+        except adb_mod.AdbError as e:
+            emit({"type": "log", "line": f"erro de adb: {e}"})
+            return
+
+    all_actions, all_conflicts = [], []
+    for src in sources:
+        result = emu_sync_mod.plan(src, cfg, serial=serial, local_mode=local_mode)
+        all_actions += result["actions"]
+        all_conflicts += result["conflicts"]
+
+    if not all_actions and not all_conflicts:
+        emit({"type": "log", "line": "nada pra sincronizar (tudo já igual nas três pontas)"})
+        return
+    for a in all_actions:
+        emit({"type": "log", "line": f"[{a['source']}] {a['direction']}: {a['rel_path']}"})
+    for c in all_conflicts:
+        emit({"type": "log", "line": f"CONFLITO [{c['source']}] {c['rel_path']} "
+                                      f"(pc={c['pc_mtime']}, android={c['android_mtime']})"})
+
+    if apply:
+        results = emu_sync_mod.apply(all_actions, cfg, serial=serial, local_mode=local_mode)
+        erros = [r for r in results if not r["ok"]]
+        emit({"type": "log", "line": f"aplicado: {len(results) - len(erros)}/{len(results)}"})
+        for r in erros:
+            emit({"type": "log", "line": f"erro: {r['source']}/{r['rel_path']}: {r['erro']}"})
+    else:
+        emit({"type": "log", "line": f"total: {len(all_actions)} ação(ões) (modo simulação)"})
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # silencioso - o terminal já mostra o suficiente sem isso
@@ -391,11 +941,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _cover_path(self, code: str, label: str):
         """Resolve o caminho da capa (código do sistema + label) e o
-        diretório Named_Boxarts dela. Retorna (None, None) se o sistema
-        não existir no config.toml."""
+        diretório Named_Boxarts dela - leve OU pesado (pedido do
+        usuário 27/08: upload/renomear/apagar capa manual também pra
+        ROMs pesadas, não só leve). Retorna (None, None) se o sistema
+        não existir em nenhum dos dois, ou não tiver "capas" configurado."""
         cfg = load_config()
-        info = cfg["systems"].get(code)
-        if not info:
+        info = cfg["systems"].get(code) or heavy_mod.load_heavy_systems(cfg).get(code)
+        if not info or not info.get("capas"):
             return None, None
         capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
         capas_dir = capas_root / info["capas"] / "Named_Boxarts"
@@ -411,21 +963,6 @@ class Handler(BaseHTTPRequestHandler):
         if not path:
             return None, None
         return Path(path).expanduser(), console.upper()
-
-    def _arcade_romname_dat(self, code: str) -> dict | None:
-        """Nome de exibição do Arcade (romset curto -> título completo,
-        ver core.covers.arcade_display_name) - só pra ARCADE, e nunca
-        deixa uma falha de rede derrubar a listagem de capas inteira
-        (diferente de core.covers.load_romname_dat, chamada aqui fora
-        do contexto de job em background que já tem seu próprio
-        try/except)."""
-        if code not in covers_mod.ROMNAME_DATS:
-            return None
-        try:
-            dat_url, dat_cache_name = covers_mod.ROMNAME_DATS[code]
-            return covers_mod.load_romname_dat(dat_url, dat_cache_name)
-        except Exception:
-            return None
 
     def _file(self, path: Path, content_type: str, no_cache: bool = False):
         if not path.is_file():
@@ -483,12 +1020,18 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts == ["api", "search_library"]:
             # Busca geral - pedido do usuário pra achar um jogo sem
-            # precisar já saber em qual sistema ele está. Substring
-            # simples (case/acento-insensitive), não a normalização
-            # "agressiva" de covers.normalize (que tira tag/artigo/
-            # parênteses - certa pra decidir se dois resultados são o
-            # mesmo jogo, errada pra busca livre onde o usuário pode
-            # digitar exatamente uma tag tipo "usa").
+            # precisar já saber em qual sistema/aba ele está, e depois
+            # (27/08) unificada pra cobrir TUDO (leve + pesada +
+            # Biblioteca) num só lugar - antes só leve tinha essa busca,
+            # Biblioteca tinha a própria (removida do #library-controls,
+            # ver index.html). Substring simples (case/acento-
+            # insensitive), não a normalização "agressiva" de
+            # covers.normalize (que tira tag/artigo/parênteses - certa
+            # pra decidir se dois resultados são o mesmo jogo, errada pra
+            # busca livre onde o usuário pode digitar exatamente uma tag
+            # tipo "usa"). code_filter (leve, do <select> ao lado da
+            # busca) só faz sentido restrito a "leve" - com ele marcado,
+            # pesada/Biblioteca não entram no resultado.
             q = query.get("q", [""])[0].strip()
             code_filter = query.get("code", [""])[0]
             if len(q) < 2:
@@ -505,7 +1048,7 @@ class Handler(BaseHTTPRequestHandler):
                 capas_dir = capas_root / info["capas"] / "Named_Boxarts"
                 if not capas_dir.is_dir():
                     continue
-                romname_dat = self._arcade_romname_dat(code)
+                romname_dat = arcade_romname_dat(code)
                 for p in capas_dir.iterdir():
                     if p.suffix.lower() not in (".png", ".jpg"):
                         continue
@@ -517,8 +1060,31 @@ class Handler(BaseHTTPRequestHandler):
                     haystack = label + (" " + display_name if display_name else "")
                     haystack_norm = unicodedata.normalize("NFKD", haystack).encode("ascii", "ignore").decode().lower()
                     if q_norm in haystack_norm:
-                        out.append({"code": code, "label": label, "file": p.name, "display_name": display_name})
-            out.sort(key=lambda x: ((x["display_name"] or x["label"]).lower(), x["code"]))
+                        out.append({"kind": "leve", "code": code, "label": label, "file": p.name, "display_name": display_name})
+
+            if not code_filter:
+                heavy = heavy_mod.load_heavy_systems(cfg)
+                catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
+                for code, items in catalog.items():
+                    sysinfo = heavy.get(code, {})
+                    for item in items:
+                        haystack_norm = unicodedata.normalize("NFKD", item["name"]).encode("ascii", "ignore").decode().lower()
+                        if q_norm in haystack_norm:
+                            out.append({"kind": "pesado", "code": code, "label": item["name"],
+                                        "display_name": None, "system_label": sysinfo.get("nome", code)})
+
+                library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+                library = library_mod.load_library(library_path)
+                rom_names_by_code = rom_normalized_names_by_code(cfg)
+                for g in library["games"]:
+                    if is_rom_backed(g, rom_names_by_code):
+                        continue  # já mora numa aba de ROM - ver GET /api/library
+                    haystack_norm = unicodedata.normalize("NFKD", g["nome"]).encode("ascii", "ignore").decode().lower()
+                    if q_norm in haystack_norm:
+                        out.append({"kind": "biblioteca", "code": None, "label": g["id"],
+                                    "display_name": g["nome"]})
+
+            out.sort(key=lambda x: (x["display_name"] or x["label"]).lower())
             return self._json(out[:100])
 
         if parts[:2] == ["api", "covers"] and len(parts) == 3:
@@ -550,17 +1116,38 @@ class Handler(BaseHTTPRequestHandler):
             # "mslug2") - display_name é só pra GUI mostrar "Metal Slug
             # 2" na tela, nunca usado pra rename/apagar (esses sempre
             # operam no label curto de verdade, ver core/rom_rename.py).
-            romname_dat = self._arcade_romname_dat(code)
+            romname_dat = arcade_romname_dat(code)
+
+            # Cruza com a Biblioteca (nome normalizado igual ao
+            # matching de capa - tags de região/artigo não devem
+            # impedir "Sonic the Hedgehog (USA)" de achar "Sonic the
+            # Hedgehog" na planilha - E plataforma mapeando pra este
+            # `code`, ver find_for_rom/PLATAFORMA_ROM_CODES; nome igual
+            # sozinho não basta, achado 27/08 sobre Celeste Xbox vs
+            # Celeste GBA) pra mostrar iniciado/finalizado/platinado/
+            # nota direto na galeria - só leitura, não decide nada
+            # sozinho.
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            lib_by_norm = library_mod.index_by_rom_name(library_mod.load_library(library_path))
+
+            def biblioteca_info(shown_name: str):
+                g = library_mod.find_for_rom(lib_by_norm, shown_name, code)
+                if not g:
+                    return None
+                return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
+                        "platinado": g["platinado"], "nota": g["nota"]}
 
             out = []
             for f in files:
                 label = Path(f).stem
                 status = reg_sys.get(label, {}).get("status")
+                display_name = covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None
                 out.append({
                 "file": f, "label": label, "status": status,
                 "flagged": status == "flagged_wrong", "duplicated": status == "duplicate",
                 "has_save": has_flat_match(saves_names, label), "has_state": has_flat_match(states_names, label),
-                "display_name": covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None,
+                "display_name": display_name,
+                "biblioteca": biblioteca_info(display_name or label),
             })
 
             # ROMs já organizadas mas sem capa nenhuma ainda (nem
@@ -570,11 +1157,13 @@ class Handler(BaseHTTPRequestHandler):
             if code not in covers_mod.COVERS_EXCLUDED:
                 roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
                 for label in covers_mod.missing_cover_labels(roms_root, code, info.get("exts", []), capas_dir):
+                    display_name = covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None
                     out.append({
                         "file": None, "label": label, "status": "no_cover",
                         "flagged": False, "duplicated": False,
                         "has_save": has_flat_match(saves_names, label), "has_state": has_flat_match(states_names, label),
-                        "display_name": covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None,
+                        "display_name": display_name,
+                        "biblioteca": biblioteca_info(display_name or label),
                     })
 
             out.sort(key=lambda item: (item["display_name"] or item["label"]).lower())
@@ -584,17 +1173,167 @@ class Handler(BaseHTTPRequestHandler):
             code = parts[1]
             filename = urllib.parse.unquote("/".join(parts[2:]))
             cfg = load_config()
-            info = cfg["systems"].get(code)
-            if not info:
+            info = cfg["systems"].get(code) or heavy_mod.load_heavy_systems(cfg).get(code)
+            if not info or not info.get("capas"):
                 return self._file(Path("/nonexistent"), "image/png")
             capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
             path = capas_root / info["capas"] / "Named_Boxarts" / filename
             ctype = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
             return self._file(path, ctype)
 
+        if parts[:1] == ["library-images"] and len(parts) >= 2:
+            # g.capa em library.json já guarda o caminho relativo
+            # ("capas/<id>.png") - serve direto a partir daí, mesmo
+            # padrão do /images/<code>/<arquivo> das ROMs.
+            rel_path = urllib.parse.unquote("/".join(parts[1:]))
+            cfg = load_config()
+            library_root = Path(cfg["pc"]["library_root"]).expanduser().resolve()
+            path = (library_root / rel_path).resolve()
+            if library_root not in path.parents:
+                return self._file(Path("/nonexistent"), "image/png")
+            return self._file(path, "image/png")
+
         if parts == ["api", "settings"]:
             cfg = load_config()
             return self._json({"pc": cfg.get("pc", {}), "android": cfg.get("android", {})})
+
+        if parts == ["api", "emu_sync", "sources"]:
+            return self._json([{"code": k, "nome": v["nome"]} for k, v in emu_sync_mod.SOURCES.items()])
+
+        if parts == ["api", "sortear", "systems"]:
+            # Lista pra popular o <select> - leve (sempre local) e
+            # pesado (do catálogo cacheado, mesmo que a CLI usa).
+            cfg = load_config()
+            out = [{"code": c, "label": info["capas"], "kind": "leve"} for c, info in cfg["systems"].items()]
+            for c, info in heavy_mod.load_heavy_systems(cfg).items():
+                out.append({"code": c, "label": info.get("nome", c), "kind": "pesado"})
+            out.sort(key=lambda x: x["label"])
+            return self._json(out)
+
+        if parts == ["api", "sortear"]:
+            cfg = load_config()
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
+            system = query.get("system", [""])[0].strip() or None
+
+            try:
+                pool = sortear_mod.build_pool(cfg, roms_root, catalog, system)
+            except ValueError:
+                return self._json({"error": f"sistema desconhecido: '{system}'"}, 400)
+            if not pool:
+                return self._json({"error": "nenhum jogo encontrado pra sortear"}, 404)
+
+            code, nome, kind = sortear_mod.draw(pool)
+            heavy = heavy_mod.load_heavy_systems(cfg)
+            sysinfo = cfg["systems"][code] if kind == "leve" else heavy[code]
+            label = sysinfo["capas"] if kind == "leve" else sysinfo.get("nome", code)
+            resp = {"nome": nome, "codigo": code, "label": label, "kind": kind, "pool_size": len(pool)}
+
+            # Capa: mesmo nome (sem extensão de ROM) que o resto do
+            # projeto já usa - só existe pra sistema com "capas"
+            # configurado (todo leve; pesado só os 5 com fetch-covers-
+            # cloud rodado, PS1 fica sem por decisão de sempre).
+            if sysinfo.get("capas"):
+                capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+                capas_dir = capas_root / sysinfo["capas"] / "Named_Boxarts"
+                stem = Path(nome).stem
+                for ext in (".png", ".jpg"):
+                    if (capas_dir / f"{stem}{ext}").is_file():
+                        resp["capa"] = f"/images/{code}/{urllib.parse.quote(stem + ext)}"
+                        break
+
+            if kind == "pesado":
+                local_names = {i["name"] for i in heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))}
+                resp["local"] = nome in local_names
+
+            return self._json(resp)
+
+        if parts == ["api", "library"]:
+            # library_root já é a mesma pasta sincronizada pelo Google
+            # Drive que ROMs/Capas, então isso funciona igual rodando em
+            # modo Android (Termux) - nunca gera o arquivo sozinho, só lê
+            # o que já existe. Cadastro de fonte nova (loja) continua via
+            # CLI (library-import-sheet/library-refresh/library-add);
+            # tracking (nota/iniciado/etc) é editável na tela pra
+            # qualquer jogo, ver /api/library/update e /api/library/track.
+            #
+            # Exclui jogo que na verdade é ROM (nome E plataforma
+            # batendo com uma ROM leve local ou do catálogo pesado
+            # cacheado, ver is_rom_backed/PLATAFORMA_ROM_CODES - nome
+            # igual sozinho NÃO basta, ver achado 27/08 sobre Celeste
+            # Xbox vs Celeste GBA) - pedido do usuário 27/08: "na
+            # biblioteca ainda tem jogos das ROMs, mudar os dados desses
+            # jogos para lá". O dado nunca é apagado (continua no
+            # library.json), só some da listagem aqui porque agora
+            # "mora" na aba do sistema correspondente (ver
+            # biblioteca_info em /api/covers e /api/heavy/roms).
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            rom_names_by_code = rom_normalized_names_by_code(cfg)
+            games = [g for g in library["games"] if not is_rom_backed(g, rom_names_by_code)]
+            # capa_url já vem pronta e versionada (ver com_versao) - o
+            # cliente não monta mais a URL na mão, senão perderia o
+            # cache-bust e a troca de capa não apareceria.
+            library_root = Path(cfg["pc"]["library_root"]).expanduser()
+            out = []
+            for g in games:
+                capa_url = None
+                if g["capa"]:
+                    capa_url = com_versao(f"/library-images/{urllib.parse.quote(g['capa'])}",
+                                          library_root / g["capa"])
+                out.append({**g, "capa_url": capa_url})
+            return self._json(out)
+
+        if parts in (["api", "ranking"], ["api", "iniciados"]):
+            # Duas visões que cruzam TODA a coleção de uma vez (pedido
+            # do usuário 28/08: botões próprios ao lado de Sortear) -
+            # ROM leve, pesada e Biblioteca juntas, porque desde o
+            # tracking universal (27/08) o library.json é a fonte única
+            # de progresso pra qualquer tipo de jogo. Diferente da aba
+            # Biblioteca, aqui NÃO exclui o que é ROM: o objetivo é
+            # justamente ver tudo junto. Jogo oculto fica de fora.
+            #
+            # `ranking`: quem tem nota, maior primeiro.
+            # `iniciados`: começou e ainda não terminou (o que está "em
+            # andamento" de verdade) - sem nota não desempata nada, então
+            # ordena por nome.
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            visiveis = [g for g in library["games"] if not g.get("oculto")]
+
+            if parts[1] == "ranking":
+                sel = [g for g in visiveis if g["nota"] is not None]
+                sel.sort(key=lambda g: (-g["nota"], g["nome"].lower()))
+            else:
+                sel = [g for g in visiveis if g["iniciado"] and not g["finalizado"]]
+                sel.sort(key=lambda g: g["nome"].lower())
+
+            # Capa: jogo que é ROM tem a capa na pasta do sistema, não
+            # em library_root/capas - resolve os dois casos aqui pra
+            # tela não precisar saber a diferença.
+            rom_names_by_code = rom_normalized_names_by_code(cfg)
+            capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+            heavy = heavy_mod.load_heavy_systems(cfg)
+            out = []
+            for g in sel:
+                capa = None
+                if g["capa"]:
+                    capa = com_versao(f"/library-images/{urllib.parse.quote(g['capa'])}",
+                                      Path(cfg["pc"]["library_root"]).expanduser() / g["capa"])
+                code = library_mod.rom_code_for_plataforma(g["plataforma"])
+                if not capa and code and covers_mod.normalize(g["nome"]) in rom_names_by_code.get(code, set()):
+                    info = cfg["systems"].get(code) or heavy.get(code)
+                    if info and info.get("capas"):
+                        capas_dir = capas_root / info["capas"] / "Named_Boxarts"
+                        for ext in (".png", ".jpg"):
+                            if (capas_dir / f"{g['nome']}{ext}").is_file():
+                                capa = com_versao(f"/images/{code}/{urllib.parse.quote(g['nome'] + ext)}",
+                                                  capas_dir / f"{g['nome']}{ext}")
+                                break
+                out.append({**g, "capa_url": capa})
+            return self._json(out)
 
         if parts == ["api", "cover", "search"]:
             code = query.get("code", [""])[0]
@@ -602,6 +1341,25 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             results = search_cover_candidates(code, q, cfg)
             return self._json(results)
+
+        if parts == ["api", "cover", "search_sgdb"]:
+            # Busca de capa no SteamGridDB pra escolha MANUAL - serve
+            # Biblioteca e ROM pesada, que não têm as fontes dos
+            # sistemas leves (libretro-thumbnails/LaunchBox/
+            # ScreenScraper só cobrem leve + PS1, ver PLATFORM_MAP).
+            # Pedido do usuário 28/08 pra poder "ir capeando todos os
+            # jogos de todas as abas" na mão.
+            q = query.get("q", [""])[0].strip()
+            if len(q) < 2:
+                return self._json([])
+            cfg = load_config()
+            api_key = cfg.get("steamgriddb", {}).get("api_key")
+            if not api_key:
+                return self._json({"error": "faltando api_key em [steamgriddb] no config.toml"}, 400)
+            try:
+                return self._json(library_mod.search_covers_steamgriddb(q, api_key))
+            except (OSError, json.JSONDecodeError, KeyError) as e:
+                return self._json({"error": f"falha na busca: {e}"}, 502)
 
         if parts == ["api", "cover", "ss_preview"]:
             # Proxy da imagem do ScreenScraper - a media_url real (com
@@ -650,7 +1408,25 @@ class Handler(BaseHTTPRequestHandler):
             roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
             local_items = heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))
             local_by_name = {i["name"]: i for i in local_items}
-            drive_by_name = {i["name"]: i for i in heavy_mod.list_drive_items(code, cfg)}
+
+            # Lado Drive vem do catálogo cacheado (cache/heavy_catalog.json,
+            # o mesmo que o sortear usa) em vez de rclone ao vivo - pedido
+            # do usuário (27/08): "manter um banco de dados das ROMs
+            # pesadas... acha uma boa?" - sim, e já existia parcialmente
+            # (heavy-catalog, construído pro sortear); só faltava a aba
+            # de ROMs Pesadas usar também. list_drive_items ao vivo pode
+            # levar ~90s por sistema (ver core/heavy_roms.py) - inviável
+            # numa aba que o usuário troca com frequência. Sem cache
+            # ainda (1a vez) cai pra live + já grava, populando o cache
+            # sozinho pra próxima.
+            catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
+            if code in catalog:
+                drive_by_name = {item["name"]: item for item in catalog[code]}
+            else:
+                drive_items = heavy_mod.list_drive_items(code, cfg)
+                drive_by_name = {i["name"]: i for i in drive_items}
+                catalog[code] = sorted(drive_items, key=lambda i: i["name"])
+                sortear_mod.save_heavy_catalog(HEAVY_CATALOG_PATH, catalog)
 
             android_ok = False
             remote_names = set()
@@ -661,15 +1437,51 @@ class Handler(BaseHTTPRequestHandler):
             except adb_mod.AdbError:
                 pass
 
+            # Confere no disco em vez de deixar o <img> da GUI tentar e
+            # falhar (404 poluindo o console pra quem não tem match
+            # exato ainda - PS1 nunca tem, ver COVERS_EXCLUDED) - mesma
+            # checagem que /api/sortear já faz.
+            capas_dir = None
+            if sysinfo.get("capas"):
+                capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
+                capas_dir = capas_root / sysinfo["capas"] / "Named_Boxarts"
+
+            # Cruza com a Biblioteca (mesmo comparador de nome+
+            # plataforma de sempre, ver /api/covers e
+            # find_for_rom/PLATAFORMA_ROM_CODES) pra mostrar iniciado/
+            # finalizado/platinado/nota direto na galeria de ROM pesada
+            # também (pedido do usuário 27/08: tracking universal, não
+            # só leve) - só leitura aqui, a escrita é via
+            # /api/library/track.
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            lib_by_norm = library_mod.index_by_rom_name(library_mod.load_library(library_path))
+
+            def biblioteca_info(nome: str):
+                g = library_mod.find_for_rom(lib_by_norm, nome, code)
+                if not g:
+                    return None
+                return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
+                        "platinado": g["platinado"], "nota": g["nota"]}
+
             out = []
             for name in sorted(set(local_by_name) | set(drive_by_name)):
                 local = local_by_name.get(name)
                 drive = drive_by_name.get(name)
                 base = local or drive
+                stem = name if base["is_dir"] else Path(name).stem
+                capa = None
+                if capas_dir:
+                    for ext in (".png", ".jpg"):
+                        if (capas_dir / f"{stem}{ext}").is_file():
+                            capa = com_versao(f"/images/{code}/{urllib.parse.quote(stem + ext)}",
+                                              capas_dir / f"{stem}{ext}")
+                            break
                 out.append({
                     "name": name, "size": base["size"], "is_dir": base["is_dir"],
                     "in_pc": local is not None, "in_drive": drive is not None,
                     "status": "no_celular" if (local and name in remote_names) else "so_pc",
+                    "capa": capa,
+                    "biblioteca": biblioteca_info(stem),
                 })
             return self._json({"items": out, "android_ok": android_ok})
 
@@ -738,7 +1550,24 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
+    # Caminhos que fazem ler-modificar-gravar no library.json - todos
+    # rodam sob _library_lock (ver comentário na declaração dela).
+    _ESCRITA_BIBLIOTECA = {
+        ("api", "library", "update"), ("api", "library", "track"),
+        ("api", "library", "edit"), ("api", "library", "cover_upload"),
+        ("api", "cover", "apply_url"),
+    }
+
     def do_POST(self):
+        # Trava só o que mexe na biblioteca - o resto (disparo de job,
+        # memory card, organize) segue em paralelo como sempre.
+        rota = tuple(p for p in urllib.parse.urlparse(self.path).path.split("/") if p)
+        if rota in self._ESCRITA_BIBLIOTECA:
+            with _library_lock:
+                return self._do_POST()
+        return self._do_POST()
+
+    def _do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
@@ -750,6 +1579,191 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._json({"error": str(e)}, 500)
             return self._json({"ok": True})
+
+        if parts == ["api", "library", "edit"]:
+            # Edição de VÁRIOS campos de uma vez (popup "✎ Editar" da
+            # Biblioteca) - o /update irmão grava um campo por vez, que
+            # é o certo pra edição inline do card, mas ruim pra um
+            # formulário inteiro (uma requisição por campo, e um erro no
+            # meio deixaria metade salva). Aqui é tudo-ou-nada: valida
+            # todos antes de gravar qualquer coisa.
+            body = self._read_json_body()
+            game_id, campos = body.get("id"), body.get("campos") or {}
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            if not any(g["id"] == game_id for g in library["games"]):
+                return self._json({"error": "jogo desconhecido"}, 404)
+
+            desconhecidos = [c for c in campos if c not in library_mod.EDITABLE_FIELDS]
+            if desconhecidos:
+                return self._json({"error": f"campo(s) não editável(is): {', '.join(desconhecidos)}"}, 400)
+
+            # Valida numa cópia primeiro - assim um valor ruim no meio
+            # não deixa o arquivo pela metade.
+            ensaio = copy.deepcopy(library)
+            try:
+                for campo, valor in campos.items():
+                    library_mod.update_game(ensaio, game_id, campo, valor)
+            except (TypeError, ValueError) as e:
+                return self._json({"error": str(e)}, 400)
+
+            for campo, valor in campos.items():
+                library_mod.update_game(library, game_id, campo, valor)
+            library_mod.save_library(library_path, library)
+            return self._json({"ok": True})
+
+        if parts == ["api", "library", "update"]:
+            # Edição inline (nota/tempo/iniciado/finalizado/platinado)
+            # da aba Biblioteca - só esses campos, ver
+            # core/library.EDITABLE_FIELDS. Funciona igual em modo
+            # Android (leitura+escrita de arquivo local só).
+            body = self._read_json_body()
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            try:
+                ok = library_mod.update_game(library, body.get("id"), body.get("field"), body.get("value"))
+            except (TypeError, ValueError):
+                return self._json({"error": "valor inválido"}, 400)
+            if not ok:
+                return self._json({"error": "jogo ou campo desconhecido"}, 400)
+            library_mod.save_library(library_path, library)
+            return self._json({"ok": True})
+
+        if parts == ["api", "library", "track"]:
+            # Tracking universal (iniciado/finalizado/platinado/nota) pra
+            # ROM leve ou pesada - pedido do usuário 27/08. Diferente de
+            # /api/library/update (que já espera um "id" de jogo já
+            # cadastrado), aqui a primeira edição feita na tela CRIA o
+            # registro sozinha via get_or_create_for_rom - acha por nome
+            # E plataforma compatível com `code` (nunca só nome: jogo
+            # com nome igual em plataforma diferente é jogo DIFERENTE de
+            # verdade, achado 27/08 sobre Celeste Xbox vs Celeste GBA -
+            # ver core.library.PLATAFORMA_ROM_CODES); sem bater, cria um
+            # registro novo com plataforma/fonte "rom:<CODIGO>".
+            body = self._read_json_body()
+            nome = (body.get("nome") or "").strip()
+            code = (body.get("code") or "").strip()
+            plataforma = (body.get("plataforma") or "").strip()
+            fonte = (body.get("fonte") or "").strip()
+            if not nome or not code or not plataforma or not fonte:
+                return self._json({"error": "nome/code/plataforma/fonte obrigatorios"}, 400)
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            game = library_mod.get_or_create_for_rom(library, nome, code, plataforma, fonte)
+            try:
+                ok = library_mod.update_game(library, game["id"], body.get("field"), body.get("value"))
+            except (TypeError, ValueError):
+                return self._json({"error": "valor inválido"}, 400)
+            if not ok:
+                return self._json({"error": "campo desconhecido"}, 400)
+            library_mod.save_library(library_path, library)
+            return self._json({"ok": True, "id": game["id"]})
+
+        if parts == ["api", "cover", "apply_url"]:
+            # Aplica uma capa escolhida na busca manual (ver
+            # /api/cover/search_sgdb). Um endpoint só pros dois
+            # destinos possíveis, porque a diferença é só ONDE grava:
+            # ROM (leve ou pesada) vai pra capas_root/<sistema>/
+            # Named_Boxarts/<label>.png; Biblioteca vai pra
+            # library_root/capas/<id>.png. Mesmo cuidado do upload
+            # manual: baixa e converte num temporário, só troca o
+            # arquivo final depois de validar (ver /api/cover/upload).
+            body = self._read_json_body()
+            url = (body.get("url") or "").strip()
+            if not url.startswith("https://"):
+                return self._json({"error": "url inválida"}, 400)
+            cfg = load_config()
+
+            if body.get("kind") == "biblioteca":
+                library_root = Path(cfg["pc"]["library_root"]).expanduser()
+                library_path = library_root / "library.json"
+                library = library_mod.load_library(library_path)
+                game = next((g for g in library["games"] if g["id"] == body.get("id")), None)
+                if not game:
+                    return self._json({"error": "jogo desconhecido"}, 404)
+                capas_dir, nome_base = library_root / "capas", game["id"]
+            else:
+                code, label = body.get("code"), body.get("label")
+                capas_dir, info = self._cover_path(code, label)
+                if not info:
+                    return self._json({"error": "sistema desconhecido"}, 404)
+                library, library_path, game = None, None, None
+                nome_base = label
+
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": library_mod._BROWSER_USER_AGENT})
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    data = r.read()
+            except OSError as e:
+                return self._json({"error": f"falha ao baixar: {e}"}, 502)
+            if len(data) < 100:
+                return self._json({"error": "imagem vazia"}, 502)
+
+            capas_dir.mkdir(parents=True, exist_ok=True)
+            dest = capas_dir / f"{nome_base}.png"
+            src_tmp = capas_dir / f"{nome_base}.src.tmp"
+            dest_tmp = capas_dir / f"{nome_base}.dst.png.tmp"
+            src_tmp.write_bytes(data)
+            conv = subprocess.run(["convert", str(src_tmp), str(dest_tmp)], capture_output=True, text=True)
+            src_tmp.unlink(missing_ok=True)
+            if conv.returncode != 0 or not dest_tmp.exists() or dest_tmp.stat().st_size < 1000:
+                dest_tmp.unlink(missing_ok=True)
+                return self._json({"error": f"falha ao converter: {conv.stderr.strip()[:200]}"}, 500)
+            dest_tmp.replace(dest)
+
+            if game is not None:
+                game["capa"] = f"capas/{nome_base}.png"
+                library_mod.save_library(library_path, library)
+                return self._json({"ok": True, "file": game["capa"]})
+
+            old_jpg = capas_dir / f"{nome_base}.jpg"
+            if old_jpg.exists():
+                old_jpg.unlink()
+            registry = load_registry()
+            registry.setdefault(body.get("code"), {})[nome_base] = {"status": "manual", "source": "steamgriddb"}
+            save_registry(registry)
+            return self._json({"ok": True, "file": f"{nome_base}.png"})
+
+        if parts == ["api", "library", "cover_upload"]:
+            # Upload manual de capa pra jogo da Biblioteca - mesmo
+            # tratamento de sempre (convert detecta o formato real pelo
+            # conteúdo, não confia na extensão, ver /api/cover/upload),
+            # só que gravando em library_root/capas/ em vez de
+            # capas_root/<sistema>/Named_Boxarts/ (Biblioteca tem sua
+            # própria pasta de capas, ver core/library.fetch_covers).
+            body = self._read_json_body()
+            game_id = body.get("id")
+            filename, data_b64 = body.get("filename", ""), body.get("data", "")
+            cfg = load_config()
+            library_root = Path(cfg["pc"]["library_root"]).expanduser()
+            library_path = library_root / "library.json"
+            library = library_mod.load_library(library_path)
+            game = next((g for g in library["games"] if g["id"] == game_id), None)
+            if not game:
+                return self._json({"error": "jogo desconhecido"}, 404)
+            try:
+                data = base64.b64decode(data_b64)
+            except Exception as e:
+                return self._json({"error": f"base64 inválido: {e}"}, 400)
+            if len(data) < 100:
+                return self._json({"error": "arquivo vazio ou pequeno demais"}, 400)
+
+            capas_dir = library_root / "capas"
+            capas_dir.mkdir(parents=True, exist_ok=True)
+            dest = capas_dir / f"{game_id}.png"
+            ext = Path(filename).suffix.lower() or ".png"
+            tmp = capas_dir / f"{game_id}{ext}.tmp"
+            tmp.write_bytes(data)
+            conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
+            tmp.unlink(missing_ok=True)
+            if conv.returncode != 0 or not dest.exists() or dest.stat().st_size < 1000:
+                return self._json({"error": f"falha ao converter pra png: {conv.stderr.strip()[:200]}"}, 500)
+            game["capa"] = f"capas/{game_id}.png"
+            library_mod.save_library(library_path, library)
+            return self._json({"ok": True, "file": game["capa"]})
 
         if parts == ["api", "cover", "flag"]:
             body = self._read_json_body()
@@ -911,12 +1925,27 @@ class Handler(BaseHTTPRequestHandler):
             # pelo `convert` do ImageMagick, que detecta o formato real pelo
             # conteúdo do arquivo, não pelo nome - idempotente e barato pra
             # um PNG de verdade.
-            tmp = capas_dir / (label + ext + ".tmp")
-            tmp.write_bytes(data)
-            conv = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
-            tmp.unlink(missing_ok=True)
-            if conv.returncode != 0 or not dest.exists() or dest.stat().st_size < 1000:
+            #
+            # Converte pra um destino TEMPORÁRIO, não pro `dest` final -
+            # achado 27/08 (bug sinalizado, corrigido agora): antes
+            # convertia direto em cima de `dest`, e se a checagem de
+            # tamanho abaixo falhasse (conversão "deu certo" mas resultou
+            # num PNG minúsculo/corrompido), a capa antiga (ou a
+            # inexistência de uma) ficava substituída pelo arquivo ruim
+            # mesmo com o endpoint respondendo erro - só um PNG de origem
+            # degenerado dispara isso na prática, mas sem aviso nenhum
+            # pro usuário de que o disco mudou. Agora só troca pra `dest`
+            # de verdade (rename atômico) depois de validar - falha nunca
+            # mais mexe no que já existia.
+            src_tmp = capas_dir / (label + ".src" + ext + ".tmp")
+            dest_tmp = capas_dir / (label + ".dst.png.tmp")
+            src_tmp.write_bytes(data)
+            conv = subprocess.run(["convert", str(src_tmp), str(dest_tmp)], capture_output=True, text=True)
+            src_tmp.unlink(missing_ok=True)
+            if conv.returncode != 0 or not dest_tmp.exists() or dest_tmp.stat().st_size < 1000:
+                dest_tmp.unlink(missing_ok=True)
                 return self._json({"error": f"falha ao converter pra png: {conv.stderr.strip()[:200]}"}, 500)
+            dest_tmp.replace(dest)
             old_jpg = capas_dir / (label + ".jpg")
             if old_jpg.exists():
                 old_jpg.unlink()
@@ -967,6 +1996,64 @@ class Handler(BaseHTTPRequestHandler):
             t.start()
             return self._json({"job": job_id})
 
+        if parts == ["api", "library", "refresh"]:
+            source = query.get("source", [""])[0]
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_library_refresh_job(emit, source, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "library", "add"]:
+            body = self._read_json_body()
+            games, plataforma, fonte = body.get("games", ""), body.get("plataforma", ""), body.get("fonte", "")
+            apply = bool(body.get("apply"))
+            job_id = _start_job(lambda emit: run_library_add_job(emit, games, plataforma, fonte, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "library", "fetch_covers"]:
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_library_fetch_covers_job(emit, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "heavy_catalog"]:
+            job_id = _start_job(run_heavy_catalog_job)
+            return self._json({"job": job_id})
+
+        if parts == ["api", "heavy", "fetch_covers"]:
+            code = query.get("code", [""])[0]
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_heavy_fetch_covers_job(emit, code, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "backup_config"]:
+            target = query.get("target", ["all"])[0]
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_backup_config_job(emit, target, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "backup_saves"]:
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_backup_saves_job(emit, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "sanitize_names"]:
+            target = query.get("target", ["all"])[0]
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_sanitize_names_job(emit, target, apply))
+            return self._json({"job": job_id})
+
+        if parts[:2] == ["api", "rebuild_playlist"] and len(parts) == 3:
+            code = parts[2]
+            target = query.get("target", ["all"])[0]
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_rebuild_playlist_job(emit, code, target, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "emu_sync"]:
+            source = query.get("source", ["all"])[0]
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_emu_sync_job(emit, source, apply))
+            return self._json({"job": job_id})
+
         if parts == ["api", "organize", "move"]:
             body = self._read_json_body()
             name, code = body.get("name"), body.get("code")
@@ -998,7 +2085,7 @@ class Handler(BaseHTTPRequestHandler):
                     exact_idx = covers_mod.build_index(names, loose=False)
                     loose_idx = covers_mod.build_index(names, loose=True)
                     norm_keys = list(exact_idx.keys())
-                    romname_dat = self._arcade_romname_dat(code)
+                    romname_dat = arcade_romname_dat(code)
                     cover_status, _ = covers_mod.fetch_one(
                         label, info["repo"], capas_dir, exact_idx, loose_idx, norm_keys, romname_dat
                     )

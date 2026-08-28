@@ -25,6 +25,51 @@ dolphin_data_root = "~/.var/app/org.DolphinEmu.dolphin-emu/data/dolphin-emu"
 # (o "upload" agora é o próprio Google Drive - joga o arquivo aqui, de
 # qualquer lado, e a GUI/CLI move pra roms_root/<CODIGO>/ certo).
 organizar_dir     = "0-Organizar"
+# Registro dos jogos "de fora" das ROMs (Steam/GOG/Epic/Amazon/PSN/Xbox
+# + a antiga planilha de acompanhamento) - ver core/library.py. Fica
+# dentro de Drive/Jogos/ (mesma pasta sincronizada pelo Google Drive
+# Desktop que ROMs/Capas/Saves) de propósito: o celular só LÊ isso por
+# aí, nunca gera sozinho (não tem Heroic/Steam/etc rodando lá).
+library_root      = "~/Drive/Jogos/Biblioteca"
+
+[heroic]
+# Onde o Heroic Games Launcher guarda o cache da biblioteca de
+# cada loja (legendary_library.json = Epic, gog_library.json = GOG,
+# nile_library.json = Amazon) - "library-refresh heroic" só LÊ esses
+# 3 arquivos, nunca fala com as lojas diretamente. Caminho do Flatpak
+# (com.heroicgameslauncher.hgl) por padrão - ajuste se a instalação
+# for nativa (AppImage/deb), que normalmente usa ~/.config/heroic.
+# Deixe em branco ("") se não usar o Heroic.
+config_dir = "~/.var/app/com.heroicgameslauncher.hgl/config/heroic"
+
+[steam]
+# API Web da Steam (gratuita, https://steamcommunity.com/dev/apikey) -
+# usada por "library-refresh steam" pra ler a biblioteca via
+# IPlayerService/GetOwnedGames. Só funciona com "Detalhes do jogo"
+# público no perfil (Steam > Editar perfil > Privacidade), senão a API
+# devolve biblioteca vazia mesmo com chave certa. SteamID64 dá pra
+# achar em steamid.io colando o link do seu perfil.
+api_key   = ""
+steamid64 = ""
+
+[steamgriddb]
+# Capa dos jogos digitais (Steam/Heroic/Xbox/PSN) na Biblioteca -
+# chave gratuita em steamgriddb.com > Preferences > API.
+api_key = ""
+
+[psn]
+# Token manual, válido por ~2 meses - visite (logado no PSN pelo
+# navegador) https://ca.account.sony.com/api/v1/ssocookie e copie o
+# valor de "npsso" do JSON que a página devolve. Só aparece jogo que já
+# foi ABERTO pelo menos 1x (troféu sincroniza no 1º launch) - não é
+# "possuído" no mesmo sentido de Steam/Heroic.
+npsso = ""
+
+[xbox]
+# API não-oficial (OpenXBL, https://xbl.io) - a Microsoft não tem API
+# pública equivalente à da Steam. Chave gratuita, logando com a conta
+# Microsoft/Xbox no site.
+api_key = ""
 
 [screenscraper]
 # Sua conta pessoal do screenscraper.fr - crie em https://www.screenscraper.fr
@@ -66,6 +111,10 @@ runtime_logs_root = "/storage/emulated/0/RetroArch/runtime-logs"
 # Usado por "backup-config" e "rebuild-playlist".
 retroarch_root     = "/storage/emulated/0/RetroArch"
 retroarch_cfg_path = "/storage/emulated/0/Android/data/com.retroarch/files/retroarch.cfg"
+# Mesmo library.json de [pc] library_root, só que pelo caminho que o
+# Google Drive sincroniza pro celular - Termux só LÊ isso pra exibir
+# (nenhum comando "library-*" que escreve roda em modo Android).
+library_root       = "/storage/emulated/0/Jogos/Biblioteca"
 
 # Uma entrada por pasta de sistema dentro de roms_root.
 # capas   = subpasta correspondente dentro de capas_root
@@ -123,18 +172,6 @@ capas = "Sega - Game Gear"
 repo  = "Sega_-_Game_Gear"
 exts  = ["gg"]
 
-[systems.SS]
-capas = "Sega - Saturn"
-repo  = "Sega_-_Saturn"
-exts  = ["cue", "gdi", "chd", "cdi"]
-cd_system = true
-
-[systems.SDC]
-capas = "Sega - Dreamcast"
-repo  = "Sega_-_Dreamcast"
-exts  = ["cue", "gdi", "chd", "cdi"]
-cd_system = true
-
 [systems.PCE]
 capas = "NEC - PC Engine - TurboGrafx 16"
 repo  = "NEC_-_PC_Engine_-_TurboGrafx_16"
@@ -144,12 +181,6 @@ exts  = ["pce"]
 capas = "NEC - PC Engine CD - TurboGrafx-CD"
 repo  = "NEC_-_PC_Engine_CD_-_TurboGrafx-CD"
 exts  = ["cue", "chd", "cdi"]
-cd_system = true
-
-[systems.PS]
-capas = "Sony - PlayStation"
-repo  = "Sony_-_PlayStation"
-exts  = ["cue", "chd", "ccd"]
 cd_system = true
 
 [systems.ARCADE]
@@ -167,26 +198,40 @@ exts  = ["zip", "7z"]
 [heavy_systems.PS]
 nome = "Sony - PlayStation"
 exts = ["cue", "chd", "ccd"]
+# capas/repo pra "fetch-covers-cloud" - só pra EXIBIÇÃO na
+# Biblioteca/galeria, não afeta sync/organização de ROM nenhuma.
+capas = "Sony - PlayStation"
+repo  = "Sony_-_PlayStation"
 
 [heavy_systems.PS2]
 nome = "Sony - PlayStation 2"
 exts = ["iso", "chd"]
+capas = "Sony - PlayStation 2"
+repo  = "Sony_-_PlayStation_2"
 
 [heavy_systems.NGC]
 nome = "Nintendo - GameCube"
 exts = ["iso", "rvz", "gcz"]
+capas = "Nintendo - GameCube"
+repo  = "Nintendo_-_GameCube"
 
 [heavy_systems.WII]
 nome = "Nintendo - Wii"
 exts = ["iso", "rvz", "wbfs"]
+capas = "Nintendo - Wii"
+repo  = "Nintendo_-_Wii"
 
 [heavy_systems.PSP]
 nome = "Sony - PSP"
 exts = ["iso", "cso"]
+capas = "Sony - PlayStation Portable"
+repo  = "Sony_-_PlayStation_Portable"
 
 [heavy_systems.3DS]
 nome = "Nintendo - 3DS"
 exts = ["3ds", "cia"]
+capas = "Nintendo - Nintendo 3DS"
+repo  = "Nintendo_-_Nintendo_3DS"
 
 # rclone (`rclone config`, remote "drive") - permite ver o que já
 # existe no Google Drive (nuvem) sem precisar do celular conectado via

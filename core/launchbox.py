@@ -45,12 +45,20 @@ PLATFORM_MAP = {
     "MD": "Sega Genesis",
     "SMS": "Sega Master System",
     "GG": "Sega Game Gear",
-    "SS": "Sega Saturn",
-    "SDC": "Sega Dreamcast",
     "PCE": "NEC TurboGrafx-16",
     "PCECD": "NEC TurboGrafx-CD",
     "PS": "Sony Playstation",
     "ARCADE": "Arcade",
+    # Sistemas pesados (28/08) - mesma motivação do SYSTEM_MAP do
+    # ScreenScraper: a busca de capa deles só tinha libretro-thumbnails
+    # + SteamGridDB. Nome tem que bater EXATO com o campo <Platform> do
+    # Metadata.xml (ver build_index) - conferido pela contagem do índice
+    # depois do rebuild, nome errado daria 0 jogos.
+    "PS2": "Sony Playstation 2",
+    "NGC": "Nintendo GameCube",
+    "WII": "Nintendo Wii",
+    "PSP": "Sony PSP",
+    "3DS": "Nintendo 3DS",
 }
 
 REGION_PRIORITY = ["North America", "United States", "World", "Europe"]

@@ -7,7 +7,7 @@ sistema pela extensão e move pra roms_root/<CODIGO>/ - sem precisar de
 upload HTTP, o que seria arriscado pra ROM de vários GB.
 
 Muitas extensões são ambíguas entre sistemas (.iso: PS2/GameCube/Wii/
-PSP; .cue/.chd/.cdi/.gdi: PS/SDC/SS/PCECD/PS2...) - quando
+PSP; .cue/.chd/.cdi/.gdi: PS/PCECD/PS2...) - quando
 isso acontece, não decide sozinho, lista os candidatos pro usuário
 escolher (GUI: dropdown por item; CLI: só lista, não move)."""
 from pathlib import Path
@@ -17,7 +17,7 @@ from core import sanitize as sanitize_mod
 
 def build_ext_index(systems_cfg: dict, heavy_systems_cfg: dict) -> dict:
     """{ext_sem_ponto_minusculo: [{"code", "nome", "kind": "leve"|"pesado"}, ...]}
-    Alguns códigos (PS, SDC) existem tanto em [systems] quanto em
+    Alguns códigos (PS) existem tanto em [systems] quanto em
     [heavy_systems] - o destino do organize é o mesmo (roms_root/<code>),
     então deduplica por code em vez de listar duas vezes com o mesmo
     nome (confuso no dropdown da GUI). [heavy_systems] tem prioridade
