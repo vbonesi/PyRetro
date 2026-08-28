@@ -55,7 +55,26 @@ olhando a tela:
   ("Tony Hawk's Pro Skater", "Final Fantasy VI (USA)"); versão da capa
   na URL muda quando o arquivo muda.
 
+- **Integração HTTP** (`tests/test_api.py`): sobe o servidor de verdade
+  contra um acervo temporário e conversa por HTTP - pega rota que sumiu,
+  contrato de resposta que mudou, escrita que não persiste, validação
+  que deixou passar, e travessia de caminho pelos endpoints reais.
+  Nenhum teste fala com Steam/SteamGridDB/rclone/adb.
+
 Cada teste cita o problema real que o originou.
+
+### Testes do JavaScript
+
+```
+http://localhost:8000/tests/test_app.html
+```
+
+Não há runtime JS nesta máquina (sem node/deno), então o navegador é o
+executor: abra a página pelo próprio servidor da GUI e ela mostra o
+placar. A lógica pura da interface (cor da nota, agrupamento de abas,
+filtros) mora em `gui/static/logic.js`, separada de `app.js` justamente
+pra poder ser testada sem DOM montado. O resultado também fica em
+`window.RESULTADO`, pra checagem automatizada.
 
 ## Requisitos
 

@@ -2103,3 +2103,39 @@ plano.
     Varredura não achou `except:` nu nem `except Exception: pass`.
   - Tempo de resposta medido: `/api/library` 0,26s com 566 jogos,
     `/api/covers/SFC` 0,06s - sem gargalo a atacar.
+
+- **Testes de integração e de JavaScript** - o usuário perguntou se dava
+  pra cobrir as duas lacunas que eu mesmo tinha admitido (JS e
+  integrações). Dava:
+
+  - **`tests/test_api.py`** (16 testes): sobe o `ThreadingHTTPServer` de
+    verdade contra um acervo temporário (config, ROMs, capas e
+    biblioteca de mentira - nada toca no acervo real) e conversa por
+    HTTP. Cobre o caminho completo: roteamento, leitura de config, JSON
+    de ida e volta, gravação em disco. Inclui o `/api/library/edit`
+    sendo tudo-ou-nada (nome válido + data inválida não pode gravar
+    metade), o tracking de ROM criando registro na primeira edição sem
+    duplicar na segunda, jogo oculto sumindo de Ranking/Iniciados, e a
+    travessia de caminho pelos endpoints reais. Nenhum teste fala com
+    Steam/SteamGridDB/ScreenScraper/rclone/adb.
+  - **`gui/static/logic.js`** (novo) + **`tests/test_app.html`** (18
+    testes): não há runtime JS nesta máquina (sem node/deno), então
+    separei a lógica PURA da interface (cor da nota, agrupamento de
+    abas, filtros, stemOf/formatGB) num módulo sem DOM e o navegador
+    virou o executor - a página roda as asserções e publica o placar em
+    `window.RESULTADO`. Além de testável, ficou uma separação melhor:
+    `app.js` cuida de tela e eventos, `logic.js` só de regra.
+
+  A extração quebrou o `app.js` no caminho: meu script cortou no meio de
+  um bloco de comentário e uma linha de prosa virou código
+  (`SyntaxError: Unexpected identifier 'só'`). Pego no teste de
+  regressão no navegador logo depois, não em produção - corrigido e
+  revarrido em busca de outras linhas órfãs (nenhuma).
+
+  Total: **48 testes Python + 18 de JavaScript**.
+
+  Correção de diagnóstico: eu vinha escrevendo que o "bugou" acontecia
+  "no celular"; o usuário esclareceu que foi tudo no PC. Não muda a
+  causa (servidor fora do ar pelos meus restarts + escrita não atômica),
+  só o cenário - e reforça a primeira, já que ele estava clicando
+  exatamente enquanto eu reiniciava.

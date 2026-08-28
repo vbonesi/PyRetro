@@ -1047,6 +1047,13 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/":
             return self._file(STATIC_DIR / "index.html", "text/html; charset=utf-8", no_cache=True)
 
+        if parts == ["tests", "test_app.html"]:
+            # Página de teste do JS (ver tests/test_app.html) - servida
+            # pelo próprio servidor porque ela carrega /static/logic.js,
+            # e abrir por file:// esbarraria na política de origem.
+            return self._file(ROOT / "tests" / "test_app.html",
+                              "text/html; charset=utf-8", no_cache=True)
+
         if parts[:1] == ["static"] and len(parts) == 2:
             ext = parts[1].rsplit(".", 1)[-1]
             ctype = {"js": "application/javascript", "css": "text/css"}.get(ext, "application/octet-stream")

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>PyRetro - testes de logic.js</title>
+<style>
+  body { font-family: ui-monospace, monospace; background: #111318; color: #e8e9ec;
+         margin: 0; padding: 20px; }
+  h1 { font-size: 16px; }
+  #resumo { padding: 10px; border-radius: 6px; margin: 12px 0; font-weight: bold; }
+  #resumo.ok { background: #1e3d2f; color: #7ee2b0; }
+  #resumo.falhou { background: #3d1e1e; color: #ffb0b0; }
+  .caso { padding: 3px 0; border-bottom: 1px solid #2a2e37; font-size: 13px; }
+  .passou::before { content: "✓ "; color: #4caf7d; }
+  .falhou { color: #ffb0b0; }
+  .falhou::before { content: "✗ "; }
+  .detalhe { color: #8b909c; padding-left: 18px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Testes de gui/static/logic.js</h1>
+<p class="detalhe">
+  Não há runtime JS instalado nesta máquina (sem node/deno), então o
+  navegador é o executor. Abra <code>/tests/test_app.html</code> pelo
+  próprio servidor da GUI. O resultado também fica em
+  <code>window.RESULTADO</code>, pra checagem automatizada.
+</p>
+<div id="resumo"></div>
+<div id="saida"></div>
+
+<script src="/static/logic.js"></script>
+<script>
+// Mini-framework: só o suficiente pra asserção legível, sem dependência
+// (mesma filosofia do resto do projeto).
+const casos = [];
+function teste(nome, fn) { casos.push([nome, fn]); }
+function igual(a, b, msg) {
+  const sa = JSON.stringify(a), sb = JSON.stringify(b);
+  if (sa !== sb) throw new Error(`${msg || ""} esperava ${sb}, veio ${sa}`);
+}
+function verdade(v, msg) { if (!v) throw new Error(msg || "esperava verdadeiro"); }
+
+const jogo = (extra = {}) => Object.assign({
+  nome: "Jogo", plataforma: "Steam", fontes: [], capa: null, oculto: false,
+  iniciado: false, finalizado: false, platinado: false, nota: null,
+}, extra);
+
+// --- nota: escala de cor (vermelho 1 -> verde 10 -> dourado 11) ------
+teste("sem nota não tem cor", () => {
+  igual(notaColor(null), null);
+  igual(notaColor(""), null);
+  igual(notaColor(undefined), null);
+});
+teste("nota 1 é o vermelho do tema e 10 o verde", () => {
+  igual(notaColor(1), "rgb(224,92,92)");
+  igual(notaColor(10), "rgb(76,175,125)");
+});
+teste("nota acima de 10 é dourada", () => {
+  igual(notaColor(11), "#e0a52c");
+});
+teste("nota no meio interpola", () => {
+  const c = notaColor(5.5);
+  verdade(c.startsWith("rgb("), "devia ser rgb interpolado");
+  verdade(c !== notaColor(1) && c !== notaColor(10));
+});
+teste("nota inválida não quebra", () => {
+  igual(notaColor("abc"), null);
+});
+teste("texto da nota tira o zero à toa", () => {
+  igual(notaTexto(8.0), "8");
+  igual(notaTexto(7.1), "7.1");
+  igual(notaTexto(null), "–");
+});
+
+// --- agrupamento por aba --------------------------------------------
+teste("jogo aparece na loja E na plataforma", () => {
+  // Caso real: "A Plague Tale" foi FECHADO no Xbox mas também é da
+  // Epic - tem que aparecer nas duas abas.
+  const g = jogo({ nome: "A Plague Tale", plataforma: "Xbox One", fontes: ["heroic:epic"] });
+  igual(libraryTabGroupsFor(g).sort(), ["Epic Games", "Xbox"]);
+});
+teste("gerações de Xbox viram uma aba só", () => {
+  for (const p of ["Xbox", "Xbox 360", "Xbox One", "Xbox Series S"]) {
+    igual(libraryTabGroupsFor(jogo({ plataforma: p })), ["Xbox"], p);
+  }
+});
+teste("iOS e Android viram Mobile", () => {
+  igual(libraryTabGroupsFor(jogo({ plataforma: "iOS" })), ["Mobile"]);
+  igual(libraryTabGroupsFor(jogo({ plataforma: "Android" })), ["Mobile"]);
+});
+teste("digital/físico NÃO viram aba (só rótulo do jogo)", () => {
+  // Pedido explícito: as abas de PlayStation são só PS3 e PS4.
+  const g = jogo({ plataforma: "PlayStation 4", fontes: ["psn:fisico"] });
+  igual(libraryTabGroupsFor(g), ["PlayStation 4"]);
+});
+teste("loja com dois nomes não vira duas abas", () => {
+  const g = jogo({ plataforma: "Epic Games Store", fontes: ["heroic:epic"] });
+  igual(libraryTabGroupsFor(g), ["Epic Games"]);
+});
+teste("jogo sem fonte usa a própria plataforma", () => {
+  igual(libraryTabGroupsFor(jogo({ plataforma: "GOG", fontes: [] })), ["GOG"]);
+});
+
+// --- filtros ---------------------------------------------------------
+teste("oculto só aparece quando pedido", () => {
+  const g = jogo({ oculto: true });
+  verdade(!libraryMatchesFilters(g, "", "", false, false), "oculto apareceu sem querer");
+  verdade(libraryMatchesFilters(g, "", "", false, true), "não apareceu nem pedindo");
+});
+teste("filtro de sem capa", () => {
+  verdade(libraryMatchesFilters(jogo({ capa: null }), "", "", true, false));
+  verdade(!libraryMatchesFilters(jogo({ capa: "capas/x.png" }), "", "", true, false));
+});
+teste("filtro de status", () => {
+  const zerado = jogo(), feito = jogo({ iniciado: true, finalizado: true });
+  verdade(!libraryMatchesFilters(zerado, "", "finalizado", false, false));
+  verdade(libraryMatchesFilters(feito, "", "finalizado", false, false));
+  verdade(libraryMatchesFilters(zerado, "", "nao_finalizado", false, false));
+});
+teste("filtro por aba usa o agrupamento curado", () => {
+  const g = jogo({ plataforma: "Xbox One" });
+  verdade(libraryMatchesFilters(g, "Xbox", "", false, false), "não caiu na aba Xbox");
+  verdade(!libraryMatchesFilters(g, "Steam", "", false, false));
+});
+
+// --- utilidades ------------------------------------------------------
+teste("stemOf tira a extensão mas preserva pasta", () => {
+  igual(stemOf({ name: "Bomba Patch.iso", is_dir: false }), "Bomba Patch");
+  igual(stemOf({ name: "Jogo Em Pasta", is_dir: true }), "Jogo Em Pasta");
+  igual(stemOf({ name: "Final Fantasy VII (Disk 1).chd", is_dir: false }),
+        "Final Fantasy VII (Disk 1)");
+});
+teste("formatGB", () => {
+  igual(formatGB(1024 ** 3), "1.00 GB");
+});
+
+// --- execução --------------------------------------------------------
+let ok = 0;
+const falhas = [];
+const saida = document.getElementById("saida");
+for (const [nome, fn] of casos) {
+  const div = document.createElement("div");
+  div.className = "caso";
+  try {
+    fn();
+    ok++;
+    div.innerHTML = `<span class="passou">${nome}</span>`;
+  } catch (e) {
+    falhas.push(`${nome}: ${e.message}`);
+    div.innerHTML = `<span class="falhou">${nome}</span><div class="detalhe">${e.message}</div>`;
+  }
+  saida.appendChild(div);
+}
+const resumo = document.getElementById("resumo");
+resumo.className = falhas.length ? "falhou" : "ok";
+resumo.textContent = falhas.length
+  ? `${falhas.length} de ${casos.length} FALHARAM`
+  : `${ok} testes, todos passaram`;
+window.RESULTADO = { total: casos.length, ok, falhas };
+</script>
+</body>
+</html>
