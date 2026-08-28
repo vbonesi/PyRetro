@@ -32,6 +32,31 @@ não são só estilo:
 - **Capa sem ROM correspondente não é lixo.** O acervo de capas é
   intencionalmente maior que o de ROMs, pelo mesmo motivo acima.
 
+## Testes
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+Sem dependência externa (`unittest` da stdlib), igual ao resto do
+projeto. Cobrem as regras que **quebram em silêncio** - as que não
+levantam erro, só corrompem o acervo devagar e só aparecem dias depois
+olhando a tela:
+
+- **Identidade de jogo** (`tests/test_library.py`): cruzar ROM com
+  Biblioteca exige nome E plataforma compatíveis; merge por nome exato
+  nunca mescla "Pikmin 2" com "Pikmin"; renomear preserva o vínculo com
+  a loja de origem, sem deixar o nome novo virar apelido (o que faria um
+  jogo homônimo de verdade cair no registro errado); validação de nota/
+  data/campo obrigatório; gravação atômica do `library.json`.
+- **Servidor** (`tests/test_server.py`): nome de arquivo vindo da
+  requisição não pode escapar da pasta de capas (nem por `../`, nem por
+  caminho absoluto, nem por symlink), sem barrar nome de jogo legítimo
+  ("Tony Hawk's Pro Skater", "Final Fantasy VI (USA)"); versão da capa
+  na URL muda quando o arquivo muda.
+
+Cada teste cita o problema real que o originou.
+
 ## Requisitos
 
 - Python 3.11+ (usa `tomllib` da stdlib, sem dependência externa)

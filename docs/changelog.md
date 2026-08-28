@@ -2043,3 +2043,63 @@ plano.
   200, as 12 gravaram de verdade, arquivo íntegro (546 jogos). E o
   fluxo real na tela: marcar finalizado reflete no disco e desmarcar
   reverte. Dados de teste revertidos.
+
+- **Nona leva: Switch do NSWTL, cascateamento de flags, cadastro manual
+  guiado — e validação profissional do código.**
+
+  1. **22 jogos de `~/Downloads/NSWTL-torrents/`** entraram como Switch
+     (20 novos + 2 já rastreados), com as tags de formato removidas do
+     nome. 19 dos 22 já saíram capeados; os 3 que faltam são coletâneas
+     com nome não-oficial ("Touhou Project for Nintendo Switch",
+     "Windjammers 1-2", "Baldurs Gate and Baldurs Gate 2 Enhanced
+     Editions"), que se resolvem pelo 🖼 editando o termo de busca.
+     (Contei "21" de olho ao ler o `ls` e o usuário pegou: eram 22 - o
+     script já tinha contado certo, nada ficou de fora.)
+  2. **Cascateamento das flags**: marcar `platinado` marca `finalizado`
+     e `iniciado`; marcar `finalizado` marca `iniciado`. Desmarcar faz o
+     caminho inverso (desmarcar `iniciado` limpa os outros dois) - senão
+     dava pra ficar com "platinado mas não iniciado", exatamente o
+     estado incoerente que gerou confusão. Ao concluir um jogo sem nota,
+     a tela pede a nota na hora.
+  3. **Cadastro manual guiado**: o "+ Lista" exigia digitar a tag
+     técnica da fonte (`psn:fisico`), o que na prática impedia usar.
+     Agora tem preset de Nintendo Switch / PlayStation 4 e 3 (digital ou
+     físico), com "Outra" revelando os campos livres.
+  4. **Falha de gravação agora é visível**: erro de rede no salvamento
+     de uma flag estourava sem `try/catch` e nem o alerta aparecia - a
+     tela ficava marcada e o disco não, dando a impressão de "bugou".
+     Agora avisa e orienta a recarregar.
+
+  **Auditoria (pedido: "chegar num nível bem profissional")**
+
+  - **Travessia de caminho na escrita de capa (grave)**: os endpoints
+    montavam `capas_dir / f"{label}.png"` com o label vindo da
+    requisição, sem checar nada - e o servidor escuta em `0.0.0.0`, ou
+    seja, qualquer um na rede local. No primeiro teste só falhou por
+    ACASO (a contagem de `../` caiu numa pasta inexistente); com a
+    contagem certa gravaria em qualquer lugar gravável. Corrigido em
+    `_cover_path`, que é o funil de todos os endpoints de capa, mais os
+    helpers `nome_de_arquivo_seguro`/`dentro_de` (este resiste a
+    symlink). Reconferido depois: 5 payloads maliciosos bloqueados,
+    nada escrito fora, e nome de jogo legítimo com apóstrofo/parênteses
+    continua funcionando.
+  - **Exceção não tratada matava a conexão**: qualquer erro imprevisto
+    derrubava a requisição sem resposta nenhuma - do lado do celular
+    isso aparece como "bugou", sem pista do motivo. Agora vira 500 com
+    mensagem, e o traceback vai pro terminal.
+  - **Suíte de testes criada** (não existia nenhuma): 32 testes,
+    `unittest` da stdlib, sem dependência - `python3 -m unittest
+    discover -s tests`. Cobrem as regras que quebram em silêncio
+    (identidade de jogo, merge, rename, validação, atomicidade,
+    segurança de caminho). Cada teste cita o problema real que o
+    originou.
+  - **Defeito encontrado PELOS testes**: renomear A->B->A deixava "B"
+    como apelido permanente. Não é cosmético - se outro jogo se chamar
+    "B" de verdade, a fonte da loja cairia no registro errado (cenário
+    "Portal"/"Portal 2"). Corrigido em duas frentes: o nome vigente
+    nunca fica na lista de apelidos, e o casamento por nome vigente tem
+    prioridade sobre o casamento por apelido. Virou teste de regressão.
+  - Removido um import órfão (`urllib` em `core/launchbox.py`).
+    Varredura não achou `except:` nu nem `except Exception: pass`.
+  - Tempo de resposta medido: `/api/library` 0,26s com 566 jogos,
+    `/api/covers/SFC` 0,06s - sem gargalo a atacar.

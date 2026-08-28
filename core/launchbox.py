@@ -23,7 +23,6 @@ import json
 import re
 import subprocess
 import unicodedata
-import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 

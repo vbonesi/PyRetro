@@ -522,10 +522,18 @@ def merge_owned(library: dict, owned: list) -> dict:
     acompanhamento). `possible_dupes` é só um alerta (difflib, corte
     0.8) pra revisão manual - nunca mescla sozinho por aproximação,
     pra não arriscar juntar dois jogos diferentes por engano."""
+    # Indexa nome atual e apelidos, mas o atual tem PRIORIDADE: se dois
+    # registros disputam o mesmo texto (um pelo nome vigente, outro por
+    # um apelido antigo), o do nome vigente ganha - senão um rename
+    # desfeito poderia sequestrar o jogo homônimo de verdade.
     by_norm = {}
     for g in library["games"]:
-        for nome in nomes_para_match(g):
-            by_norm.setdefault(_normalize(nome), []).append(g)
+        by_norm.setdefault(_normalize(g["nome"]), []).append(g)
+    for g in library["games"]:
+        for apelido in g.get("nomes_alt", []):
+            chave = _normalize(apelido)
+            if chave not in by_norm:
+                by_norm[chave] = [g]
     all_names = [g["nome"] for g in library["games"]]
 
     added = merged = 0
@@ -605,10 +613,15 @@ def index_by_rom_name(library: dict) -> dict:
     mesmo nome em plataformas diferentes de verdade (ver
     PLATAFORMA_ROM_CODES acima) - quem usa filtra pelo código certo via
     find_for_rom, nunca assume que nome igual = mesmo jogo sozinho."""
+    # Mesma prioridade de merge_owned: nome vigente antes de apelido.
     by_norm = {}
     for g in library["games"]:
-        for nome in nomes_para_match(g):
-            by_norm.setdefault(covers_mod.normalize(nome), []).append(g)
+        by_norm.setdefault(covers_mod.normalize(g["nome"]), []).append(g)
+    for g in library["games"]:
+        for apelido in g.get("nomes_alt", []):
+            chave = covers_mod.normalize(apelido)
+            if chave not in by_norm:
+                by_norm[chave] = [g]
     return by_norm
 
 
@@ -775,9 +788,15 @@ def update_game(library: dict, game_id: str, field: str, value) -> bool:
     # mais este registro e recria o jogo do zero.
     if field == "nome" and value != game["nome"]:
         anteriores = game.setdefault("nomes_alt", [])
-        ja_conhecidos = {_normalize(n) for n in [value, *anteriores]}
-        if _normalize(game["nome"]) not in ja_conhecidos:
+        if _normalize(game["nome"]) not in {_normalize(n) for n in anteriores}:
             anteriores.append(game["nome"])
+        # O nome ATUAL nunca fica na lista de apelidos: além de
+        # redundante, um apelido que na verdade é o nome vigente de
+        # outro jogo causaria merge errado (renomear "Portal" pra
+        # "Portal 2" por engano e voltar deixaria "Portal 2" como
+        # apelido, e aí o "Portal 2" de verdade da loja cairia neste
+        # registro).
+        game["nomes_alt"] = [n for n in anteriores if _normalize(n) != _normalize(value)]
 
     game[field] = value
     return True

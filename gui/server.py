@@ -21,6 +21,7 @@ import subprocess
 import sys
 import threading
 import tomllib
+import traceback
 import unicodedata
 import urllib.parse
 import urllib.request
@@ -130,6 +131,34 @@ def light_rom_display_names(code: str, info: dict, roms_root: Path) -> list:
         display = covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None
         out.append(display or label)
     return out
+
+
+def nome_de_arquivo_seguro(nome: str) -> bool:
+    """True se `nome` pode virar nome de arquivo sem escapar da pasta
+    de destino. Achado 28/08 numa auditoria: os endpoints de capa
+    montavam o caminho com `capas_dir / f"{label}.png"` usando o label
+    que veio da requisição, sem nenhuma checagem - um label com "../"
+    escrevia FORA da pasta de capas (o servidor escuta em 0.0.0.0, ou
+    seja, qualquer um na rede local conseguiria). Só falhou no teste
+    por acaso, porque a contagem de "../" caiu numa pasta inexistente.
+    Recusa separador de diretório, "..", nome vazio e caminho absoluto."""
+    if not nome or nome in (".", ".."):
+        return False
+    if "/" in nome or "\\" in nome or "\x00" in nome:
+        return False
+    return True
+
+
+def dentro_de(base: Path, alvo: Path) -> bool:
+    """True se `alvo` (depois de resolvido) está dentro de `base` -
+    segunda linha de defesa pra caminho montado a partir de entrada do
+    usuário, ver nome_de_arquivo_seguro. Usa resolve() nos dois lados
+    pra não ser enganado por symlink ou "..".."""
+    try:
+        base_r, alvo_r = base.resolve(), alvo.resolve()
+    except OSError:
+        return False
+    return base_r == alvo_r or base_r in alvo_r.parents
 
 
 def com_versao(url: str, arquivo: Path) -> str:
@@ -944,7 +973,13 @@ class Handler(BaseHTTPRequestHandler):
         diretório Named_Boxarts dela - leve OU pesado (pedido do
         usuário 27/08: upload/renomear/apagar capa manual também pra
         ROMs pesadas, não só leve). Retorna (None, None) se o sistema
-        não existir em nenhum dos dois, ou não tiver "capas" configurado."""
+        não existir em nenhum dos dois, não tiver "capas" configurado,
+        OU se o label não puder virar nome de arquivo com segurança -
+        este é o funil por onde passam todos os endpoints que escrevem
+        capa, então validar aqui cobre todos de uma vez (ver
+        nome_de_arquivo_seguro)."""
+        if not nome_de_arquivo_seguro(label or ""):
+            return None, None
         cfg = load_config()
         info = cfg["systems"].get(code) or heavy_mod.load_heavy_systems(cfg).get(code)
         if not info or not info.get("capas"):
@@ -985,7 +1020,26 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _responder_erro(self, e: Exception) -> None:
+        """Qualquer exceção não prevista vira 500 com mensagem, em vez
+        de derrubar a conexão sem resposta nenhuma - achado 28/08 numa
+        auditoria: um label inválido levantava FileNotFoundError e o
+        cliente só via "conexão fechada", sem pista do que houve (no
+        celular, isso aparecia como "bugou"). O traceback vai pro
+        terminal, que é onde o dono do servidor consegue ler."""
+        traceback.print_exc()
+        try:
+            self._json({"error": f"erro interno: {type(e).__name__}: {e}"}, 500)
+        except Exception:
+            pass  # conexão já morreu do outro lado; nada a fazer
+
     def do_GET(self):
+        try:
+            return self._do_GET()
+        except Exception as e:
+            return self._responder_erro(e)
+
+    def _do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
@@ -1562,10 +1616,13 @@ class Handler(BaseHTTPRequestHandler):
         # Trava só o que mexe na biblioteca - o resto (disparo de job,
         # memory card, organize) segue em paralelo como sempre.
         rota = tuple(p for p in urllib.parse.urlparse(self.path).path.split("/") if p)
-        if rota in self._ESCRITA_BIBLIOTECA:
-            with _library_lock:
-                return self._do_POST()
-        return self._do_POST()
+        try:
+            if rota in self._ESCRITA_BIBLIOTECA:
+                with _library_lock:
+                    return self._do_POST()
+            return self._do_POST()
+        except Exception as e:
+            return self._responder_erro(e)
 
     def _do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
