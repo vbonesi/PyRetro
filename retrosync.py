@@ -595,6 +595,15 @@ def cmd_library_fetch_covers(args) -> None:
     print(f"baixado(s): {result['baixado']} ({result['via_steam']} Steam, {result['via_ss']} ScreenScraper)   "
           f"sem_match: {result['sem_match']}   erro: {result['erro']}")
 
+    # Capa achada por um título DIFERENTE do que está no registro (selo
+    # de relançamento removido, ver nomes_alternativos_de_capa) - é o
+    # lote que mais merece conferida de olho, então sai nominalmente.
+    if result.get("aliases"):
+        print(f"\n{len(result['aliases'])} capa(s) vieram de uma busca pelo título sem o selo "
+              f"(confira estas):")
+        for nome, buscado in result["aliases"]:
+            print(f"  {nome}  ->  buscado como {buscado!r}")
+
 
 def cmd_sanitize_names(args) -> None:
     """RetroArch não aceita &, :, * em nome de arquivo. Roda em capas
