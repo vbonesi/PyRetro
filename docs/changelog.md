@@ -2179,3 +2179,79 @@ plano.
   Também adicionados nesta rodada: **Demonschool** e **Portal Companion
   Collection** entraram pela varredura da pasta; o segundo era
   justamente a recriação indevida, removida e substituída pelo vínculo.
+
+
+## 29/08/2026
+
+- **Varredura das 154 pastas do NSW e decomposição em massa.** Pedido:
+  "veja pasta por pasta do NSW, mapeie os arquivos, para decompormos o
+  que der - coletâneas como a do Castlevania ou Capcom Arcade, que você
+  entra dentro do jogo para escolher o que quer jogar, não conta".
+
+  O critério do usuário tem um equivalente mecânico exato, que evita
+  chute: o **title-id** no nome do dump (`[0100XXXXXXXXXX000]` = jogo
+  base, `...800` = update, resto = DLC). Coletânea de menu interno tem
+  UM base; bundle de jogos separados tem N. Um `rclone lsjson -R` da
+  NSW inteira (12.039 itens) respondeu as 154 de uma vez:
+  **16 pastas com mais de um base**, 138 com um só.
+
+  Três coisas que só a pesquisa resolveu, e que mudaram a conta:
+  - **Kingdom of Asteborg é as outras duas.** A pasta tem 3 bases, mas
+    o "Kingdom of Asteborg" é uma compilação que embala Demons of
+    Asteborg + Astebros. Decompor em 3 registraria o mesmo conteúdo
+    duas vezes - viraram 2.
+  - **SEGA Ages tinha duplicata regional.** "Thunder Force IV" e
+    "Lightening Force: Quest for the Darkstar" têm title-ids
+    diferentes, mas são o mesmo jogo (retítulo da Sega of America nos
+    EUA) - 19 de 20.
+  - **Namco tem 3 subpastas e 4 títulos.** "NAMCO Museum Archive Vol
+    1-2" é uma pasta com dois produtos dentro; ir pelo nome da subpasta
+    perderia um.
+
+  Três que PARECEM decomponíveis e não são: **Animal Crossing** (o 2º
+  base é o Island Transfer Tool, utilitário), **Duke Nukem 3D homebrew**
+  (os 3 extras são as expansões oficiais) e **Disney Classic Games** (o
+  Jungle Book do nome da pasta é DLC, não título separado).
+
+  Achado de passagem: **Sky Force Reloaded não tem jogo base** - os dois
+  arquivos da pasta são update (`[01006FE005B6E800]`). Não instala.
+
+  13 pastas decompostas em **177 jogos**: Switch 151 -> 315, biblioteca
+  567 -> 731. As grandes são ACA NEOGEO (108), SEGA Ages (19) e Touhou
+  (19).
+
+- **Correção no `/api/library/decompor`: reaproveitamento cruzava
+  plataforma.** Achado ao preparar o lote, antes de rodar. O endpoint
+  procurava o jogo já existente varrendo a biblioteca inteira só pelo
+  NOME - então decompor o "Final Fantasy 1-6 Bundle" do Switch acharia
+  o "Final Fantasy VI" que já existe como ROM de SNES e enfiaria a
+  fonte do Switch dentro do registro do SNES. É o mesmo erro do Celeste
+  (GBA x Xbox) que o usuário já tinha corrigido em 27/08: **nome só é
+  identidade DENTRO de uma plataforma**.
+
+  Passou despercebido até agora porque o único caso real era o Portal,
+  e o "Portal" da planilha por acaso já era Nintendo Switch - o acerto
+  foi sorte, não regra. Agora o índice é restrito à mesma plataforma
+  (e considera `nomes_alt`, com a mesma precedência de
+  `index_by_rom_name`: nome atual primeiro, apelido só se a chave
+  estiver livre).
+
+  Teste novo, conferido nos dois sentidos - sem a correção ele falha
+  com `(1, 1)` em vez de `(2, 0)`, exatamente o FF VI do SNES sendo
+  reaproveitado. Verificado depois no arquivo de verdade: o FF VI
+  aparece nas duas plataformas, separado, com a ROM de SNES intacta.
+
+- **Numeração de ordem some da sugestão de decompor.** Nas pastas onde
+  o usuário numera a subpasta pra manter a série na sequência ("1.
+  Demons of Asteborg", "2. Astebros"), o número é da pasta, não do
+  jogo. A trava é exigir ponto/parêntese **e** espaço: sem isso "1979
+  Revolution" e "2020 Super Baseball" virariam "Revolution" e "Super
+  Baseball". Teste pros dois casos.
+
+  Total: **60 testes Python + 18 de JavaScript**.
+
+  Verificação final: `library-refresh switch` depois do lote devolveu
+  **"novo(s): 0   já rastreado(s): 154"** - nenhuma das 13 coletâneas
+  voltou.
+
+  O mapa completo das 154 pastas ficou em `docs/NSW-mapa.md`.
