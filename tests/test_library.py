@@ -11,6 +11,7 @@ Sem dependência externa (unittest da stdlib), igual ao resto do projeto:
 """
 import json
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -268,6 +269,127 @@ class TestSugestaoDeColecao(unittest.TestCase):
             {"name": "1979 Revolution Black Friday"}, {"name": "13 Sentinels"},
             {"name": "2020 Super Baseball"},
         ]), ["1979 Revolution Black Friday", "13 Sentinels", "2020 Super Baseball"])
+
+
+class TestNomeAlternativoDeCapa(unittest.TestCase):
+    """O selo da linha de relançamento vem grudado no título oficial e
+    quebra a busca de capa. Achado 29/08: depois de decompor os bundles,
+    99 dos 108 "ACA NEOGEO ..." ficaram sem capa - o SteamGridDB não tem
+    "ACA NEOGEO METAL SLUG", tem "Metal Slug"."""
+
+    def test_tira_o_selo(self):
+        self.assertEqual(lm.nomes_alternativos_de_capa("ACA NEOGEO METAL SLUG"),
+                         ["METAL SLUG"])
+        self.assertEqual(lm.nomes_alternativos_de_capa("SEGA AGES Out Run"), ["Out Run"])
+
+    def test_nome_normal_nao_ganha_alternativa(self):
+        for n in ("Metal Slug", "Hades II", "Turrican Anthology Vol. 1"):
+            self.assertEqual(lm.nomes_alternativos_de_capa(n), [], n)
+
+    def test_selo_sozinho_nao_vira_nome_vazio(self):
+        self.assertEqual(lm.nomes_alternativos_de_capa("ACA NEOGEO "), [])
+
+
+class TestFetchCoversFallback(unittest.TestCase):
+    """A ordem importa nos dois sentidos, e é por isso que o alternativo
+    é FALLBACK e não substituição: "SEGA AGES Out Run" tem capa própria
+    (arte do relançamento) e "Out Run" sozinho não; "ACA NEOGEO METAL
+    SLUG" é o contrário. Trocar a busca em vez de acrescentar perderia
+    metade dos casos."""
+
+    def setUp(self):
+        self._original = lm.find_cover_steamgriddb
+        self.consultas = []
+
+    def tearDown(self):
+        lm.find_cover_steamgriddb = self._original
+
+    def _rodar(self, nome_do_jogo, catalogo):
+        """catalogo = nomes que a fonte "tem". Devolve (capa?, consultas)."""
+        def falso(nome, api_key):
+            self.consultas.append(nome)
+            return "http://exemplo/capa.png" if nome in catalogo else None
+        lm.find_cover_steamgriddb = falso
+
+        biblioteca = {"games": [jogo(nome_do_jogo, "Nintendo Switch")]}
+        with tempfile.TemporaryDirectory() as d:
+            capas = Path(d) / "capas"
+            # Sem rede de verdade: o download é o único passo que sobra,
+            # então é ele que precisa ser neutralizado.
+            original_urlopen = lm.urllib.request.urlopen
+            lm.urllib.request.urlopen = lambda *a, **k: _RespostaFalsa()
+            try:
+                r = lm.fetch_covers(biblioteca, capas, "chave-falsa")
+            finally:
+                lm.urllib.request.urlopen = original_urlopen
+        return r, self.consultas
+
+    def test_nome_de_verdade_vem_primeiro(self):
+        # Se o nome completo resolve, o alternativo nem é consultado.
+        r, consultas = self._rodar("SEGA AGES Out Run", {"SEGA AGES Out Run"})
+        self.assertEqual(r["baixado"], 1)
+        self.assertEqual(consultas, ["SEGA AGES Out Run"], "consultou o alternativo à toa")
+        self.assertEqual(r["via_alias"], 0)
+
+    def test_alternativo_salva_quando_o_completo_falha(self):
+        r, consultas = self._rodar("ACA NEOGEO METAL SLUG", {"METAL SLUG"})
+        self.assertEqual(r["baixado"], 1)
+        self.assertEqual(consultas, ["ACA NEOGEO METAL SLUG", "METAL SLUG"])
+        self.assertEqual(r["via_alias"], 1)
+        self.assertEqual(r["aliases"], [("ACA NEOGEO METAL SLUG", "METAL SLUG")])
+
+    def test_nenhum_dos_dois_continua_sem_capa(self):
+        r, _ = self._rodar("ACA NEOGEO ZUPAPA!", set())
+        self.assertEqual((r["baixado"], r["sem_match"]), (0, 1))
+
+
+class TestGravarPNG(unittest.TestCase):
+    """Achado 29/08: 20 das 116 capas baixadas eram JPEG dentro de um
+    arquivo .png. O projeto já sabia disso desde 02/08 (launchbox
+    converte, validate-covers caça o estrago), mas o caminho da
+    Biblioteca gravava direto o que a URL devolvia."""
+
+    def test_png_de_verdade_passa_intacto(self):
+        with tempfile.TemporaryDirectory() as d:
+            dest = Path(d) / "capa.png"
+            data = b"\x89PNG\r\n\x1a\n" + b"conteudo" * 200
+            self.assertTrue(lm.gravar_png(data, dest))
+            self.assertEqual(dest.read_bytes(), data, "reescreveu um PNG que já estava certo")
+
+    def test_jpeg_vira_png_de_verdade(self):
+        import shutil
+        if not shutil.which("convert"):
+            self.skipTest("ImageMagick não instalado")
+        with tempfile.TemporaryDirectory() as d:
+            origem = Path(d) / "origem.jpg"
+            subprocess.run(["convert", "-size", "600x900", "xc:red", str(origem)], check=True)
+            dest = Path(d) / "capa.png"
+            self.assertTrue(lm.gravar_png(origem.read_bytes(), dest))
+            self.assertTrue(dest.read_bytes().startswith(b"\x89PNG"),
+                            "gravou JPEG com nome .png de novo")
+
+    def test_temporario_nao_fica_pra_tras(self):
+        import shutil
+        if not shutil.which("convert"):
+            self.skipTest("ImageMagick não instalado")
+        with tempfile.TemporaryDirectory() as d:
+            origem = Path(d) / "o.jpg"
+            subprocess.run(["convert", "-size", "60x90", "xc:blue", str(origem)], check=True)
+            dest = Path(d) / "capa.png"
+            lm.gravar_png(origem.read_bytes(), dest)
+            self.assertEqual(sorted(p.name for p in Path(d).iterdir()), ["capa.png", "o.jpg"])
+
+
+class _RespostaFalsa:
+    """Context manager mínimo no formato que urlopen devolve."""
+    def read(self):
+        return b"\x89PNG\r\n\x1a\n" + b"0" * 100
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
 
 
 class TestImportacaoDaPlanilha(unittest.TestCase):

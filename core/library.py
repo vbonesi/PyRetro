@@ -25,6 +25,7 @@ import difflib
 import http.client
 import json
 import re
+import subprocess
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -992,6 +993,77 @@ def _find_cover_screenscraper(nome: str, ss_code: str, cfg: dict) -> str | None:
     return None
 
 
+# Selo da linha de relançamento que vem GRUDADO no título oficial do
+# jogo na eShop. "ACA NEOGEO METAL SLUG" é o Metal Slug de Neo Geo
+# publicado pela Hamster; "SEGA AGES Out Run" é o Out Run. O selo é do
+# programa de relançamento, não do jogo.
+_SELOS_DE_RELANCAMENTO = ("ACA NEOGEO ", "SEGA AGES ", "SEGA Ages ")
+
+
+def gravar_png(data: bytes, dest: Path) -> bool:
+    """Grava `data` em `dest` (sempre .png) garantindo que o CONTEÚDO
+    seja PNG de verdade, não só a extensão.
+
+    Achado em 29/08, depois de baixar 116 capas de coletânea decomposta:
+    20 tinham bytes JPEG dentro de um arquivo .png. O bug já era
+    conhecido do projeto - `core/launchbox.download_cover` converte por
+    isso desde 02/08 ("o metadado da fonte não é garantia do conteúdo
+    real") e existe até um `retrosync validate-covers` pra caçar o
+    estrago - mas o caminho da Biblioteca nunca tinha recebido a
+    correção, porque grava direto o que a URL devolve.
+
+    Navegador tolera (fareja o conteúdo), mas RetroArch só exibe PNG de
+    verdade e o `validate-covers` acusa - deixar os dois lados com a
+    mesma regra é mais barato que lembrar da exceção depois.
+    `convert` detecta o formato pelo conteúdo, então é idempotente e
+    barato pra quem já veio PNG. Sem ImageMagick, grava o que veio (é
+    melhor ter a capa do que não ter)."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if data[:8].startswith(b"\x89PNG\r\n\x1a\n"):
+        dest.write_bytes(data)
+        return True
+
+    tmp = dest.with_suffix(".origem.tmp")
+    tmp.write_bytes(data)
+    try:
+        r = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
+        # O que prova a conversão é o CONTEÚDO ser PNG, não o tamanho.
+        # (Copiei de início o `st_size > 1000` do launchbox e um teste
+        # com imagem de cor sólida derrubou: lá a checagem é de
+        # download vazio, aqui um PNG legítimo comprime pra 300 bytes.)
+        convertido = (r.returncode == 0 and dest.exists()
+                      and dest.read_bytes()[:8].startswith(b"\x89PNG\r\n\x1a\n"))
+    except (OSError, subprocess.SubprocessError):
+        convertido = False
+    finally:
+        tmp.unlink(missing_ok=True)
+
+    if not convertido:
+        dest.write_bytes(data)
+    return True
+
+
+def nomes_alternativos_de_capa(nome: str) -> list:
+    """Outros nomes pelos quais o MESMO jogo pode estar catalogado nas
+    fontes de capa. Só entra em ação depois que o nome de verdade não
+    achou nada (ver fetch_covers) - nunca substitui a busca principal,
+    porque as duas formas aparecem no acervo: "SEGA AGES Out Run" tem
+    capa própria no SteamGridDB (a arte do relançamento) e "Out Run"
+    sozinho não tem; já "ACA NEOGEO METAL SLUG" não tem e "Metal Slug"
+    tem. Tentar só uma das duas perderia metade (conferido em 29/08 na
+    API: 99 dos 108 ACA NEOGEO ficaram sem capa por causa do selo).
+
+    Continua valendo a regra do projeto de nunca aplicar capa por
+    aproximação: quem casa é o `find_cover_*`, sempre em match EXATO -
+    aqui só se tira um prefixo conhecido e fixo, o que é uma reescrita
+    do título, não um chute de semelhança."""
+    alternativos = []
+    for selo in _SELOS_DE_RELANCAMENTO:
+        if nome.startswith(selo) and len(nome) > len(selo):
+            alternativos.append(nome[len(selo):].strip())
+    return alternativos
+
+
 PLATAFORMA_SCREENSCRAPER = {
     "Nintendo Switch": "NSW",
     "PlayStation 4": "PS",     # ScreenScraper não separa PS4; PS1 é o mais próximo
@@ -1022,23 +1094,31 @@ def fetch_covers(library: dict, capas_dir: Path, api_key: str, on_progress=None,
     Jogo oculto (`oculto`) é pulado - não faz sentido gastar rede com
     o que o usuário escondeu de propósito."""
     pending = [g for g in library["games"] if not g["capa"] and not g.get("oculto")]
-    result = {"baixado": 0, "sem_match": 0, "erro": 0, "via_steam": 0, "via_ss": 0}
+    result = {"baixado": 0, "sem_match": 0, "erro": 0, "via_steam": 0, "via_ss": 0,
+              "via_alias": 0, "aliases": []}
     steam_appids = steam_appids or {}
 
     for game in pending:
-        url, via_steam, via_ss = None, False, False
+        url, via_steam, via_ss, alias_usado = None, False, False, None
         try:
             appid = steam_appids.get(covers_mod.normalize(game["nome"]))
             if appid:
                 url = find_cover_steam_cdn(appid)
                 via_steam = url is not None
-            if not url and cfg:
-                ss_code = PLATAFORMA_SCREENSCRAPER.get(game["plataforma"])
-                if ss_code:
-                    url = _find_cover_screenscraper(game["nome"], ss_code, cfg)
-                    via_ss = url is not None
-            if not url:
-                url = find_cover_steamgriddb(game["nome"], api_key)
+            # O nome de verdade primeiro, sempre; só depois o título sem
+            # o selo de relançamento (ver nomes_alternativos_de_capa).
+            for i, nome in enumerate([game["nome"], *nomes_alternativos_de_capa(game["nome"])]):
+                if url:
+                    break
+                if cfg:
+                    ss_code = PLATAFORMA_SCREENSCRAPER.get(game["plataforma"])
+                    if ss_code:
+                        url = _find_cover_screenscraper(nome, ss_code, cfg)
+                        via_ss = url is not None
+                if not url:
+                    url = find_cover_steamgriddb(nome, api_key)
+                if url and i > 0:
+                    alias_usado = nome
         except (OSError, json.JSONDecodeError, KeyError):
             result["erro"] += 1
             if on_progress:
@@ -1062,15 +1142,27 @@ def fetch_covers(library: dict, capas_dir: Path, api_key: str, on_progress=None,
             if on_progress:
                 on_progress(game["nome"], "erro")
             continue
-        dest.write_bytes(data)
+        if not gravar_png(data, dest):
+            result["erro"] += 1
+            if on_progress:
+                on_progress(game["nome"], "erro")
+            continue
         game["capa"] = f"capas/{game['id']}.png"
         result["baixado"] += 1
         if via_steam:
             result["via_steam"] += 1
         if via_ss:
             result["via_ss"] += 1
+        if alias_usado:
+            # Registrado nominalmente, não só contado: a capa veio de uma
+            # busca por um título diferente do que está no registro, então
+            # é o lote que mais merece uma conferida de olho.
+            result["via_alias"] += 1
+            result["aliases"].append((game["nome"], alias_usado))
         if on_progress:
             fonte = "steam" if via_steam else ("screenscraper" if via_ss else "steamgriddb")
+            if alias_usado:
+                fonte += f", buscado como {alias_usado!r}"
             on_progress(game["nome"], f"baixado ({fonte})")
 
     return result

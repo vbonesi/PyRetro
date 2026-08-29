@@ -2255,3 +2255,58 @@ plano.
   voltou.
 
   O mapa completo das 154 pastas ficou em `docs/NSW-mapa.md`.
+
+- **Capa dos 177 jogos novos: 180 sem capa -> 22.** A primeira passada
+  achou só 56. A causa das 124 restantes era o **selo da linha de
+  relançamento grudado no título oficial**: o SteamGridDB não tem "ACA
+  NEOGEO METAL SLUG", tem "Metal Slug".
+
+  O ponto que decidiu o desenho é que os dois casos existem, em
+  direções OPOSTAS (conferido na API antes de mexer):
+
+  | busca | resultado |
+  |---|---|
+  | `ACA NEOGEO METAL SLUG` | nada |
+  | `Metal Slug` | achou |
+  | `SEGA AGES Out Run` | achou (arte do relançamento) |
+  | `Out Run` | nada |
+
+  Então `nomes_alternativos_de_capa` é **fallback**, nunca substituição
+  - trocar a busca em vez de acrescentar perderia a outra metade. Teste
+  pros dois sentidos, incluindo um que falha se o alternativo for
+  consultado à toa quando o nome completo já resolveu.
+
+  Não afrouxa a regra de nunca aplicar capa por aproximação: quem casa
+  continua sendo o `find_cover_*`, sempre em match EXATO. O que muda é
+  tirar um prefixo conhecido e fixo - reescrita de título, não chute de
+  semelhança. Ainda assim é o lote que mais merece conferida, então o
+  resultado passou a guardar o par (nome no registro, nome buscado) e a
+  CLI lista isso nominalmente no fim.
+
+  Segunda passada: **102 de 124**. Sobraram 22, sendo 3 delas antigas
+  (Bomba Patch/Winning Eleven, hacks brasileiros que não estão em
+  catálogo nenhum).
+
+- **Capa da Biblioteca gravava JPEG dentro de arquivo .png.** Achado ao
+  validar as 116 capas recém-baixadas: 20 não eram PNG. O bug já era
+  conhecido do projeto desde 02/08 - `launchbox.download_cover` converte
+  por causa dele ("o metadado da fonte não é garantia do conteúdo
+  real") e existe um `validate-covers` pra caçar o estrago - mas o
+  `validate-covers` só varre `capas_root` (ROM), e o caminho da
+  Biblioteca nunca tinha recebido a correção: gravava direto o que a URL
+  devolvia.
+
+  Novo `gravar_png()`, mesma política do launchbox (deixa passar quem já
+  é PNG, converte o resto pelo ImageMagick, e na falta dele grava o que
+  veio - melhor ter a capa do que não ter). Varrida a biblioteca
+  inteira: **141 arquivos** estavam errados, não só os 20 do lote novo -
+  as capas antigas carregavam o problema desde sempre. Todas convertidas,
+  703 capas validadas byte a byte, nenhuma sobrou.
+
+  Um erro meu no caminho, pego pelo próprio teste: copiei do launchbox a
+  checagem `st_size > 1000` pra decidir se a conversão deu certo. Lá é
+  checagem de download vazio; aqui derrubava conversão legítima, porque
+  PNG de cor sólida comprime pra ~300 bytes. Agora o que prova a
+  conversão é o conteúdo começar com a assinatura PNG.
+
+  Total: **69 testes Python + 18 de JavaScript**.
