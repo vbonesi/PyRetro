@@ -51,6 +51,10 @@ from core import sortear as sortear_mod
 CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
 HEAVY_CATALOG_PATH = ROOT / "cache" / "heavy_catalog.json"
+# {nome limpo: nome real da pasta} do Switch - listar a NSW inteira via
+# rclone leva minutos, inviável num clique da tela, então o mapa fica
+# cacheado e é atualizado junto com "🔄 Switch"/library-refresh switch.
+SWITCH_PASTAS_PATH = ROOT / "cache" / "switch_pastas.json"
 STATIC_DIR = Path(__file__).parent / "static"
 
 COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
@@ -566,6 +570,16 @@ def run_library_refresh_job(emit, source: str, apply: bool) -> None:
         roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
         owned = library_mod.read_switch_library(roms_root, cfg)
         label = "Nintendo Switch (roms_root/NSW/)"
+        # Aproveita a varredura (que já pagou o custo do rclone) pra
+        # guardar o mapa nome-limpo -> pasta real, usado pela tela de
+        # decompor coletânea.
+        try:
+            mapa = library_mod.mapa_pastas_switch(roms_root, cfg)
+            SWITCH_PASTAS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            SWITCH_PASTAS_PATH.write_text(json.dumps(mapa, indent=1, ensure_ascii=False))
+            emit({"type": "log", "line": f"mapa de pastas do Switch atualizado ({len(mapa)})"})
+        except OSError as e:
+            emit({"type": "log", "line": f"não consegui salvar o mapa de pastas: {e}"})
     else:
         emit({"type": "log", "line": f"fonte desconhecida: {source}"})
         return
@@ -1396,6 +1410,32 @@ class Handler(BaseHTTPRequestHandler):
                 out.append({**g, "capa_url": capa})
             return self._json(out)
 
+        if parts == ["api", "switch", "colecao"]:
+            # Sugestão de quais jogos uma coletânea contém, lendo o que
+            # existe DENTRO da pasta (ver core/library.
+            # nomes_dentro_da_colecao). É chute pra pré-preencher a tela
+            # de decompor - quem decide é o usuário.
+            nome = query.get("nome", [""])[0].strip()
+            if not nome:
+                return self._json({"error": "nome obrigatório"}, 400)
+            cfg = load_config()
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            mapa = {}
+            if SWITCH_PASTAS_PATH.exists():
+                mapa = json.loads(SWITCH_PASTAS_PATH.read_text())
+            pasta_real = mapa.get(nome)
+            if not pasta_real:
+                # Sem cache ainda (ou pasta nova): tenta só o lado local,
+                # que é barato. O Drive fica pro próximo "🔄 Switch".
+                pasta_real = library_mod.mapa_pastas_switch(roms_root, None).get(nome)
+            if not pasta_real:
+                return self._json({"pasta": None, "sugestoes": [],
+                                   "aviso": "não achei a pasta desse jogo - rode \"🔄 Switch\" "
+                                            "pra atualizar o mapa, ou digite os nomes na mão"})
+            itens = library_mod.conteudo_da_pasta_switch(pasta_real, roms_root, cfg)
+            return self._json({"pasta": pasta_real,
+                               "sugestoes": library_mod.nomes_dentro_da_colecao(itens)})
+
         if parts == ["api", "cover", "search"]:
             code = query.get("code", [""])[0]
             q = query.get("q", [""])[0]
@@ -1616,6 +1656,7 @@ class Handler(BaseHTTPRequestHandler):
     _ESCRITA_BIBLIOTECA = {
         ("api", "library", "update"), ("api", "library", "track"),
         ("api", "library", "edit"), ("api", "library", "cover_upload"),
+        ("api", "library", "decompor"),
         ("api", "cover", "apply_url"),
     }
 
@@ -1643,6 +1684,80 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._json({"error": str(e)}, 500)
             return self._json({"ok": True})
+
+        if parts == ["api", "library", "decompor"]:
+            # Decompõe uma coletânea nos jogos que ela contém (pedido do
+            # usuário 29/08: "muitos jogos são collections, eventualmente
+            # vou decompondo eles").
+            #
+            # O ponto crítico é o VÍNCULO: a pasta continua se chamando
+            # "Portal Companion Collection" pra sempre, e a varredura
+            # casa por nome - sem guardar esse nome como apelido de um
+            # dos jogos resultantes, o próximo "🔄 Switch" recria a
+            # coletânea do zero (foi exatamente o que aconteceu com o
+            # Portal). Por isso o nome da coletânea vira `nomes_alt` do
+            # primeiro jogo da lista.
+            #
+            # Jogo da lista que JÁ existe é reaproveitado, não duplicado
+            # - é o caso comum: "Portal" já vinha da planilha, com nota
+            # e finalizado, e não pode virar um registro novo vazio.
+            body = self._read_json_body()
+            game_id = body.get("id")
+            nomes = [n.strip() for n in (body.get("nomes") or []) if n and n.strip()]
+            if not nomes:
+                return self._json({"error": "informe ao menos um jogo"}, 400)
+
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            original = next((g for g in library["games"] if g["id"] == game_id), None)
+            if not original:
+                return self._json({"error": "jogo desconhecido"}, 404)
+
+            plataforma, fontes = original["plataforma"], list(original["fontes"])
+            # Todo nome que a coletânea já respondia por (o nome dela e
+            # os apelidos que ela tinha) precisa continuar sendo
+            # reconhecido depois que ela sumir.
+            a_preservar = [original["nome"], *original.get("nomes_alt", [])]
+
+            por_nome = {}
+            for g in library["games"]:
+                if g is not original:
+                    por_nome.setdefault(library_mod._normalize(g["nome"]), g)
+
+            resultantes, criados = [], 0
+            for nome in nomes:
+                existente = por_nome.get(library_mod._normalize(nome))
+                if existente:
+                    for f in fontes:
+                        if f not in existente["fontes"]:
+                            existente["fontes"].append(f)
+                    resultantes.append(existente)
+                    continue
+                novo = library_mod._blank_game(nome, plataforma)
+                novo["fontes"] = list(fontes)
+                library["games"].append(novo)
+                resultantes.append(novo)
+                criados += 1
+
+            principal = resultantes[0]
+            conhecidos = {library_mod._normalize(n) for n in
+                          [principal["nome"], *principal.get("nomes_alt", [])]}
+            for nome in a_preservar:
+                if library_mod._normalize(nome) not in conhecidos:
+                    principal.setdefault("nomes_alt", []).append(nome)
+                    conhecidos.add(library_mod._normalize(nome))
+
+            # A coletânea some, a menos que ela mesma esteja na lista
+            # (caso de "decompor" só pra renomear/anexar apelido).
+            if original not in resultantes:
+                library["games"].remove(original)
+
+            library_mod.save_library(library_path, library)
+            return self._json({"ok": True, "criados": criados,
+                               "reaproveitados": len(resultantes) - criados,
+                               "vinculo_em": principal["nome"],
+                               "apelidos": principal.get("nomes_alt", [])})
 
         if parts == ["api", "library", "edit"]:
             # Edição de VÁRIOS campos de uma vez (popup "✎ Editar" da

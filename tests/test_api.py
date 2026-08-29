@@ -248,6 +248,69 @@ class TestTrackingDeROM(BaseAPI):
         self.assertEqual(status, 400)
 
 
+class TestDecomporColecao(BaseAPI):
+    """Coletânea decomposta não pode voltar na próxima varredura - o
+    nome da PASTA continua existindo pra sempre, e a varredura casa por
+    nome. Foi exatamente o que aconteceu com "Portal Companion
+    Collection" (29/08): o usuário separou em Portal e Portal 2, e a
+    varredura seguinte recriou a coletânea."""
+
+    def setUp(self):
+        self.gravar_biblioteca([
+            # "Portal" já vinha da planilha, COM progresso - decompor
+            # não pode duplicar nem zerar isso.
+            dict(lm._blank_game("Portal", "Nintendo Switch"), nota=9.4,
+                 iniciado=True, finalizado=True),
+            dict(lm._blank_game("Portal Companion Collection", "Nintendo Switch"),
+                 fontes=["switch"]),
+        ])
+
+    def _colecao_id(self):
+        _, dados = self.pedir("/api/library")
+        return next(g["id"] for g in dados if g["nome"] == "Portal Companion Collection")
+
+    def test_decompoe_reaproveitando_o_que_ja_existe(self):
+        status, r = self.pedir("/api/library/decompor",
+                               {"id": self._colecao_id(), "nomes": ["Portal", "Portal 2"]})
+        self.assertEqual(status, 200)
+        self.assertEqual((r["criados"], r["reaproveitados"]), (1, 1))
+
+        salvo = json.loads(self.lib_path.read_text())["games"]
+        nomes = sorted(g["nome"] for g in salvo)
+        self.assertEqual(nomes, ["Portal", "Portal 2"], "a coletânea devia ter sumido")
+        portal = next(g for g in salvo if g["nome"] == "Portal")
+        self.assertEqual(portal["nota"], 9.4, "zerou o progresso que veio da planilha")
+
+    def test_pasta_original_nao_recria_a_colecao(self):
+        self.pedir("/api/library/decompor",
+                   {"id": self._colecao_id(), "nomes": ["Portal", "Portal 2"]})
+        biblioteca = lm.load_library(self.lib_path)
+        # A varredura do Switch continua devolvendo o nome da PASTA:
+        r = lm.merge_owned(biblioteca, [{"nome": "Portal Companion Collection",
+                                         "plataforma": "Nintendo Switch", "fonte": "switch"}])
+        self.assertEqual(r["added"], 0, "a coletânea voltou como registro novo")
+        self.assertEqual(len(biblioteca["games"]), 2)
+
+    def test_apelidos_antigos_da_colecao_sao_preservados(self):
+        # Se a coletânea já respondia por outro nome, esse vínculo não
+        # pode se perder na decomposição.
+        biblioteca = lm.load_library(self.lib_path)
+        col = next(g for g in biblioteca["games"] if g["nome"] == "Portal Companion Collection")
+        col["nomes_alt"] = ["Portal Collection"]
+        lm.save_library(self.lib_path, biblioteca)
+
+        self.pedir("/api/library/decompor",
+                   {"id": self._colecao_id(), "nomes": ["Portal", "Portal 2"]})
+        biblioteca = lm.load_library(self.lib_path)
+        r = lm.merge_owned(biblioteca, [{"nome": "Portal Collection",
+                                         "plataforma": "Nintendo Switch", "fonte": "switch"}])
+        self.assertEqual(r["added"], 0, "perdeu um apelido que a coletânea já tinha")
+
+    def test_lista_vazia_e_recusada(self):
+        status, _ = self.pedir("/api/library/decompor", {"id": self._colecao_id(), "nomes": []})
+        self.assertEqual(status, 400)
+
+
 class TestSegurancaHTTP(BaseAPI):
     """Travessia de caminho pelos endpoints de verdade - o servidor
     escuta na rede, então isso não é hipotético."""

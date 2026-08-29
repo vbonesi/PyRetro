@@ -2139,3 +2139,43 @@ plano.
   causa (servidor fora do ar pelos meus restarts + escrita não atômica),
   só o cenário - e reforça a primeira, já que ele estava clicando
   exatamente enquanto eu reiniciava.
+
+- **Decompor coletânea (⧉)** - o usuário já tinha pedido "um método pra
+  evitarmos isso" e eu não tinha entregado: rodei a varredura do Switch
+  de novo e RECRIEI o "Portal Companion Collection" que ele já havia
+  decomposto na mão (em "Portal", vindo da planilha com nota 9.4, e
+  "Portal 2"). O `nomes_alt` que eu tinha feito resolve RENAME (1
+  registro ↔ 1 nome de origem), mas não decomposição (1 pasta → N
+  registros), que é o caso real: "muitos jogos são collections,
+  eventualmente vou decompondo eles".
+
+  Botão ⧉ no card + `POST /api/library/decompor`. O ponto crítico é o
+  VÍNCULO: a pasta continua se chamando "Portal Companion Collection"
+  pra sempre e a varredura casa por nome, então o nome da coletânea (e
+  os apelidos que ela já tivesse) passa a ser `nomes_alt` do primeiro
+  jogo resultante. Jogo que já existe é REAPROVEITADO, não duplicado -
+  o "Portal" da planilha mantém nota e finalizado.
+
+  A tela abre pré-preenchida com o conteúdo de DENTRO da pasta
+  (`GET /api/switch/colecao` + `nomes_dentro_da_colecao`), como pedido.
+  Os três formatos reais do acervo, conferidos no Drive:
+  - subpasta por jogo ("Portal", "Portal 2") -> sai limpo;
+  - arquivo com title-id/versão ("Pikmin 1 [0100AA...][v0].nsp") ->
+    vira "Pikmin 1"/"Pikmin 2", com base+update deduplicados;
+  - arquivo com o nome da própria coletânea (Castlevania Dominus) ->
+    devolve ela mesma, que é honesto: não dá pra adivinhar o conteúdo.
+  Anotação de tamanho ("Demonschool (0.89 GB)") também é removida.
+  É sugestão assumida - patch de tradução, por exemplo, ainda aparece e
+  o usuário apaga a linha.
+
+  Pra não gastar minutos de rclone a cada clique, o mapa {nome limpo ->
+  pasta real} fica em `cache/switch_pastas.json`, atualizado junto com
+  o "🔄 Switch"; a tela faz UMA chamada só, na pasta específica.
+
+  8 testes novos (56 no total), incluindo o que garante a propriedade
+  que faltava: depois de decompor, `merge_owned` com o nome da PASTA
+  devolve `added=0` - a coletânea não volta.
+
+  Também adicionados nesta rodada: **Demonschool** e **Portal Companion
+  Collection** entraram pela varredura da pasta; o segundo era
+  justamente a recriação indevida, removida e substituída pelo vínculo.

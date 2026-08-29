@@ -593,7 +593,7 @@ function closeLightbox() {
 
 document.getElementById("lightbox").addEventListener("click", closeLightbox);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") { closeLightbox(); closeSettings(); closeEdit(); closeOrganize(); closeSortear(); closeMaint(); closeObs(); closeLista(); closeCapa(); closeEditar(); }
+  if (e.key === "Escape") { closeLightbox(); closeSettings(); closeEdit(); closeOrganize(); closeSortear(); closeMaint(); closeObs(); closeLista(); closeCapa(); closeEditar(); closeDecompor(); }
 });
 
 async function openSettings() {
@@ -1606,6 +1606,8 @@ function buildLibraryCard(g, rank) {
       onClick: () => openCapa(g.nome, { kind: "biblioteca", id: g.id }, () => loadLibrary()) },
     { icone: "✎", titulo: "Editar dados do jogo",
       onClick: () => openEditar(g, () => loadLibrary()) },
+    { icone: "⧉", titulo: "Decompor coletânea nos jogos que ela contém",
+      onClick: () => openDecompor(g, () => loadLibrary()) },
     {
       icone: "👁", titulo: g.oculto ? "Mostrar de novo" : "Ocultar da Biblioteca", ativo: g.oculto,
       onClick: (btn) => {
@@ -1706,6 +1708,74 @@ async function runSortear() {
     </div>
   `;
 }
+
+// Decompor coletânea nos jogos que ela contém (pedido do usuário
+// 29/08). A tela já abre pré-preenchida com o que existe DENTRO da
+// pasta do Switch (ver /api/switch/colecao) - é chute, o usuário
+// corrige na mão. O que o backend garante é o vínculo: o nome da
+// coletânea vira apelido de um dos jogos, senão a próxima varredura
+// recria a coletânea do zero.
+let decomporCtx = { id: null, onDone: null };
+
+async function openDecompor(g, onDone) {
+  decomporCtx = { id: g.id, onDone };
+  document.getElementById("decompor-label").textContent = g.nome;
+  document.getElementById("decompor-nomes").value = "";
+  document.getElementById("decompor-status").textContent = "";
+  const dica = document.getElementById("decompor-dica");
+  dica.textContent = "lendo o conteúdo da pasta...";
+  document.getElementById("decompor-modal").classList.remove("hidden");
+
+  try {
+    const r = await fetch(`/api/switch/colecao?nome=${encodeURIComponent(g.nome)}`).then(x => x.json());
+    if (r.sugestoes && r.sugestoes.length) {
+      document.getElementById("decompor-nomes").value = r.sugestoes.join("\n");
+      dica.textContent = `Sugestão a partir de "${r.pasta}" - confira e corrija.`;
+    } else {
+      dica.textContent = r.aviso || "Não consegui ler a pasta - digite os jogos na mão.";
+    }
+  } catch (e) {
+    dica.textContent = `Não consegui ler a pasta (${e.message}) - digite os jogos na mão.`;
+  }
+}
+
+function closeDecompor() {
+  document.getElementById("decompor-modal").classList.add("hidden");
+  decomporCtx = { id: null, onDone: null };
+}
+
+async function salvarDecompor() {
+  if (!decomporCtx.id) return;
+  const nomes = document.getElementById("decompor-nomes").value
+    .split("\n").map(s => s.trim()).filter(Boolean);
+  const status = document.getElementById("decompor-status");
+  if (!nomes.length) { status.textContent = "informe ao menos um jogo"; return; }
+  status.textContent = "decompondo...";
+  status.style.color = "";
+  const res = await fetch("/api/library/decompor", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: decomporCtx.id, nomes }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    status.textContent = `erro: ${data.error || "falha"}`;
+    status.style.color = "var(--err)";
+    return;
+  }
+  const done = decomporCtx.onDone;
+  closeDecompor();
+  alert(`${data.criados} jogo(s) criado(s), ${data.reaproveitados} reaproveitado(s).\n\n` +
+        `A pasta original ficou vinculada a "${data.vinculo_em}", então a próxima ` +
+        `varredura do Switch não vai recriar a coletânea.`);
+  if (done) done();
+}
+
+document.getElementById("btn-decompor-close").addEventListener("click", closeDecompor);
+document.getElementById("btn-decompor-save").addEventListener("click", salvarDecompor);
+document.getElementById("decompor-modal").addEventListener("click", (e) => {
+  if (e.target.id === "decompor-modal") closeDecompor();
+});
 
 // Editor de todos os campos de um jogo da Biblioteca (pedido do
 // usuário 28/08: "estender o editar nome para todos os campos" - o

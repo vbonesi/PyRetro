@@ -223,6 +223,38 @@ class TestNomeDeJogoSwitch(unittest.TestCase):
                          "Crash Bandicoot N. Sane Trilogy")
 
 
+class TestSugestaoDeColecao(unittest.TestCase):
+    """nomes_dentro_da_colecao pré-preenche a tela de decompor a partir
+    do que existe DENTRO da pasta. É chute assumido - o usuário corrige
+    na mão - mas os três formatos reais têm que sair limpos."""
+
+    def test_subpasta_por_jogo(self):
+        self.assertEqual(
+            lm.nomes_dentro_da_colecao([{"name": "Portal"}, {"name": "Portal 2"}]),
+            ["Portal", "Portal 2"])
+
+    def test_arquivo_com_title_id_e_versao(self):
+        # Base + update do mesmo jogo viram uma entrada só.
+        self.assertEqual(lm.nomes_dentro_da_colecao([
+            {"name": "Pikmin 1 [0100AA80194B0000][v0].nsp"},
+            {"name": "Pikmin 1 [0100AA80194B0800][v65536].nsp"},
+            {"name": "Pikmin 2 [0100D680194B2000][v0].nsp"},
+        ]), ["Pikmin 1", "Pikmin 2"])
+
+    def test_anotacao_de_tamanho_e_removida(self):
+        self.assertEqual(lm.nomes_dentro_da_colecao([
+            {"name": "Demonschool (0.89 GB)"}, {"name": "Demonschool (1.23 GB)"},
+        ]), ["Demonschool"])
+
+    def test_colecao_que_nao_revela_o_conteudo(self):
+        # Castlevania Dominus: os arquivos têm só o nome da própria
+        # coletânea. Devolver ela mesma é honesto - não dá pra adivinhar.
+        self.assertEqual(lm.nomes_dentro_da_colecao([
+            {"name": "Castlevania Dominus Collection [0100FA][v0].nsp"},
+            {"name": "Castlevania Dominus Collection [0100FA][v196608].nsp"},
+        ]), ["Castlevania Dominus Collection"])
+
+
 class TestImportacaoDaPlanilha(unittest.TestCase):
     def test_reimportar_atualiza_em_vez_de_duplicar(self):
         with tempfile.TemporaryDirectory() as d:

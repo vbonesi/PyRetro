@@ -1313,3 +1313,9 @@ button.tiny.danger {
   opacity: 0.6;
   font-size: 11px;
 }
+
+.detalhe-modal {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}

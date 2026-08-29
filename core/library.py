@@ -668,6 +668,85 @@ def _limpa_nome_switch(nome: str) -> str:
     return re.sub(r"\s*\[[^\]]*\]", "", nome).strip()
 
 
+_EXTENSOES_SWITCH = (".nsp", ".nsz", ".xci")
+
+
+def nomes_dentro_da_colecao(entradas: list) -> list:
+    """Sugestão de quais jogos uma coletânea contém, a partir dos nomes
+    dos arquivos/pastas DE DENTRO dela. É só um chute pra pré-preencher
+    a tela de decompor - quem decide é o usuário, que corrige na mão.
+
+    Os três formatos que aparecem de verdade na coleção (conferidos no
+    Drive em 29/08):
+      "Portal", "Portal 2"                          -> subpasta por jogo, já limpo
+      "Pikmin 1 [0100AA...][v0].nsp"                -> arquivo com title-id e versão
+      "Castlevania Dominus Collection [ID][v0].nsp" -> só o nome da própria
+                                                       coletânea (base + update)
+    Tira extensão de dump, tira TODO grupo entre colchetes (title-id,
+    versão, região) e deduplica preservando a ordem - o caso do
+    Castlevania cai pra uma sugestão só (a própria coletânea), que é
+    honesto: não dá pra adivinhar os jogos de dentro pelo nome do
+    arquivo, e o usuário completa na mão."""
+    vistos, saida = set(), []
+    for entrada in entradas:
+        nome = entrada.get("name", "") if isinstance(entrada, dict) else str(entrada)
+        if nome.lower().endswith(_EXTENSOES_SWITCH):
+            nome = nome.rsplit(".", 1)[0]
+        nome = re.sub(r"\s*\[[^\]]*\]", "", nome)
+        # Anotação de tamanho que aparece em pasta baixada por torrent
+        # ("Demonschool (0.89 GB)") - é do arquivo, não do jogo, e sem
+        # tirar isso o mesmo jogo apareceria duas vezes na sugestão.
+        nome = re.sub(r"\s*\(\s*\d+([.,]\d+)?\s*(GB|MB|KB)\s*\)", "", nome, flags=re.I).strip()
+        chave = _normalize(nome)
+        if nome and chave not in vistos:
+            vistos.add(chave)
+            saida.append(nome)
+    return saida
+
+
+def mapa_pastas_switch(roms_root: Path, cfg: dict | None = None) -> dict:
+    """{nome limpo: nome real da pasta} - ex: {"Portal Companion
+    Collection": "Portal Companion Collection [NSP]"}. Precisa existir
+    porque a Biblioteca guarda o nome LIMPO, mas pra olhar dentro da
+    pasta é preciso o nome real (com a tag do dump). Cobre local e
+    Drive, com a local ganhando quando o mesmo jogo está nos dois."""
+    mapa = {}
+    if cfg:
+        from core import heavy_roms as _heavy
+        for item in _heavy.list_drive_items("NSW", cfg):
+            if item["is_dir"]:
+                mapa[_limpa_nome_switch(item["name"])] = item["name"]
+    switch_dir = roms_root / "NSW"
+    if switch_dir.is_dir():
+        for entrada in switch_dir.iterdir():
+            if entrada.is_dir():
+                mapa[_limpa_nome_switch(entrada.name)] = entrada.name
+    return mapa
+
+
+def conteudo_da_pasta_switch(pasta_real: str, roms_root: Path, cfg: dict | None = None) -> list:
+    """Nomes dos itens DENTRO de uma pasta de jogo do Switch (local se
+    existir, senão Drive). Uma chamada só de rclone, na pasta
+    específica - listar a NSW inteira leva minutos e não serve aqui."""
+    local = roms_root / "NSW" / pasta_real
+    if local.is_dir():
+        return [{"name": e.name} for e in sorted(local.iterdir())]
+    if not cfg:
+        return []
+    import json as _json
+    import subprocess as _sp
+    from core import heavy_roms as _heavy
+    rc = _heavy._rclone_cfg(cfg)
+    alvo = f"{rc['remote']}:{rc['drive_roms_root']}/NSW/{pasta_real}"
+    try:
+        r = _sp.run(["rclone", "lsjson", alvo], capture_output=True, text=True, timeout=90)
+        if r.returncode != 0:
+            return []
+        return [{"name": i["Name"]} for i in _json.loads(r.stdout)]
+    except (OSError, ValueError, _sp.SubprocessError):
+        return []
+
+
 def read_switch_library(roms_root: Path, cfg: dict | None = None) -> list:
     """[{"nome", "plataforma": "Nintendo Switch", "fonte": "switch"}] a
     partir da pasta NSW - cada jogo é uma pasta (dump NSP/NSZ/XCI, ex:
