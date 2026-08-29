@@ -310,6 +310,42 @@ class TestDecomporColecao(BaseAPI):
         status, _ = self.pedir("/api/library/decompor", {"id": self._colecao_id(), "nomes": []})
         self.assertEqual(status, 400)
 
+    def test_nao_reaproveita_jogo_de_OUTRA_plataforma(self):
+        # Achado 29/08 ao decompor "Final Fantasy 1-6 Bundle" do Switch:
+        # o "Final Fantasy VI" que já existe é ROM de SNES. Casar por
+        # nome sem olhar plataforma juntaria os dois num registro só -
+        # o mesmo erro do Celeste (GBA x Xbox).
+        self.gravar_biblioteca([
+            dict(lm._blank_game("Final Fantasy VI",
+                                "Nintendo - Super Nintendo Entertainment System"),
+                 nota=10.0, finalizado=True),
+            dict(lm._blank_game("Final Fantasy 1-6 Bundle Remastered", "Nintendo Switch"),
+                 fontes=["switch"]),
+        ])
+        _, dados = self.pedir("/api/library")
+        bundle = next(g["id"] for g in dados if g["nome"].startswith("Final Fantasy 1-6"))
+        _, r = self.pedir("/api/library/decompor",
+                          {"id": bundle, "nomes": ["Final Fantasy V", "Final Fantasy VI"]})
+        self.assertEqual((r["criados"], r["reaproveitados"]), (2, 0))
+
+        salvo = json.loads(self.lib_path.read_text())["games"]
+        ff6 = [g for g in salvo if g["nome"] == "Final Fantasy VI"]
+        self.assertEqual(len(ff6), 2, "o do Switch e o do SNES viraram um só")
+        snes = next(g for g in ff6 if g["plataforma"].startswith("Nintendo - Super"))
+        self.assertEqual(snes["fontes"], [], "contaminou a ROM de SNES com a fonte do Switch")
+        self.assertEqual(snes["nota"], 10.0)
+
+    def test_reaproveita_por_apelido_na_mesma_plataforma(self):
+        # Jogo renomeado antes continua sendo o mesmo jogo.
+        biblioteca = lm.load_library(self.lib_path)
+        portal = next(g for g in biblioteca["games"] if g["nome"] == "Portal")
+        portal["nome"], portal["nomes_alt"] = "Portal (Switch)", ["Portal"]
+        lm.save_library(self.lib_path, biblioteca)
+
+        _, r = self.pedir("/api/library/decompor",
+                          {"id": self._colecao_id(), "nomes": ["Portal", "Portal 2"]})
+        self.assertEqual(r["reaproveitados"], 1, "não achou o jogo pelo apelido")
+
 
 class TestSegurancaHTTP(BaseAPI):
     """Travessia de caminho pelos endpoints de verdade - o servidor

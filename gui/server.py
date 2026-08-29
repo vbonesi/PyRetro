@@ -1720,10 +1720,23 @@ class Handler(BaseHTTPRequestHandler):
             # reconhecido depois que ela sumir.
             a_preservar = [original["nome"], *original.get("nomes_alt", [])]
 
+            # Reaproveitamento é restrito à MESMA plataforma (29/08).
+            # Antes olhava a biblioteca inteira só pelo nome, e isso
+            # repetia o erro do Celeste: decompor "Final Fantasy 1-6
+            # Bundle" do Switch encontraria o "Final Fantasy VI" que já
+            # existe como ROM de SNES e enfiaria a fonte do Switch
+            # dentro do registro do SNES - dois jogos diferentes virando
+            # um. Nome só é identidade DENTRO de uma plataforma.
             por_nome = {}
-            for g in library["games"]:
-                if g is not original:
-                    por_nome.setdefault(library_mod._normalize(g["nome"]), g)
+            mesma_plataforma = [g for g in library["games"]
+                                if g is not original and g["plataforma"] == plataforma]
+            for g in mesma_plataforma:
+                por_nome.setdefault(library_mod._normalize(g["nome"]), g)
+            # Apelido só vale se o nome atual de ninguém já ocupou a
+            # chave - mesma precedência de library.index_by_rom_name.
+            for g in mesma_plataforma:
+                for apelido in g.get("nomes_alt", []):
+                    por_nome.setdefault(library_mod._normalize(apelido), g)
 
             resultantes, criados = [], 0
             for nome in nomes:

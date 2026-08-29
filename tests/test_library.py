@@ -254,6 +254,21 @@ class TestSugestaoDeColecao(unittest.TestCase):
             {"name": "Castlevania Dominus Collection [0100FA][v196608].nsp"},
         ]), ["Castlevania Dominus Collection"])
 
+    def test_numeracao_de_ordem_da_subpasta_sai(self):
+        # Pasta real do acervo (29/08): o usuário numera a subpasta pra
+        # manter a ordem da série. O número é da pasta, não do jogo.
+        self.assertEqual(lm.nomes_dentro_da_colecao([
+            {"name": "1. Demons of Asteborg"}, {"name": "2. Astebros"},
+        ]), ["Demons of Asteborg", "Astebros"])
+
+    def test_numero_que_faz_parte_do_nome_fica(self):
+        # A trava do "ponto + espaço": jogo que COMEÇA com número não
+        # pode ser mutilado.
+        self.assertEqual(lm.nomes_dentro_da_colecao([
+            {"name": "1979 Revolution Black Friday"}, {"name": "13 Sentinels"},
+            {"name": "2020 Super Baseball"},
+        ]), ["1979 Revolution Black Friday", "13 Sentinels", "2020 Super Baseball"])
+
 
 class TestImportacaoDaPlanilha(unittest.TestCase):
     def test_reimportar_atualiza_em_vez_de_duplicar(self):

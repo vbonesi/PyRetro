@@ -697,6 +697,12 @@ def nomes_dentro_da_colecao(entradas: list) -> list:
         # ("Demonschool (0.89 GB)") - é do arquivo, não do jogo, e sem
         # tirar isso o mesmo jogo apareceria duas vezes na sugestão.
         nome = re.sub(r"\s*\(\s*\d+([.,]\d+)?\s*(GB|MB|KB)\s*\)", "", nome, flags=re.I).strip()
+        # Numeração de ordem que o usuário escreve na subpasta pra deixar a
+        # série na sequência certa ("1. Demons of Asteborg", "2. Astebros").
+        # É organização da pasta, não nome do jogo. Exige o ponto/parêntese
+        # E o espaço depois de propósito: assim "1979 Revolution" e
+        # "13 Sentinels" passam intactos.
+        nome = re.sub(r"^\d{1,2}[.)]\s+", "", nome).strip()
         chave = _normalize(nome)
         if nome and chave not in vistos:
             vistos.add(chave)
