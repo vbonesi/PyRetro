@@ -400,6 +400,12 @@ Xbox não têm fonte automatizada confiável (ver acima) - o usuário
 levanta a lista real (ex: olhando a própria conta) e cadastra assim, e
 repete conforme for comprando jogo novo.
 
+Na GUI, o mesmo endpoint (`POST /api/library/add`) ganhou um dropdown de
+preset (`library-add-preset`, 28/08) pra PS4/PS3/Switch - plataforma e
+fonte pré-preenchidas ("PSN (digital)"/"PSN (físico)"/"switch"), sem
+precisar digitar o texto exato que a curadoria de plataforma espera; opção
+"livre" mantém os dois campos abertos pro resto.
+
 ### `library-fetch-covers` — capa dos jogos digitais (SteamGridDB)
 
 ```bash
@@ -632,6 +638,25 @@ Três fontes automáticas, nessa ordem (28/08):
    segunda passada `loose` que ignora parênteses - nunca aplica capa de
    outro jogo por aproximação.
 
+Dentro do passo 2/3, `nomes_alternativos_de_capa` (29/08) tenta de novo
+sem o **selo da linha de relançamento** quando o nome completo não acha
+nada - "ACA NEOGEO METAL SLUG" não existe no SteamGridDB, "METAL SLUG"
+existe. É FALLBACK, nunca substituição: o caso oposto também é real
+("SEGA AGES Out Run" tem capa própria e "Out Run" sozinho não), então
+trocar a busca em vez de acrescentar perderia metade dos casos. Continua
+match exato - só se tira um prefixo fixo conhecido, não uma aproximação.
+O resultado (CLI e GUI) lista o par (nome do jogo, nome buscado) pra
+quem quiser conferir visualmente.
+
+Toda capa baixada passa por `gravar_png()` (29/08) - grava só se o
+CONTEÚDO for PNG de verdade, senão converte via ImageMagick (mesma
+política de `core/launchbox.download_cover`, que já existia desde 02/08
+pro mesmo motivo: o metadado/extensão da fonte não garante o conteúdo
+real). Achado ao decompor coletâneas do Switch: 141 capas da Biblioteca
+tinham bytes JPEG num arquivo `.png` - RetroArch não mostra nada pra
+essas, sem erro visível, e o navegador tolera (fareja o conteúdo), então
+passava despercebido.
+
 O 🖼 de cada card abre um popup com **busca + upload** juntos, pra
 capear na mão o que nenhuma fonte resolveu (`/api/cover/search_sgdb` +
 `/api/cover/apply_url`) - funciona igual na Biblioteca e nas ROMs
@@ -654,6 +679,26 @@ Ocultar (👁 no card, campo `oculto`): tira o jogo da listagem sem
 apagar nada - pra jogo online/de serviço que está na conta mas não faz
 sentido acompanhar. O filtro "👁 Mostrar ocultos" traz eles de volta pra
 desfazer; busca de capa, Ranking e Iniciados ignoram o que está oculto.
+
+Decompor (⧉ no card, `POST /api/library/decompor`, 29/08): separa uma
+coletânea em N jogos - pedido do usuário ("muitos jogos são
+collections, eventualmente vou decompondo eles"), primeiro caso real
+Portal Companion Collection -> Portal + Portal 2. O ponto crítico é o
+VÍNCULO: a pasta/fonte de origem continua existindo com o nome antigo
+pra sempre, e a varredura casa por nome - sem preservar isso como
+`nomes_alt` de um dos jogos resultantes, o próximo `library-refresh`
+recria a coletânea do zero (aconteceu de verdade uma vez). Jogo que já
+existia é REAPROVEITADO, não duplicado (nota/progresso preservados),
+restrito à MESMA plataforma da coletânea - reaproveitar por nome
+cruzando plataforma repetiria o erro do Celeste (ver "Tracking
+universal"). A tela abre pré-preenchida com o conteúdo de dentro da
+pasta (`GET /api/switch/colecao` + `nomes_dentro_da_colecao`, hoje só
+implementado pra Switch) - três formatos reais de nome de arquivo
+tratados (subpasta por jogo, arquivo com title-id/versão, numeração de
+ordem "1. Jogo"), sempre como sugestão: o usuário corrige na mão o que
+o nome do arquivo não revela (coletânea de menu interno, tipo
+Castlevania Dominus, devolve ela mesma - decompor isso NÃO conta,
+mesmo critério do usuário).
 
 ### Botões "🏅 Ranking" e "▶ Iniciados"
 
@@ -765,8 +810,14 @@ O que tem até agora:
   `roms_root/<CODIGO>/`, nunca direto na pasta sincronizada pelo Google
   Drive Desktop (evita conflito entre os dois mexendo no mesmo arquivo
   ao mesmo tempo). Renomear e apagar também disponíveis aqui, com a
-  mesma cascata de ROM/save/state (sem capa, que esses sistemas não
-  têm).
+  mesma cascata de ROM/save/state. "🖼 Buscar capas" (28/08,
+  `POST /api/heavy/fetch_covers`, `run_heavy_fetch_covers_job`) roda 4
+  fontes em cascata, ordem = qualidade de curadoria: libretro-thumbnails
+  -> ScreenScraper -> LaunchBox -> SteamGridDB (a mais genérica, mas a
+  única que pega jogo obscuro/fan-art), cada passada só tentando o que a
+  anterior marcou `no_match` - pedido do usuário depois de notar que só
+  rodava SteamGridDB ("faz ele procurar em todas"). Capa de pesado é só
+  pra EXIBIÇÃO (galeria/Biblioteca), não afeta `--send`/`--download`.
 - **🗂 Organizar**: modal separado - lista o que está esperando em
   `roms_root/0-Organizar/` (ver comando `organize` acima) com um
   dropdown de sistema candidato por item (pré-selecionado se só bater
@@ -904,7 +955,7 @@ PyRetro/
 | `core/playlist.py` | Implementado e testado ponta a ponta com o celular real (24/08) - monta `.lpl` a partir do que existe em `roms_root`/`jogos_root`, `core_path`/`core_name` "DETECT" por item, PC e Android tratados separado (sistemas pesados não sincronizam sozinhos, cada lado pode ter jogos diferentes) |
 | `core/config_backup.py` | Implementado e testado ponta a ponta (24/08) - snapshot datado de `retroarch.cfg`+`config/`+`playlists/` pro PC (cópia local) e Android (`adb pull`), pasta nova por data, nunca sobrescreve |
 | `core/sortear.py` | Implementado e testado ponta a ponta contra a coleção real (27/08) - pool único leve+pesado com peso por jogo, catálogo de pesados lido do cache (`heavy_catalog.json`, gerado por `heavy-catalog`) pra não depender de `rclone` ao vivo a cada sorteio |
-| `core/library.py` | Implementado e testado ponta a ponta com dados reais (27/08). `library.json`: planilha (94) + heroic (198) + steam (102) via `library-refresh`, e PSN (9, digital+físico) + Xbox (55) via `library-add` (cadastro manual, listas levantadas pelo usuário) = **417 jogos**, merge por nome exato, fuzzy só reportado (nunca aplicado sozinho). `read_psn_library`/`read_psn_trophy_titles`/`read_xbox_library` (API) implementados e testados contra conta real mas não usados por decisão do usuário - ver `docs/changelog.md`. Capa via `library-fetch-covers` (SteamGridDB) testada nos 417: 340 baixadas, 76 sem match exato, 1 erro de rede. `get_or_create_for_rom` (27/08, revisado no mesmo dia pra exigir plataforma além de nome - ver `PLATAFORMA_ROM_CODES`) permite criar/achar registro por nome+plataforma, base do tracking universal na GUI; a aba Biblioteca mostra 405 dos 417 (12 já são ROM de verdade numa plataforma que bate de fato, filtrados dinamicamente - ver `docs/changelog.md`) |
+| `core/library.py` | Implementado e testado ponta a ponta com dados reais (27/08). `library.json`: planilha (94) + heroic (198) + steam (102) via `library-refresh`, e PSN (9, digital+físico) + Xbox (55) via `library-add` (cadastro manual, listas levantadas pelo usuário) = **417 jogos**, merge por nome exato, fuzzy só reportado (nunca aplicado sozinho). `read_psn_library`/`read_psn_trophy_titles`/`read_xbox_library` (API) implementados e testados contra conta real mas não usados por decisão do usuário - ver `docs/changelog.md`. Capa via `library-fetch-covers` (SteamGridDB) testada nos 417: 340 baixadas, 76 sem match exato, 1 erro de rede. `get_or_create_for_rom` (27/08, revisado no mesmo dia pra exigir plataforma além de nome - ver `PLATAFORMA_ROM_CODES`) permite criar/achar registro por nome+plataforma, base do tracking universal na GUI; a aba Biblioteca mostra 405 dos 417 (12 já são ROM de verdade numa plataforma que bate de fato, filtrados dinamicamente - ver `docs/changelog.md`). Atualização (29/08): Switch cruzado por pasta local+Drive (314 jogos), decomposição de coletânea (⧉) mapeou as 154 pastas do NSW pelo title-id do dump e separou 13 em 177 jogos (`docs/NSW-mapa.md`) - **735 jogos** no total. Capa: fallback pro título sem o selo de relançamento (`nomes_alternativos_de_capa`) e gravação validando conteúdo PNG de verdade (`gravar_png`, achou 141 capas antigas com bytes JPEG). |
 | `retrosync.py` | `fetch-covers`, `fetch-covers-cloud` (leve + pesado), `fetch-covers-fallback`, `convert-covers`, `validate-covers`, `sanitize-names`, `sync covers`, `heavy-roms`, `heavy-catalog`, `sortear`, `library-import-sheet`, `library-refresh` (heroic/steam/psn/xbox), `library-add`, `library-fetch-covers`, `organize`, `rebuild-playlist` e `backup-config` conectados de verdade; `sync saves/states/metrics` (cancelado) e `fix-cues` (auditoria) levantam `NotImplementedError` |
 
 Roadmap atual e próximos passos: [`docs/roadmap.md`](docs/roadmap.md).
@@ -915,4 +966,6 @@ pesquisa de fontes de capa alternativas
 notas de implementação do editor de memory card PS1/PS2
 ([`docs/memory_card_editor.md`](docs/memory_card_editor.md)), rodar o
 PyRetro direto no Android
-([`docs/termux_setup.md`](docs/termux_setup.md)).
+([`docs/termux_setup.md`](docs/termux_setup.md)), mapa das 154 pastas do
+Nintendo Switch por título-base, pra decidir o que decompor
+([`docs/NSW-mapa.md`](docs/NSW-mapa.md)).
