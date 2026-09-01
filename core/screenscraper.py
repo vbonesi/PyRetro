@@ -114,6 +114,66 @@ def _best_box_media(medias: list) -> str | None:
     return next(iter(candidates.values()), None)
 
 
+def _genero_pt(jeu: dict) -> str | None:
+    """Gênero em português DIRETO da API - achado 31/08: o campo
+    "genres" de cada jogo já vem com um "noms" multi-idioma que inclui
+    "pt" nativo (ex: "Luta", "Plataforma", "Jogos de RPG"), sem precisar
+    de nenhum mapeamento manual meu. Prefere o gênero com
+    "principale"=="1" (a API marca qual é o principal quando o jogo tem
+    mais de um, ex: Super Mario World tem "Plataforma" (principal) E
+    "Plataforma / Corre e Pula" (mais específico, não-principal)) - cai
+    pro primeiro que tiver tradução pt se nenhum for principal.
+    Remove o prefixo "Jogos de " quando presente, pra bater com o
+    vocabulário mais enxuto que a Biblioteca já usa ("RPG", não "Jogos
+    de RPG")."""
+    generos = jeu.get("genres") or []
+    if not generos:
+        return None
+
+    def pt_de(g):
+        return next((n["text"] for n in g.get("noms", []) if n.get("langue") == "pt"), None)
+
+    escolhido = next((pt_de(g) for g in generos if g.get("principale") == "1" and pt_de(g)), None)
+    if not escolhido:
+        escolhido = next((pt_de(g) for g in generos if pt_de(g)), None)
+    if escolhido and escolhido.lower().startswith("jogos de "):
+        escolhido = escolhido[len("jogos de "):].strip()
+    return escolhido or None
+
+
+def buscar_genero(code: str, nome: str, cfg: dict) -> str | None:
+    """Gênero (em português) pro jogo `nome` dentro do sistema `code`,
+    ou None. Mesma regra de match EXATO (nome normalizado) que o resto
+    do projeto usa pra capa - nunca aplica gênero de outro jogo por
+    aproximação. Reaproveita search_game (já faz a chamada de rede),
+    só que olhando "genres" em vez de "medias"."""
+    from core import covers as covers_mod
+
+    creds = _creds(cfg)
+    if not creds["devid"] or not creds["devpassword"]:
+        return None
+    systeme_id = SYSTEM_MAP.get(code)
+    if systeme_id is None:
+        return None
+
+    params = {**creds, "output": "json", "recherche": nome, "systemeid": systeme_id}
+    url = API_BASE + "jeuRecherche.php?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "PyRetro"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.loads(resp.read())
+    except (OSError, ValueError):
+        return None
+
+    alvo = covers_mod.normalize(nome)
+    for jeu in (data.get("response") or {}).get("jeux") or []:
+        if covers_mod.normalize(_best_name(jeu.get("noms", []))) == alvo:
+            genero = _genero_pt(jeu)
+            if genero:
+                return genero
+    return None
+
+
 def search_game(code: str, query: str, cfg: dict, limit: int = 20) -> list:
     """Busca jogos no ScreenScraper por nome, dentro do systemeid do
     código dado. Retorna [{"id", "name", "media_url"}] - media_url

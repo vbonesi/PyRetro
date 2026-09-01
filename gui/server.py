@@ -107,34 +107,11 @@ def _start_job(worker) -> str:
 _ss_media_cache: dict[str, str] = {}
 
 
-def arcade_romname_dat(code: str) -> dict | None:
-    """Nome de exibição do Arcade (romset curto -> título completo,
-    ver core.covers.arcade_display_name) - só pra ARCADE, e nunca
-    deixa uma falha de rede derrubar quem chama (diferente de
-    core.covers.load_romname_dat, chamada aqui fora do contexto de job
-    em background que já tem seu próprio try/except)."""
-    if code not in covers_mod.ROMNAME_DATS:
-        return None
-    try:
-        dat_url, dat_cache_name = covers_mod.ROMNAME_DATS[code]
-        return covers_mod.load_romname_dat(dat_url, dat_cache_name)
-    except Exception:
-        return None
-
-
-def light_rom_display_names(code: str, info: dict, roms_root: Path) -> list:
-    """Nomes de exibição (display_name se Arcade, senão o nome do
-    arquivo sem extensão) de toda ROM local de `code` - mesmo valor
-    que a galeria de capas usa como "nome do jogo" pra cruzar com a
-    Biblioteca (ver biblioteca_info em /api/covers)."""
-    names = playlist_mod.list_local_names(code, roms_root, info.get("exts", []))
-    romname_dat = arcade_romname_dat(code)
-    out = []
-    for n in names:
-        label = Path(n).stem
-        display = covers_mod.arcade_display_name(label, romname_dat) if romname_dat else None
-        out.append(display or label)
-    return out
+# arcade_romname_dat/light_rom_display_names moradas em core/covers.py
+# desde 31/08 (o preenchimento de gênero, core/generos.py, precisava
+# delas sem depender de gui/) - importadas no topo do arquivo.
+arcade_romname_dat = covers_mod.arcade_romname_dat
+light_rom_display_names = covers_mod.light_rom_display_names
 
 
 def nome_de_arquivo_seguro(nome: str) -> bool:
@@ -1211,7 +1188,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not g:
                     return None
                 return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
-                        "platinado": g["platinado"], "nota": g["nota"]}
+                        "platinado": g["platinado"], "nota": g["nota"], "genero": g.get("genero")}
 
             out = []
             for f in files:
@@ -1613,7 +1590,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not g:
                     return None
                 return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
-                        "platinado": g["platinado"], "nota": g["nota"]}
+                        "platinado": g["platinado"], "nota": g["nota"], "genero": g.get("genero")}
 
             out = []
             for name in sorted(set(local_by_name) | set(drive_by_name)):

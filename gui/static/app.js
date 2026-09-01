@@ -415,6 +415,7 @@ function buildCoverCard(code, item, cacheBust) {
            ${renamedPending ? '<span class="rename-badge">✎ renomeada</span>' : ""}`}
     </div>
     <div class="label" title="${label}">${shown}</div>
+    ${biblioteca && biblioteca.genero ? `<div class="card-genero">🎭 ${biblioteca.genero}</div>` : ""}
     ${has_save || has_state ? `<div class="save-state-row">
       ${has_save ? '<button class="tiny secondary" data-action="delete-save" title="Apagar save">💾 Save</button>' : ""}
       ${has_state ? '<button class="tiny secondary" data-action="delete-state" title="Apagar state">⏱ State</button>' : ""}
@@ -900,6 +901,7 @@ function buildHeavyCard(code, item) {
     </div>
     <div class="label" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
     <div class="card-meta">${notInPc ? "só no Drive" : (onCelular ? "no celular" : "só no PC")}</div>
+    ${item.biblioteca && item.biblioteca.genero ? `<div class="card-genero">🎭 ${item.biblioteca.genero}</div>` : ""}
     <div class="cover-actions">
       ${notInPc
         ? '<button class="tiny" data-action="download">⬇ Baixar</button>'
@@ -1617,6 +1619,7 @@ function buildLibraryCard(g, rank) {
     </div>
     <div class="label" title="${g.nome}">${g.nome}</div>
     <div class="card-meta" title="${meta}">${meta}</div>
+    ${g.genero ? `<div class="card-genero">🎭 ${g.genero}</div>` : ""}
   `;
 
   div.appendChild(buildTrackingRow(g, (field, value) => {
@@ -1815,7 +1818,6 @@ const EDITAR_CAMPOS = [
   { campo: "nome", rotulo: "Nome" },
   { campo: "plataforma", rotulo: "Plataforma" },
   { campo: "genero", rotulo: "Gênero" },
-  { campo: "subgenero", rotulo: "Subgênero" },
   { campo: "desenvolvedora", rotulo: "Desenvolvedora" },
   { campo: "lancamento", rotulo: "Lançamento", dica: "aaaa-mm-dd" },
   { campo: "data_final", rotulo: "Data que finalizou", dica: "aaaa-mm-dd" },

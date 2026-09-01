@@ -903,6 +903,15 @@ button.tiny.danger {
   text-overflow: ellipsis;
 }
 
+.card-genero {
+  padding: 0 10px 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tracking-bar {
   display: flex;
   align-items: center;
