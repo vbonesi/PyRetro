@@ -30,6 +30,7 @@ from core import adb as adb_mod
 from core import config_backup as config_backup_mod
 from core import covers as covers_mod
 from core import emu_sync as emu_sync_mod
+from core import generos as generos_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import library as library_mod
@@ -605,6 +606,37 @@ def cmd_library_fetch_covers(args) -> None:
             print(f"  {nome}  ->  buscado como {buscado!r}")
 
 
+def cmd_fill_generos(args) -> None:
+    """Preenche `genero` do acervo inteiro (pedido do usuário 31/08).
+    ROM (leve+pesada) cria registro na Biblioteca quando não existe -
+    decisão explícita, muda o princípio de "só rastreia o que foi
+    marcado" só pra esse campo. Biblioteca nunca cria, só completa."""
+    cfg = load_config()
+
+    def imprime(label, r):
+        print(f"\n{label}:")
+        for k, v in r.items():
+            print(f"  {k}: {v}")
+
+    contador = {"n": 0}
+
+    def on_progress(nome, status):
+        contador["n"] += 1
+        print(f"  [{contador['n']:5}] {nome[:55]:57} {status}")
+
+    if args.alvo in ("roms", "all"):
+        if not args.apply:
+            print("ROMs - modo simulação (rode com --apply pra criar registro/preencher de verdade)")
+        r = generos_mod.preencher_generos_roms(cfg, args.apply, on_progress=on_progress)
+        imprime("ROMs (leve+pesada)", r)
+
+    if args.alvo in ("biblioteca", "all"):
+        if not args.apply:
+            print("\nBiblioteca - modo simulação (rode com --apply pra preencher de verdade)")
+        r = generos_mod.preencher_generos_biblioteca(cfg, args.apply, on_progress=on_progress)
+        imprime("Biblioteca", r)
+
+
 def cmd_sanitize_names(args) -> None:
     """RetroArch não aceita &, :, * em nome de arquivo. Roda em capas
     E roms juntos (não dá pra sanitizar só um lado sem quebrar o
@@ -975,6 +1007,13 @@ def build_parser() -> argparse.ArgumentParser:
     lib_covers.add_argument("--apply", action="store_true")
     lib_refresh.add_argument("--apply", action="store_true")
 
+    generos = sub.add_parser(
+        "fill-generos",
+        help="preenche genero pra ROM leve/pesada (cria registro se preciso) e Biblioteca (so completa)",
+    )
+    generos.add_argument("alvo", choices=["roms", "biblioteca", "all"], default="all", nargs="?")
+    generos.add_argument("--apply", action="store_true")
+
     sanitize = sub.add_parser("sanitize-names", help="troca & : * por caracteres aceitos pelo RetroArch")
     sanitize.add_argument("target", choices=["capas", "roms", "all"], default="all", nargs="?")
     sanitize.add_argument("--apply", action="store_true")
@@ -1026,6 +1065,8 @@ def main() -> None:
         cmd_library_add(args)
     elif args.command == "library-fetch-covers":
         cmd_library_fetch_covers(args)
+    elif args.command == "fill-generos":
+        cmd_fill_generos(args)
     elif args.command == "sanitize-names":
         cmd_sanitize_names(args)
     else:

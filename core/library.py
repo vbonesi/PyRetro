@@ -305,6 +305,25 @@ def find_cover_steam_cdn(appid) -> str | None:
     return None
 
 
+def steam_genero(appid) -> str | None:
+    """Gênero (primeiro da lista, já em português - `l=portuguese` faz
+    a própria Steam devolver traduzido, sem precisar de mapa manual)
+    pro appid dado, via `appdetails` (API pública, sem chave). None se
+    o app não existir mais/não tiver gênero cadastrado."""
+    url = f"https://store.steampowered.com/api/appdetails?appids={appid}&l=portuguese"
+    req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+    except (OSError, ValueError):
+        return None
+    entry = data.get(str(appid)) or {}
+    if not entry.get("success"):
+        return None
+    generos = (entry.get("data") or {}).get("genres") or []
+    return generos[0]["description"] if generos else None
+
+
 _PSN_CLIENT_ID = "09515159-7237-4370-9b40-3806e67c0891"
 _PSN_REDIRECT_URI = "com.scee.psxandroid.scecompcall://redirect"
 # client_id:client_secret fixos da API oficial da Sony (públicos - usados

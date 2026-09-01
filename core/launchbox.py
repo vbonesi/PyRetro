@@ -92,20 +92,60 @@ def _download_metadata() -> None:
     )
 
 
+# Tradução do gênero (LaunchBox só tem em inglês, ao contrário do
+# ScreenScraper que já vem em pt nativo - ver core/screenscraper.
+# _genero_pt). Cobre os ~28 valores mais comuns do Metadata.xml
+# (conferido em 31/08: soma 99%+ das 187mil entradas com gênero
+# preenchido). Jogo com mais de um gênero (separado por ";") usa só o
+# PRIMEIRO - mesmo critério de "um gênero só" que a Biblioteca já usa.
+# Valor sem tradução mapeada aqui fica em inglês mesmo (melhor que
+# perder o dado).
+MAPA_GENERO_EN_PT = {
+    "Action": "Ação", "Adventure": "Aventura", "Shooter": "Tiro",
+    "Platform": "Plataforma", "Puzzle": "Puzzle", "Role-Playing": "RPG",
+    "Strategy": "Estratégia", "Sports": "Esporte", "Racing": "Corrida",
+    "Education": "Educação", "Fighting": "Luta", "Board Game": "Jogo de Tabuleiro",
+    "Construction and Management Simulation": "Simulação",
+    "Visual Novel": "Visual Novel", "Casino": "Cassino", "Horror": "Terror",
+    "Compilation": "Coletânea", "Life Simulation": "Simulação",
+    "Beat 'em Up": "Luta", "Pinball": "Pinball", "Music": "Música",
+    "Flight Simulator": "Simulação", "Quiz": "Quiz",
+    "Vehicle Simulation": "Simulação", "Sandbox": "Sandbox", "Party": "Festa",
+    "Stealth": "Furtividade", "MMO": "MMO", "Card Game": "Card Game",
+    "Simulation": "Simulação",
+}
+
+
+def traduzir_genero(genero_en: str | None) -> str | None:
+    if not genero_en:
+        return None
+    primeiro = genero_en.split(";")[0].strip()
+    return MAPA_GENERO_EN_PT.get(primeiro, primeiro)
+
+
 def build_index(force: bool = False) -> dict:
-    """Faz o streaming parse do Metadata.xml (dois passes: Game depois
-    GameImage) e monta {plataforma_config: {nome_normalizado: filename}}.
-    Cacheia em INDEX_PATH - só reprocessa se force=True ou não existir."""
+    """Faz o streaming parse do Metadata.xml (três passes: Game duas
+    vezes - nome/gênero e depois GameImage) e monta {plataforma_config:
+    {nome_normalizado: [filename, nome_original, genero_en]}}. Cacheia
+    em INDEX_PATH - só reprocessa se force=True ou não existir.
+
+    Gênero (31/08) entra pra TODA plataforma querida, inclusive
+    "Windows" (jogos de PC - usado só pelo preenchimento de gênero da
+    Biblioteca, `find_cover` continua sem cobertura de PC de propósito,
+    capa de Steam/Epic/GOG já vem de outra fonte) - por isso o critério
+    de "tem gênero" é mais solto que o de "tem capa" (`best`, que exige
+    ter achado imagem Box-Front): um jogo pode ter gênero sem ter capa
+    catalogada, e vice-versa."""
     if INDEX_PATH.exists() and not force:
         return json.loads(INDEX_PATH.read_text())
 
     if not METADATA_XML.exists() or force:
         _download_metadata()
 
-    wanted_platforms = set(PLATFORM_MAP.values())
+    wanted_platforms = set(PLATFORM_MAP.values()) | {"Windows"}
 
-    # passe 1: DatabaseID -> (nome_normalizado, nome_original, plataforma_lb)
-    games: dict[str, tuple[str, str, str]] = {}
+    # passe 1: DatabaseID -> (nome_normalizado, nome_original, plataforma_lb, genero_en)
+    games: dict[str, tuple[str, str, str, str | None]] = {}
     for event, elem in ET.iterparse(METADATA_XML, events=("end",)):
         if elem.tag == "Game":
             plat = elem.findtext("Platform")
@@ -113,7 +153,7 @@ def build_index(force: bool = False) -> dict:
                 dbid = elem.findtext("DatabaseID")
                 name = elem.findtext("Name")
                 if dbid and name:
-                    games[dbid] = (normalize(name), name, plat)
+                    games[dbid] = (normalize(name), name, plat, elem.findtext("Genres"))
             elem.clear()
 
     # passe 2: pra cada DatabaseID relevante, pega a melhor imagem "Box - Front"
@@ -130,17 +170,26 @@ def build_index(force: bool = False) -> dict:
                     best[dbid] = (prio, filename)
             elem.clear()
 
-    # index[code][nome_normalizado] = [filename, nome_original]
-    index: dict = {code: {} for code in PLATFORM_MAP}
+    # index[code][nome_normalizado] = [filename_ou_null, nome_original, genero_en_ou_null]
+    index: dict = {code: {} for code in (set(PLATFORM_MAP) | {"PC"})}
     code_by_platform = {v: k for k, v in PLATFORM_MAP.items()}
-    for dbid, (norm_name, orig_name, plat) in games.items():
-        if dbid not in best:
-            continue
+    code_by_platform["Windows"] = "PC"
+    for dbid, (norm_name, orig_name, plat, genero_en) in games.items():
         code = code_by_platform[plat]
-        index[code][norm_name] = [best[dbid][1], orig_name]
+        filename = best[dbid][1] if dbid in best else None
+        index[code][norm_name] = [filename, orig_name, genero_en]
 
     INDEX_PATH.write_text(json.dumps(index))
     return index
+
+
+def find_genero(code: str, label: str, index: dict) -> str | None:
+    """Gênero (já traduzido) pro jogo `label` dentro do sistema `code`
+    (ou "PC" pra jogo de Biblioteca Steam/Epic/GOG/etc) - mesmo match
+    EXATO de `find_cover`, sem o fallback por prefixo (gênero errado por
+    semelhança de nome é pior que não preencher)."""
+    entry = index.get(code, {}).get(normalize(label))
+    return traduzir_genero(entry[2]) if entry else None
 
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
@@ -165,7 +214,7 @@ def find_cover(code: str, label: str, index: dict) -> str | None:
     sysidx = index.get(code, {})
 
     k = normalize(label)
-    if k in sysidx:
+    if k in sysidx and sysidx[k][0]:
         return sysidx[k][0]
 
     label_words = _words(label)
@@ -173,7 +222,10 @@ def find_cover(code: str, label: str, index: dict) -> str | None:
         return None
     n = len(label_words)
 
-    for norm_name, (filename, orig_name) in sysidx.items():
+    for norm_name, entry in sysidx.items():
+        filename, orig_name = entry[0], entry[1]
+        if not filename:
+            continue  # entrada só de gênero (31/08), sem imagem catalogada
         cand_words = _words(orig_name)
         if len(cand_words) <= n or cand_words[:n] != label_words:
             continue

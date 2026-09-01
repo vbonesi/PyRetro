@@ -617,3 +617,38 @@ def validate_png_content(capas_dir: Path, apply: bool = False) -> list:
         else:
             results.append({"file": png.name, "status": "falhou", "erro": r.stderr.strip()[:200]})
     return results
+
+
+def arcade_romname_dat(code: str) -> dict | None:
+    """Nome de exibição do Arcade (romset curto -> título completo) -
+    só pra ARCADE, e nunca deixa uma falha de rede derrubar quem chama
+    (diferente de load_romname_dat sozinho, chamado aqui fora do
+    contexto de job em background que já tem seu próprio try/except).
+    Movida de gui/server.py em 31/08 pra virar reutilizável pelo
+    preenchimento de gênero (core/generos.py), que não deve depender de
+    gui/."""
+    if code not in ROMNAME_DATS:
+        return None
+    try:
+        dat_url, dat_cache_name = ROMNAME_DATS[code]
+        return load_romname_dat(dat_url, dat_cache_name)
+    except Exception:
+        return None
+
+
+def light_rom_display_names(code: str, info: dict, roms_root: Path) -> list:
+    """Nomes de exibição (display_name se Arcade, senão o nome do
+    arquivo sem extensão) de toda ROM local de `code` - mesmo valor que
+    a galeria de capas usa como "nome do jogo" pra cruzar com a
+    Biblioteca (ver biblioteca_info em gui/server.py). Movida de
+    gui/server.py em 31/08 (mesmo motivo de arcade_romname_dat)."""
+    from core import playlist as playlist_mod
+
+    names = playlist_mod.list_local_names(code, roms_root, info.get("exts", []))
+    romname_dat = arcade_romname_dat(code)
+    out = []
+    for n in names:
+        label = Path(n).stem
+        display = arcade_display_name(label, romname_dat) if romname_dat else None
+        out.append(display or label)
+    return out
