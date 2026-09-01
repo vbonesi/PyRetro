@@ -1157,7 +1157,8 @@ class Handler(BaseHTTPRequestHandler):
                     haystack_norm = unicodedata.normalize("NFKD", g["nome"]).encode("ascii", "ignore").decode().lower()
                     if q_norm in haystack_norm:
                         out.append({"kind": "biblioteca", "code": None, "label": g["id"],
-                                    "display_name": g["nome"]})
+                                    "display_name": g["nome"], "fontes": g["fontes"],
+                                    "plataforma": g["plataforma"]})
 
             out.sort(key=lambda x: (x["display_name"] or x["label"]).lower())
             return self._json(out[:100])
@@ -1276,14 +1277,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._json([{"code": k, "nome": v["nome"]} for k, v in emu_sync_mod.SOURCES.items()])
 
         if parts == ["api", "sortear", "systems"]:
-            # Lista pra popular o <select> - leve (sempre local) e
-            # pesado (do catálogo cacheado, mesmo que a CLI usa).
+            # Lista pra popular o <select> - leve (sempre local), pesado
+            # (do catálogo cacheado, mesmo que a CLI usa) e os 3 grupos
+            # (leve/pesado/biblioteca inteiros, pedido do usuário
+            # 31/08 - "permitir sorteio por grupos"). "(leve)"/"(pesado)"
+            # não vai mais no label de cada sistema individual - o
+            # `kind` continua no JSON pra quem quiser, só não aparece
+            # mais concatenado no texto do rótulo.
             cfg = load_config()
             out = [{"code": c, "label": info["capas"], "kind": "leve"} for c, info in cfg["systems"].items()]
             for c, info in heavy_mod.load_heavy_systems(cfg).items():
                 out.append({"code": c, "label": info.get("nome", c), "kind": "pesado"})
             out.sort(key=lambda x: x["label"])
-            return self._json(out)
+            grupos = [{"code": "leve", "label": "🕹 ROMs leves (todas)", "kind": "grupo"},
+                      {"code": "pesado", "label": "📦 ROMs pesadas (todas)", "kind": "grupo"},
+                      {"code": "biblioteca", "label": "📚 Biblioteca (toda)", "kind": "grupo"}]
+            return self._json({"grupos": grupos, "sistemas": out})
 
         if parts == ["api", "sortear"]:
             cfg = load_config()
@@ -1291,8 +1300,13 @@ class Handler(BaseHTTPRequestHandler):
             catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
             system = query.get("system", [""])[0].strip() or None
 
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            rom_names_by_code = rom_normalized_names_by_code(cfg)
+
             try:
-                pool = sortear_mod.build_pool(cfg, roms_root, catalog, system)
+                pool = sortear_mod.build_pool(cfg, roms_root, catalog, system,
+                                              library=library, rom_names_by_code=rom_names_by_code)
             except ValueError:
                 return self._json({"error": f"sistema desconhecido: '{system}'"}, 400)
             if not pool:
@@ -1300,9 +1314,21 @@ class Handler(BaseHTTPRequestHandler):
 
             code, nome, kind = sortear_mod.draw(pool)
             heavy = heavy_mod.load_heavy_systems(cfg)
-            sysinfo = cfg["systems"][code] if kind == "leve" else heavy[code]
-            label = sysinfo["capas"] if kind == "leve" else sysinfo.get("nome", code)
+            if kind == "biblioteca":
+                label = "Biblioteca"
+            else:
+                sysinfo = cfg["systems"][code] if kind == "leve" else heavy[code]
+                label = sysinfo["capas"] if kind == "leve" else sysinfo.get("nome", code)
             resp = {"nome": nome, "codigo": code, "label": label, "kind": kind, "pool_size": len(pool)}
+
+            if kind == "biblioteca":
+                # Capa/progresso do jogo de Biblioteca sorteado - mesma
+                # resolução que /api/ranking e /api/iniciados já fazem.
+                jogo = next((g for g in library["games"] if g["nome"] == nome), None)
+                if jogo and jogo.get("capa"):
+                    resp["capa"] = com_versao(f"/library-images/{urllib.parse.quote(jogo['capa'])}",
+                                              Path(cfg["pc"]["library_root"]).expanduser() / jogo["capa"])
+                return self._json(resp)
 
             # Capa: mesmo nome (sem extensão de ROM) que o resto do
             # projeto já usa - só existe pra sistema com "capas"
@@ -1409,6 +1435,31 @@ class Handler(BaseHTTPRequestHandler):
                                 break
                 out.append({**g, "capa_url": capa})
             return self._json(out)
+
+        if parts == ["api", "estatisticas"]:
+            # Visão agregada da coleção inteira - pedido do usuário
+            # 31/08 ("estatísticas que mostram jogos zerados, platinados
+            # e tempo de jogo total"). Mesma base do Ranking/Iniciados:
+            # todo jogo com progresso mora no library.json, oculto fica
+            # de fora. `tempo_total_horas` sai cru pro front formatar
+            # (anos/meses/dias/horas é decisão de exibição, mora em
+            # logic.js - mesmo padrão de notaColor/notaTexto).
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            visiveis = [g for g in library["games"] if not g.get("oculto")]
+            com_nota = [g["nota"] for g in visiveis if g["nota"] is not None]
+
+            return self._json({
+                "total": len(visiveis),
+                "zerados": sum(1 for g in visiveis if g["finalizado"]),
+                "platinados": sum(1 for g in visiveis if g["platinado"]),
+                "jogando": sum(1 for g in visiveis if g["iniciado"] and not g["finalizado"]),
+                "com_nota": len(com_nota),
+                "nota_media": round(sum(com_nota) / len(com_nota), 2) if com_nota else None,
+                "tempo_total_horas": round(sum(library_mod.tempo_para_horas(g["tempo"]) for g in visiveis), 2),
+                "com_genero": sum(1 for g in visiveis if g.get("genero")),
+            })
 
         if parts == ["api", "switch", "colecao"]:
             # Sugestão de quais jogos uma coletânea contém, lendo o que

@@ -33,6 +33,30 @@ function formatGB(bytes) {
   return (bytes / (1024 ** 3)).toFixed(2) + " GB";
 }
 
+// Estatística de tempo total (pedido do usuário 31/08: "mostrar em
+// meses/anos, por enquanto só meses, mas quando romper a barreira de
+// anos, mostrar em anos, meses, dias e horas" - e depois: "sempre
+// meses+dias+horas, só ocultar o ano enquanto não chegar"). Convenção
+// documentada aqui porque não existe "mês" exato em horas: 1 dia = 24h,
+// 1 mês = 30 dias, 1 ano = 12 meses - aproximação deliberada, é
+// estatística de acompanhamento, não contabilidade.
+function formatTempoTotal(horasTotais) {
+  if (!horasTotais || horasTotais <= 0) return "0 horas";
+  const HORA_DIA = 24, DIA_MES = 30, MES_ANO = 12;
+  let restante = Math.round(horasTotais);
+  const horas = restante % HORA_DIA; restante = Math.floor(restante / HORA_DIA);
+  const dias = restante % DIA_MES; restante = Math.floor(restante / DIA_MES);
+  const meses = restante % MES_ANO;
+  const anos = Math.floor(restante / MES_ANO);
+
+  const partes = [];
+  if (anos > 0) partes.push(`${anos} ano${anos !== 1 ? "s" : ""}`);
+  partes.push(`${meses} ${meses === 1 ? "mês" : "meses"}`);
+  partes.push(`${dias} dia${dias !== 1 ? "s" : ""}`);
+  partes.push(`${horas} hora${horas !== 1 ? "s" : ""}`);
+  return partes.join(", ");
+}
+
 function stemOf(item) {
   if (item.is_dir) return item.name;
   const idx = item.name.lastIndexOf(".");
@@ -135,5 +159,5 @@ function libraryMatchesFilters(g, fonte, status, noCover, mostrarOcultos) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { notaColor, notaTexto, fonteLabel, libraryGroupsFor,
                      libraryTabGroupsFor, libraryMatchesFilters, stemOf, formatGB,
-                     FONTE_LABELS, GROUP_TAB_ALIASES, TAB_NAO_AGRUPA };
+                     formatTempoTotal, FONTE_LABELS, GROUP_TAB_ALIASES, TAB_NAO_AGRUPA };
 }

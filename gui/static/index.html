@@ -17,7 +17,8 @@
           <button id="btn-saves" class="secondary" type="button">💾 Saves</button>
           <button id="btn-sortear" class="secondary" type="button">🎲 Sortear</button>
           <button id="btn-ranking" class="secondary" type="button">🏅 Ranking</button>
-          <button id="btn-iniciados" class="secondary" type="button">▶ Iniciados</button>
+          <button id="btn-iniciados" class="secondary" type="button">🎮 Jogando</button>
+          <button id="btn-estatisticas" class="secondary" type="button">📊 Estatísticas</button>
           <button id="btn-maint" class="secondary" type="button">🛠 Manutenção</button>
           <button id="btn-settings" class="secondary" type="button">⚙ Configurações</button>
         </div>
@@ -87,7 +88,6 @@
         </div>
         <div id="library-job-log" class="job-log hidden"></div>
       </details>
-      <nav id="library-group-tabs" class="system-tabs sub-tabs"></nav>
       <div class="search-bar">
         <label class="filter-toggle">
           <input type="checkbox" id="library-filter-nocover">
@@ -306,6 +306,16 @@
         <button id="btn-lista-close" class="secondary" type="button">Fechar</button>
       </div>
       <div id="lista-conteudo" class="lista-conteudo"></div>
+    </div>
+  </div>
+
+  <div id="estatisticas-modal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📊 Estatísticas</h3>
+        <button id="btn-estatisticas-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div id="estatisticas-conteudo" class="estatisticas-grid"></div>
     </div>
   </div>
 

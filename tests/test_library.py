@@ -343,6 +343,23 @@ class TestFetchCoversFallback(unittest.TestCase):
         self.assertEqual((r["baixado"], r["sem_match"]), (0, 1))
 
 
+class TestTempoParaHoras(unittest.TestCase):
+    """tempo_para_horas soma o campo livre "tempo" (HH:MM:SS) pra
+    estatística de tempo total. Achado 31/08 ao somar a biblioteca real:
+    93 dos 94 preenchidos eram HH:MM:SS exato, 1 só tinha HH:MM."""
+
+    def test_hhmmss(self):
+        self.assertAlmostEqual(lm.tempo_para_horas("31:40:00"), 31 + 40 / 60)
+        self.assertAlmostEqual(lm.tempo_para_horas("120:38:00"), 120 + 38 / 60)
+
+    def test_hhmm_sem_segundos(self):
+        self.assertAlmostEqual(lm.tempo_para_horas("01:26"), 1 + 26 / 60)
+
+    def test_vazio_ou_invalido_vira_zero(self):
+        for v in (None, "", "várias horas", "abc"):
+            self.assertEqual(lm.tempo_para_horas(v), 0.0, v)
+
+
 class TestGravarPNG(unittest.TestCase):
     """Achado 29/08: 20 das 116 capas baixadas eram JPEG dentro de um
     arquivo .png. O projeto já sabia disso desde 02/08 (launchbox
