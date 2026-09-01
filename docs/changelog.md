@@ -2287,6 +2287,91 @@ plano.
   (Bomba Patch/Winning Eleven, hacks brasileiros que não estão em
   catálogo nenhum).
 
+
+## 31/08/2026
+
+- **22 jogos de `~/Downloads/NSWTL-torrents/` de volta pra Biblioteca**
+  (o mesmo lote de 28/08, que tinha sumido em algum ponto antes do
+  backup de 29/08 - causa não investigada por pedido do usuário, "não
+  mexer nos arquivos, só add a biblioteca"). Via `/api/library/add`
+  real. Achado no caminho: "Alex Kidd in Miracle World DX" mesclou com o
+  registro já existente da Steam (mesmo jogo, duas fontes) - mesmo
+  padrão de "A Plague Tale" Xbox+Epic. Dois nomes exigiram decisão:
+  "Dusk - TLOZ Twilight Princess port..." é um port fã não-oficial (The
+  Legend of Zelda: Twilight Princess via Dusklight/TwilitRealm, não
+  Nintendo) e "! TOV (NSP eShop)" virou "Tales of Vesperia: Definitive
+  Edition" por inferência (padrão dos outros "Tales of..." do mesmo
+  lote) - nenhuma fonte confirmou o nome real.
+
+- **Reorganização completa da pasta NSW no Google Drive** - pedido do
+  usuário: "o nome dos arquivos não pode mexer, mas o nome das pastas
+  sim, aí já separar também os jogos de coletânea... organizar mods,
+  traduções (apagar as que não são em português)". Planejado por
+  escrito primeiro (`docs/NSW-reorganizacao-plano.md`), aprovado, e só
+  então executado - 355 operações via rclone contra as 175 pastas de
+  topo (154 do mapeamento de 29/08 + 21 chegadas por upload do Insync
+  nesse meio tempo, incluindo 3 coletâneas novas: Pokémon Brilliant
+  Diamond+Shining Pearl, Pokémon Scarlet+Violet, Super Mario Galaxy
+  1-2). Resultado: **344 pastas de topo** (175 - 17 cascas de coleção
+  decompostas + 186 jogos resultantes - a conta bate exata).
+
+  Achado que mudou o desenho: **17 das 34 pastas "Russian ..." tinham
+  update de jogo de verdade largado junto** (6,75 GB dos 12 GB que
+  pareciam tradução) - resgatado pra fora antes de apagar. Terceiro
+  achado na mesma varredura: **Kingdom of Asteborg (1+2)** tem title-id
+  próprio (não é cópia solta) - promovido pro nível de topo mas
+  NUNCA apagado/mesclado, decisão deixada pro usuário.
+
+  **Dois bugs de verdade na minha própria execução, achados e
+  corrigidos no processo:**
+  1. `--fase-ate` do script executor tinha default=99 sem eu perceber -
+     a primeira rodada parou aí, sem terminar as outras ~350 operações.
+     Sem dano (rclone é seguro reprocessar o que já tinha dado certo,
+     só reporta "não encontrado"), mas exigiu uma segunda varredura +
+     replanejamento pra retomar do ponto certo.
+  2. `achar_traducoes_pra_apagar()` batia o padrão "russian" em
+     QUALQUER profundidade sem deduplicar aninhamento - a pasta
+     "Failing Forward" do Phoenix Wright e suas DUAS subpastas ("Russian
+     Text/Voice Mod") geraram 3 operações de apagar em vez de 1, e a
+     ordem das fases também tinha um furo: o resgate dos 4 addons do
+     Phoenix Wright (savegame, dublagem EN/JP, desbloqueio de episódios)
+     rodava DEPOIS de apagar a pasta que os continha, então a pasta já
+     não existia mais quando o resgate tentou - **4 addons foram parar
+     na Lixeira do Drive por engano**. Recuperados sem perda via
+     `rclone backend untrash` (a mesma chamada trouxe de volta a
+     "Failing Forward" também, que só foi reapagada em seguida - sem
+     problema, ela não tinha nada pra resgatar). Os dois bugs corrigidos
+     no script antes de retomar a execução.
+
+  **Verificação final, não assumida:** varredura fresca depois de tudo
+  confirmou 0 pasta ainda com tag `[NSZ]`/`[NSP]`, 0 tradução não-PT
+  sobrando (só a exceção do Dragon Quest X em inglês), as 3 PT-BR
+  intactas, os 9 dumps extraídos redundantes sumidos, os 14 itens de mod
+  todos dentro de `Mods/`.
+
+- **Biblioteca sincronizada com as pastas físicas.** As 3 coletâneas
+  novas (Pokémon BDSP, Pokémon Scarlet/Violet) decompostas via
+  `/api/library/decompor` - "Super Mario Galaxy 1-2" já tinha sido
+  decomposta em algum ponto anterior não identificado com precisão, mas
+  conferida e correta (nota/fontes preservados, `nomes_alt` já linkado).
+
+  A varredura seguinte (`library-refresh switch --apply`) achou **16
+  "novos"** que não eram coleção recriada (isso o `nomes_alt` já
+  bloqueia) - eram **divergência de grafia** entre o nome que eu digitei
+  na Biblioteca (27-29/08) e o nome real derivado do arquivo agora que a
+  pasta existe fisicamente: apóstrofo reto vs curvo (`'` vs `’`,
+  ACA NEOGEO), região mantida vs removida (`(EU)`/`(JAP)`), pontuação
+  "bonita" vs literal (":" e "&" vs "," e "and"). O `merge_owned`
+  reportou como "possível duplicata" e corretamente NÃO mesclou sozinho
+  - 15 desses foram limpos na mão (registro novo e vazio apagado, nome
+  real vira `nomes_alt` do registro antigo que já tinha capa/fontes);
+  "Kingdom of Asteborg (1+2)" é o único legítimo (nunca teve
+  representação na Biblioteca antes, fica como está).
+
+  Confirmado com `library-refresh switch --apply` de novo depois da
+  limpeza: **"novo(s): 0 já rastreado(s): 344"** - bate exato com as
+  344 pastas físicas. **760 jogos** no total, 340 no Switch.
+
 - **Capa da Biblioteca gravava JPEG dentro de arquivo .png.** Achado ao
   validar as 116 capas recém-baixadas: 20 não eram PNG. O bug já era
   conhecido do projeto desde 02/08 - `launchbox.download_cover` converte
