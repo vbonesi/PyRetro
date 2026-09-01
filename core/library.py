@@ -73,6 +73,25 @@ def _to_iso_date(v: str | None):
         return None
 
 
+_TEMPO_RE = re.compile(r"^(\d+):(\d{2})(?::(\d{2}))?$")
+
+
+def tempo_para_horas(valor: str | None) -> float:
+    """`tempo` é texto livre digitado na tela ("31:40:00", HH:MM:SS) -
+    converte pra horas (float) pra dar pra somar. Aceita também HH:MM
+    sem segundos (achado 31/08 ao somar o campo pra estatística: 93 dos
+    94 preenchidos eram HH:MM:SS exato, 1 só tinha HH:MM). Formato que
+    não bate nenhum dos dois vira 0 - preferível a travar a soma inteira
+    por um valor digitado errado."""
+    if not valor:
+        return 0.0
+    m = _TEMPO_RE.match(valor.strip())
+    if not m:
+        return 0.0
+    h, mi, s = m.group(1), m.group(2), m.group(3) or "0"
+    return int(h) + int(mi) / 60 + int(s) / 3600
+
+
 def _blank_game(nome: str, plataforma: str) -> dict:
     return {
         "id": _slug(nome, plataforma),

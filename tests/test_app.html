@@ -134,6 +134,22 @@ teste("formatGB", () => {
   igual(formatGB(1024 ** 3), "1.00 GB");
 });
 
+// --- estatística de tempo total (31/08) -------------------------------
+teste("tempo em horas so mostra meses+dias+horas, sem ano", () => {
+  igual(formatTempoTotal(5), "0 meses, 0 dias, 5 horas");
+  igual(formatTempoTotal(30), "0 meses, 1 dia, 6 horas");
+  igual(formatTempoTotal(0), "0 horas");
+});
+teste("tempo passa de 1 ano soma o ano na frente", () => {
+  // 12 meses * 30 dias * 24h = 8640h
+  igual(formatTempoTotal(8640), "1 ano, 0 meses, 0 dias, 0 horas");
+  igual(formatTempoTotal(8640 + 24 + 5), "1 ano, 0 meses, 1 dia, 5 horas");
+});
+teste("plural bate certo (1 x N)", () => {
+  igual(formatTempoTotal(24), "0 meses, 1 dia, 0 horas");
+  igual(formatTempoTotal(48), "0 meses, 2 dias, 0 horas");
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];

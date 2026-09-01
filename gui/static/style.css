@@ -1056,6 +1056,32 @@ button.tiny.danger {
   max-height: 65vh;
 }
 
+.estatisticas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 4px;
+}
+
+.estatistica-cartao {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+
+.estatistica-numero {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.estatistica-rotulo {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
 .lista-item {
   display: flex;
   align-items: center;

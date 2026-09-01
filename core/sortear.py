@@ -54,19 +54,63 @@ def save_heavy_catalog(cache_path: Path, catalog: dict) -> None:
     cache_path.write_text(json.dumps({"systems": catalog}, indent=1, ensure_ascii=False))
 
 
-def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None) -> list:
-    """[(codigo, nome, "leve"|"pesado")]. Sem `system`, junta leve
-    (local, ao vivo) + pesado (catálogo cacheado) - cada JOGO com peso
-    igual, não cada sistema, então um sistema com mais jogos tem mais
-    chance de propósito (reflete o tamanho real da coleção em vez de
-    dar o mesmo peso pra FC com 200 jogos e N64 com 20). Levanta
-    ValueError(codigo) se `system` não bater com nenhum sistema
-    conhecido (leve ou pesado)."""
+GRUPOS = {"leve", "pesado", "biblioteca"}
+
+
+def _pool_biblioteca(library: dict, rom_names_by_code: dict) -> list:
+    """[(None, nome, "biblioteca")] - só jogo que não "mora" numa ROM
+    (mesma exclusão de is_rom_backed do gui/server.py, reimplementada
+    aqui pra não criar dependência circular com o servidor) e não
+    oculto, senão sortear traria de volta um jogo que o usuário
+    escondeu de propósito."""
+    from core import library as library_mod
+
+    pool = []
+    for g in library["games"]:
+        if g.get("oculto"):
+            continue
+        code = library_mod.rom_code_for_plataforma(g["plataforma"])
+        if code and library_mod.covers_mod.normalize(g["nome"]) in rom_names_by_code.get(code, set()):
+            continue
+        pool.append((None, g["nome"], "biblioteca"))
+    return pool
+
+
+def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
+               library: dict | None = None, rom_names_by_code: dict | None = None) -> list:
+    """[(codigo, nome, "leve"|"pesado"|"biblioteca")]. Sem `system`,
+    junta leve (local, ao vivo) + pesado (catálogo cacheado) + Biblioteca
+    (se `library` foi passada) - cada JOGO com peso igual, não cada
+    sistema, então um sistema com mais jogos tem mais chance de
+    propósito (reflete o tamanho real da coleção em vez de dar o mesmo
+    peso pra FC com 200 jogos e N64 com 20).
+
+    `system` também aceita os 3 GRUPOS ("leve"/"pesado"/"biblioteca",
+    28/08→31/08: pedido do usuário depois de notar que só dava pra
+    sortear sistema por sistema, "permitir sorteio por grupos") - sorteia
+    só dentro daquele grupo, mesmo peso por jogo de sempre.
+
+    Levanta ValueError(codigo) se `system` não bater com nenhum sistema
+    OU grupo conhecido."""
     light = cfg["systems"]
     heavy = heavy_mod.load_heavy_systems(cfg)
 
     if system:
         code = system.upper()
+        chave = system.lower()
+        if chave in GRUPOS:
+            if chave == "biblioteca":
+                if library is None:
+                    return []
+                return _pool_biblioteca(library, rom_names_by_code or {})
+            pool = []
+            fontes = light if chave == "leve" else heavy
+            for c, info in fontes.items():
+                if chave == "leve":
+                    pool += [(c, n, "leve") for n in playlist_mod.list_local_names(c, roms_root, info["exts"])]
+                else:
+                    pool += [(c, item["name"], "pesado") for item in catalog.get(c, [])]
+            return pool
         if code in light:
             names = playlist_mod.list_local_names(code, roms_root, light[code]["exts"])
             return [(code, n, "leve") for n in names]
@@ -79,6 +123,8 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None) ->
         pool += [(code, n, "leve") for n in playlist_mod.list_local_names(code, roms_root, info["exts"])]
     for code, items in catalog.items():
         pool += [(code, item["name"], "pesado") for item in items]
+    if library is not None:
+        pool += _pool_biblioteca(library, rom_names_by_code or {})
     return pool
 
 

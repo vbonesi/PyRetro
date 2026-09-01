@@ -9,9 +9,11 @@ let currentItems = [];
 // não duplicar 3x a lógica de "qual aba tá ativa" / "qual barra de
 // controle mostrar".
 async function loadSystems() {
-  const [lightRes, heavyRes] = await Promise.all([fetch("/api/systems"), fetch("/api/heavy/systems")]);
+  const [lightRes, heavyRes, libRes] = await Promise.all(
+    [fetch("/api/systems"), fetch("/api/heavy/systems"), fetch("/api/library")]);
   systems = await lightRes.json();
   heavySystems = await heavyRes.json();
+  libraryGames = await libRes.json(); // já carrega aqui - as abas de baixo dependem dos grupos
 
   const tabs = document.getElementById("system-tabs");
   tabs.innerHTML = "";
@@ -32,12 +34,8 @@ async function loadSystems() {
     tab.addEventListener("click", () => selectHeavyTab(sys.code));
     tabs.appendChild(tab);
   }
-  const libTab = document.createElement("div");
-  libTab.className = "tab";
-  libTab.dataset.code = "BIBLIOTECA";
-  libTab.innerHTML = "<span>📚 Biblioteca</span>";
-  libTab.addEventListener("click", () => selectLibraryTab());
-  tabs.appendChild(libTab);
+
+  renderLibraryTopTabs();
 
   const consoleSelect = document.getElementById("global-search-console");
   consoleSelect.innerHTML = '<option value="">Todos</option>' +
@@ -102,7 +100,12 @@ async function goToSearchResult(item) {
   if (item.kind === "pesado") {
     if (currentSystem !== item.code || currentKind !== "pesado") await selectHeavyTab(item.code);
   } else if (item.kind === "biblioteca") {
-    if (currentKind !== "biblioteca") await selectLibraryTab();
+    // Pousa na aba EXPLODIDA certa (31/08) - mesmo agrupamento de
+    // sempre (libraryTabGroupsFor), calculado em cima de fontes/
+    // plataforma que o resultado da busca já traz.
+    const grupos = libraryTabGroupsFor({ fontes: item.fontes, plataforma: item.plataforma });
+    const alvo = "LIB:" + (grupos[0] || "");
+    if (currentSystem !== alvo) await selectLibraryGroupTab(grupos[0] || "");
   } else {
     if (currentSystem !== item.code || currentKind !== "leve") await selectSystem(item.code);
   }
@@ -1471,51 +1474,72 @@ document.getElementById("saves-add-confirm").addEventListener("click", addMemcar
 // planilha importada, ver core/library.py). V1 é só visualização/busca
 // - carrega tudo de uma vez (few centenas de jogos, não escala mal) e
 // filtra no cliente; cadastro continua via CLI (library-add etc).
-let libraryGames = [];
+let libraryGames = []; // já carregado em loadSystems() - as abas de baixo dependem disso
 
-async function selectLibraryTab() {
-  currentSystem = "BIBLIOTECA";
-  currentKind = "biblioteca";
-  activateTab("BIBLIOTECA");
-  setControlsForKind("biblioteca");
-  await loadLibrary();
-}
-
-async function loadLibrary() {
-  document.getElementById("gallery").innerHTML = '<div class="empty-state">carregando...</div>';
-  const res = await fetch("/api/library");
-  libraryGames = await res.json();
-  renderLibraryGroupTabs();
-  renderLibraryGrid();
-}
-
-// Sub-abas por plataforma/loja: o agrupamento em si mora em
-// logic.js (libraryTabGroupsFor); aqui é só a navegação. "Todos" é a
-// aba default.
+// Cada plataforma/loja é sua própria aba de nível superior (31/08,
+// "explodir a Biblioteca como nas ROMs pesadas" - ver loadSystems).
+// `label === ""` é a aba "📚 Todos". O agrupamento em si mora em
+// logic.js (libraryTabGroupsFor).
 let currentLibraryGroup = "";
 
-function renderLibraryGroupTabs() {
-  const nav = document.getElementById("library-group-tabs");
-  const groups = new Set();
+// Biblioteca "explodida" (pedido do usuário 31/08: "como nas ROMs
+// pesadas") - cada plataforma/loja vira aba própria de nível superior,
+// igual PS/PS2/etc, em vez de uma aba "Biblioteca" só com sub-abas por
+// dentro. "📚 Todos" continua existindo pra quem quer ver a coleção
+// inteira de uma vez (não existe um "Todas ROMs" equivalente pra leve/
+// pesado, mas aqui faz sentido - é a mesma visão que sempre existiu, só
+// deixou de ser a única entrada). Reconstruída depois de editar/
+// decompor um jogo (não só no load inicial) porque mudar plataforma ou
+// fonte pode mudar em qual aba ele mora.
+function renderLibraryTopTabs() {
+  const tabs = document.getElementById("system-tabs");
+  tabs.querySelectorAll('.tab[data-code^="LIB:"]').forEach(t => t.remove());
+
+  const grupos = new Set();
   for (const g of libraryGames) {
-    for (const label of libraryTabGroupsFor(g)) groups.add(label);
+    for (const label of libraryTabGroupsFor(g)) grupos.add(label);
   }
-  if (!groups.has(currentLibraryGroup)) currentLibraryGroup = "";
-
-  nav.innerHTML = "";
-  const allTab = document.createElement("div");
-  allTab.className = "tab" + (currentLibraryGroup === "" ? " active" : "");
-  allTab.textContent = "Todos";
-  allTab.addEventListener("click", () => { currentLibraryGroup = ""; renderLibraryGroupTabs(); renderLibraryGrid(); });
-  nav.appendChild(allTab);
-
-  for (const label of [...groups].sort()) {
+  const todosTab = document.createElement("div");
+  todosTab.className = "tab";
+  todosTab.dataset.code = "LIB:";
+  todosTab.innerHTML = "<span>📚 Todos</span>";
+  todosTab.addEventListener("click", () => selectLibraryGroupTab(""));
+  tabs.appendChild(todosTab);
+  for (const label of [...grupos].sort()) {
     const tab = document.createElement("div");
-    tab.className = "tab" + (currentLibraryGroup === label ? " active" : "");
-    tab.textContent = label;
-    tab.addEventListener("click", () => { currentLibraryGroup = label; renderLibraryGroupTabs(); renderLibraryGrid(); });
-    nav.appendChild(tab);
+    tab.className = "tab";
+    tab.dataset.code = "LIB:" + label;
+    tab.innerHTML = `<span>📚 ${label}</span>`;
+    tab.addEventListener("click", () => selectLibraryGroupTab(label));
+    tabs.appendChild(tab);
   }
+  activateTab(currentKind === "biblioteca" ? currentSystem : null);
+}
+
+// Recarrega a Biblioteca depois de uma edição (✎/⧉/🖼) - refaz a busca
+// (fontes/plataforma podem ter mudado, o que muda em qual aba o jogo
+// mora), reconstrói as abas de topo e volta pra "Todos" se a aba atual
+// sumiu.
+async function refreshLibrary() {
+  libraryGames = await (await fetch("/api/library")).json();
+  renderLibraryTopTabs();
+  const grupos = new Set();
+  for (const g of libraryGames) for (const l of libraryTabGroupsFor(g)) grupos.add(l);
+  if (currentLibraryGroup && !grupos.has(currentLibraryGroup)) currentLibraryGroup = "";
+  if (currentKind === "biblioteca") await selectLibraryGroupTab(currentLibraryGroup);
+}
+
+async function selectLibraryGroupTab(label) {
+  currentSystem = "LIB:" + label;
+  currentKind = "biblioteca";
+  currentLibraryGroup = label;
+  activateTab(currentSystem);
+  setControlsForKind("biblioteca");
+  if (!libraryGames.length) {
+    document.getElementById("gallery").innerHTML = '<div class="empty-state">carregando...</div>';
+    libraryGames = await (await fetch("/api/library")).json();
+  }
+  renderLibraryGrid();
 }
 
 function renderLibraryGrid() {
@@ -1603,11 +1627,11 @@ function buildLibraryCard(g, rank) {
       // Recarrega do servidor em vez de só mexer no objeto local: é
       // ele que monta a capa_url com a versão nova (ver com_versao),
       // e sem isso o navegador continuaria mostrando a capa antiga.
-      onClick: () => openCapa(g.nome, { kind: "biblioteca", id: g.id }, () => loadLibrary()) },
+      onClick: () => openCapa(g.nome, { kind: "biblioteca", id: g.id }, () => refreshLibrary()) },
     { icone: "✎", titulo: "Editar dados do jogo",
-      onClick: () => openEditar(g, () => loadLibrary()) },
+      onClick: () => openEditar(g, () => refreshLibrary()) },
     { icone: "⧉", titulo: "Decompor coletânea nos jogos que ela contém",
-      onClick: () => openDecompor(g, () => loadLibrary()) },
+      onClick: () => openDecompor(g, () => refreshLibrary()) },
     {
       icone: "👁", titulo: g.oculto ? "Mostrar de novo" : "Ocultar da Biblioteca", ativo: g.oculto,
       onClick: (btn) => {
@@ -1671,9 +1695,12 @@ function closeSortear() {
 async function loadSortearSystems() {
   const select = document.getElementById("sortear-system");
   const res = await fetch("/api/sortear/systems");
-  const systems = await res.json();
-  select.innerHTML = '<option value="">Sortear de tudo</option>' +
-    systems.map(s => `<option value="${s.code}">${s.label} (${s.kind})</option>`).join("");
+  const { grupos, sistemas } = await res.json();
+  const opcaoGrupos = grupos.map(g => `<option value="${g.code}">${g.label}</option>`).join("");
+  const opcaoSistemas = sistemas.map(s => `<option value="${s.code}">${s.label}</option>`).join("");
+  select.innerHTML = '<option value="">🎲 Sortear de tudo (coleção inteira)</option>' +
+    `<optgroup label="Grupos">${opcaoGrupos}</optgroup>` +
+    `<optgroup label="Sistema específico">${opcaoSistemas}</optgroup>`;
 }
 
 async function runSortear() {
@@ -2003,7 +2030,7 @@ document.getElementById("obs-modal").addEventListener("click", (e) => {
 // tipo de jogo (ver GET /api/ranking e /api/iniciados). Só leitura:
 // pra editar, o usuário vai no card do jogo na aba dele.
 async function openLista(tipo) {
-  const titulo = tipo === "ranking" ? "🏅 Ranking (por nota)" : "▶ Iniciados (ainda não finalizados)";
+  const titulo = tipo === "ranking" ? "🏅 Ranking (por nota)" : "🎮 Jogando (iniciados, ainda não finalizados)";
   document.getElementById("lista-titulo").textContent = titulo;
   const box = document.getElementById("lista-conteudo");
   box.innerHTML = '<div class="empty-state">carregando...</div>';
@@ -2014,7 +2041,7 @@ async function openLista(tipo) {
   if (!jogos.length) {
     box.innerHTML = `<div class="empty-state">${tipo === "ranking"
       ? "Nenhum jogo com nota ainda."
-      : "Nenhum jogo em andamento - comece algum e marque ▶."}</div>`;
+      : "Nenhum jogo em andamento - comece algum e marque 🎮."}</div>`;
     return;
   }
 
@@ -2059,6 +2086,42 @@ async function openLista(tipo) {
 function closeLista() {
   document.getElementById("lista-modal").classList.add("hidden");
 }
+
+// Estatísticas (pedido do usuário 31/08: "zerados, platinados e tempo
+// de jogo total") - cartão simples com números da coleção inteira, sem
+// modal de edição (é leitura, igual Ranking/Iniciados). Formatação do
+// tempo (meses -> anos+meses+dias+horas) mora em logic.js.
+async function openEstatisticas() {
+  const box = document.getElementById("estatisticas-conteudo");
+  box.innerHTML = '<div class="empty-state">carregando...</div>';
+  document.getElementById("estatisticas-modal").classList.remove("hidden");
+
+  const res = await fetch("/api/estatisticas");
+  const e = await res.json();
+  const cartao = (emoji, numero, rotulo) => `
+    <div class="estatistica-cartao">
+      <div class="estatistica-numero">${emoji} ${numero}</div>
+      <div class="estatistica-rotulo">${rotulo}</div>
+    </div>`;
+  box.innerHTML =
+    cartao("📀", e.total, "jogos rastreados") +
+    cartao("🏁", e.zerados, "zerados") +
+    cartao("🏆", e.platinados, "platinados") +
+    cartao("🎮", e.jogando, "jogando agora") +
+    cartao("⭐", e.nota_media ?? "–", `nota média (${e.com_nota} avaliado${e.com_nota === 1 ? "" : "s"})`) +
+    cartao("🎭", e.com_genero, "com gênero preenchido") +
+    cartao("⏱", formatTempoTotal(e.tempo_total_horas), "tempo de jogo total");
+}
+
+function closeEstatisticas() {
+  document.getElementById("estatisticas-modal").classList.add("hidden");
+}
+
+document.getElementById("btn-estatisticas").addEventListener("click", openEstatisticas);
+document.getElementById("btn-estatisticas-close").addEventListener("click", closeEstatisticas);
+document.getElementById("estatisticas-modal").addEventListener("click", (e) => {
+  if (e.target.id === "estatisticas-modal") closeEstatisticas();
+});
 
 document.getElementById("btn-ranking").addEventListener("click", () => openLista("ranking"));
 document.getElementById("btn-iniciados").addEventListener("click", () => openLista("iniciados"));
@@ -2124,19 +2187,19 @@ function libraryApply() {
 
 document.getElementById("btn-library-refresh-heroic").addEventListener("click", () => {
   runJob(`/api/library/refresh?source=heroic&apply=${libraryApply()}`, { method: "POST" },
-    document.getElementById("library-job-log"), loadLibrary);
+    document.getElementById("library-job-log"), refreshLibrary);
 });
 document.getElementById("btn-library-refresh-steam").addEventListener("click", () => {
   runJob(`/api/library/refresh?source=steam&apply=${libraryApply()}`, { method: "POST" },
-    document.getElementById("library-job-log"), loadLibrary);
+    document.getElementById("library-job-log"), refreshLibrary);
 });
 document.getElementById("btn-library-refresh-switch").addEventListener("click", () => {
   runJob(`/api/library/refresh?source=switch&apply=${libraryApply()}`, { method: "POST" },
-    document.getElementById("library-job-log"), loadLibrary);
+    document.getElementById("library-job-log"), refreshLibrary);
 });
 document.getElementById("btn-library-fetch-covers").addEventListener("click", () => {
   runJob(`/api/library/fetch_covers?apply=${libraryApply()}`, { method: "POST" },
-    document.getElementById("library-job-log"), loadLibrary);
+    document.getElementById("library-job-log"), refreshLibrary);
 });
 document.getElementById("btn-library-add-toggle").addEventListener("click", () => {
   document.getElementById("library-add-card").classList.toggle("hidden");
@@ -2172,7 +2235,7 @@ document.getElementById("library-add-confirm").addEventListener("click", () => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ games, plataforma, fonte, apply }),
-  }, document.getElementById("library-job-log"), loadLibrary);
+  }, document.getElementById("library-job-log"), refreshLibrary);
 });
 
 document.getElementById("btn-heavy-catalog").addEventListener("click", () => {
