@@ -721,7 +721,7 @@ document.getElementById("settings-modal").addEventListener("click", (e) => {
 
 let searchCtx = { code: null, label: null };
 
-function openEdit(code, label, displayName, noCover) {
+function openEdit(code, label, displayName, noCover, kind) {
   // searchCtx.label é sempre o nome curto de verdade (o que vira
   // arquivo em disco) - displayName só melhora o que aparece na tela,
   // o campo de renomear (prefill) e o termo de busca pré-preenchido
@@ -731,7 +731,15 @@ function openEdit(code, label, displayName, noCover) {
   // (27/08): "unificar... e ai sim abre um popup pra ver se vai mudar
   // capa ou nome". Sem capa ainda (noCover) esconde Renomear (não tem
   // o que renomear até existir uma capa de verdade).
-  searchCtx = { code, label, displayName };
+  //
+  // `kind` (01/09, default "leve"): ROM pesada usa `data-label` = nome
+  // do ARQUIVO (com extensão, pra bater com a busca global) enquanto
+  // `label` aqui é o stem sem extensão (pra bater com o nome da capa) -
+  // os dois nunca coincidem, então refreshCard (que procura o card
+  // pelo data-label) nunca acharia o card certo pra pesado. selectCandidate
+  // usa isso pra recarregar a aba inteira em vez de tentar atualizar
+  // só o card.
+  searchCtx = { code, label, displayName, kind: kind || "leve" };
   document.getElementById("search-label").textContent = displayName || label;
   document.getElementById("edit-rename-row").classList.toggle("hidden", noCover);
   document.getElementById("edit-rename-input").value = label;
@@ -800,7 +808,11 @@ async function selectCandidate(item) {
   }
   if (res.ok) {
     closeEdit();
-    refreshCard(searchCtx.code, searchCtx.label, false, searchCtx.label + ".png");
+    if (searchCtx.kind === "pesado") {
+      selectHeavyTab(searchCtx.code); // ver comentário em openEdit
+    } else {
+      refreshCard(searchCtx.code, searchCtx.label, false, searchCtx.label + ".png");
+    }
   } else {
     const data = await res.json();
     results.innerHTML = `<div class="empty-state">erro: ${data.error || "falha ao aplicar"}</div>`;
@@ -966,6 +978,7 @@ function buildHeavyCard(code, item) {
       ${notInPc
         ? '<button class="tiny" data-action="download">⬇ Baixar</button>'
         : `<button class="tiny secondary" data-action="rename">✎ Renomear</button>
+           <button class="tiny secondary" data-action="edit">🖼 Editar capa</button>
            <button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>
            <button class="tiny danger" data-action="delete">🗑 Apagar</button>`}
     </div>
@@ -975,6 +988,13 @@ function buildHeavyCard(code, item) {
     div.querySelector('[data-action="download"]').addEventListener("click", () => downloadHeavyItem(code, item.name));
   } else {
     div.querySelector('[data-action="rename"]').addEventListener("click", () => renameHeavyItem(code, item));
+    // "✎ Renomear" (acima) já cuida do nome do ARQUIVO - esse aqui
+    // (pedido do usuário 01/09: "ROMs pesadas não tem botão de
+    // editar") é só busca/troca de CAPA, mesmo popup que a ROM leve já
+    // usa. noCover=true fixo esconde a linha de renomear DENTRO do
+    // popup de propósito - já existe o botão dedicado pra isso, dois
+    // caminhos pro mesmo rename só confundiria.
+    div.querySelector('[data-action="edit"]').addEventListener("click", () => openEdit(code, item.label, item.label, true, "pesado"));
     div.querySelector('[data-action="send"]').addEventListener("click", () => sendHeavyItem(code, item.name, onCelular));
     div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHeavyItem(code, item));
   }
@@ -1846,11 +1866,8 @@ const EDITAR_CAMPOS = [
   { campo: "nome", rotulo: "Nome" },
   { campo: "plataforma", rotulo: "Plataforma" },
   { campo: "genero", rotulo: "Gênero" },
-  { campo: "desenvolvedora", rotulo: "Desenvolvedora" },
-  { campo: "lancamento", rotulo: "Lançamento", dica: "aaaa-mm-dd" },
   { campo: "data_final", rotulo: "Data que finalizou", dica: "aaaa-mm-dd" },
   { campo: "tempo", rotulo: "Tempo jogado", dica: "ex: 31:40:00" },
-  { campo: "meta", rotulo: "Meta" },
   { campo: "observacoes", rotulo: "Comentário", textarea: true },
 ];
 
