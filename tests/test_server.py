@@ -118,5 +118,41 @@ class TestVersaoDaCapa(unittest.TestCase):
         self.assertEqual(srv.com_versao(url, Path("/nao/existe.png")), url)
 
 
+class TestBuscaDeCapaComIndiceDeGenero(unittest.TestCase):
+    """search_cover_candidates quebrava com HTTP 500 em QUALQUER busca
+    que passasse pelo LaunchBox (achado 01/09, relatado pelo usuário:
+    "Erro na busca (HTTP 500)") - a extensão do índice do LaunchBox pra
+    incluir gênero (31/08, [filename, nome, genero_en] em vez de
+    [filename, nome]) mudou o formato, mas esse ponto continuava
+    desempacotando como par."""
+
+    def setUp(self):
+        from core import launchbox as lb
+        self._original = lb.build_index
+        # Índice no formato NOVO (3 elementos) - o que build_index()
+        # de verdade devolve desde 31/08. Um item com filename=None
+        # (só gênero, sem capa catalogada) confere que ele não vira
+        # resultado de busca de capa (não tem o que mostrar).
+        lb.build_index = lambda force=False: {
+            "SFC": {
+                "chronotrigger": ["ct.jpg", "Chrono Trigger", "Role-Playing"],
+                "somjogosogenero": [None, "Só Gênero, Sem Capa", "Action"],
+            }
+        }
+
+    def tearDown(self):
+        from core import launchbox as lb
+        lb.build_index = self._original
+
+    def test_busca_nao_quebra_e_acha_o_que_tem_capa(self):
+        cfg = {"systems": {"SFC": {"repo": "Nintendo_-_Super_Nintendo_Entertainment_System"}}}
+        import unittest.mock as mock
+        with mock.patch.object(srv.covers_mod, "load_tree", return_value=[]):
+            resultados = srv.search_cover_candidates("SFC", "Chrono", cfg)
+        nomes = [r["name"] for r in resultados]
+        self.assertIn("Chrono Trigger", nomes)
+        self.assertNotIn("Só Gênero, Sem Capa", nomes, "item sem capa virou resultado de busca")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -221,8 +221,13 @@ def search_cover_candidates(code: str, query: str, cfg: dict) -> list:
     já enche as 40 vagas só com libretro-thumbnails (o índice inteiro
     do repo, substring solta acha muita coisa), o que antes fazia o
     ScreenScraper (adicionado por último) nunca aparecer."""
-    systems_cfg = cfg["systems"]
-    sysinfo = systems_cfg.get(code)
+    # Leve OU pesado (mesmo critério de _cover_path) - pedido do
+    # usuário 01/09: "ROMs pesadas não tem botão de editar". O resto da
+    # função já cobre pesado nas 3 fontes (screenscraper_mod.SYSTEM_MAP
+    # e launchbox_mod.PLATFORM_MAP foram estendidos com os 5 sistemas
+    # pesados em 28/08, e "repo" existe tanto em [systems] quanto em
+    # [heavy_systems]) - só faltava não devolver vazio de cara aqui.
+    sysinfo = cfg["systems"].get(code) or heavy_mod.load_heavy_systems(cfg).get(code)
     if not sysinfo:
         return []
     q_norm = covers_mod.normalize(query)
@@ -246,8 +251,17 @@ def search_cover_candidates(code: str, query: str, cfg: dict) -> list:
     if code in launchbox_mod.PLATFORM_MAP:
         index = launchbox_mod.build_index()
         for norm_name, entry in index.get(code, {}).items():
-            filename, orig_name = entry
-            if q_norm in norm_name:
+            # index[code][nome] = [filename_ou_None, nome_original,
+            # genero_en_ou_None] desde 31/08 (extensão pra cobrir
+            # gênero, ver core/launchbox.build_index) - achado ao
+            # reproduzir o "Erro na busca (HTTP 500)" relatado: esse
+            # desempacote continuava esperando o par antigo
+            # [filename, nome], e agora quebrava em TODA busca que
+            # passasse pelo LaunchBox (a maioria). filename None
+            # (entrada só de gênero, sem imagem catalogada) não vira
+            # resultado de capa - não tem o que mostrar.
+            filename, orig_name = entry[0], entry[1]
+            if filename and q_norm in norm_name:
                 results.append({
                     "source": "launchbox", "name": orig_name, "filename": filename,
                     "preview": launchbox_mod.IMAGE_BASE_URL + filename,
@@ -1610,6 +1624,14 @@ class Handler(BaseHTTPRequestHandler):
                     "in_pc": local is not None, "in_drive": drive is not None,
                     "status": "no_celular" if (local and name in remote_names) else "so_pc",
                     "capa": capa,
+                    # "label" = stem sem extensão (o `name` tem, pra
+                    # arquivo solto) - é o valor que casa com o nome do
+                    # arquivo de capa (ver `stem` acima), exposto aqui
+                    # pra tela poder abrir o editor de capa (✎ Editar,
+                    # pedido do usuário 01/09: "ROMs pesadas não tem
+                    # botão de editar") sem duplicar essa lógica no
+                    # cliente.
+                    "label": stem,
                     "biblioteca": biblioteca_info(stem),
                 })
             return self._json({"items": out, "android_ok": android_ok})
