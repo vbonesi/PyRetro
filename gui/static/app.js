@@ -2,12 +2,26 @@ let currentSystem = null;
 let currentKind = "leve"; // "leve" | "pesado" | "biblioteca" - decide o que selectSystem/renderGallery fazem
 let systems = [];
 let currentItems = [];
+let expandedGroup = null; // "leve" | "pesado" | "biblioteca" | null - grupo aberto na barra de abas
 
 // Aba única pra leve/pesado/Biblioteca (pedido do usuário, 27/08: os
 // dois últimos eram popup, viraram aba com a mesma grade de capa da
 // galeria normal). activateTab/setControlsForKind ficam genéricos pra
 // não duplicar 3x a lógica de "qual aba tá ativa" / "qual barra de
 // controle mostrar".
+//
+// Barra agrupada em 3 blocos retráteis (pedido do usuário 01/09: com
+// tudo exposto de uma vez - 13 leve + 6 pesada + ~10 Biblioteca - o
+// scroll lateral no celular parou de funcionar direito, comprido
+// demais). Cada grupo expande/recolhe os filhos NA MESMA linha
+// (mantém o layout horizontal de sempre) - accordion, só um grupo
+// aberto por vez, senão volta a ficar tudo exposto junto.
+const GRUPOS_TAB = [
+  { key: "leve", label: "🕹 ROMs leves" },
+  { key: "pesado", label: "📦 ROMs pesadas" },
+  { key: "biblioteca", label: "📚 Biblioteca" },
+];
+
 async function loadSystems() {
   const [lightRes, heavyRes, libRes] = await Promise.all(
     [fetch("/api/systems"), fetch("/api/heavy/systems"), fetch("/api/library")]);
@@ -15,37 +29,85 @@ async function loadSystems() {
   heavySystems = await heavyRes.json();
   libraryGames = await libRes.json(); // já carrega aqui - as abas de baixo dependem dos grupos
 
-  const tabs = document.getElementById("system-tabs");
-  tabs.innerHTML = "";
-  for (const sys of systems) {
-    const tab = document.createElement("div");
-    tab.className = "tab";
-    tab.dataset.code = sys.code;
-    const warnClass = (sys.no_match > 0 || sys.missing > 0) ? "warn" : "";
-    tab.innerHTML = `<span>${sys.code}</span><span class="badge ${warnClass}" title="${sys.count} capas · ${sys.no_match} sem correspondência · ${sys.missing} sem capa ainda">${sys.count}·${sys.no_match}·${sys.missing}</span>`;
-    tab.addEventListener("click", () => selectSystem(sys.code));
-    tabs.appendChild(tab);
-  }
-  for (const sys of heavySystems) {
-    const tab = document.createElement("div");
-    tab.className = "tab";
-    tab.dataset.code = sys.code;
-    tab.innerHTML = `<span>📦 ${sys.code}</span>`;
-    tab.addEventListener("click", () => selectHeavyTab(sys.code));
-    tabs.appendChild(tab);
-  }
-
-  renderLibraryTopTabs();
+  renderSystemTabs();
 
   const consoleSelect = document.getElementById("global-search-console");
   consoleSelect.innerHTML = '<option value="">Todos</option>' +
     systems.map(s => `<option value="${s.code}">${s.code}</option>`).join("");
 }
 
+function criarTab(code, innerHTML, onClick) {
+  const tab = document.createElement("div");
+  tab.className = "tab tab-child";
+  tab.dataset.code = code;
+  tab.innerHTML = innerHTML;
+  tab.addEventListener("click", onClick);
+  return tab;
+}
+
+function toggleGrupo(grupo) {
+  expandedGroup = expandedGroup === grupo ? null : grupo;
+  renderSystemTabs();
+}
+
+// Reconstrói a barra inteira - chamada tanto no load inicial quanto
+// depois de editar/decompor um jogo de Biblioteca (fontes/plataforma
+// podem ter mudado o agrupamento) ou trocar de aba selecionada.
+function renderSystemTabs() {
+  const tabs = document.getElementById("system-tabs");
+  tabs.innerHTML = "";
+
+  const grupoDeLibrary = new Set();
+  for (const g of libraryGames) {
+    for (const label of libraryTabGroupsFor(g)) grupoDeLibrary.add(label);
+  }
+
+  const CONTEUDO = {
+    leve: () => systems.map(sys => {
+      const warnClass = (sys.no_match > 0 || sys.missing > 0) ? "warn" : "";
+      return criarTab(sys.code,
+        `<span>${sys.code}</span><span class="badge ${warnClass}" title="${sys.count} capas · ${sys.no_match} sem correspondência · ${sys.missing} sem capa ainda">${sys.count}·${sys.no_match}·${sys.missing}</span>`,
+        () => selectSystem(sys.code));
+    }),
+    pesado: () => heavySystems.map(sys =>
+      criarTab(sys.code, `<span>📦 ${sys.code}</span>`, () => selectHeavyTab(sys.code))),
+    biblioteca: () => {
+      const arr = [criarTab("LIB:", "<span>📚 Todos</span>", () => selectLibraryGroupTab(""))];
+      for (const label of [...grupoDeLibrary].sort()) {
+        arr.push(criarTab("LIB:" + label, `<span>📚 ${label}</span>`, () => selectLibraryGroupTab(label)));
+      }
+      return arr;
+    },
+  };
+
+  for (const { key, label } of GRUPOS_TAB) {
+    const aberto = expandedGroup === key;
+    const header = document.createElement("div");
+    header.className = "tab group-tab" + (aberto ? " expanded" : "");
+    header.innerHTML = `<span>${aberto ? "▾" : "▸"} ${label}</span>`;
+    header.addEventListener("click", () => toggleGrupo(key));
+    tabs.appendChild(header);
+    if (aberto) {
+      for (const child of CONTEUDO[key]()) tabs.appendChild(child);
+    }
+  }
+
+  activateTab(currentSystem);
+}
+
 function activateTab(code) {
-  document.querySelectorAll("#system-tabs .tab").forEach(tab => {
+  document.querySelectorAll("#system-tabs .tab-child").forEach(tab => {
     tab.classList.toggle("active", tab.dataset.code === code);
   });
+}
+
+// Abre o grupo certo e reconstrói a barra - usado por quem seleciona
+// uma aba programaticamente (busca global, decompor, etc) sem o
+// usuário ter clicado no cabeçalho do grupo primeiro.
+function expandirGrupoE(grupo, code) {
+  expandedGroup = grupo;
+  currentSystem = code;
+  renderSystemTabs();
 }
 
 function setControlsForKind(kind) {
@@ -131,9 +193,8 @@ document.addEventListener("click", (e) => {
 });
 
 async function selectSystem(code) {
-  currentSystem = code;
   currentKind = "leve";
-  activateTab(code);
+  expandirGrupoE("leve", code);
   setControlsForKind("leve");
   const sys = systems.find(s => s.code === code);
   document.getElementById("current-system").textContent = `${code} — ${sys.count} capas, ${sys.no_match} sem correspondência`;
@@ -843,9 +904,8 @@ let heavyItems = [];
 // lugar de Editar, já que não faz sentido editar capa/nome de um item
 // que pode nem estar baixado ainda).
 async function selectHeavyTab(code) {
-  currentSystem = code;
   currentKind = "pesado";
-  activateTab(code);
+  expandirGrupoE("pesado", code);
   setControlsForKind("pesado");
   const sys = heavySystems.find(s => s.code === code);
   document.getElementById("current-system").textContent = `${code} — ${sys.nome} (pesado)`;
@@ -1484,58 +1544,26 @@ let libraryGames = []; // já carregado em loadSystems() - as abas de baixo depe
 // logic.js (libraryTabGroupsFor).
 let currentLibraryGroup = "";
 
-// Biblioteca "explodida" (pedido do usuário 31/08: "como nas ROMs
-// pesadas") - cada plataforma/loja vira aba própria de nível superior,
-// igual PS/PS2/etc, em vez de uma aba "Biblioteca" só com sub-abas por
-// dentro. "📚 Todos" continua existindo pra quem quer ver a coleção
-// inteira de uma vez (não existe um "Todas ROMs" equivalente pra leve/
-// pesado, mas aqui faz sentido - é a mesma visão que sempre existiu, só
-// deixou de ser a única entrada). Reconstruída depois de editar/
-// decompor um jogo (não só no load inicial) porque mudar plataforma ou
-// fonte pode mudar em qual aba ele mora.
-function renderLibraryTopTabs() {
-  const tabs = document.getElementById("system-tabs");
-  tabs.querySelectorAll('.tab[data-code^="LIB:"]').forEach(t => t.remove());
-
-  const grupos = new Set();
-  for (const g of libraryGames) {
-    for (const label of libraryTabGroupsFor(g)) grupos.add(label);
-  }
-  const todosTab = document.createElement("div");
-  todosTab.className = "tab";
-  todosTab.dataset.code = "LIB:";
-  todosTab.innerHTML = "<span>📚 Todos</span>";
-  todosTab.addEventListener("click", () => selectLibraryGroupTab(""));
-  tabs.appendChild(todosTab);
-  for (const label of [...grupos].sort()) {
-    const tab = document.createElement("div");
-    tab.className = "tab";
-    tab.dataset.code = "LIB:" + label;
-    tab.innerHTML = `<span>📚 ${label}</span>`;
-    tab.addEventListener("click", () => selectLibraryGroupTab(label));
-    tabs.appendChild(tab);
-  }
-  activateTab(currentKind === "biblioteca" ? currentSystem : null);
-}
-
 // Recarrega a Biblioteca depois de uma edição (✎/⧉/🖼) - refaz a busca
 // (fontes/plataforma podem ter mudado, o que muda em qual aba o jogo
-// mora), reconstrói as abas de topo e volta pra "Todos" se a aba atual
-// sumiu.
+// mora), reconstrói as abas (renderSystemTabs, ver loadSystems) e volta
+// pra "Todos" se a aba atual sumiu.
 async function refreshLibrary() {
   libraryGames = await (await fetch("/api/library")).json();
-  renderLibraryTopTabs();
   const grupos = new Set();
   for (const g of libraryGames) for (const l of libraryTabGroupsFor(g)) grupos.add(l);
   if (currentLibraryGroup && !grupos.has(currentLibraryGroup)) currentLibraryGroup = "";
-  if (currentKind === "biblioteca") await selectLibraryGroupTab(currentLibraryGroup);
+  if (currentKind === "biblioteca") {
+    await selectLibraryGroupTab(currentLibraryGroup);
+  } else if (expandedGroup === "biblioteca") {
+    renderSystemTabs();
+  }
 }
 
 async function selectLibraryGroupTab(label) {
-  currentSystem = "LIB:" + label;
   currentKind = "biblioteca";
   currentLibraryGroup = label;
-  activateTab(currentSystem);
+  expandirGrupoE("biblioteca", "LIB:" + label);
   setControlsForKind("biblioteca");
   if (!libraryGames.length) {
     document.getElementById("gallery").innerHTML = '<div class="empty-state">carregando...</div>';

@@ -211,6 +211,22 @@ button.secondary {
   color: white;
 }
 
+/* Cabeçalho de grupo (🕹 ROMs leves / 📦 ROMs pesadas / 📚 Biblioteca) -
+   pedido do usuário 01/09: com tudo exposto de uma vez o scroll lateral
+   no celular parou de funcionar direito. Contorno em vez de fundo
+   sólido pra não competir visualmente com a aba REALMENTE selecionada
+   (.tab.active) - só o estado expandido/recolhido muda aqui. */
+.system-tabs .tab.group-tab {
+  background: transparent;
+  border: 1px solid var(--border);
+  font-weight: bold;
+}
+
+.system-tabs .tab.group-tab.expanded {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .system-tabs .tab .badge {
   font-size: 10px;
   color: var(--text-dim);
