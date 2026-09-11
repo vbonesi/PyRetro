@@ -82,6 +82,31 @@ class TestNaoMisturaPlataforma(unittest.TestCase):
         self.assertEqual(len(self.lib["games"]), 2)
 
 
+class TestRomTrackingInfo(unittest.TestCase):
+    """gui/server.py tinha essa MESMA lógica copiada em dois lugares
+    (ROM leve e pesada) e uma cópia nunca ganhou tempo/observacoes
+    quando os outros campos de tracking foram adicionados - o popup de
+    comentário e o "✎ Editar dados do jogo" de ROM sempre apareciam
+    vazios mesmo com tempo/comentário já salvo (achado do usuário
+    11/09: "os jogos de roms leves estão sem tempo e comentario, pelo
+    menos no lapiszinho"). Extraído pra um lugar só (rom_tracking_info)
+    exatamente pra essa dessincronia não voltar a acontecer."""
+
+    def test_traz_todos_os_campos_de_tracking(self):
+        lib = {"games": [jogo("Celeste", "Nintendo - Game Boy Advance",
+                              iniciado=True, finalizado=True, platinado=False, nota=9.5,
+                              genero="Plataforma", tempo="12:30:00", observacoes="Ótimo jogo")]}
+        info = lm.rom_tracking_info(lm.index_by_rom_name(lib), "Celeste", "GBA")
+        self.assertEqual(info, {
+            "iniciado": True, "finalizado": True, "platinado": False, "nota": 9.5,
+            "genero": "Plataforma", "tempo": "12:30:00", "observacoes": "Ótimo jogo",
+        })
+
+    def test_sem_registro_devolve_none(self):
+        lib = {"games": []}
+        self.assertIsNone(lm.rom_tracking_info(lm.index_by_rom_name(lib), "Celeste", "GBA"))
+
+
 class TestMergeDeFontes(unittest.TestCase):
     """merge_owned: nome exato anota a fonte; parecido só reporta."""
 
