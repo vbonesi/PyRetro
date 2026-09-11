@@ -143,15 +143,20 @@ function libraryTabGroupsFor(g) {
   return [...new Set(labels)];
 }
 
-function libraryMatchesFilters(g, fonte, status, noCover, mostrarOcultos) {
+// `status` são checkboxes independentes (mesmo padrão "OU" de ROMs
+// leves/pesadas - pedido do usuário 11/09: "deixar no mesmo padrão
+// visual do resto, as checkbox" no lugar do select único de antes, que
+// só deixava escolher UM status por vez.
+function libraryMatchesFilters(g, fonte, noCover, mostrarOcultos, status) {
   if (g.oculto && !mostrarOcultos) return false;
   if (fonte && !libraryTabGroupsFor(g).includes(fonte)) return false;
   if (noCover && g.capa) return false;
-  if (status === "iniciado" && !g.iniciado) return false;
-  if (status === "finalizado" && !g.finalizado) return false;
-  if (status === "nao_finalizado" && g.finalizado) return false;
-  if (status === "platinado" && !g.platinado) return false;
-  if (status === "sem_genero" && g.genero) return false;
+  const s = status || {};
+  if (s.iniciado || s.finalizado || s.platinado || s.semGenero) {
+    const bate = (s.iniciado && g.iniciado) || (s.finalizado && g.finalizado) ||
+                 (s.platinado && g.platinado) || (s.semGenero && !g.genero);
+    if (!bate) return false;
+  }
   return true;
 }
 

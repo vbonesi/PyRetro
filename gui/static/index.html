@@ -114,14 +114,22 @@
           <input type="checkbox" id="library-filter-ocultos">
           👁 Mostrar ocultos
         </label>
-        <select id="library-filter-status">
-          <option value="">Todos</option>
-          <option value="iniciado">Iniciado</option>
-          <option value="finalizado">Finalizado</option>
-          <option value="nao_finalizado">Não finalizado</option>
-          <option value="platinado">Platinado</option>
-          <option value="sem_genero">Sem gênero</option>
-        </select>
+        <label class="filter-toggle">
+          <input type="checkbox" id="library-filter-iniciado">
+          ▶ Só iniciados
+        </label>
+        <label class="filter-toggle">
+          <input type="checkbox" id="library-filter-finalizado">
+          ✓ Só finalizados
+        </label>
+        <label class="filter-toggle">
+          <input type="checkbox" id="library-filter-platinado">
+          🏆 Só platinados
+        </label>
+        <label class="filter-toggle">
+          <input type="checkbox" id="library-filter-sem-genero">
+          🎭 Só sem gênero
+        </label>
         <select id="library-sort">
           <option value="nome">Ordenar: nome</option>
           <option value="nota">Ordenar: ranking (nota)</option>
@@ -133,6 +141,10 @@
       <label class="tiny apply-toggle"><input type="checkbox" id="heavy-apply"> aplicar</label>
       <button id="btn-heavy-catalog" class="tiny secondary" type="button">🔄 Atualizar catálogo</button>
       <button id="btn-heavy-fetch-covers" class="tiny secondary" type="button">🖼 Buscar capas</button>
+      <div id="heavy-catalog-log" class="job-log hidden"></div>
+    </div>
+
+    <div id="heavy-filterbar" class="filterbar hidden">
       <label class="filter-toggle">
         <input type="checkbox" id="heavy-filter-nocover">
         🖼 Só sem capa
@@ -153,7 +165,6 @@
         <input type="checkbox" id="heavy-filter-sem-genero">
         🎭 Só sem gênero
       </label>
-      <div id="heavy-catalog-log" class="job-log hidden"></div>
     </div>
 
     <div id="progress-panel" class="progress-panel hidden">

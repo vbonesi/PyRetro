@@ -104,27 +104,29 @@ teste("jogo sem fonte usa a própria plataforma", () => {
 // --- filtros ---------------------------------------------------------
 teste("oculto só aparece quando pedido", () => {
   const g = jogo({ oculto: true });
-  verdade(!libraryMatchesFilters(g, "", "", false, false), "oculto apareceu sem querer");
-  verdade(libraryMatchesFilters(g, "", "", false, true), "não apareceu nem pedindo");
+  verdade(!libraryMatchesFilters(g, "", false, false), "oculto apareceu sem querer");
+  verdade(libraryMatchesFilters(g, "", false, true), "não apareceu nem pedindo");
 });
 teste("filtro de sem capa", () => {
-  verdade(libraryMatchesFilters(jogo({ capa: null }), "", "", true, false));
-  verdade(!libraryMatchesFilters(jogo({ capa: "capas/x.png" }), "", "", true, false));
+  verdade(libraryMatchesFilters(jogo({ capa: null }), "", true, false));
+  verdade(!libraryMatchesFilters(jogo({ capa: "capas/x.png" }), "", true, false));
 });
-teste("filtro de status", () => {
+teste("filtro de status (checkbox, mesmo padrão OU de ROMs leves/pesadas)", () => {
   const zerado = jogo(), feito = jogo({ iniciado: true, finalizado: true });
-  verdade(!libraryMatchesFilters(zerado, "", "finalizado", false, false));
-  verdade(libraryMatchesFilters(feito, "", "finalizado", false, false));
-  verdade(libraryMatchesFilters(zerado, "", "nao_finalizado", false, false));
+  verdade(!libraryMatchesFilters(zerado, "", false, false, { finalizado: true }));
+  verdade(libraryMatchesFilters(feito, "", false, false, { finalizado: true }));
+  // Dois filtros marcados juntos amplia (OU), não restringe (E).
+  verdade(libraryMatchesFilters(jogo({ platinado: true }), "", false, false,
+    { finalizado: true, platinado: true }));
 });
 teste("filtro de sem gênero", () => {
-  verdade(libraryMatchesFilters(jogo({ genero: null }), "", "sem_genero", false, false));
-  verdade(!libraryMatchesFilters(jogo({ genero: "Ação" }), "", "sem_genero", false, false));
+  verdade(libraryMatchesFilters(jogo({ genero: null }), "", false, false, { semGenero: true }));
+  verdade(!libraryMatchesFilters(jogo({ genero: "Ação" }), "", false, false, { semGenero: true }));
 });
 teste("filtro por aba usa o agrupamento curado", () => {
   const g = jogo({ plataforma: "Xbox One" });
-  verdade(libraryMatchesFilters(g, "Xbox", "", false, false), "não caiu na aba Xbox");
-  verdade(!libraryMatchesFilters(g, "Steam", "", false, false));
+  verdade(libraryMatchesFilters(g, "Xbox", false, false), "não caiu na aba Xbox");
+  verdade(!libraryMatchesFilters(g, "Steam", false, false));
 });
 
 // --- utilidades ------------------------------------------------------

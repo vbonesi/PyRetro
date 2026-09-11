@@ -115,6 +115,7 @@ function setControlsForKind(kind) {
   document.getElementById("filterbar").classList.toggle("hidden", kind !== "leve");
   document.getElementById("library-controls").classList.toggle("hidden", kind !== "biblioteca");
   document.getElementById("heavy-controls").classList.toggle("hidden", kind !== "pesado");
+  document.getElementById("heavy-filterbar").classList.toggle("hidden", kind !== "pesado");
   document.getElementById("library-add-card").classList.add("hidden"); // sempre fecha o formulário ao trocar de aba
 }
 
@@ -1568,12 +1569,20 @@ async function selectLibraryGroupTab(label) {
 
 function renderLibraryGrid() {
   const gallery = document.getElementById("gallery");
-  const status = document.getElementById("library-filter-status").value;
   const noCover = document.getElementById("library-filter-nocover").checked;
   const mostrarOcultos = document.getElementById("library-filter-ocultos").checked;
   const sortBy = document.getElementById("library-sort").value;
+  // Checkboxes independentes (11/09, pedido do usuário: "mesmo padrão
+  // visual do resto, as checkbox") no lugar do select único de status
+  // que só deixava escolher um de cada vez.
+  const status = {
+    iniciado: document.getElementById("library-filter-iniciado").checked,
+    finalizado: document.getElementById("library-filter-finalizado").checked,
+    platinado: document.getElementById("library-filter-platinado").checked,
+    semGenero: document.getElementById("library-filter-sem-genero").checked,
+  };
 
-  let filtered = libraryGames.filter(g => libraryMatchesFilters(g, currentLibraryGroup, status, noCover, mostrarOcultos));
+  let filtered = libraryGames.filter(g => libraryMatchesFilters(g, currentLibraryGroup, noCover, mostrarOcultos, status));
   if (sortBy === "nota") {
     // Ranking: maior nota primeiro, sem nota vai pro final (não é
     // "nota zero" nem some da lista, só não participa da ordenação).
@@ -2540,9 +2549,10 @@ document.querySelectorAll("#maint-modal [data-action]").forEach((btn) => {
   btn.addEventListener("click", () => runMaintAction(btn.dataset.action));
 });
 
-document.getElementById("library-filter-nocover").addEventListener("change", renderLibraryGrid);
-document.getElementById("library-filter-ocultos").addEventListener("change", renderLibraryGrid);
-document.getElementById("library-filter-status").addEventListener("change", renderLibraryGrid);
+for (const id of ["library-filter-nocover", "library-filter-ocultos", "library-filter-iniciado",
+                  "library-filter-finalizado", "library-filter-platinado", "library-filter-sem-genero"]) {
+  document.getElementById(id).addEventListener("change", renderLibraryGrid);
+}
 document.getElementById("library-sort").addEventListener("change", renderLibraryGrid);
 
 // 2 etapas, a pedido do usuário: 0 = tudo visível, 1 = esconde
