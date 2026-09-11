@@ -16,3 +16,7 @@ venv/
 
 # Editor/OS
 .DS_Store
+
+# Claude Code - configuracao/memoria local, nao e produto do projeto
+.claude/
+CLAUDE.md
