@@ -722,6 +722,18 @@ button.tiny.danger {
   border-bottom: 1px solid var(--border);
 }
 
+.capa-fonte-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 0;
+}
+
+.capa-fonte-tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
 .search-bar input {
   flex: 1;
   background: var(--bg);

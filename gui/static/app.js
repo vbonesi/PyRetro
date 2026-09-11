@@ -383,23 +383,6 @@ function buildTrackingRow(biblioteca, onChange, nome, extras) {
   const acoes = document.createElement("div");
   acoes.className = "tracking-acoes";
 
-  const obsBtn = document.createElement("button");
-  obsBtn.type = "button";
-  obsBtn.className = "icon-btn" + (b.observacoes || b.tempo ? " ativo" : "");
-  obsBtn.textContent = "💬";
-  obsBtn.title = "Comentário e tempo jogado";
-  obsBtn.addEventListener("click", () => {
-    openObs(nome, b, (campos) => {
-      for (const [campo, valor] of Object.entries(campos)) {
-        if (valor === (b[campo] ?? null)) continue; // só grava o que mudou de verdade
-        b[campo] = valor;
-        onChange(campo, valor);
-      }
-      obsBtn.classList.toggle("ativo", !!(b.observacoes || b.tempo));
-    });
-  });
-  acoes.appendChild(obsBtn);
-
   for (const extra of extras || []) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -483,7 +466,6 @@ function buildCoverCard(code, item, cacheBust) {
     </div>` : ""}
     <div class="cover-actions">
       ${noCover ? "" : `<button class="tiny ${attention ? "" : "secondary"}" data-action="flag">${attention ? "Desmarcar" : "⚑ Marcar"}</button>`}
-      <button class="tiny secondary" data-action="edit">✎ Editar</button>
       ${noCover ? "" : '<button class="tiny danger" data-action="delete">🗑 Apagar</button>'}
     </div>
   `;
@@ -492,7 +474,6 @@ function buildCoverCard(code, item, cacheBust) {
     div.querySelector('[data-action="flag"]').addEventListener("click", () => toggleFlag(code, label, attention));
     div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteCover(code, label));
   }
-  div.querySelector('[data-action="edit"]').addEventListener("click", () => openEdit(code, label, display_name, noCover));
   const delSaveBtn = div.querySelector('[data-action="delete-save"]');
   if (delSaveBtn) delSaveBtn.addEventListener("click", () => deleteSaveOrState(label, "save", delSaveBtn));
   const delStateBtn = div.querySelector('[data-action="delete-state"]');
@@ -503,10 +484,17 @@ function buildCoverCard(code, item, cacheBust) {
   // em qualquer ROM leve também (cria o registro na Biblioteca sozinho
   // na primeira edição, ver /api/library/track).
   const sysLabel = (systems.find(s => s.code === code) || {}).capas || code;
+  // Ícones de capa/editar movidos pra cá (11/09): mesmo lugar nas 3 abas
+  // (leve/pesada/Biblioteca) - antes "✎ Editar" (nome+capa juntos) ficava
+  // em cima, sozinho, e cada aba tinha um layout diferente.
   div.appendChild(buildTrackingRow(biblioteca, (field, value) => {
     item.biblioteca = { ...(item.biblioteca || { nota: null, iniciado: false, finalizado: false, platinado: false }), [field]: value };
     trackGame(shown, code, sysLabel, `rom:${code}`, field, value);
-  }, shown));
+  }, shown, [
+    { icone: "🖼", titulo: "Buscar/trocar capa", onClick: () => openEdit(code, label, display_name, true) },
+    { icone: "✎", titulo: "Editar dados do jogo",
+      onClick: () => openEditarRom({ kind: "leve", code, label, sysLabel, fonte: `rom:${code}` }, item.biblioteca, () => selectSystem(code)) },
+  ]));
   return div;
 }
 
@@ -721,28 +709,15 @@ document.getElementById("settings-modal").addEventListener("click", (e) => {
 
 let searchCtx = { code: null, label: null };
 
-function openEdit(code, label, displayName, noCover, kind) {
+function openEdit(code, label, displayName) {
   // searchCtx.label é sempre o nome curto de verdade (o que vira
-  // arquivo em disco) - displayName só melhora o que aparece na tela,
-  // o campo de renomear (prefill) e o termo de busca pré-preenchido
-  // (buscar "Metal Slug 2" nas fontes de capa dá resultado bem melhor
-  // que buscar "mslug2"). Um modal só pras 3 ações que antes eram
-  // botões separados (Renomear/Buscar/Trocar) - pedido do usuário
-  // (27/08): "unificar... e ai sim abre um popup pra ver se vai mudar
-  // capa ou nome". Sem capa ainda (noCover) esconde Renomear (não tem
-  // o que renomear até existir uma capa de verdade).
-  //
-  // `kind` (01/09, default "leve"): ROM pesada usa `data-label` = nome
-  // do ARQUIVO (com extensão, pra bater com a busca global) enquanto
-  // `label` aqui é o stem sem extensão (pra bater com o nome da capa) -
-  // os dois nunca coincidem, então refreshCard (que procura o card
-  // pelo data-label) nunca acharia o card certo pra pesado. selectCandidate
-  // usa isso pra recarregar a aba inteira em vez de tentar atualizar
-  // só o card.
-  searchCtx = { code, label, displayName, kind: kind || "leve" };
+  // arquivo em disco) - displayName só melhora o que aparece na tela e
+  // o termo de busca pré-preenchido (buscar "Metal Slug 2" nas fontes
+  // de capa dá resultado bem melhor que buscar "mslug2"). Só ROM leve
+  // usa isso (11/09): renomear virou parte do "✎ Editar dados do jogo"
+  // (ver openEditarRom), então aqui é só busca/troca de capa.
+  searchCtx = { code, label, displayName };
   document.getElementById("search-label").textContent = displayName || label;
-  document.getElementById("edit-rename-row").classList.toggle("hidden", noCover);
-  document.getElementById("edit-rename-input").value = label;
   document.getElementById("search-query").value = displayName || label;
   document.getElementById("search-results").innerHTML = "";
   document.getElementById("search-modal").classList.remove("hidden");
@@ -808,11 +783,7 @@ async function selectCandidate(item) {
   }
   if (res.ok) {
     closeEdit();
-    if (searchCtx.kind === "pesado") {
-      selectHeavyTab(searchCtx.code); // ver comentário em openEdit
-    } else {
-      refreshCard(searchCtx.code, searchCtx.label, false, searchCtx.label + ".png");
-    }
+    refreshCard(searchCtx.code, searchCtx.label, false, searchCtx.label + ".png");
   } else {
     const data = await res.json();
     results.innerHTML = `<div class="empty-state">erro: ${data.error || "falha ao aplicar"}</div>`;
@@ -826,23 +797,6 @@ document.getElementById("search-query").addEventListener("keydown", (e) => {
 });
 document.getElementById("search-modal").addEventListener("click", (e) => {
   if (e.target.id === "search-modal") closeEdit();
-});
-document.getElementById("btn-edit-rename").addEventListener("click", async () => {
-  const newLabel = document.getElementById("edit-rename-input").value.trim();
-  if (!newLabel || newLabel === searchCtx.label) return;
-  const res = await fetch("/api/cover/rename", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: searchCtx.code, label: searchCtx.label, new_label: newLabel }),
-  });
-  const data = await res.json();
-  if (res.ok) {
-    closeEdit();
-    selectSystem(searchCtx.code); // ordem alfabetica muda de posicao - recarrega a galeria inteira
-    if (data.cascade) alert(describeCascade(data.cascade));
-  } else {
-    alert(`erro ao renomear: ${data.error || "falha"}`);
-  }
 });
 document.getElementById("edit-upload-input").addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -977,9 +931,7 @@ function buildHeavyCard(code, item) {
     <div class="cover-actions">
       ${notInPc
         ? '<button class="tiny" data-action="download">⬇ Baixar</button>'
-        : `<button class="tiny secondary" data-action="rename">✎ Renomear</button>
-           <button class="tiny secondary" data-action="edit">🖼 Editar capa</button>
-           <button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>
+        : `<button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>
            <button class="tiny danger" data-action="delete">🗑 Apagar</button>`}
     </div>
   `;
@@ -987,14 +939,6 @@ function buildHeavyCard(code, item) {
   if (notInPc) {
     div.querySelector('[data-action="download"]').addEventListener("click", () => downloadHeavyItem(code, item.name));
   } else {
-    div.querySelector('[data-action="rename"]').addEventListener("click", () => renameHeavyItem(code, item));
-    // "✎ Renomear" (acima) já cuida do nome do ARQUIVO - esse aqui
-    // (pedido do usuário 01/09: "ROMs pesadas não tem botão de
-    // editar") é só busca/troca de CAPA, mesmo popup que a ROM leve já
-    // usa. noCover=true fixo esconde a linha de renomear DENTRO do
-    // popup de propósito - já existe o botão dedicado pra isso, dois
-    // caminhos pro mesmo rename só confundiria.
-    div.querySelector('[data-action="edit"]').addEventListener("click", () => openEdit(code, item.label, item.label, true, "pesado"));
     div.querySelector('[data-action="send"]').addEventListener("click", () => sendHeavyItem(code, item.name, onCelular));
     div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHeavyItem(code, item));
   }
@@ -1005,12 +949,24 @@ function buildHeavyCard(code, item) {
   // cruza, ver biblioteca_info em /api/heavy/roms).
   const sysLabel = (heavySystems.find(s => s.code === code) || {}).nome || code;
   const nome = stemOf(item);
+  // 🖼/✎ unificados (11/09, pedido do usuário) - "✎ Renomear" e "🖼
+  // Editar capa" (LaunchBox/ScreenScraper) viraram um ícone só cada,
+  // no mesmo lugar que ROM leve e Biblioteca usam. Renomear entrou pro
+  // popup "Editar dados do jogo" (ver openEditarRom); a capa junta as
+  // duas fontes que existiam separadas (LaunchBox/ScreenScraper +
+  // SteamGridDB) com uma aba pra escolher (openCapa, kind "rom").
   div.appendChild(buildTrackingRow(item.biblioteca, (field, value) => {
     item.biblioteca = { ...(item.biblioteca || { nota: null, iniciado: false, finalizado: false, platinado: false }), [field]: value };
     trackGame(nome, code, sysLabel, `rom:${code}`, field, value);
   }, nome, [
     { icone: "🖼", titulo: "Buscar/trocar capa",
       onClick: () => openCapa(nome, { kind: "rom", code, label: nome }, () => selectHeavyTab(code)) },
+    // Renomear (só faz sentido pro arquivo que já está no PC) entrou
+    // pro popup "Editar dados do jogo" - por isso só aparece com o
+    // arquivo baixado, diferente da busca de capa acima (essa dá pra
+    // usar mesmo só no Drive, pra já deixar catalogado).
+    ...(notInPc ? [] : [{ icone: "✎", titulo: "Editar dados do jogo",
+      onClick: () => openEditarRom({ kind: "pesado", code, label: nome, sysLabel, fonte: `rom:${code}` }, item.biblioteca, () => selectHeavyTab(code)) }]),
   ]));
   return div;
 }
@@ -1070,26 +1026,6 @@ function downloadHeavyItem(code, name) {
         }
       };
     });
-}
-
-async function renameHeavyItem(code, item) {
-  const oldLabel = stemOf(item);
-  const input = prompt("Novo nome (sem extensão) - também tenta renomear save/state junto:", oldLabel);
-  if (input === null) return;
-  const newLabel = input.trim();
-  if (!newLabel || newLabel === oldLabel) return;
-  const res = await fetch("/api/heavy/rename", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, old_label: oldLabel, new_label: newLabel }),
-  });
-  const data = await res.json();
-  if (res.ok) {
-    if (data.cascade) alert(describeCascade(data.cascade));
-    selectHeavyTab(code);
-  } else {
-    alert(`erro ao renomear: ${data.error || "falha"}`);
-  }
 }
 
 async function deleteHeavyItem(code, item) {
@@ -1855,14 +1791,18 @@ document.getElementById("decompor-modal").addEventListener("click", (e) => {
   if (e.target.id === "decompor-modal") closeDecompor();
 });
 
-// Editor de todos os campos de um jogo da Biblioteca (pedido do
-// usuário 28/08: "estender o editar nome para todos os campos" - o
-// gatilho foi um nome errado herdado da planilha que ele não tinha como
-// consertar pela tela). Grava tudo de uma vez em /api/library/edit
-// (tudo-ou-nada); nota/flags continuam na barra do card, que é edição
-// de um clique só. `id` e `fontes` ficam de fora de propósito - ver
-// EDITABLE_FIELDS em core/library.py.
-const EDITAR_CAMPOS = [
+// Editor de todos os campos de um jogo (pedido do usuário 28/08:
+// "estender o editar nome para todos os campos" - o gatilho foi um
+// nome errado herdado da planilha que ele não tinha como consertar
+// pela tela; unificado em 11/09 pra também servir ROM leve/pesada,
+// absorvendo o que antes era só o popup de comentário/💬). Biblioteca
+// grava tudo de uma vez em /api/library/edit (tudo-ou-nada); ROM
+// leve/pesada não tem "id" no cliente, então usa o mesmo caminho
+// get-or-create que o tracking universal já usa (/api/library/track,
+// um campo por vez) - e o "Nome" (quando muda) primeiro renomeia o
+// ARQUIVO de verdade (endpoint específico do kind), só depois grava o
+// resto, pra nunca deixar metadado e arquivo dessincronizados.
+const EDITAR_CAMPOS_BIBLIOTECA = [
   { campo: "nome", rotulo: "Nome" },
   { campo: "plataforma", rotulo: "Plataforma" },
   { campo: "genero", rotulo: "Gênero" },
@@ -1870,13 +1810,26 @@ const EDITAR_CAMPOS = [
   { campo: "tempo", rotulo: "Tempo jogado", dica: "ex: 31:40:00" },
   { campo: "observacoes", rotulo: "Comentário", textarea: true },
 ];
+// ROM (leve/pesada): sem "Plataforma" - vem do sistema, não é editável aqui.
+const EDITAR_CAMPOS_ROM = EDITAR_CAMPOS_BIBLIOTECA.filter((c) => c.campo !== "plataforma");
 
-let editarCtx = { id: null, onDone: null };
+let editarCtx = { kind: "biblioteca", id: null, rom: null, onDone: null, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: null };
 
 function openEditar(g, onDone) {
-  editarCtx = { id: g.id, onDone };
+  editarCtx = { kind: "biblioteca", id: g.id, rom: null, onDone, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: g.nome };
+  _preencherEditar(g);
+}
+
+// rom: { kind: "leve"|"pesado", code, label (nome/stem atual), sysLabel, fonte }
+// estado: item.biblioteca (genero/data_final/tempo/observacoes atuais - pode ser null, ROM ainda sem registro).
+function openEditarRom(rom, estado, onDone) {
+  editarCtx = { kind: rom.kind, id: null, rom, onDone, camposDef: EDITAR_CAMPOS_ROM, nomeOriginal: rom.label };
+  _preencherEditar({ nome: rom.label, ...(estado || {}) });
+}
+
+function _preencherEditar(g) {
   const box = document.getElementById("editar-campos");
-  box.innerHTML = EDITAR_CAMPOS.map(({ campo, rotulo, dica, textarea }) => `
+  box.innerHTML = editarCtx.camposDef.map(({ campo, rotulo, dica, textarea }) => `
     <label class="obs-campo">${rotulo}${dica ? ` <span class="dica">(${dica})</span>` : ""}
       ${textarea
         ? `<textarea data-campo="${campo}" rows="4"></textarea>`
@@ -1885,7 +1838,7 @@ function openEditar(g, onDone) {
   `).join("");
   // Valor via .value (não no HTML) pra não precisar escapar aspas do
   // conteúdo - nome de jogo tem apóstrofo o tempo todo ("Where's...").
-  for (const { campo } of EDITAR_CAMPOS) {
+  for (const { campo } of editarCtx.camposDef) {
     box.querySelector(`[data-campo="${campo}"]`).value = g[campo] ?? "";
   }
   document.getElementById("editar-status").textContent = "";
@@ -1894,11 +1847,12 @@ function openEditar(g, onDone) {
 
 function closeEditar() {
   document.getElementById("editar-modal").classList.add("hidden");
-  editarCtx = { id: null, onDone: null };
+  editarCtx = { kind: "biblioteca", id: null, rom: null, onDone: null, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: null };
 }
 
 async function salvarEditar() {
-  if (!editarCtx.id) return;
+  if (editarCtx.kind === "biblioteca" && !editarCtx.id) return;
+  if (editarCtx.kind !== "biblioteca" && !editarCtx.rom) return;
   const campos = {};
   document.querySelectorAll("#editar-campos [data-campo]").forEach((el) => {
     campos[el.dataset.campo] = el.value.trim() || null;
@@ -1906,17 +1860,49 @@ async function salvarEditar() {
   const status = document.getElementById("editar-status");
   status.textContent = "salvando...";
   status.style.color = "";
-  const res = await fetch("/api/library/edit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: editarCtx.id, campos }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    status.textContent = `erro: ${data.error || "falha"}`;
-    status.style.color = "var(--err)";
-    return;
+
+  if (editarCtx.kind === "biblioteca") {
+    const res = await fetch("/api/library/edit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editarCtx.id, campos }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      status.textContent = `erro: ${data.error || "falha"}`;
+      status.style.color = "var(--err)";
+      return;
+    }
+  } else {
+    const { code, sysLabel, fonte } = editarCtx.rom;
+    let nomeAtual = editarCtx.nomeOriginal;
+    if (campos.nome && campos.nome !== nomeAtual) {
+      const renameUrl = editarCtx.kind === "pesado" ? "/api/heavy/rename" : "/api/cover/rename";
+      const renameBody = editarCtx.kind === "pesado"
+        ? { code, old_label: nomeAtual, new_label: campos.nome }
+        : { code, label: nomeAtual, new_label: campos.nome };
+      const r = await fetch(renameUrl, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(renameBody),
+      });
+      const rd = await r.json();
+      if (!r.ok) {
+        status.textContent = `erro ao renomear: ${rd.error || "falha"}`;
+        status.style.color = "var(--err)";
+        return;
+      }
+      if (rd.cascade) alert(describeCascade(rd.cascade));
+      // Mantém a Biblioteca linkada ao mesmo registro depois do rename
+      // físico - senão a próxima verificação cria um registro do zero
+      // (mesmo achado do usuário 28/08 documentado em update_game/nomes_alt).
+      await trackGame(nomeAtual, code, sysLabel, fonte, "nome", campos.nome);
+      nomeAtual = campos.nome;
+    }
+    for (const { campo } of editarCtx.camposDef) {
+      if (campo === "nome") continue;
+      await trackGame(nomeAtual, code, sysLabel, fonte, campo, campos[campo]);
+    }
   }
+
   const done = editarCtx.onDone;
   closeEditar();
   if (done) done();
@@ -1928,27 +1914,33 @@ document.getElementById("editar-modal").addEventListener("click", (e) => {
   if (e.target.id === "editar-modal") closeEditar();
 });
 
-// Capa: busca (SteamGridDB) + upload num popup só, servindo as TRÊS
-// abas (pedido do usuário 28/08: "para todos os itens da biblioteca,
-// não consigo buscar nem alterar capa... quero ir capeando todos os
-// jogos de todas as abas"). ROM leve já tinha isso via "✎ Editar" com
-// as fontes dela (libretro/LaunchBox/ScreenScraper); Biblioteca e ROM
-// pesada não tinham busca nenhuma, só upload. `alvo` é
-// {kind:"biblioteca", id} ou {kind:"rom", code, label}.
-let capaCtx = { alvo: null, onDone: null };
+// Capa: busca + upload num popup só, servindo as TRÊS abas (pedido do
+// usuário 28/08: "para todos os itens da biblioteca, não consigo
+// buscar nem alterar capa... quero ir capeando todos os jogos de
+// todas as abas"). `alvo` é {kind:"biblioteca", id} ou {kind:"rom",
+// code, label}. ROM pesada tem DUAS fontes de busca de capa diferentes
+// (SteamGridDB e o banco LaunchBox/ScreenScraper por nome de ROM) -
+// antes eram dois ícones/popups separados; unificado em 11/09 (pedido
+// do usuário: "um botão, e no popup selecionar a fonte") numa aba
+// dentro do mesmo popup, só pra alvo.kind === "rom" (Biblioteca segue
+// só SteamGridDB, como sempre foi).
+let capaCtx = { alvo: null, onDone: null, fonte: "sgdb" };
 
 function openCapa(nome, alvo, onDone) {
-  capaCtx = { alvo, onDone };
+  capaCtx = { alvo, onDone, fonte: "sgdb" };
   document.getElementById("capa-label").textContent = nome;
   document.getElementById("capa-query").value = nome;
   document.getElementById("capa-results").innerHTML = "";
+  const tabs = document.getElementById("capa-fonte-tabs");
+  tabs.classList.toggle("hidden", alvo.kind !== "rom");
+  tabs.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.fonte === capaCtx.fonte));
   document.getElementById("capa-modal").classList.remove("hidden");
   buscarCapa();
 }
 
 function closeCapa() {
   document.getElementById("capa-modal").classList.add("hidden");
-  capaCtx = { alvo: null, onDone: null };
+  capaCtx = { alvo: null, onDone: null, fonte: "sgdb" };
 }
 
 async function buscarCapa() {
@@ -1956,11 +1948,21 @@ async function buscarCapa() {
   const q = document.getElementById("capa-query").value.trim();
   if (q.length < 2) return;
   box.innerHTML = '<div class="empty-state">buscando...</div>';
+  const usaRom = capaCtx.alvo && capaCtx.alvo.kind === "rom" && capaCtx.fonte === "rom";
   let itens;
   try {
-    const res = await fetch(`/api/cover/search_sgdb?q=${encodeURIComponent(q)}`);
-    itens = await res.json();
-    if (itens.error) throw new Error(itens.error);
+    if (usaRom) {
+      const res = await fetch(`/api/cover/search?code=${capaCtx.alvo.code}&q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const brutos = await res.json();
+      const rotulo = { libretro: "libretro-thumbnails", launchbox: "LaunchBox", screenscraper: "ScreenScraper" };
+      itens = brutos.map((it) => ({ url: it.preview, nome: it.name, fonteLabel: rotulo[it.source] || it.source, raw: it }));
+    } else {
+      const res = await fetch(`/api/cover/search_sgdb?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      itens = data.map((it) => ({ url: it.url, nome: it.nome, fonteLabel: "SteamGridDB", raw: it }));
+    }
   } catch (e) {
     box.innerHTML = `<div class="empty-state">erro: ${e.message}</div>`;
     return;
@@ -1976,9 +1978,9 @@ async function buscarCapa() {
     card.innerHTML = `
       <img src="${item.url}" loading="lazy" alt="${item.nome}">
       <div class="search-result-name" title="${item.nome}">${item.nome}</div>
-      <div class="search-result-source">SteamGridDB</div>
+      <div class="search-result-source">${item.fonteLabel}</div>
     `;
-    card.addEventListener("click", () => aplicarCapa(item.url));
+    card.addEventListener("click", () => usaRom ? aplicarCapaRom(item.raw) : aplicarCapa(item.url));
     box.appendChild(card);
   }
 }
@@ -2001,6 +2003,27 @@ async function aplicarCapa(url) {
   if (done) done(data.file);
 }
 
+async function aplicarCapaRom(item) {
+  const box = document.getElementById("capa-results");
+  box.innerHTML = '<div class="empty-state">aplicando...</div>';
+  const res = await fetch("/api/cover/select", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      code: capaCtx.alvo.code, label: capaCtx.alvo.label,
+      source: item.source, name: item.name, filename: item.filename || "", ss_id: item.ss_id || "",
+    }),
+  });
+  if (res.ok) {
+    const done = capaCtx.onDone;
+    closeCapa();
+    if (done) done();
+  } else {
+    const data = await res.json();
+    box.innerHTML = `<div class="empty-state">erro: ${data.error || "falha ao aplicar"}</div>`;
+  }
+}
+
 document.getElementById("btn-capa-close").addEventListener("click", closeCapa);
 document.getElementById("btn-capa-go").addEventListener("click", buscarCapa);
 document.getElementById("capa-query").addEventListener("keydown", (e) => {
@@ -2008,6 +2031,13 @@ document.getElementById("capa-query").addEventListener("keydown", (e) => {
 });
 document.getElementById("capa-modal").addEventListener("click", (e) => {
   if (e.target.id === "capa-modal") closeCapa();
+});
+document.getElementById("capa-fonte-tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-fonte]");
+  if (!btn || btn.dataset.fonte === capaCtx.fonte) return;
+  capaCtx.fonte = btn.dataset.fonte;
+  document.querySelectorAll("#capa-fonte-tabs button").forEach((b) => b.classList.toggle("active", b === btn));
+  buscarCapa();
 });
 document.getElementById("capa-upload").addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -2032,11 +2062,11 @@ document.getElementById("capa-upload").addEventListener("change", (e) => {
   e.target.value = "";
 });
 
-// Comentário + tempo saíram do card pra um popup (pedido do usuário
-// 28/08: "o campo comentario, transformar em um botão -> pop up") - a
-// textarea no card empurrava tudo pra baixo e era o que mais deixava a
-// grade "jogada". Genérico: serve pro card da Biblioteca e pro de ROM
-// (leve/pesada), cada um passa seu próprio `onSave`.
+// Comentário + tempo num popup - usado só pela lista de Ranking/🎮
+// Jogando abaixo (pedido do usuário 28/08). Nos cards das 3 abas isso
+// virou parte do "✎ Editar dados do jogo" (11/09), mas aqui a lista é
+// compacta de propósito (várias fontes/tipos misturados de uma vez),
+// então o popup rápido continua fazendo sentido nesse lugar específico.
 let obsCtx = { onSave: null };
 
 function openObs(nome, estado, onSave) {

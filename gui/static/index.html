@@ -152,17 +152,13 @@
   <div id="search-modal" class="modal hidden">
     <div class="modal-box modal-box-wide">
       <div class="modal-header">
-        <h3>✎ Editar - <span id="search-label"></span></h3>
+        <h3>🖼 Capa - <span id="search-label"></span></h3>
         <button id="btn-search-close" class="secondary" type="button">Fechar</button>
-      </div>
-      <div id="edit-rename-row" class="search-bar">
-        <input type="text" id="edit-rename-input" placeholder="novo nome (sem extensão)">
-        <button id="btn-edit-rename" type="button" class="secondary">✎ Renomear</button>
-        <label class="secondary import-label">⬆ Trocar capa<input type="file" id="edit-upload-input" accept="image/png,image/jpeg" hidden></label>
       </div>
       <div class="search-bar">
         <input type="text" id="search-query" placeholder="termo de busca">
         <button id="btn-search-go" type="button">🔍 Buscar</button>
+        <label class="secondary import-label">⬆ Trocar capa<input type="file" id="edit-upload-input" accept="image/png,image/jpeg" hidden></label>
       </div>
       <div id="search-results" class="search-results"></div>
     </div>
@@ -270,6 +266,10 @@
       <div class="modal-header">
         <h3>🖼 Capa - <span id="capa-label"></span></h3>
         <button id="btn-capa-close" class="secondary" type="button">Fechar</button>
+      </div>
+      <div id="capa-fonte-tabs" class="capa-fonte-tabs hidden">
+        <button type="button" class="tiny secondary" data-fonte="sgdb">SteamGridDB</button>
+        <button type="button" class="tiny secondary" data-fonte="rom">Banco de ROMs</button>
       </div>
       <div class="search-bar">
         <input type="text" id="capa-query" placeholder="buscar capa...">
