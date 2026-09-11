@@ -424,5 +424,64 @@ class TestImportacaoDaPlanilha(unittest.TestCase):
             self.assertEqual(lib["games"][0]["nota"], 11.0)
 
 
+class TestRemoveGame(unittest.TestCase):
+    def test_remove_tira_do_arquivo(self):
+        lib = {"games": [jogo("A", "PC"), jogo("B", "PC")]}
+        alvo = lib["games"][0]["id"]
+        self.assertTrue(lm.remove_game(lib, alvo))
+        self.assertEqual([g["nome"] for g in lib["games"]], ["B"])
+
+    def test_remove_id_inexistente_nao_quebra(self):
+        lib = {"games": [jogo("A", "PC")]}
+        self.assertFalse(lm.remove_game(lib, "nao-existe"))
+        self.assertEqual(len(lib["games"]), 1)
+
+
+class TestSyncWishlist(unittest.TestCase):
+    """sync_wishlist é a única rotina do projeto que apaga registro
+    sozinha (pedido explícito do usuário 11/09: lista de desejos não
+    tem progresso pra perder) - por isso o cuidado extra de testar o
+    caso que NÃO pode apagar: jogo que saiu da lista mas já é posse de
+    verdade por outra fonte."""
+
+    def test_nome_novo_cria_registro_com_a_fonte(self):
+        lib = {"games": []}
+        r = lm.sync_wishlist(lib, "wishlist:psn", "PSN", ["God of War"])
+        self.assertEqual(r["adicionados"], 1)
+        self.assertEqual(lib["games"][0]["fontes"], ["wishlist:psn"])
+
+    def test_nome_que_ja_existe_so_ganha_a_fonte_sem_duplicar(self):
+        existente = jogo("God of War", "PSN")
+        lib = {"games": [existente]}
+        r = lm.sync_wishlist(lib, "wishlist:psn", "PSN", ["God of War"])
+        self.assertEqual(len(lib["games"]), 1)
+        self.assertEqual(r["adicionados"], 1)
+        self.assertIn("wishlist:psn", existente["fontes"])
+
+    def test_nome_que_sai_da_lista_sem_outra_fonte_e_apagado(self):
+        g = jogo("Erica", "PSN", fontes=["wishlist:psn"])
+        lib = {"games": [g]}
+        r = lm.sync_wishlist(lib, "wishlist:psn", "PSN", [])
+        self.assertEqual((r["removidos"], r["apagados"]), (1, 1))
+        self.assertEqual(lib["games"], [])
+
+    def test_nome_que_sai_da_lista_mas_e_posse_de_verdade_so_perde_a_marca(self):
+        # achado real (pedido do usuário): jogo saiu do texto colado
+        # porque o usuário já conseguiu em outra fonte (ex: Heroic) -
+        # o registro tem que sobreviver, só sem a marca de desejo.
+        g = jogo("Diablo", "PSN", fontes=["wishlist:psn", "heroic:gog"])
+        lib = {"games": [g]}
+        r = lm.sync_wishlist(lib, "wishlist:psn", "PSN", [])
+        self.assertEqual((r["removidos"], r["apagados"]), (1, 0))
+        self.assertEqual(lib["games"], [g])
+        self.assertEqual(g["fontes"], ["heroic:gog"])
+
+    def test_ja_marcado_nao_conta_como_novo(self):
+        g = jogo("God of War", "PSN", fontes=["wishlist:psn"])
+        lib = {"games": [g]}
+        r = lm.sync_wishlist(lib, "wishlist:psn", "PSN", ["God of War"])
+        self.assertEqual((r["adicionados"], r["ja_tinha"]), (0, 1))
+
+
 if __name__ == "__main__":
     unittest.main()

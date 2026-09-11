@@ -324,6 +324,58 @@ def steam_genero(appid) -> str | None:
     return generos[0]["description"] if generos else None
 
 
+def read_steam_wishlist(steam_cfg: dict) -> list:
+    """[{"nome","appid","genero","capa_url"}] da lista de desejos
+    pública da Steam (pedido do usuário 11/09: "sincronizar com a
+    Wishlist da Steam ... ela atualiza automático"). O endpoint antigo
+    (store.steampowered.com/wishlist/.../wishlistdata) foi
+    descontinuado pela Valve - redireciona pra home sem avisar erro
+    nenhum; usa `IWishlistService/GetWishlist` (API pública oficial,
+    sem api_key, só steamid64 - funciona com o perfil/lista pública)
+    que devolve só appid, então resolve nome/gênero/capa um por um via
+    `appdetails` (mesmo endpoint de `steam_genero`) e o CDN oficial
+    (`find_cover_steam_cdn`) - appid dá casamento exato, melhor que
+    adivinhar nome depois no SteamGridDB."""
+    steamid64 = steam_cfg.get("steamid64")
+    if not steamid64:
+        raise ValueError("faltando steamid64 em [steam] no config.toml")
+    url = f"https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid={steamid64}"
+    req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.loads(r.read())
+    except (OSError, ValueError) as e:
+        raise RuntimeError(f"falha ao consultar a wishlist da Steam: {e}") from e
+    itens = (data.get("response") or {}).get("items") or []
+
+    resultado = []
+    for item in itens:
+        appid = item.get("appid")
+        if not appid:
+            continue
+        detail_url = f"https://store.steampowered.com/api/appdetails?appids={appid}&l=portuguese"
+        req = urllib.request.Request(detail_url, headers={"User-Agent": _BROWSER_USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+                detail = json.loads(r.read())
+        except (OSError, ValueError):
+            continue
+        entry = detail.get(str(appid)) or {}
+        if not entry.get("success"):
+            continue
+        info = entry.get("data") or {}
+        nome = info.get("name")
+        if not nome:
+            continue
+        generos = info.get("genres") or []
+        resultado.append({
+            "nome": nome, "appid": appid,
+            "genero": generos[0]["description"] if generos else None,
+            "capa_url": find_cover_steam_cdn(appid),
+        })
+    return resultado
+
+
 _PSN_CLIENT_ID = "09515159-7237-4370-9b40-3806e67c0891"
 _PSN_REDIRECT_URI = "com.scee.psxandroid.scecompcall://redirect"
 # client_id:client_secret fixos da API oficial da Sony (públicos - usados
@@ -600,6 +652,70 @@ def merge_owned(library: dict, owned: list) -> dict:
         added += 1
 
     return {"added": added, "merged": merged, "possible_dupes": possible_dupes}
+
+
+def remove_game(library: dict, game_id: str) -> bool:
+    """Apaga um registro inteiro (diferente de `oculto`, que só some da
+    listagem - aqui some do arquivo mesmo). Só faz sentido pra registro
+    sem histórico de progresso pra perder de verdade: usado por
+    `sync_wishlist` quando um item sai da lista de desejos e não sobra
+    nenhuma outra fonte nele (pedido do usuário 11/09: "apagar da lista
+    mesmo, ele já vai estar em outra fonte, logo não precisa desse
+    histórico") - nunca chame isso pra jogo rastreado (ROM ou
+    Biblioteca de posse de verdade)."""
+    antes = len(library["games"])
+    library["games"] = [g for g in library["games"] if g["id"] != game_id]
+    return len(library["games"]) < antes
+
+
+def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list) -> dict:
+    """Sincroniza uma lista de desejos (`fonte` tipo "wishlist:steam"/
+    "wishlist:psn"/"wishlist:xbox") contra `nomes_atuais` (a lista de
+    verdade AGORA - API da Steam ao vivo, ou o texto que o usuário
+    colou de PSN/Xbox): nome novo ganha (ou cria) registro com essa
+    fonte marcada; registro que tinha essa fonte mas o nome saiu da
+    lista perde só a marca - e se não sobrar NENHUMA fonte (nunca foi
+    rastreado por posse de verdade em lugar nenhum), o registro inteiro
+    é apagado (ver `remove_game`). Casa só por nome normalizado, igual
+    `merge_owned` - lista de desejos não tem o problema de "nome igual
+    plataforma diferente" que ROM tem, então não precisa checar
+    plataforma aqui."""
+    atuais_norm = {_normalize(n) for n in nomes_atuais}
+    by_norm = {}
+    for g in library["games"]:
+        by_norm.setdefault(_normalize(g["nome"]), []).append(g)
+
+    resultado = {"adicionados": 0, "ja_tinha": 0, "removidos": 0, "apagados": 0,
+                 "novos_ids": []}
+
+    for nome in nomes_atuais:
+        norm = _normalize(nome)
+        existentes = by_norm.get(norm)
+        if existentes:
+            alvo = existentes[0]
+            if fonte not in alvo["fontes"]:
+                alvo["fontes"].append(fonte)
+                resultado["adicionados"] += 1
+                resultado["novos_ids"].append(alvo["id"])
+            else:
+                resultado["ja_tinha"] += 1
+            continue
+        novo = _blank_game(nome, plataforma)
+        novo["fontes"].append(fonte)
+        library["games"].append(novo)
+        by_norm.setdefault(norm, []).append(novo)
+        resultado["adicionados"] += 1
+        resultado["novos_ids"].append(novo["id"])
+
+    for g in list(library["games"]):
+        if fonte in g["fontes"] and _normalize(g["nome"]) not in atuais_norm:
+            g["fontes"].remove(fonte)
+            resultado["removidos"] += 1
+            if not g["fontes"]:
+                remove_game(library, g["id"])
+                resultado["apagados"] += 1
+
+    return resultado
 
 
 # Mapeia plataforma (texto livre gravado em library.json - planilha ou

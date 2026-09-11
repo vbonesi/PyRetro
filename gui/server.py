@@ -35,6 +35,7 @@ from core import config_backup as config_backup_mod
 from core import covers as covers_mod
 from core import emu_saves as emu_saves_mod
 from core import emu_sync as emu_sync_mod
+from core import generos as generos_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import library as library_mod
@@ -586,6 +587,85 @@ def run_library_refresh_job(emit, source: str, apply: bool) -> None:
         emit({"type": "log", "line": f"salvo - {len(library['games'])} jogo(s) no total"})
     else:
         emit({"type": "log", "line": "(modo simulação - nada foi salvo, marque \"aplicar\")"})
+
+
+def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
+    """Lista de desejos (pedido do usuário 11/09: "sincronizar com a
+    Wishlist da Steam ... PSN e Xbox eu gerenciaria manualmente").
+    Steam via API pública (só precisa do steamid64 já em [steam],
+    perfil/lista têm que estar públicos); PSN/Xbox não têm API de
+    wishlist confiável, então o usuário cola a lista aqui mesmo -
+    mesma decisão de sempre pra essas duas fontes (ver
+    run_library_refresh_job). Diferente de merge_owned (só adiciona),
+    aqui um nome que sai da lista perde a marca dessa fonte e, se não
+    sobrar nenhuma outra fonte no registro, o registro inteiro é
+    apagado (confirmado pelo usuário: lista de desejos não tem
+    progresso pra perder)."""
+    cfg = load_config()
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    capas_dir = library_root / "capas"
+    library = library_mod.load_library(library_path)
+
+    fonte = f"wishlist:{source}"
+    wishlist_appids, generos_por_nome = {}, {}
+
+    if source == "steam":
+        try:
+            itens = library_mod.read_steam_wishlist(cfg.get("steam", {}))
+        except (ValueError, RuntimeError) as e:
+            emit({"type": "log", "line": f"erro: {e}"})
+            return
+        nomes = [it["nome"] for it in itens]
+        plataforma = "Steam"
+        generos_por_nome = {it["nome"]: it["genero"] for it in itens if it.get("genero")}
+        wishlist_appids = {covers_mod.normalize(it["nome"]): it["appid"] for it in itens}
+    elif source in ("psn", "xbox"):
+        nomes = [linha.strip() for linha in (texto or "").splitlines()
+                 if linha.strip() and not linha.strip().startswith("#")]
+        plataforma = "PSN" if source == "psn" else "Xbox"
+    else:
+        emit({"type": "log", "line": f"fonte desconhecida: {source}"})
+        return
+
+    if not nomes:
+        emit({"type": "log", "line": "lista vazia"})
+        return
+
+    result = library_mod.sync_wishlist(library, fonte, plataforma, nomes)
+    emit({"type": "log", "line": f"{fonte}: {len(nomes)} jogo(s) na lista atual"})
+    emit({"type": "log", "line": f"  novo(s): {result['adicionados']}   já tinha: {result['ja_tinha']}"})
+    emit({"type": "log", "line": f"  saiu da lista: {result['removidos']}   "
+                                  f"apagado(s) (sem outra fonte): {result['apagados']}"})
+
+    novos = [g for g in library["games"] if g["id"] in result["novos_ids"]]
+    for game in novos:
+        genero = generos_por_nome.get(game["nome"])
+        if genero and not game.get("genero"):
+            game["genero"] = generos_mod._normalizar(genero)
+
+    if not apply:
+        emit({"type": "log", "line": "(modo simulação - nada foi salvo, marque \"aplicar\")"})
+        return
+
+    library_mod.save_library(library_path, library)
+    emit({"type": "log", "line": f"salvo - {len(library['games'])} jogo(s) no total"})
+
+    if novos:
+        api_key = cfg.get("steamgriddb", {}).get("api_key")
+        if api_key:
+            emit({"type": "log", "line": f"buscando capa pro(s) {len(novos)} novo(s)..."})
+            steam_appids = dict(library_mod.steam_appid_index(cfg.get("steam", {})))
+            steam_appids.update(wishlist_appids)
+            r = library_mod.fetch_covers({"games": novos}, capas_dir, api_key,
+                                          steam_appids=steam_appids, cfg=cfg)
+            emit({"type": "log", "line": f"  {r}"})
+            library_mod.save_library(library_path, library)
+
+        if source != "steam":
+            emit({"type": "log", "line": "buscando gênero pro(s) novo(s)..."})
+            r2 = generos_mod.preencher_generos_biblioteca(cfg, apply=True)
+            emit({"type": "log", "line": f"  {r2}"})
 
 
 def run_library_add_job(emit, games_text: str, plataforma: str, fonte: str, apply: bool) -> None:
@@ -1452,6 +1532,35 @@ class Handler(BaseHTTPRequestHandler):
                 "com_genero": sum(1 for g in visiveis if g.get("genero")),
             })
 
+        if parts == ["api", "wishlist"]:
+            # Lista de desejos (pedido do usuário 11/09) - Steam/PSN/
+            # Xbox juntos, cada um na sua fonte "wishlist:<source>" (ver
+            # core.library.sync_wishlist). Jogo que também é posse de
+            # verdade (ganhou uma fonte real, tipo "heroic:epic")
+            # continua aparecendo aqui enquanto a marca de desejo não
+            # sair - Steam se autocorrige sozinho na próxima
+            # sincronização (a wishlist ao vivo já não traz mais o jogo
+            # comprado); PSN/Xbox o usuário tira recolando a lista sem
+            # esse nome.
+            cfg = load_config()
+            library_root = Path(cfg["pc"]["library_root"]).expanduser()
+            library = library_mod.load_library(library_root / "library.json")
+
+            out = {"steam": [], "psn": [], "xbox": []}
+            for g in library["games"]:
+                for source in out:
+                    if f"wishlist:{source}" not in g["fontes"]:
+                        continue
+                    capa = None
+                    if g["capa"]:
+                        capa = com_versao(f"/library-images/{urllib.parse.quote(g['capa'])}",
+                                          library_root / g["capa"])
+                    out[source].append({"id": g["id"], "nome": g["nome"],
+                                        "genero": g.get("genero"), "capa_url": capa})
+            for source in out:
+                out[source].sort(key=lambda g: g["nome"].lower())
+            return self._json(out)
+
         if parts == ["api", "switch", "colecao"]:
             # Sugestão de quais jogos uma coletânea contém, lendo o que
             # existe DENTRO da pasta (ver core/library.
@@ -2249,6 +2358,16 @@ class Handler(BaseHTTPRequestHandler):
             games, plataforma, fonte = body.get("games", ""), body.get("plataforma", ""), body.get("fonte", "")
             apply = bool(body.get("apply"))
             job_id = _start_job(lambda emit: run_library_add_job(emit, games, plataforma, fonte, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "wishlist", "sync"]:
+            body = self._read_json_body()
+            source = body.get("source")
+            if source not in ("steam", "psn", "xbox"):
+                return self._json({"error": "fonte desconhecida"}, 400)
+            texto = body.get("texto", "")
+            apply = bool(body.get("apply"))
+            job_id = _start_job(lambda emit: run_wishlist_sync_job(emit, source, texto, apply))
             return self._json({"job": job_id})
 
         if parts == ["api", "library", "fetch_covers"]:

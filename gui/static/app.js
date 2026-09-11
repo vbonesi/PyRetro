@@ -2207,6 +2207,87 @@ document.getElementById("estatisticas-modal").addEventListener("click", (e) => {
   if (e.target.id === "estatisticas-modal") closeEstatisticas();
 });
 
+// Desejados (pedido do usuário 11/09: "sincronizar com a Wishlist da
+// Steam... PSN e Xbox eu gerenciaria manualmente") - Steam atualiza
+// sozinha (API pública, só o steamid64 que já está configurado); PSN/
+// Xbox não têm API de wishlist confiável, então o usuário cola a lista
+// aqui (mesma decisão de sempre pra essas duas fontes, ver "+ Lista"
+// da Biblioteca). Um jogo que sai da lista colada perde a marca - e
+// vira posse de verdade em outro lugar (ROM/Heroic/etc), fica só sem
+// o "desejado"; sem sobrar nenhuma fonte, o registro some (não tem
+// progresso pra perder, diferente do resto da Biblioteca).
+function buildDesejadoCard(item) {
+  const div = document.createElement("div");
+  div.className = "cover";
+  div.innerHTML = `
+    <div class="cover-img-wrap">
+      ${item.capa_url ? `<img src="${item.capa_url}" alt="${item.nome}">` : '<div class="cover-placeholder">🖼<br>sem capa</div>'}
+    </div>
+    <div class="label" title="${item.nome}">${item.nome}</div>
+    ${item.genero ? `<div class="card-genero">🎭 ${item.genero}</div>` : ""}
+  `;
+  return div;
+}
+
+async function carregarDesejados() {
+  const res = await fetch("/api/wishlist");
+  const dados = await res.json();
+  for (const fonte of ["steam", "psn", "xbox"]) {
+    const grid = document.getElementById(`desejados-grid-${fonte}`);
+    grid.innerHTML = "";
+    const itens = dados[fonte] || [];
+    if (!itens.length) {
+      grid.innerHTML = '<div class="empty-state">nada na lista ainda.</div>';
+      continue;
+    }
+    for (const item of itens) grid.appendChild(buildDesejadoCard(item));
+  }
+}
+
+function selecionarFonteDesejados(fonte) {
+  document.querySelectorAll("#desejados-tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.fonte === fonte));
+  document.querySelectorAll(".desejados-secao").forEach((s) => s.classList.toggle("hidden", s.id !== `desejados-secao-${fonte}`));
+}
+
+function openDesejados() {
+  document.getElementById("desejados-modal").classList.remove("hidden");
+  selecionarFonteDesejados("steam");
+  carregarDesejados();
+}
+
+function closeDesejados() {
+  document.getElementById("desejados-modal").classList.add("hidden");
+}
+
+document.getElementById("btn-desejados").addEventListener("click", openDesejados);
+document.getElementById("btn-desejados-close").addEventListener("click", closeDesejados);
+document.getElementById("desejados-modal").addEventListener("click", (e) => {
+  if (e.target.id === "desejados-modal") closeDesejados();
+});
+document.getElementById("desejados-tabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-fonte]");
+  if (btn) selecionarFonteDesejados(btn.dataset.fonte);
+});
+
+document.getElementById("btn-desejados-sync-steam").addEventListener("click", () => {
+  const apply = document.getElementById("desejados-apply-steam").checked;
+  runJob("/api/wishlist/sync", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source: "steam", apply }),
+  }, document.getElementById("desejados-log-steam"), carregarDesejados);
+});
+for (const fonte of ["psn", "xbox"]) {
+  document.getElementById(`btn-desejados-sync-${fonte}`).addEventListener("click", () => {
+    const texto = document.getElementById(`desejados-texto-${fonte}`).value;
+    const apply = document.getElementById(`desejados-apply-${fonte}`).checked;
+    if (!texto.trim()) { alert("cole a lista antes de sincronizar"); return; }
+    runJob("/api/wishlist/sync", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: fonte, texto, apply }),
+    }, document.getElementById(`desejados-log-${fonte}`), carregarDesejados);
+  });
+}
+
 document.getElementById("btn-ranking").addEventListener("click", () => openLista("ranking"));
 document.getElementById("btn-iniciados").addEventListener("click", () => openLista("iniciados"));
 document.getElementById("btn-lista-close").addEventListener("click", closeLista);
