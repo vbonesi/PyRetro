@@ -491,9 +491,9 @@ function buildCoverCard(code, item, cacheBust) {
     item.biblioteca = { ...(item.biblioteca || { nota: null, iniciado: false, finalizado: false, platinado: false }), [field]: value };
     trackGame(shown, code, sysLabel, `rom:${code}`, field, value);
   }, shown, [
-    { icone: "🖼", titulo: "Buscar/trocar capa", onClick: () => openEdit(code, label, display_name, true) },
+    { icone: "🖼", titulo: "Buscar/trocar capa", onClick: () => openEdit(code, label, display_name) },
     { icone: "✎", titulo: "Editar dados do jogo",
-      onClick: () => openEditarRom({ kind: "leve", code, label, sysLabel, fonte: `rom:${code}` }, item.biblioteca, () => selectSystem(code)) },
+      onClick: () => openEditarRom({ kind: "leve", code, label, sysLabel, fonte: `rom:${code}`, noCover }, item.biblioteca, () => selectSystem(code)) },
   ]));
   return div;
 }
@@ -1820,10 +1820,17 @@ function openEditar(g, onDone) {
   _preencherEditar(g);
 }
 
-// rom: { kind: "leve"|"pesado", code, label (nome/stem atual), sysLabel, fonte }
+// rom: { kind: "leve"|"pesado", code, label (nome/stem atual), sysLabel, fonte, noCover }
 // estado: item.biblioteca (genero/data_final/tempo/observacoes atuais - pode ser null, ROM ainda sem registro).
 function openEditarRom(rom, estado, onDone) {
-  editarCtx = { kind: rom.kind, id: null, rom, onDone, camposDef: EDITAR_CAMPOS_ROM, nomeOriginal: rom.label };
+  // ROM leve sem capa ainda não dá pra renomear por aqui (/api/cover/rename
+  // usa o arquivo de capa como âncora do rename - sem capa, não tem o que
+  // mover) - mesma restrição que já existia (openEdit escondia "Renomear"
+  // nesse caso), só preservada no modal novo.
+  const camposDef = (rom.kind === "leve" && rom.noCover)
+    ? EDITAR_CAMPOS_ROM.filter((c) => c.campo !== "nome")
+    : EDITAR_CAMPOS_ROM;
+  editarCtx = { kind: rom.kind, id: null, rom, onDone, camposDef, nomeOriginal: rom.label };
   _preencherEditar({ nome: rom.label, ...(estado || {}) });
 }
 
