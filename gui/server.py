@@ -1359,21 +1359,27 @@ class Handler(BaseHTTPRequestHandler):
             grupos = [{"code": "leve", "label": "🕹 ROMs leves (todas)", "kind": "grupo"},
                       {"code": "pesado", "label": "📦 ROMs pesadas (todas)", "kind": "grupo"},
                       {"code": "biblioteca", "label": "📚 Biblioteca (toda)", "kind": "grupo"}]
-            return self._json({"grupos": grupos, "sistemas": out})
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            generos = sortear_mod.generos_disponiveis(library)
+            return self._json({"grupos": grupos, "sistemas": out, "generos": generos})
 
         if parts == ["api", "sortear"]:
             cfg = load_config()
             roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
             catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
             system = query.get("system", [""])[0].strip() or None
+            genero = query.get("genero", [""])[0].strip() or None
 
             library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
             library = library_mod.load_library(library_path)
             rom_names_by_code = rom_normalized_names_by_code(cfg)
+            rom_index = library_mod.index_by_rom_name(library)
 
             try:
                 pool = sortear_mod.build_pool(cfg, roms_root, catalog, system,
-                                              library=library, rom_names_by_code=rom_names_by_code)
+                                              library=library, rom_names_by_code=rom_names_by_code,
+                                              rom_index=rom_index, genero=genero)
             except ValueError:
                 return self._json({"error": f"sistema desconhecido: '{system}'"}, 400)
             if not pool:
@@ -1551,8 +1557,7 @@ class Handler(BaseHTTPRequestHandler):
                     if g["capa"]:
                         capa = com_versao(f"/library-images/{urllib.parse.quote(g['capa'])}",
                                           library_root / g["capa"])
-                    out[source].append({"id": g["id"], "nome": g["nome"],
-                                        "genero": g.get("genero"), "capa_url": capa})
+                    out[source].append({**g, "capa_url": capa})
             for source in out:
                 out[source].sort(key=lambda g: g["nome"].lower())
             return self._json(out)
