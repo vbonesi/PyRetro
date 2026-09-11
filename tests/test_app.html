@@ -117,6 +117,10 @@ teste("filtro de status", () => {
   verdade(libraryMatchesFilters(feito, "", "finalizado", false, false));
   verdade(libraryMatchesFilters(zerado, "", "nao_finalizado", false, false));
 });
+teste("filtro de sem gênero", () => {
+  verdade(libraryMatchesFilters(jogo({ genero: null }), "", "sem_genero", false, false));
+  verdade(!libraryMatchesFilters(jogo({ genero: "Ação" }), "", "sem_genero", false, false));
+});
 teste("filtro por aba usa o agrupamento curado", () => {
   const g = jogo({ plataforma: "Xbox One" });
   verdade(libraryMatchesFilters(g, "Xbox", "", false, false), "não caiu na aba Xbox");

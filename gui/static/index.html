@@ -120,6 +120,7 @@
           <option value="finalizado">Finalizado</option>
           <option value="nao_finalizado">Não finalizado</option>
           <option value="platinado">Platinado</option>
+          <option value="sem_genero">Sem gênero</option>
         </select>
         <select id="library-sort">
           <option value="nome">Ordenar: nome</option>
@@ -135,6 +136,22 @@
       <label class="filter-toggle">
         <input type="checkbox" id="heavy-filter-nocover">
         🖼 Só sem capa
+      </label>
+      <label class="filter-toggle">
+        <input type="checkbox" id="heavy-filter-iniciado">
+        ▶ Só iniciados
+      </label>
+      <label class="filter-toggle">
+        <input type="checkbox" id="heavy-filter-finalizado">
+        ✓ Só finalizados
+      </label>
+      <label class="filter-toggle">
+        <input type="checkbox" id="heavy-filter-platinado">
+        🏆 Só platinados
+      </label>
+      <label class="filter-toggle">
+        <input type="checkbox" id="heavy-filter-sem-genero">
+        🎭 Só sem gênero
       </label>
       <div id="heavy-catalog-log" class="job-log hidden"></div>
     </div>
