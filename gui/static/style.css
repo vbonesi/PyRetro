@@ -647,6 +647,14 @@ button.tiny.danger {
   display: none;
 }
 
+/* Busca de capa pode ser aberta de dentro de outro modal (Desejados,
+   11/09) - sem isso os dois ficam com o mesmo z-index e quem veio
+   depois no HTML (Desejados) cobria a busca, que abria "por baixo"
+   sem nenhum aviso. */
+#capa-modal {
+  z-index: 110;
+}
+
 .modal-box {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -726,6 +734,37 @@ button.tiny.danger {
   display: flex;
   gap: 8px;
   padding: 12px 16px 0;
+}
+
+/* Desejados (11/09): achado do usuário - com a lista da PSN (textarea +
+   controles + centenas de itens) o conteúdo total passava do
+   max-height do .modal-box, e o flexbox (todo item encolhe por
+   padrão) espremia a barra de abas Steam/PSN/Xbox até virar um traço
+   fino ilegível, em vez de só rolar a lista. Fixo: abas e controles
+   nunca encolhem (flex-shrink: 0); só a lista rola por dentro
+   (min-height: 0 é o que permite isso num flex column - sem ele o
+   filho nunca fica menor que o próprio conteúdo, e o overflow do pai
+   nunca entra em ação). */
+#desejados-tabs {
+  flex-shrink: 0;
+}
+
+.desejados-secao {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.desejados-secao > .menubar,
+.desejados-secao > .saves-add-card,
+.desejados-secao > .job-log {
+  flex-shrink: 0;
+}
+
+.desejados-secao > .lista-conteudo {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .capa-fonte-tabs button.active {

@@ -2230,6 +2230,18 @@ function buildDesejadoCard(item) {
     <span class="lista-nome" title="${item.nome}">${item.nome}</span>
     ${item.genero ? `<span class="lista-plataforma">🎭 ${item.genero}</span>` : ""}
   `;
+  // Buscar/trocar capa (pedido do usuário 11/09: "permita eu arrumar
+  // as capas deles também") - mesmo popup de sempre (SteamGridDB),
+  // Desejado é um registro de Biblioteca normal (tem "id"), então o
+  // fluxo kind:"biblioteca" já existente serve sem nenhuma mudança
+  // no servidor.
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "icon-btn";
+  btn.title = "Buscar/trocar capa";
+  btn.textContent = "🖼";
+  btn.addEventListener("click", () => openCapa(item.nome, { kind: "biblioteca", id: item.id }, carregarDesejados));
+  div.appendChild(btn);
   return div;
 }
 
