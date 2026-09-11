@@ -1278,11 +1278,7 @@ class Handler(BaseHTTPRequestHandler):
             lib_by_norm = library_mod.index_by_rom_name(library_mod.load_library(library_path))
 
             def biblioteca_info(shown_name: str):
-                g = library_mod.find_for_rom(lib_by_norm, shown_name, code)
-                if not g:
-                    return None
-                return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
-                        "platinado": g["platinado"], "nota": g["nota"], "genero": g.get("genero")}
+                return library_mod.rom_tracking_info(lib_by_norm, shown_name, code)
 
             out = []
             for f in files:
@@ -1709,11 +1705,7 @@ class Handler(BaseHTTPRequestHandler):
             lib_by_norm = library_mod.index_by_rom_name(library_mod.load_library(library_path))
 
             def biblioteca_info(nome: str):
-                g = library_mod.find_for_rom(lib_by_norm, nome, code)
-                if not g:
-                    return None
-                return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
-                        "platinado": g["platinado"], "nota": g["nota"], "genero": g.get("genero")}
+                return library_mod.rom_tracking_info(lib_by_norm, nome, code)
 
             out = []
             for name in sorted(set(local_by_name) | set(drive_by_name)):

@@ -821,6 +821,25 @@ def find_for_rom(rom_index: dict, nome: str, code: str) -> dict | None:
     return None
 
 
+def rom_tracking_info(rom_index: dict, nome: str, code: str) -> dict | None:
+    """Campos de acompanhamento de uma ROM (leve ou pesada) pra mostrar
+    na tela - só leitura, a escrita é via /api/library/track. Extraído
+    (11/09) porque gui/server.py tinha essa MESMA lógica copiada em dois
+    lugares (leve e pesada) e uma delas nunca ganhou "tempo"/
+    "observacoes" quando os outros campos foram adicionados - o popup de
+    comentário e o "✎ Editar dados do jogo" de ROM sempre apareciam
+    vazios mesmo pra jogo com tempo/comentário já salvo (achado pelo
+    usuário: "os jogos de roms leves estão sem tempo e comentario, pelo
+    menos no lapiszinho"). Um lugar só agora evita a mesma dessincronia
+    de novo."""
+    g = find_for_rom(rom_index, nome, code)
+    if not g:
+        return None
+    return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
+            "platinado": g["platinado"], "nota": g["nota"], "genero": g.get("genero"),
+            "tempo": g.get("tempo"), "observacoes": g.get("observacoes")}
+
+
 def get_or_create_for_rom(library: dict, nome: str, code: str, plataforma: str, fonte: str) -> dict:
     """Acha (via find_for_rom - nome E plataforma compatível com
     `code`) ou cria um registro pra ROM leve/pesada. `plataforma` aqui
