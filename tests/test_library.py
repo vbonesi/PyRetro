@@ -360,6 +360,57 @@ class TestTempoParaHoras(unittest.TestCase):
             self.assertEqual(lm.tempo_para_horas(v), 0.0, v)
 
 
+class TestMinutosParaTempo(unittest.TestCase):
+    """Inversa de tempo_para_horas - playtime_forever da Steam (minutos)
+    pro mesmo formato HH:MM:SS que o campo `tempo` já usa (pedido do
+    usuário 11/09: "tempo total de jogos contabilizado de todas as
+    fontes")."""
+
+    def test_converte_minutos(self):
+        self.assertEqual(lm.minutos_para_tempo(90), "01:30:00")
+        self.assertEqual(lm.minutos_para_tempo(1523), "25:23:00")
+
+    def test_zero_ou_none_vira_none(self):
+        for v in (0, None, -5):
+            self.assertIsNone(lm.minutos_para_tempo(v))
+
+    def test_ida_e_volta_bate_com_tempo_para_horas(self):
+        tempo = lm.minutos_para_tempo(150)  # 2h30
+        self.assertAlmostEqual(lm.tempo_para_horas(tempo), 2.5)
+
+
+class TestMergeOwnedPreenceTempo(unittest.TestCase):
+    """merge_owned só ganhou o preenchimento de tempo em 11/09 - a
+    Steam é a única fonte que manda playtime de verdade (via
+    read_steam_library); o resto do merge (fontes, possible_dupes)
+    continua igual, só não pode NUNCA sobrescrever tempo já digitado
+    pelo usuário."""
+
+    def test_registro_novo_ganha_o_tempo_da_fonte(self):
+        lib = {"games": []}
+        r = lm.merge_owned(lib, [{"nome": "Hades", "plataforma": "Steam", "fonte": "steam", "tempo": "10:00:00"}])
+        self.assertEqual(r["added"], 1)
+        self.assertEqual(lib["games"][0]["tempo"], "10:00:00")
+
+    def test_registro_existente_sem_tempo_e_preenchido(self):
+        g = jogo("Hades", "Steam")
+        lib = {"games": [g]}
+        lm.merge_owned(lib, [{"nome": "Hades", "plataforma": "Steam", "fonte": "steam", "tempo": "10:00:00"}])
+        self.assertEqual(g["tempo"], "10:00:00")
+
+    def test_registro_com_tempo_manual_nao_e_sobrescrito(self):
+        g = jogo("Hades", "Steam", tempo="99:00:00")
+        lib = {"games": [g]}
+        lm.merge_owned(lib, [{"nome": "Hades", "plataforma": "Steam", "fonte": "steam", "tempo": "10:00:00"}])
+        self.assertEqual(g["tempo"], "99:00:00")
+
+    def test_fonte_sem_tempo_nao_mexe_em_nada(self):
+        g = jogo("Some Game", "Xbox")
+        lib = {"games": [g]}
+        lm.merge_owned(lib, [{"nome": "Some Game", "plataforma": "Xbox", "fonte": "xbox:jogado"}])
+        self.assertIsNone(g["tempo"])
+
+
 class TestGravarPNG(unittest.TestCase):
     """Achado 29/08: 20 das 116 capas baixadas eram JPEG dentro de um
     arquivo .png. O projeto já sabia disso desde 02/08 (launchbox

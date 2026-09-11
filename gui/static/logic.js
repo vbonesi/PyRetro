@@ -151,6 +151,7 @@ function libraryMatchesFilters(g, fonte, status, noCover, mostrarOcultos) {
   if (status === "finalizado" && !g.finalizado) return false;
   if (status === "nao_finalizado" && g.finalizado) return false;
   if (status === "platinado" && !g.platinado) return false;
+  if (status === "sem_genero" && g.genero) return false;
   return true;
 }
 

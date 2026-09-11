@@ -905,7 +905,28 @@ function renderHeavyGrid() {
   const gallery = document.getElementById("gallery");
   gallery.innerHTML = "";
   const onlyNoCover = document.getElementById("heavy-filter-nocover").checked;
-  const items = onlyNoCover ? heavyItems.filter(i => !i.capa) : heavyItems;
+  // Tracking universal (pedido do usuário 11/09) - mesmos filtros que
+  // ROMs leves já tem, aqui pro lado das ROMs pesadas.
+  const onlyIniciado = document.getElementById("heavy-filter-iniciado").checked;
+  const onlyFinalizado = document.getElementById("heavy-filter-finalizado").checked;
+  const onlyPlatinado = document.getElementById("heavy-filter-platinado").checked;
+  const onlySemGenero = document.getElementById("heavy-filter-sem-genero").checked;
+
+  // Mesma lógica "OU" da galeria de ROMs leves (renderGallery) - marcar
+  // mais de um filtro AMPLIA o que aparece, não restringe (consistência
+  // entre as duas abas importa mais aqui do que a leitura literal de
+  // "Só X" sozinho).
+  const algumFiltro = onlyNoCover || onlyIniciado || onlyFinalizado || onlyPlatinado || onlySemGenero;
+  let items = heavyItems;
+  if (algumFiltro) {
+    items = items.filter(i =>
+      (onlyNoCover && !i.capa) ||
+      (onlyIniciado && !!(i.biblioteca && i.biblioteca.iniciado)) ||
+      (onlyFinalizado && !!(i.biblioteca && i.biblioteca.finalizado)) ||
+      (onlyPlatinado && !!(i.biblioteca && i.biblioteca.platinado)) ||
+      (onlySemGenero && !(i.biblioteca && i.biblioteca.genero))
+    );
+  }
 
   if (heavyItems.length === 0) {
     gallery.innerHTML = `<div class="empty-state">Nada em roms_root/${currentSystem}/ nem no Drive.</div>`;
@@ -920,7 +941,10 @@ function renderHeavyGrid() {
   }
 }
 
-document.getElementById("heavy-filter-nocover").addEventListener("change", renderHeavyGrid);
+for (const id of ["heavy-filter-nocover", "heavy-filter-iniciado", "heavy-filter-finalizado",
+                  "heavy-filter-platinado", "heavy-filter-sem-genero"]) {
+  document.getElementById(id).addEventListener("change", renderHeavyGrid);
+}
 
 function buildHeavyCard(code, item) {
   const notInPc = !item.in_pc;

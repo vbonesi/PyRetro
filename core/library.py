@@ -92,6 +92,17 @@ def tempo_para_horas(valor: str | None) -> float:
     return int(h) + int(mi) / 60 + int(s) / 3600
 
 
+def minutos_para_tempo(minutos: int) -> str | None:
+    """Inversa de tempo_para_horas - minutos (inteiro, como a Steam
+    manda em playtime_forever) -> "HH:MM:00" no mesmo formato que o
+    campo `tempo` já usa. None pra 0/negativo (jogo possuído mas nunca
+    aberto - nada pra registrar, ver read_steam_library)."""
+    if not minutos or minutos <= 0:
+        return None
+    h, m = divmod(int(minutos), 60)
+    return f"{h:02d}:{m:02d}:00"
+
+
 def _blank_game(nome: str, plataforma: str) -> dict:
     return {
         "id": _slug(nome, plataforma),
@@ -234,12 +245,19 @@ def read_heroic_libraries(heroic_cfg: dict) -> list:
 
 
 def read_steam_library(steam_cfg: dict) -> list:
-    """[{"nome", "plataforma": "Steam", "fonte": "steam"}] via API Web
-    oficial (IPlayerService/GetOwnedGames) - precisa de `api_key` +
-    `steamid64` em [steam] no config.toml. Levanta ValueError se
-    faltar alguma das duas (config incompleta) ou RuntimeError se a
-    API responder sem 'games' (perfil com "Detalhes do jogo" fora de
-    Público - a API não erra, só devolve biblioteca vazia)."""
+    """[{"nome", "plataforma": "Steam", "fonte": "steam", "appid",
+    "tempo"}] via API Web oficial (IPlayerService/GetOwnedGames) -
+    precisa de `api_key` + `steamid64` em [steam] no config.toml.
+    Levanta ValueError se faltar alguma das duas (config incompleta) ou
+    RuntimeError se a API responder sem 'games' (perfil com "Detalhes
+    do jogo" fora de Público - a API não erra, só devolve biblioteca
+    vazia).
+
+    `tempo` vem de `playtime_forever` (minutos jogados, contagem oficial
+    da própria Steam) - pedido do usuário 11/09: "tempo total de jogos
+    contabilizado de todas as fontes", não só o que foi digitado à mão.
+    `merge_owned` só usa isso pra PREENCHER `tempo` vazio, nunca
+    sobrescreve um valor que o usuário já tenha escrito."""
     api_key = steam_cfg.get("api_key")
     steamid64 = steam_cfg.get("steamid64")
     if not api_key or not steamid64:
@@ -263,7 +281,8 @@ def read_steam_library(steam_cfg: dict) -> list:
             "Público no perfil Steam (Editar perfil > Privacidade), ou se o "
             "steamid64 está certo"
         )
-    return [{"nome": g["name"], "plataforma": "Steam", "fonte": "steam", "appid": g["appid"]} for g in games]
+    return [{"nome": g["name"], "plataforma": "Steam", "fonte": "steam", "appid": g["appid"],
+             "tempo": minutos_para_tempo(g.get("playtime_forever"))} for g in games]
 
 
 def steam_appid_index(steam_cfg: dict) -> dict:
@@ -612,7 +631,12 @@ def merge_owned(library: dict, owned: list) -> dict:
     sem batida exata vira registro novo (possuído mas ainda sem
     acompanhamento). `possible_dupes` é só um alerta (difflib, corte
     0.8) pra revisão manual - nunca mescla sozinho por aproximação,
-    pra não arriscar juntar dois jogos diferentes por engano."""
+    pra não arriscar juntar dois jogos diferentes por engano.
+
+    `item["tempo"]` é opcional (só a Steam manda, via playtime_forever
+    da API - pedido do usuário 11/09: "tempo total de jogos contabilizado
+    de todas as fontes") - quando vem, só PREENCHE `tempo` se o registro
+    ainda não tiver nenhum (nunca sobrescreve tempo digitado à mão)."""
     # Indexa nome atual e apelidos, mas o atual tem PRIORIDADE: se dois
     # registros disputam o mesmo texto (um pelo nome vigente, outro por
     # um apelido antigo), o do nome vigente ganha - senão um rename
@@ -637,6 +661,8 @@ def merge_owned(library: dict, owned: list) -> dict:
             for g in existing:
                 if item["fonte"] not in g["fontes"]:
                     g["fontes"].append(item["fonte"])
+                if item.get("tempo") and not g.get("tempo"):
+                    g["tempo"] = item["tempo"]
             merged += 1
             continue
 
@@ -646,6 +672,8 @@ def merge_owned(library: dict, owned: list) -> dict:
 
         game = _blank_game(item["nome"], item["plataforma"])
         game["fontes"].append(item["fonte"])
+        if item.get("tempo"):
+            game["tempo"] = item["tempo"]
         library["games"].append(game)
         by_norm.setdefault(norm, []).append(game)
         all_names.append(item["nome"])
