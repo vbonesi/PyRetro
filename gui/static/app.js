@@ -213,18 +213,31 @@ function renderGallery() {
   const onlyFlagged = document.getElementById("filter-flagged").checked;
   const onlyNoMatch = document.getElementById("filter-nomatch").checked;
   const onlyNoCover = document.getElementById("filter-nocover").checked;
+  // Tracking universal (pedido do usuário 11/09) - mesmos campos que já
+  // aparecem no card (▶/✓/🏆/🎭), só que pra filtrar a galeria inteira
+  // em vez de olhar item por item.
+  const onlyIniciado = document.getElementById("filter-iniciado").checked;
+  const onlyFinalizado = document.getElementById("filter-finalizado").checked;
+  const onlyPlatinado = document.getElementById("filter-platinado").checked;
+  const onlySemGenero = document.getElementById("filter-sem-genero").checked;
+  const algumFiltro = onlyFlagged || onlyNoMatch || onlyNoCover ||
+    onlyIniciado || onlyFinalizado || onlyPlatinado || onlySemGenero;
 
   let items = currentItems;
-  if (onlyFlagged || onlyNoMatch || onlyNoCover) {
+  if (algumFiltro) {
     items = items.filter(item =>
       (onlyFlagged && (item.status === "flagged_wrong" || item.status === "duplicate")) ||
       (onlyNoMatch && item.status === "no_match") ||
-      (onlyNoCover && item.status === "no_cover")
+      (onlyNoCover && item.status === "no_cover") ||
+      (onlyIniciado && !!(item.biblioteca && item.biblioteca.iniciado)) ||
+      (onlyFinalizado && !!(item.biblioteca && item.biblioteca.finalizado)) ||
+      (onlyPlatinado && !!(item.biblioteca && item.biblioteca.platinado)) ||
+      (onlySemGenero && !(item.biblioteca && item.biblioteca.genero))
     );
   }
 
   if (items.length === 0) {
-    const msg = (onlyFlagged || onlyNoMatch || onlyNoCover) ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
+    const msg = algumFiltro ? "Nada bate com esse filtro." : "Nenhuma capa nessa pasta ainda.";
     gallery.innerHTML = `<div class="empty-state">${msg}</div>`;
     return;
   }
@@ -233,9 +246,10 @@ function renderGallery() {
   }
 }
 
-document.getElementById("filter-flagged").addEventListener("change", renderGallery);
-document.getElementById("filter-nomatch").addEventListener("change", renderGallery);
-document.getElementById("filter-nocover").addEventListener("change", renderGallery);
+for (const id of ["filter-flagged", "filter-nomatch", "filter-nocover",
+                  "filter-iniciado", "filter-finalizado", "filter-platinado", "filter-sem-genero"]) {
+  document.getElementById(id).addEventListener("change", renderGallery);
+}
 
 // Nota vira um "chip" clicável com setinha de cada lado, em vez do
 // <input type=number> cru de antes - pedido do usuário 28/08: "o campo
