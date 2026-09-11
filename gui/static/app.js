@@ -2217,14 +2217,18 @@ document.getElementById("estatisticas-modal").addEventListener("click", (e) => {
 // o "desejado"; sem sobrar nenhuma fonte, o registro some (não tem
 // progresso pra perder, diferente do resto da Biblioteca).
 function buildDesejadoCard(item) {
+  // Formato de lista compacta (11/09, pedido do usuário: o card grande
+  // de capa "bugou toda a visualização" - a Desejados pode ter
+  // centenas de itens, então usa o mesmo layout enxuto do
+  // Ranking/Jogando, não o grid de capa grande das outras abas.
   const div = document.createElement("div");
-  div.className = "cover";
+  div.className = "lista-item";
   div.innerHTML = `
-    <div class="cover-img-wrap">
-      ${item.capa_url ? `<img src="${item.capa_url}" alt="${item.nome}">` : '<div class="cover-placeholder">🖼<br>sem capa</div>'}
-    </div>
-    <div class="label" title="${item.nome}">${item.nome}</div>
-    ${item.genero ? `<div class="card-genero">🎭 ${item.genero}</div>` : ""}
+    ${item.capa_url
+      ? `<img class="lista-capa" src="${item.capa_url}" alt="" loading="lazy">`
+      : '<span class="lista-capa lista-capa-vazia">🖼</span>'}
+    <span class="lista-nome" title="${item.nome}">${item.nome}</span>
+    ${item.genero ? `<span class="lista-plataforma">🎭 ${item.genero}</span>` : ""}
   `;
   return div;
 }
