@@ -1728,21 +1728,31 @@ function closeSortear() {
 
 async function loadSortearSystems() {
   const select = document.getElementById("sortear-system");
+  const generoSelect = document.getElementById("sortear-genero");
   const res = await fetch("/api/sortear/systems");
-  const { grupos, sistemas } = await res.json();
+  const { grupos, sistemas, generos } = await res.json();
   const opcaoGrupos = grupos.map(g => `<option value="${g.code}">${g.label}</option>`).join("");
   const opcaoSistemas = sistemas.map(s => `<option value="${s.code}">${s.label}</option>`).join("");
   select.innerHTML = '<option value="">🎲 Sortear de tudo (coleção inteira)</option>' +
     `<optgroup label="Grupos">${opcaoGrupos}</optgroup>` +
     `<optgroup label="Sistema específico">${opcaoSistemas}</optgroup>`;
+  // Combo grupo/plataforma + gênero (11/09, pedido do usuário) - só
+  // filtra quando o gênero vem preenchido; ROM leve/pesada sem registro
+  // na Biblioteca (sem gênero) fica de fora do sorteio nesse caso (ver
+  // core.sortear._filtrar_por_genero).
+  generoSelect.innerHTML = '<option value="">Todos os gêneros</option>' +
+    generos.map(g => `<option value="${g}">${g}</option>`).join("");
 }
 
 async function runSortear() {
   const result = document.getElementById("sortear-result");
   const system = document.getElementById("sortear-system").value;
+  const genero = document.getElementById("sortear-genero").value;
   result.innerHTML = '<div class="empty-state">sorteando...</div>';
 
-  const res = await fetch(`/api/sortear?system=${encodeURIComponent(system)}`);
+  const params = new URLSearchParams({ system });
+  if (genero) params.set("genero", genero);
+  const res = await fetch(`/api/sortear?${params}`);
   const data = await res.json();
   if (!res.ok) {
     result.innerHTML = `<div class="empty-state">${data.error || "falha ao sortear"}</div>`;
@@ -2282,13 +2292,29 @@ function buildDesejadoCard(item) {
   // Desejado é um registro de Biblioteca normal (tem "id"), então o
   // fluxo kind:"biblioteca" já existente serve sem nenhuma mudança
   // no servidor.
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "icon-btn";
-  btn.title = "Buscar/trocar capa";
-  btn.textContent = "🖼";
-  btn.addEventListener("click", () => openCapa(item.nome, { kind: "biblioteca", id: item.id }, carregarDesejados));
-  div.appendChild(btn);
+  const btnCapa = document.createElement("button");
+  btnCapa.type = "button";
+  btnCapa.className = "icon-btn";
+  btnCapa.title = "Buscar/trocar capa";
+  btnCapa.textContent = "🖼";
+  btnCapa.addEventListener("click", () => openCapa(item.nome, { kind: "biblioteca", id: item.id }, carregarDesejados));
+  div.appendChild(btnCapa);
+
+  // Editar dados (11/09, pedido do usuário: gênero não achado
+  // automaticamente pro jogo novo da wishlist não tinha como corrigir
+  // pela tela) - mesmo modal ✎ da Biblioteca/ROM, reaproveitado sem
+  // mudança nenhuma: Desejado É um registro de Biblioteca normal, e
+  // /api/wishlist agora devolve o registro inteiro (não só id/nome/
+  // genero/capa_url) pra esse modal não zerar plataforma/tempo/
+  // observações que o jogo já tivesse ao salvar.
+  const btnEditar = document.createElement("button");
+  btnEditar.type = "button";
+  btnEditar.className = "icon-btn";
+  btnEditar.title = "Editar dados do jogo";
+  btnEditar.textContent = "✎";
+  btnEditar.addEventListener("click", () => openEditar(item, carregarDesejados));
+  div.appendChild(btnEditar);
+
   return div;
 }
 

@@ -647,11 +647,11 @@ button.tiny.danger {
   display: none;
 }
 
-/* Busca de capa pode ser aberta de dentro de outro modal (Desejados,
-   11/09) - sem isso os dois ficam com o mesmo z-index e quem veio
-   depois no HTML (Desejados) cobria a busca, que abria "por baixo"
-   sem nenhum aviso. */
-#capa-modal {
+/* Busca de capa e editar dados podem ser abertos de dentro de outro
+   modal (Desejados, 11/09) - sem isso os dois ficam com o mesmo
+   z-index e quem veio depois no HTML (Desejados) cobria o modal
+   aberto por cima, que abria "por baixo" sem nenhum aviso. */
+#capa-modal, #editar-modal {
   z-index: 110;
 }
 

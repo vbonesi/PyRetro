@@ -77,7 +77,8 @@ def _pool_biblioteca(library: dict, rom_names_by_code: dict) -> list:
 
 
 def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
-               library: dict | None = None, rom_names_by_code: dict | None = None) -> list:
+               library: dict | None = None, rom_names_by_code: dict | None = None,
+               rom_index: dict | None = None, genero: str | None = None) -> list:
     """[(codigo, nome, "leve"|"pesado"|"biblioteca")]. Sem `system`,
     junta leve (local, ao vivo) + pesado (catálogo cacheado) + Biblioteca
     (se `library` foi passada) - cada JOGO com peso igual, não cada
@@ -90,6 +91,14 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
     sortear sistema por sistema, "permitir sorteio por grupos") - sorteia
     só dentro daquele grupo, mesmo peso por jogo de sempre.
 
+    `genero` (11/09, pedido do usuário: "no sorteio de jogo, permitir
+    combo de grupo/plataforma e gênero") filtra o pool no final, depois
+    de montado - precisa de `rom_index` (core.library.index_by_rom_name)
+    pra achar o gênero de ROM leve/pesada (só tem se a ROM já tiver
+    registro na Biblioteca; sem registro, fica de fora do sorteio com
+    filtro de gênero ativo, mesmo critério de "sem dado = fica de fora"
+    usado no preenchimento de gênero).
+
     Levanta ValueError(codigo) se `system` não bater com nenhum sistema
     OU grupo conhecido."""
     light = cfg["systems"]
@@ -100,32 +109,61 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
         chave = system.lower()
         if chave in GRUPOS:
             if chave == "biblioteca":
-                if library is None:
-                    return []
-                return _pool_biblioteca(library, rom_names_by_code or {})
-            pool = []
-            fontes = light if chave == "leve" else heavy
-            for c, info in fontes.items():
-                if chave == "leve":
-                    pool += [(c, n, "leve") for n in playlist_mod.list_local_names(c, roms_root, info["exts"])]
-                else:
-                    pool += [(c, item["name"], "pesado") for item in catalog.get(c, [])]
-            return pool
-        if code in light:
+                pool = _pool_biblioteca(library, rom_names_by_code or {}) if library is not None else []
+            else:
+                pool = []
+                fontes = light if chave == "leve" else heavy
+                for c, info in fontes.items():
+                    if chave == "leve":
+                        pool += [(c, n, "leve") for n in playlist_mod.list_local_names(c, roms_root, info["exts"])]
+                    else:
+                        pool += [(c, item["name"], "pesado") for item in catalog.get(c, [])]
+        elif code in light:
             names = playlist_mod.list_local_names(code, roms_root, light[code]["exts"])
-            return [(code, n, "leve") for n in names]
-        if code in heavy:
-            return [(code, item["name"], "pesado") for item in catalog.get(code, [])]
-        raise ValueError(code)
+            pool = [(code, n, "leve") for n in names]
+        elif code in heavy:
+            pool = [(code, item["name"], "pesado") for item in catalog.get(code, [])]
+        else:
+            raise ValueError(code)
+    else:
+        pool = []
+        for code, info in light.items():
+            pool += [(code, n, "leve") for n in playlist_mod.list_local_names(code, roms_root, info["exts"])]
+        for code, items in catalog.items():
+            pool += [(code, item["name"], "pesado") for item in items]
+        if library is not None:
+            pool += _pool_biblioteca(library, rom_names_by_code or {})
 
-    pool = []
-    for code, info in light.items():
-        pool += [(code, n, "leve") for n in playlist_mod.list_local_names(code, roms_root, info["exts"])]
-    for code, items in catalog.items():
-        pool += [(code, item["name"], "pesado") for item in items]
-    if library is not None:
-        pool += _pool_biblioteca(library, rom_names_by_code or {})
+    if genero:
+        pool = _filtrar_por_genero(pool, genero, library, rom_index)
     return pool
+
+
+def _filtrar_por_genero(pool: list, genero: str, library: dict | None, rom_index: dict | None) -> list:
+    from core import library as library_mod
+
+    biblioteca_por_nome = {g["nome"]: g for g in library["games"]} if library else {}
+    out = []
+    for code, nome, kind in pool:
+        if kind == "biblioteca":
+            g = biblioteca_por_nome.get(nome)
+        else:
+            # nome aqui é o de ARQUIVO (com extensão, ver
+            # list_local_names/catalog) - find_for_rom casa pelo nome
+            # gravado no registro (sem extensão), então precisa do
+            # stem primeiro, mesmo critério já usado pra exibir
+            # iniciado/finalizado/gênero na galeria de ROM (ver
+            # `label = Path(f).stem` em gui/server.py).
+            g = library_mod.find_for_rom(rom_index, Path(nome).stem, code) if rom_index else None
+        if g and g.get("genero") == genero:
+            out.append((code, nome, kind))
+    return out
+
+
+def generos_disponiveis(library: dict) -> list[str]:
+    """Lista ordenada de gêneros distintos já usados na Biblioteca -
+    popula o <select> de gênero do sorteio."""
+    return sorted({g["genero"] for g in library["games"] if g.get("genero")})
 
 
 def draw(pool: list) -> tuple:
