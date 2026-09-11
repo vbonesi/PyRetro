@@ -544,6 +544,81 @@ def cmd_library_add(args) -> None:
         print("\n(modo simulação - nada foi salvo, rode com --apply)")
 
 
+def cmd_wishlist_sync(args) -> None:
+    """Sincroniza lista de desejos (pedido do usuário 11/09) - Steam
+    via API pública (só steamid64, já em [steam] no config.toml), PSN/
+    Xbox por texto colado (--arquivo, um nome por linha) já que não têm
+    API de wishlist confiável. Diferente de library-refresh/library-add
+    (que só ADICIONAM - nunca apagam nada sozinho), aqui um nome que
+    SAI da lista atual perde a marca dessa fonte e, se não sobrar
+    nenhuma outra fonte no registro, o registro inteiro é apagado (o
+    usuário confirmou: lista de desejos não tem progresso pra perder,
+    "ele já vai estar em outra fonte, não precisa desse histórico")."""
+    cfg = load_config()
+    library_root = Path(cfg["pc"]["library_root"]).expanduser()
+    library_path = library_root / "library.json"
+    capas_dir = library_root / "capas"
+    library = library_mod.load_library(library_path)
+
+    fonte = f"wishlist:{args.source}"
+    wishlist_appids, generos_por_nome = {}, {}
+
+    if args.source == "steam":
+        try:
+            itens = library_mod.read_steam_wishlist(cfg.get("steam", {}))
+        except (ValueError, RuntimeError) as e:
+            sys.exit(str(e))
+        nomes = [it["nome"] for it in itens]
+        plataforma = "Steam"
+        generos_por_nome = {it["nome"]: it["genero"] for it in itens if it.get("genero")}
+        wishlist_appids = {covers_mod.normalize(it["nome"]): it["appid"] for it in itens}
+    else:
+        if not args.arquivo:
+            sys.exit(f"--arquivo obrigatorio pra fonte '{args.source}'")
+        txt_path = Path(args.arquivo).expanduser()
+        if not txt_path.exists():
+            sys.exit(f"arquivo não encontrado: {txt_path}")
+        nomes = [o["nome"] for o in library_mod.read_manual_list(txt_path, "", "")]
+        plataforma = {"psn": "PSN", "xbox": "Xbox"}[args.source]
+
+    if not nomes:
+        sys.exit("lista vazia (ou só tinha linha em branco/comentário)")
+
+    result = library_mod.sync_wishlist(library, fonte, plataforma, nomes)
+    print(f"{fonte}: {len(nomes)} jogo(s) na lista atual")
+    print(f"  novo(s): {result['adicionados']}   já tinha: {result['ja_tinha']}")
+    print(f"  saiu da lista: {result['removidos']}   apagado(s) (sem outra fonte): {result['apagados']}")
+
+    novos = [g for g in library["games"] if g["id"] in result["novos_ids"]]
+    for game in novos:
+        genero = generos_por_nome.get(game["nome"])
+        if genero and not game.get("genero"):
+            game["genero"] = generos_mod._normalizar(genero)
+
+    if not args.apply:
+        print("\n(modo simulação - nada foi salvo, rode com --apply)")
+        return
+
+    library_mod.save_library(library_path, library)
+    print(f"\nsalvo em {library_path} ({len(library['games'])} jogo(s) no total)")
+
+    if novos:
+        api_key = cfg.get("steamgriddb", {}).get("api_key")
+        if api_key:
+            print(f"\nbuscando capa pro(s) {len(novos)} novo(s)...")
+            steam_appids = dict(library_mod.steam_appid_index(cfg.get("steam", {})))
+            steam_appids.update(wishlist_appids)
+            r = library_mod.fetch_covers({"games": novos}, capas_dir, api_key,
+                                          steam_appids=steam_appids, cfg=cfg)
+            print(f"  {r}")
+            library_mod.save_library(library_path, library)
+
+        if args.source != "steam":
+            print("buscando gênero pro(s) novo(s)...")
+            r2 = generos_mod.preencher_generos_biblioteca(cfg, apply=True)
+            print(f"  {r2}")
+
+
 def cmd_library_fetch_covers(args) -> None:
     """Busca capa (SteamGridDB) pra todo jogo da biblioteca que ainda
     não tem `capa` - salva em library_root/capas/<id>.png. Precisa de
@@ -1007,6 +1082,14 @@ def build_parser() -> argparse.ArgumentParser:
     lib_covers.add_argument("--apply", action="store_true")
     lib_refresh.add_argument("--apply", action="store_true")
 
+    wishlist_sync = sub.add_parser(
+        "wishlist-sync",
+        help="sincroniza lista de desejos (steam = API publica; psn/xbox = --arquivo colado)",
+    )
+    wishlist_sync.add_argument("source", choices=["steam", "psn", "xbox"], help="fonte a sincronizar")
+    wishlist_sync.add_argument("--arquivo", help="arquivo texto, um nome de jogo por linha (obrigatorio pra psn/xbox)")
+    wishlist_sync.add_argument("--apply", action="store_true")
+
     generos = sub.add_parser(
         "fill-generos",
         help="preenche genero pra ROM leve/pesada (cria registro se preciso) e Biblioteca (so completa)",
@@ -1065,6 +1148,8 @@ def main() -> None:
         cmd_library_add(args)
     elif args.command == "library-fetch-covers":
         cmd_library_fetch_covers(args)
+    elif args.command == "wishlist-sync":
+        cmd_wishlist_sync(args)
     elif args.command == "fill-generos":
         cmd_fill_generos(args)
     elif args.command == "sanitize-names":
