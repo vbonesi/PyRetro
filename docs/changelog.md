@@ -2395,3 +2395,231 @@ plano.
   conversão é o conteúdo começar com a assinatura PNG.
 
   Total: **69 testes Python + 18 de JavaScript**.
+
+
+## 11/09/2026
+
+- **Dedup + capítulos.** Nier Automata, Opus Castle e Tell Me Why
+  tinham duplicata (um registro "de posse" completo + um registro
+  vazio vindo de sync do Xbox com nome ligeiramente diferente).
+  Apagados os vazios, nome antigo virou `nomes_alt` no registro que
+  ficou (evita a duplicata recriar numa sincronização futura). Criados
+  Opus Castle - Chapter 2 a 6 e Tell Me Why: Capítulo 2 e 3 (mesmo
+  gênero/subgênero do capítulo 1 de cada, sem progresso ainda).
+
+- **Gênero 100% preenchido** em toda a coleção (ROM leve + pesada +
+  Biblioteca + Desejados), incluindo pesquisa manual pros que
+  ScreenScraper/LaunchBox não achavam. Achado um bug real no caminho:
+  `.chd` não estava na lista de extensões do PSP em `config.toml` (PS2
+  já tinha - só o cache `cache/heavy_catalog.json` estava
+  desatualizado). A correção revelou 9 jogos de PSP e 23 de PS2 em
+  `.chd` que estavam invisíveis.
+
+- **Unificação de botões (ROMs leves/pesadas/Biblioteca).** Os 3 tipos
+  de card ganharam o mesmo par de ícones 🖼 (buscar/trocar capa) + ✎
+  (editar dados: nome, gênero, data que finalizou, tempo, comentário)
+  no mesmo lugar. O botão de comentário (💬) separado foi removido dos
+  cards - virou parte do ✎ - mas continua existindo na lista de
+  Ranking/🎮 Jogando.
+
+  ROMs pesadas tinham DUAS buscas de capa diferentes (LaunchBox/
+  ScreenScraper por nome de ROM + SteamGridDB) - viraram um popup só
+  com abas pra escolher a fonte. Renomear (arquivo de verdade) entrou
+  pro mesmo modal do ✎ nas 3 abas.
+
+  `rom_tracking_info()` em `core/library.py` virou o lugar único que
+  monta os campos de tracking de uma ROM - antes essa lógica estava
+  DUPLICADA (leve e pesada) e uma cópia nunca ganhou tempo/observações
+  quando os outros campos foram adicionados, causando um bug real
+  (modal de editar sempre aparecia vazio nesses dois campos mesmo com
+  dado salvo).
+
+- **Lista de Desejos (nova aba "🌟 Desejados").** Steam sincroniza
+  sozinha (endpoint público `IWishlistService/GetWishlist` +
+  `appdetails` pra nome/gênero/capa - o endpoint antigo `wishlistdata`
+  foi descontinuado pela Valve sem aviso). PSN e Xbox não têm API de
+  wishlist confiável, então o usuário cola a lista direto na tela.
+
+  `sync_wishlist()` faz DIFF de verdade (diferente de `merge_owned`,
+  que só adiciona) - nome que sai da lista colada perde a marca
+  `wishlist:<fonte>`, e se não sobrar nenhuma outra fonte no registro,
+  o registro inteiro é apagado via `remove_game()` (decisão explícita
+  do usuário: lista de desejos não tem progresso pra perder). **Esse
+  mecanismo voltou a morder de verdade na sessão seguinte, ver
+  12/09.**
+
+- **Tempo total "de todas as fontes".** `merge_owned()` passou a
+  preencher `tempo` a partir do `playtime_forever` da Steam, só quando
+  o registro ainda não tinha nenhum tempo digitado à mão. 24 jogos
+  ganharam tempo que nunca tinham.
+
+- **Filtros unificados.** ROMs leves, pesadas e Biblioteca ganharam os
+  mesmos 4 filtros de tracking (▶/✓/🏆/🎭) como checkboxes
+  independentes, combináveis em "OU" - `libraryMatchesFilters()`
+  mudou de assinatura (status virou objeto de flags).
+
+- **Pendências deixadas em aberto** (perguntadas ao usuário, sem
+  resposta na hora): id duplicado entre duas "Life is Strange: True
+  Colors" (mesmo id `life-is-strange-true-colors-nintendo-switch`,
+  `_slug()` não checa colisão contra id "roubado" por edição anterior
+  de plataforma); 6 registros "Twinmotion EDU" vindos do Heroic (não é
+  jogo); 3 capas de DOOM sem match exato no SteamGridDB. **Nenhuma
+  dessas foi resolvida ainda** (12/09 tratou de coisas diferentes).
+
+
+## 12/09/2026
+
+Sessão longa, em cima do que 11/09 deixou pronto (wishlist, sorteio,
+filtros unificados).
+
+- **Incidente real de perda de dado, recuperado sem perda final.** Ao
+  adicionar 1 jogo na wishlist da Xbox pela tela, o campo colado ficou
+  só com o nome novo (não a lista inteira) - `sync_wishlist()` (ver
+  11/09) tratou isso como "a lista inteira agora é só esse 1 jogo":
+  129 perderam a marca `wishlist:xbox`, 125 sem nenhuma outra fonte
+  foram apagados de vez via `remove_game()`. O log da tela confirmou
+  que rodou e salvou.
+
+  Auditoria (Google Drive guarda até 100 versões/30 dias de cada
+  arquivo via o Insync do usuário) achou a versão de 13:27 (antes do
+  acidente) e a de 18:26 (depois) - mas comparando as duas, **o
+  arquivo AO VIVO no disco não batia com nenhuma delas**: tinha os 129
+  intactos E o playtime da Steam atualizado. Causa raiz real: a
+  sincronização da Steam rodou CONCORRENTE com a da Xbox, carregou o
+  `library.json` numa versão anterior ao estrago, e salvou por cima ao
+  terminar - um "lost update" clássico que por sorte desfez o dano da
+  Xbox (também apagou a tentativa de adicionar o jogo novo).
+
+  **Causa raiz de fundo, ainda NÃO corrigida no código:** `_library_lock`
+  (`gui/server.py`) só protege as rotas síncronas listadas em
+  `_ESCRITA_BIBLIOTECA` - os jobs em background (`run_wishlist_sync_job`,
+  `run_library_refresh_job`, `run_library_fetch_covers_job`, etc, todos
+  em `gui/server.py`) fazem seu próprio ler→modificar→gravar sem
+  nenhum lock. Dois desses rodando ao mesmo tempo colidem por
+  definição. Funcionou por acaso dessa vez; **vale envolver esses jobs
+  no mesmo lock antes que aconteça numa ordem que NÃO desfaça sozinho
+  o problema.**
+
+  Diablo® Prime Evil Collection (o jogo que a Xbox tentava adicionar)
+  foi readicionado manualmente depois, com a lista completa dessa vez.
+
+- **Editar gênero na Wishlist.** Card de Desejados ganhou o mesmo ✎ já
+  usado em ROM/Biblioteca (`buildDesejadoCard`) - motivado
+  diretamente pelo caso acima (Diablo sem gênero, sem forma de
+  corrigir pela tela). `/api/wishlist` passou a devolver o registro
+  inteiro (`{**g, "capa_url": ...}`, igual `/api/library` já fazia)
+  em vez de só id/nome/gênero/capa_url - sem isso o modal zerava
+  plataforma/tempo/observações existentes ao salvar. Achado no
+  caminho: `#editar-modal` não tinha z-index alto o suficiente pra
+  abrir por cima de OUTRO modal (Desejados) - mesmo bug já resolvido
+  antes só pro modal de capa (`#capa-modal { z-index: 110 }`),
+  replicado pro editar.
+
+- **Sorteio ganha filtro de gênero**, combinável com o grupo/sistema
+  já existente. Achado no processo: ROM leve/pesada guarda no pool o
+  nome de ARQUIVO (com extensão), mas o cruzamento com o gênero da
+  Biblioteca (`find_for_rom`) exige o nome sem extensão - sem tirar o
+  `Path(nome).stem` antes, o filtro combinado com ROM sempre dava pool
+  vazio, silenciosamente (só funcionava por acidente pra Biblioteca).
+  Depois ganhou também sub-grupos de plataforma dentro da Biblioteca
+  (Nintendo Switch/Xbox/PlayStation/PC) - Xbox junta as 4 gerações
+  gravadas, PlayStation junta PSN/PS3/PS4 (só 39 jogos, não compensa
+  separar), PC é o resto (Steam/GOG/Epic/Amazon + os poucos
+  Android/iOS).
+
+- **Pendências da reorganização de 31/08 fechadas.** "Kingdom of
+  Asteborg (1+2)" confirmado redundante (mesmos 2 jogos já existiam
+  separados, com title-ids diferentes - é só o cartucho de compilação
+  por cima) e apagado. As 3 subpastas de title-id dentro de "Super
+  Mario 3D All-Stars" confirmadas como estrutura legítima (o jogo
+  empacota Mario 64/Sunshine/Galaxy como 3 programas de verdade) -
+  mantidas, sem ação.
+
+- **43 pastas de `~/Downloads` (torrent) organizadas e subidas pro
+  Drive.** 4 coleções reais decompostas na mão conferindo cada
+  arquivo por title-id (Deponia em 4, SNK NeoGeo Pocket Games em 13,
+  MGS Master Collection em 5, Vol 2 em 3); resto só limpou a tag de
+  formato do nome. Duas pastas de tradução russa tratadas com o mesmo
+  padrão de 31/08 (Persona 4 Golden tinha um update de verdade
+  escondido dentro - resgatado antes de apagar o resto; Metroid Prime
+  Remastered não tinha nada pra resgatar). Achada e apagada 1
+  duplicata (Mega Man Battle & Fighters" com "&" x "and", mesmo
+  title-id, já existia de antes com o "and"). Depois do upload:
+  sincronizado com a Biblioteca (38 jogos novos, 343 já rastreados),
+  capa buscada (1569 baixadas na coleção inteira, incluída de brinde
+  já que o job varre tudo que falta) e gênero preenchido pros novos
+  (13 via LaunchBox, 25 sem match - a maioria exclusivo de console sem
+  versão PC pra cruzar).
+
+  Renomeios extras pedidos depois de ver o resultado: "! TOV (NSP
+  eShop)" -> "Tales of Vesperia"; 15 pastas com `(US)`/`(EU)`/`(JAP)`/
+  ano perderam o parêntese; "Duke Nukem 3D homebrew ..." perdeu a
+  palavra "homebrew"; "Dusk - TLOZ Twilight Princess port for
+  Nintendo Switch" virou "The Legend of Zelda Twilight Princess" (2
+  passadas: primeiro só limpou o nome, depois tirou "Dusk" de vez -
+  ver nota abaixo sobre o que sobrou). 9 desses já tinham registro
+  rastreado - `nome` atualizado e nome antigo guardado em `nomes_alt`
+  em cada um, pra não perder o vínculo (mesmo padrão de sempre pra
+  rename de pasta).
+
+  **Nota**: o "Dusk" no nome original era o NOME do forwarder homebrew
+  usado pra rodar o jogo de GameCube/Wii no Switch (pasta interna
+  `dusk/`, com `dusk.nro` + a imagem de disco) - o usuário decidiu
+  tirar mesmo assim, então o vínculo com "como o jogo roda de verdade"
+  ficou só no `nomes_alt`, não mais no nome visível.
+
+- **Barra de filtro/ação virou linha única com rolagem nas 3 abas**
+  (achado do usuário testando no celular - `.filterbar`/`.menubar`
+  tinham `overflow` implícito em vez de rolagem, cortando "Só sem
+  gênero" e outros itens sem nenhum jeito de alcançar; a Biblioteca
+  usava a classe errada, `search-bar`, pensada pra campo de busca).
+  ROM leve e pesada ganharam a mesma seção "▸ Ações" recolhível que a
+  Biblioteca já tinha, fechada por padrão. `.actions` e `.menubar`
+  eram a mesma coisa disfarçada de duas classes - unificadas numa só;
+  botões de ROM leve trocaram o estilo padrão (azul, grande) pelo
+  `tiny secondary` cinza que as outras duas abas já usavam, pra ficar
+  visualmente coeso. O modal de Sortear (`search-bar` também) ficou de
+  fora da primeira correção e só foi pego numa rodada seguinte.
+
+- **Editar dados de ROM pesada funciona mesmo só-no-Drive.** O botão
+  ✎ inteiro ficava escondido quando o arquivo não estava baixado
+  (`notInPc`) - só o campo "Nome" precisa do arquivo de verdade
+  (renomear), gênero/tempo/observações não. Agora só esse campo some
+  (mesmo padrão já usado em ROM leve sem capa), o resto funciona e
+  cria o registro na Biblioteca sem precisar baixar nada primeiro.
+
+- **Auditoria completa de gênero: 43 categorias -> 33, revisão manual
+  de 362 jogos.** Levantados todos os gêneros da coleção com contagem
+  e amostra de jogos antes de mexer em qualquer coisa (pedido do
+  usuário: "trazer as dúvidas" em vez de decidir sozinho). Fundidos
+  duplicados de verdade (mesmo conceito, fonte devolvendo grafia/
+  idioma diferente): Puzzle/Quebra-cabeças, Card Game/Jogo de cartas,
+  Casual/Jogo casual, Compilação/Coletânea, "Corrida, Pilotagem"/
+  Corrida, Educação/Educacional, "Jogo de Tabuleiro" (maiúsculo) e
+  "... Asiático" tudo em "Jogo de tabuleiro", e Música/"Música e
+  dança"/Ritmo em Ritmo (Patapon 2 e 3 tinham caído em categorias
+  diferentes um do outro). Depois, mais 2 nichos de 2 jogos cada
+  migrados pros parentes óbvios: "Esporte com animais" (corrida de
+  cavalo) -> Corrida, "Tiro com Lightgun" -> Tiro.
+
+  O achado mais importante ficava só no CÓDIGO: `NORMALIZACAO_FINAL`
+  em `core/generos.py` mandava todo beat'em up pra "Luta", mas a
+  coleção real tinha "Briga de rua" convivendo como categoria
+  separada - com a MESMA franquia dividida entre as duas (Double
+  Dragon ficou onde estava, Double Dragon Gaiden foi pra Luta;
+  Streets of Rage 1-3 ficaram, Streets of Rage 4 foi pra Luta).
+  Revisão manual dos 362 jogos de Luta+Briga de rua corrigiu 20 casos
+  errados (toda a série Double Dragon, TMNT arcade, Streets of Rage
+  4, X-Men arcade, Batman Beyond, Shadow Force, Rushing Beat, Dragon
+  Ninja, Dynasty Warriors 1-2 pra Briga de rua; Panzer Bandit no
+  sentido contrário) e a regra de normalização foi corrigida pra não
+  voltar a divergir.
+
+  **Ficou sem decisão** (título genérico demais ou franquia com
+  versões diferentes, sem forma de saber qual é qual sem mais
+  contexto): Hokuto no Ken / Hokuto no Ken 2 (em Luta) vs o Hokuto no
+  Ken que já está em Briga de rua; Guardian e Legend (nome vago
+  demais); Robot Wars - Advanced Destruction; e o gênero real de "The
+  Super Spy" (único jogo em "Variados", categoria-lixo de 1 item).
+
+  Total: **109 testes Python + 22 de JavaScript**.
