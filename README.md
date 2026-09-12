@@ -724,6 +724,48 @@ faltava mais visível). Mostra a capa do sorteado quando existe (mesma
 pasta que a galeria usa, incluindo pesado - `/images/<code>/<arquivo>`
 aceita os dois desde a unificação acima).
 
+**Segundo `<select>` de gênero** (12/09, pedido do usuário: "permitir
+combo de grupo/plataforma e gênero") - filtra o pool já montado, antes
+de sortear. ROM leve/pesada só entra no filtro se já tiver registro na
+Biblioteca com gênero preenchido (`find_for_rom`); sem registro, fica
+de fora quando o filtro está ativo. O grupo "Biblioteca" também ganhou
+sub-grupos por plataforma (`biblioteca:switch`/`biblioteca:xbox`/
+`biblioteca:playstation`/`biblioteca:pc`, ver `BIBLIOTECA_SUBGRUPOS`
+em `core/sortear.py`) - Xbox junta as 4 gerações gravadas, PlayStation
+junta PSN/PS3/PS4 (só ~40 jogos, não compensa separar por geração), PC
+é o resto (Steam/GOG/Epic/Amazon + os poucos Android/iOS).
+
+### Aba "🌟 Desejados" (lista de desejos)
+
+Steam/PSN/Xbox juntos, cada fonte na própria sub-aba. Steam sincroniza
+sozinha (endpoint público `IWishlistService/GetWishlist` + `appdetails`
+pra nome/gênero/capa). PSN e Xbox não têm API de wishlist confiável -
+o usuário cola a lista direto na textarea da tela.
+
+`sync_wishlist()` (`core/library.py`) faz **diff de verdade** contra o
+texto colado, diferente de `merge_owned()` (que só adiciona): nome que
+sai da lista perde a marca `wishlist:<fonte>`, e se não sobrar nenhuma
+outra fonte no registro, o registro inteiro é apagado
+(`remove_game()` - único lugar do projeto que apaga registro sozinho,
+decisão explícita do usuário porque lista de desejos não tem progresso
+de verdade pra perder).
+
+**Cuidado operacional real**: o campo de PSN/Xbox precisa da lista
+**inteira** a cada sincronização, não só o que mudou - colar só um nome
+novo apaga todo o resto que não estiver naquela lista (já aconteceu de
+verdade, ver `docs/changelog.md` 12/09). Layout da lista é compacto
+(capa pequena, uma linha por item, mesmo padrão de Ranking/Jogando) -
+o grid de capa grande das outras abas quebra com centenas de itens.
+
+Cada item tem os mesmos ícones 🖼 (buscar/trocar capa) e ✎ (editar
+nome/plataforma/gênero/data/tempo/comentário) que Biblioteca/ROM usam -
+um item de Desejados É um registro de Biblioteca normal (tem `id`), só
+com a fonte `wishlist:<loja>` marcada, então o mesmo modal/endpoint
+(`/api/library/edit`) serve sem mudança nenhuma no servidor.
+`GET /api/wishlist` devolve o registro inteiro (não só id/nome/gênero/
+capa_url) justamente pra esse modal não zerar campo existente ao
+salvar.
+
 ### Manutenção e ações de fundo na GUI
 
 Todo comando do CLI que ainda não tinha tela ganhou uma - decisão do
@@ -734,6 +776,17 @@ roda a função em thread separada emitindo linha de log
 capas já usava (`GET /api/fetch/stream?job=<id>`) - o mesmo texto que a
 CLI já imprimia, só que na tela. Front consome via `runJob()`, um
 wrapper genérico (evita reimplementar `EventSource` pra cada botão).
+
+**Limitação conhecida, ainda não corrigida (achada 12/09)**: cada job
+faz seu próprio ciclo ler→modificar→gravar em `library.json` sem usar
+`_library_lock` - esse lock só protege as rotas SÍNCRONAS listadas em
+`_ESCRITA_BIBLIOTECA` (`gui/server.py`), não os jobs assíncronos acima.
+Dois jobs rodando ao mesmo tempo (ex: sincronizar Steam enquanto
+sincroniza Xbox) colidem: o que salvar por último sobrescreve o outro
+inteiro, incluindo mudança que o outro tinha acabado de fazer. Já
+aconteceu de verdade (ver `docs/changelog.md` 12/09) - por sorte o
+resultado desfez um erro em vez de causar um, mas o mecanismo em si
+precisa do mesmo lock antes que aconteça ao contrário.
 
 - **Biblioteca**: `🔄 Heroic`/`🔄 Steam` (`library-refresh`), `🖼 Capas`
   (`library-fetch-covers`), `+ Lista` (`library-add` - textarea +
