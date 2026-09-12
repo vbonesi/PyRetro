@@ -42,9 +42,36 @@ HEAVY_CATALOG_PATH = Path(__file__).parent.parent / "cache" / "heavy_catalog.jso
 # Normalização final aplicada em CIMA do que qualquer fonte devolver
 # (ScreenScraper, LaunchBox ou Steam), pra bater com o vocabulário mais
 # enxuto que a Biblioteca já usa (ex: "Navinha" pra shmup).
+#
+# Beat'em up vira "Briga de rua", NÃO "Luta" (mudou 11/09 - achado
+# revisando a coleção: a regra antiga jogava tudo pra "Luta" e a
+# coleção real tinha as duas categorias convivendo, com a MESMA
+# franquia dividida entre as duas - ex: "Double Dragon" (Briga de rua)
+# e "Double Dragon Gaiden" (tinha ido pra Luta). Luta = 1v1/arena
+# (Mortal Kombat, Street Fighter); Briga de rua = anda-e-soca em fase
+# (Double Dragon, Streets of Rage, Final Fight).
+#
+# Os outros pares abaixo (11/09) são duplicata de verdade - mesmo
+# conceito, fonte diferente devolvendo grafia/idioma diferente -
+# achados revisando a coleção inteira e confirmados com o usuário:
+# Puzzle=Quebra-cabeças, Música(-e-dança)=Ritmo (Patapon 2 e 3 tinham
+# caído em categorias diferentes um do outro!), Card Game=Jogo de
+# cartas, Casual=Jogo casual, Compilação=Coletânea, "Corrida,
+# Pilotagem"=Corrida, e "Jogo de Tabuleiro"/"Jogo de tabuleiro
+# Asiático" tudo pra "Jogo de tabuleiro" (minúsculo - evita a mesma
+# string virar duas categorias só por causa de maiúscula).
 NORMALIZACAO_FINAL = {
     "shoot'em up": "Navinha", "shoot em up": "Navinha", "shmup": "Navinha",
-    "beat'em up": "Luta", "beat em up": "Luta", "beat'em all": "Luta",
+    "beat'em up": "Briga de rua", "beat em up": "Briga de rua", "beat'em all": "Briga de rua",
+    "puzzle": "Quebra-cabeças",
+    "música": "Ritmo", "musica": "Ritmo", "música e dança": "Ritmo", "musica e danca": "Ritmo",
+    "card game": "Jogo de cartas",
+    "educação": "Educacional", "educacao": "Educacional",
+    "casual": "Jogo casual",
+    "compilação": "Coletânea", "compilacao": "Coletânea",
+    "corrida, pilotagem": "Corrida", "corrida e pilotagem": "Corrida",
+    "jogo de tabuleiro": "Jogo de tabuleiro", "jogo de tabuleiro asiático": "Jogo de tabuleiro",
+    "jogo de tabuleiro asiatico": "Jogo de tabuleiro",
 }
 
 
