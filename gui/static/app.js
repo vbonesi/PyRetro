@@ -1004,12 +1004,12 @@ function buildHeavyCard(code, item) {
   }, nome, [
     { icone: "🖼", titulo: "Buscar/trocar capa",
       onClick: () => openCapa(nome, { kind: "rom", code, label: nome }, () => selectHeavyTab(code)) },
-    // Renomear (só faz sentido pro arquivo que já está no PC) entrou
-    // pro popup "Editar dados do jogo" - por isso só aparece com o
-    // arquivo baixado, diferente da busca de capa acima (essa dá pra
-    // usar mesmo só no Drive, pra já deixar catalogado).
-    ...(notInPc ? [] : [{ icone: "✎", titulo: "Editar dados do jogo",
-      onClick: () => openEditarRom({ kind: "pesado", code, label: nome, sysLabel, fonte: `rom:${code}` }, item.biblioteca, () => selectHeavyTab(code)) }]),
+    // ✎ aparece sempre, mesmo só no Drive (12/09, achado do usuário:
+    // "dá pra editar tudo por aqui, não dá pra inserir?" - gênero/
+    // tempo/observações não dependem do arquivo, só "Renomear" precisa
+    // e esse campo já some sozinho nesse caso, ver openEditarRom).
+    { icone: "✎", titulo: "Editar dados do jogo",
+      onClick: () => openEditarRom({ kind: "pesado", code, label: nome, sysLabel, fonte: `rom:${code}`, notInPc }, item.biblioteca, () => selectHeavyTab(code)) },
   ]));
   return div;
 }
@@ -1884,11 +1884,15 @@ function openEditar(g, onDone) {
 // rom: { kind: "leve"|"pesado", code, label (nome/stem atual), sysLabel, fonte, noCover }
 // estado: item.biblioteca (genero/data_final/tempo/observacoes atuais - pode ser null, ROM ainda sem registro).
 function openEditarRom(rom, estado, onDone) {
-  // ROM leve sem capa ainda não dá pra renomear por aqui (/api/cover/rename
-  // usa o arquivo de capa como âncora do rename - sem capa, não tem o que
-  // mover) - mesma restrição que já existia (openEdit escondia "Renomear"
-  // nesse caso), só preservada no modal novo.
-  const camposDef = (rom.kind === "leve" && rom.noCover)
+  // Renomear precisa do ARQUIVO local (ROM leve sem capa: /api/cover/rename
+  // usa o arquivo de capa como âncora, sem capa não tem o que mover; ROM
+  // pesada só-no-Drive: /api/heavy/rename opera no arquivo em roms_root,
+  // que não existe ainda) - só o campo "Nome" some nesses casos, não o
+  // resto (gênero/tempo/observações não dependem de arquivo nenhum,
+  // achado 12/09: o botão ✎ inteiro tava escondido pra ROM pesada
+  // só-no-Drive, impedindo catalogar ela antes mesmo de baixar).
+  const semArquivoLocal = (rom.kind === "leve" && rom.noCover) || (rom.kind === "pesado" && rom.notInPc);
+  const camposDef = semArquivoLocal
     ? EDITAR_CAMPOS_ROM.filter((c) => c.campo !== "nome")
     : EDITAR_CAMPOS_ROM;
   editarCtx = { kind: rom.kind, id: null, rom, onDone, camposDef, nomeOriginal: rom.label };
