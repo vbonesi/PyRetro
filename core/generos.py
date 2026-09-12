@@ -72,6 +72,13 @@ NORMALIZACAO_FINAL = {
     "corrida, pilotagem": "Corrida", "corrida e pilotagem": "Corrida",
     "jogo de tabuleiro": "Jogo de tabuleiro", "jogo de tabuleiro asiático": "Jogo de tabuleiro",
     "jogo de tabuleiro asiatico": "Jogo de tabuleiro",
+    # 12/09, pedido do usuário: essas duas eram nicho demais (2 jogos
+    # cada) pra valer categoria própria - Stakes Winner (corrida de
+    # cavalo) cabe em "Corrida", Metal Combat/Elemental Gearbolt
+    # (pistola-luz) cabem em "Tiro" (mecânica igual, só o periférico
+    # muda).
+    "esporte com animais": "Corrida",
+    "tiro com lightgun": "Tiro",
 }
 
 
