@@ -247,10 +247,15 @@ function renderGallery() {
   }
 }
 
-for (const id of ["filter-flagged", "filter-nomatch", "filter-nocover",
-                  "filter-iniciado", "filter-finalizado", "filter-platinado", "filter-sem-genero"]) {
-  document.getElementById(id).addEventListener("change", renderGallery);
+// Liga uma lista de checkboxes de filtro (mesmo padrão nas 3 abas -
+// ROM leve/pesada/Biblioteca) pra re-renderizar quando qualquer um mudar.
+function wireFilterChange(ids, onChange) {
+  for (const id of ids) document.getElementById(id).addEventListener("change", onChange);
 }
+
+wireFilterChange(["filter-flagged", "filter-nomatch", "filter-nocover",
+                  "filter-iniciado", "filter-finalizado", "filter-platinado", "filter-sem-genero"],
+                 renderGallery);
 
 // Nota vira um "chip" clicável com setinha de cada lado, em vez do
 // <input type=number> cru de antes - pedido do usuário 28/08: "o campo
@@ -942,10 +947,9 @@ function renderHeavyGrid() {
   }
 }
 
-for (const id of ["heavy-filter-nocover", "heavy-filter-iniciado", "heavy-filter-finalizado",
-                  "heavy-filter-platinado", "heavy-filter-sem-genero"]) {
-  document.getElementById(id).addEventListener("change", renderHeavyGrid);
-}
+wireFilterChange(["heavy-filter-nocover", "heavy-filter-iniciado", "heavy-filter-finalizado",
+                  "heavy-filter-platinado", "heavy-filter-sem-genero"],
+                 renderHeavyGrid);
 
 function buildHeavyCard(code, item) {
   const notInPc = !item.in_pc;
@@ -2575,10 +2579,9 @@ document.querySelectorAll("#maint-modal [data-action]").forEach((btn) => {
   btn.addEventListener("click", () => runMaintAction(btn.dataset.action));
 });
 
-for (const id of ["library-filter-nocover", "library-filter-ocultos", "library-filter-iniciado",
-                  "library-filter-finalizado", "library-filter-platinado", "library-filter-sem-genero"]) {
-  document.getElementById(id).addEventListener("change", renderLibraryGrid);
-}
+wireFilterChange(["library-filter-nocover", "library-filter-ocultos", "library-filter-iniciado",
+                  "library-filter-finalizado", "library-filter-platinado", "library-filter-sem-genero"],
+                 renderLibraryGrid);
 document.getElementById("library-sort").addEventListener("change", renderLibraryGrid);
 
 // 2 etapas, a pedido do usuário: 0 = tudo visível, 1 = esconde

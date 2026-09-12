@@ -34,8 +34,9 @@
 
     <h2 id="current-system" class="current-system-heading">Selecione um sistema</h2>
 
-    <div id="menubar" class="menubar">
-      <div class="actions">
+    <details id="menubar" class="collapsible">
+      <summary>⚙ Ações (Capas)</summary>
+      <div class="menubar">
         <label class="apply-toggle">
           <input type="checkbox" id="apply-toggle">
           Aplicar
@@ -44,7 +45,7 @@
         <button id="btn-fallback-launchbox" disabled>Buscar no LaunchBox</button>
         <button id="btn-fallback-screenscraper" disabled>Buscar no ScreenScraper</button>
       </div>
-    </div>
+    </details>
 
     <div id="filterbar" class="filterbar">
       <label class="filter-toggle">
@@ -105,7 +106,7 @@
         </div>
         <div id="library-job-log" class="job-log hidden"></div>
       </details>
-      <div class="search-bar">
+      <div class="filterbar">
         <label class="filter-toggle">
           <input type="checkbox" id="library-filter-nocover">
           🖼 Só sem capa
@@ -137,12 +138,15 @@
       </div>
     </div>
 
-    <div id="heavy-controls" class="menubar hidden">
-      <label class="tiny apply-toggle"><input type="checkbox" id="heavy-apply"> aplicar</label>
-      <button id="btn-heavy-catalog" class="tiny secondary" type="button">🔄 Atualizar catálogo</button>
-      <button id="btn-heavy-fetch-covers" class="tiny secondary" type="button">🖼 Buscar capas</button>
+    <details id="heavy-controls" class="collapsible hidden">
+      <summary>⚙ Ações (Catálogo/Capas)</summary>
+      <div class="menubar">
+        <label class="tiny apply-toggle"><input type="checkbox" id="heavy-apply"> aplicar</label>
+        <button id="btn-heavy-catalog" class="tiny secondary" type="button">🔄 Atualizar catálogo</button>
+        <button id="btn-heavy-fetch-covers" class="tiny secondary" type="button">🖼 Buscar capas</button>
+      </div>
       <div id="heavy-catalog-log" class="job-log hidden"></div>
-    </div>
+    </details>
 
     <div id="heavy-filterbar" class="filterbar hidden">
       <label class="filter-toggle">
