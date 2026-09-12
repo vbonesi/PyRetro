@@ -1358,7 +1358,11 @@ class Handler(BaseHTTPRequestHandler):
             out.sort(key=lambda x: x["label"])
             grupos = [{"code": "leve", "label": "🕹 ROMs leves (todas)", "kind": "grupo"},
                       {"code": "pesado", "label": "📦 ROMs pesadas (todas)", "kind": "grupo"},
-                      {"code": "biblioteca", "label": "📚 Biblioteca (toda)", "kind": "grupo"}]
+                      {"code": "biblioteca", "label": "📚 Biblioteca (toda)", "kind": "grupo"},
+                      {"code": "biblioteca:switch", "label": "📚 Biblioteca - Nintendo Switch", "kind": "grupo"},
+                      {"code": "biblioteca:xbox", "label": "📚 Biblioteca - Xbox", "kind": "grupo"},
+                      {"code": "biblioteca:playstation", "label": "📚 Biblioteca - PlayStation", "kind": "grupo"},
+                      {"code": "biblioteca:pc", "label": "📚 Biblioteca - PC (Steam/GOG/Epic/etc)", "kind": "grupo"}]
             library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
             library = library_mod.load_library(library_path)
             generos = sortear_mod.generos_disponiveis(library)

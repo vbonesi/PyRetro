@@ -33,6 +33,40 @@ class TestGenerosDisponiveis(unittest.TestCase):
         self.assertEqual(sortear_mod.generos_disponiveis(library), ["Ação", "RPG"])
 
 
+class TestPoolBibliotecaPorSubgrupo(unittest.TestCase):
+    """Sub-grupos de plataforma da Biblioteca no sorteio (11/09, pedido
+    do usuário: "colocar em sistemas específicos o biblioteca também,
+    com o nintendo switch, PS4 e Xbox's ... e o resto como PC")."""
+
+    def test_agrupa_geracoes_de_xbox_juntas(self):
+        library = {"games": [
+            jogo("A", "Xbox"), jogo("B", "Xbox One"),
+            jogo("C", "Xbox Series S"), jogo("D", "Xbox 360"),
+        ]}
+        pool = sortear_mod._pool_biblioteca(library, {}, subgrupo="xbox")
+        self.assertEqual({p[1] for p in pool}, {"A", "B", "C", "D"})
+
+    def test_agrupa_psn_e_playstation_juntas(self):
+        library = {"games": [
+            jogo("A", "PSN"), jogo("B", "PlayStation 4"), jogo("C", "PlayStation 3"),
+        ]}
+        pool = sortear_mod._pool_biblioteca(library, {}, subgrupo="playstation")
+        self.assertEqual({p[1] for p in pool}, {"A", "B", "C"})
+
+    def test_pc_e_o_que_sobra(self):
+        library = {"games": [
+            jogo("Steam game", "Steam"), jogo("GOG game", "GOG"),
+            jogo("Switch game", "Nintendo Switch"),
+        ]}
+        pool = sortear_mod._pool_biblioteca(library, {}, subgrupo="pc")
+        self.assertEqual({p[1] for p in pool}, {"Steam game", "GOG game"})
+
+    def test_sem_subgrupo_pega_tudo_igual_antes(self):
+        library = {"games": [jogo("A", "Xbox"), jogo("B", "Nintendo Switch")]}
+        pool = sortear_mod._pool_biblioteca(library, {})
+        self.assertEqual({p[1] for p in pool}, {"A", "B"})
+
+
 class TestFiltrarPorGenero(unittest.TestCase):
     """Achado 11/09 testando a combinação grupo+gênero na tela: ROM leve/
     pesada no pool vem com o nome de ARQUIVO (com extensão, ver

@@ -56,13 +56,33 @@ def save_heavy_catalog(cache_path: Path, catalog: dict) -> None:
 
 GRUPOS = {"leve", "pesado", "biblioteca"}
 
+# Sub-grupos da Biblioteca (11/09, pedido do usuário: "colocar em
+# sistemas específicos a biblioteca também, com o nintendo switch, PS4
+# e Xbox's, e o resto como PC") - console primeiro, loja de PC cai tudo
+# junto em "pc" (Steam/GOG/Epic/Amazon/etc, e os poucos Android/iOS
+# também, não vale abrir grupo próprio pra 10 jogos). "PS4" do pedido
+# generalizado pra "playstation" porque a coleção real mistura PSN
+# (rótulo genérico, sem geração), PlayStation 3 e PlayStation 4 - 39
+# jogos ao todo, pouco pra valer separar por geração.
+BIBLIOTECA_SUBGRUPOS = {
+    "Nintendo Switch": "switch",
+    "Xbox": "xbox", "Xbox One": "xbox", "Xbox Series S": "xbox", "Xbox 360": "xbox",
+    "PSN": "playstation", "PlayStation 4": "playstation", "PlayStation 3": "playstation",
+}
 
-def _pool_biblioteca(library: dict, rom_names_by_code: dict) -> list:
+
+def _grupo_biblioteca_da_plataforma(plataforma: str) -> str:
+    return BIBLIOTECA_SUBGRUPOS.get(plataforma, "pc")
+
+
+def _pool_biblioteca(library: dict, rom_names_by_code: dict, subgrupo: str | None = None) -> list:
     """[(None, nome, "biblioteca")] - só jogo que não "mora" numa ROM
     (mesma exclusão de is_rom_backed do gui/server.py, reimplementada
     aqui pra não criar dependência circular com o servidor) e não
     oculto, senão sortear traria de volta um jogo que o usuário
-    escondeu de propósito."""
+    escondeu de propósito. `subgrupo` ("switch"/"xbox"/"playstation"/
+    "pc"), se passado, filtra também pela plataforma (ver
+    BIBLIOTECA_SUBGRUPOS)."""
     from core import library as library_mod
 
     pool = []
@@ -71,6 +91,8 @@ def _pool_biblioteca(library: dict, rom_names_by_code: dict) -> list:
             continue
         code = library_mod.rom_code_for_plataforma(g["plataforma"])
         if code and library_mod.covers_mod.normalize(g["nome"]) in rom_names_by_code.get(code, set()):
+            continue
+        if subgrupo and _grupo_biblioteca_da_plataforma(g["plataforma"]) != subgrupo:
             continue
         pool.append((None, g["nome"], "biblioteca"))
     return pool
@@ -107,7 +129,10 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
     if system:
         code = system.upper()
         chave = system.lower()
-        if chave in GRUPOS:
+        if chave.startswith("biblioteca:"):
+            subgrupo = chave.split(":", 1)[1]
+            pool = _pool_biblioteca(library, rom_names_by_code or {}, subgrupo) if library is not None else []
+        elif chave in GRUPOS:
             if chave == "biblioteca":
                 pool = _pool_biblioteca(library, rom_names_by_code or {}) if library is not None else []
             else:
