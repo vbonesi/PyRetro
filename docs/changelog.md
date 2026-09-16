@@ -2634,3 +2634,19 @@ filtros unificados).
   não reproduzia o bypass real com barras percent-encoded. O teste de
   integração agora usa esse payload real e também cobre os dois endpoints de
   ROM pesada.
+
+- **Lost update de `library.json` corrigido (#4).** Os quatro jobs da GUI
+  (refresh, wishlist, cadastro e busca de capas), as rotas síncronas, os
+  checkpoints de gênero e os comandos equivalentes da CLI agora participam
+  da mesma exclusão mútua. O lock combina `RLock` entre threads com `flock`
+  entre processos locais; fica em `/tmp`, sem criar lixo na pasta
+  sincronizada. Trabalhos longos de capa não seguram o arquivo por minutos:
+  acumulam só as capas encontradas e aplicam esses campos sobre a versão mais
+  recente em checkpoints. Um teste concorrente reproduz o incidente de 12/09
+  e confirma que dois cadastros simultâneos sobrevivem.
+
+- **`covers_registry.json` atômico e serializado (#5).** GUI e CLI usam o
+  mesmo lock durante o ciclo completo, e a gravação passou a temporário +
+  `replace`, evitando JSON parcial e alterações perdidas entre busca de capas
+  e ações manuais. Total depois deste bloco: **112 testes Python + 22 de
+  JavaScript**.

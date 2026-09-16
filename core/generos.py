@@ -28,6 +28,7 @@ dict inteiro que foi carregado há uma hora."""
 from pathlib import Path
 
 from core import covers as covers_mod
+from core import file_lock as file_lock_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import library as library_mod
@@ -114,21 +115,22 @@ class _Persistidor:
     def checkpoint(self) -> None:
         if not self.genero_por_id and not self.novos_rom:
             return
-        library = library_mod.load_library(self.path)
-        por_id = {g["id"]: g for g in library["games"]}
+        with file_lock_mod.exclusive(self.path):
+            library = library_mod.load_library(self.path)
+            por_id = {g["id"]: g for g in library["games"]}
 
-        for nome, code, plataforma, fonte in self.novos_rom:
-            library_mod.get_or_create_for_rom(library, nome, code, plataforma, fonte)
-        self.novos_rom.clear()
-        por_id = {g["id"]: g for g in library["games"]}  # recalcula, pode ter crescido
+            for nome, code, plataforma, fonte in self.novos_rom:
+                library_mod.get_or_create_for_rom(library, nome, code, plataforma, fonte)
+            self.novos_rom.clear()
+            por_id = {g["id"]: g for g in library["games"]}  # recalcula, pode ter crescido
 
-        for game_id, genero in self.genero_por_id.items():
-            game = por_id.get(game_id)
-            if game and not game.get("genero"):
-                game["genero"] = genero
-        self.genero_por_id.clear()
+            for game_id, genero in self.genero_por_id.items():
+                game = por_id.get(game_id)
+                if game and not game.get("genero"):
+                    game["genero"] = genero
+            self.genero_por_id.clear()
 
-        library_mod.save_library(self.path, library)
+            library_mod.save_library(self.path, library)
 
 
 def _roms_leves(cfg: dict, roms_root: Path) -> list:

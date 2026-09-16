@@ -30,6 +30,7 @@ from core import adb as adb_mod
 from core import config_backup as config_backup_mod
 from core import covers as covers_mod
 from core import emu_sync as emu_sync_mod
+from core import file_lock as file_lock_mod
 from core import generos as generos_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
@@ -44,6 +45,14 @@ from core import sync as sync_mod
 CONFIG_PATH = Path(__file__).parent / "config.toml"
 REGISTRY_PATH = Path(__file__).parent / "cache" / "covers_registry.json"
 HEAVY_CATALOG_PATH = Path(__file__).parent / "cache" / "heavy_catalog.json"
+
+
+def save_registry(registry: dict) -> None:
+    """Grava o registry atomicamente; o chamador segura o lock do ciclo."""
+    REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = REGISTRY_PATH.with_name(REGISTRY_PATH.name + ".tmp")
+    tmp.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
+    tmp.replace(REGISTRY_PATH)
 
 
 def load_config() -> dict:
@@ -78,7 +87,7 @@ def cmd_fetch_covers(args) -> None:
                   f"os itens restantes ficam pendentes (não foram marcados sem_match)")
         for label, remote in result["fuzzy"]:
             all_fuzzy.append((code, label, remote))
-        REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
+        save_registry(registry)
 
     if not args.apply:
         print("\n(modo simulação - nada foi baixado, rode com --apply)")
@@ -117,7 +126,7 @@ def cmd_fetch_covers_fallback(args) -> None:
         )
 
         print(f"{code:9} achado_no_launchbox:{found:4}  (de {total_no_match} sem_match anteriores)")
-        REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
+        save_registry(registry)
 
     if not args.apply:
         print("\n(modo simulação - nada foi baixado, rode com --apply)")
@@ -179,7 +188,7 @@ def cmd_fetch_covers_cloud(args) -> None:
                   f"os itens restantes ficam pendentes (não foram marcados sem_match)")
         for label, remote in result["fuzzy"]:
             all_fuzzy.append((code, label, remote))
-        REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
+        save_registry(registry)
 
     if not args.apply:
         print("\n(modo simulacao - nada foi baixado, rode com --apply)")
@@ -1112,6 +1121,24 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+
+    registry_commands = {"fetch-covers", "fetch-covers-cloud", "fetch-covers-fallback"}
+    library_commands = {
+        "library-import-sheet", "library-refresh", "library-add",
+        "library-fetch-covers", "wishlist-sync",
+    }
+    if args.command in registry_commands:
+        with file_lock_mod.exclusive(REGISTRY_PATH):
+            return _dispatch(args)
+    if args.command in library_commands and getattr(args, "apply", False):
+        cfg = load_config()
+        library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+        with file_lock_mod.exclusive(library_path):
+            return _dispatch(args)
+    return _dispatch(args)
+
+
+def _dispatch(args) -> None:
     if args.command == "sync":
         cmd_sync(args)
     elif args.command == "backup-saves":

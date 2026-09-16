@@ -25,6 +25,7 @@ import traceback
 import unicodedata
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -35,6 +36,7 @@ from core import config_backup as config_backup_mod
 from core import covers as covers_mod
 from core import emu_saves as emu_saves_mod
 from core import emu_sync as emu_sync_mod
+from core import file_lock as file_lock_mod
 from core import generos as generos_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
@@ -73,6 +75,28 @@ _jobs_lock = threading.Lock()
 # core/library.save_library); esta trava cuida do outro lado, que é a
 # leitura ficar consistente com a escrita que vem depois.
 _library_lock = threading.RLock()
+_registry_lock = threading.RLock()
+
+
+@contextmanager
+def _library_transaction(path: Path):
+    """Lock reentrante da GUI + flock compartilhado com CLI/helpers."""
+    with _library_lock:
+        with file_lock_mod.exclusive(path):
+            yield
+
+
+@contextmanager
+def _registry_transaction():
+    """Serializa o registry entre jobs, rotas HTTP e a CLI."""
+    with _registry_lock:
+        with file_lock_mod.exclusive(REGISTRY_PATH):
+            yield
+
+
+def _run_registry_job(worker, *args):
+    with _registry_transaction():
+        return worker(*args)
 
 
 def _start_job(worker) -> str:
@@ -401,7 +425,10 @@ def load_registry() -> dict:
 
 
 def save_registry(registry: dict) -> None:
-    REGISTRY_PATH.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
+    REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = REGISTRY_PATH.with_name(REGISTRY_PATH.name + ".tmp")
+    tmp.write_text(json.dumps(registry, indent=1, ensure_ascii=False))
+    tmp.replace(REGISTRY_PATH)
 
 
 def run_fetch_job(job_id: str, code: str, apply: bool, fallback_source: str) -> None:
@@ -550,8 +577,6 @@ def run_library_refresh_job(emit, source: str, apply: bool) -> None:
     cfg = load_config()
     library_root = Path(cfg["pc"]["library_root"]).expanduser()
     library_path = library_root / "library.json"
-    library = library_mod.load_library(library_path)
-
     if source == "heroic":
         owned = library_mod.read_heroic_libraries(cfg.get("heroic", {}))
         label = "Heroic (Epic+GOG+Amazon)"
@@ -576,14 +601,24 @@ def run_library_refresh_job(emit, source: str, apply: bool) -> None:
         emit({"type": "log", "line": f"fonte desconhecida: {source}"})
         return
 
+    def merge_and_maybe_save():
+        library = library_mod.load_library(library_path)
+        result = library_mod.merge_owned(library, owned)
+        if apply:
+            library_mod.save_library(library_path, library)
+        return library, result
+
+    if apply:
+        with _library_transaction(library_path):
+            library, result = merge_and_maybe_save()
+    else:
+        library, result = merge_and_maybe_save()
+
     emit({"type": "log", "line": f"{label}: {len(owned)} jogo(s) possuído(s)"})
-    result = library_mod.merge_owned(library, owned)
     emit({"type": "log", "line": f"novo(s): {result['added']}   já rastreado(s): {result['merged']}"})
     for a, b in result["possible_dupes"]:
         emit({"type": "log", "line": f"possível duplicata: '{a}' ~ '{b}' (não mesclado)"})
-
     if apply:
-        library_mod.save_library(library_path, library)
         emit({"type": "log", "line": f"salvo - {len(library['games'])} jogo(s) no total"})
     else:
         emit({"type": "log", "line": "(modo simulação - nada foi salvo, marque \"aplicar\")"})
@@ -605,8 +640,6 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
     library_root = Path(cfg["pc"]["library_root"]).expanduser()
     library_path = library_root / "library.json"
     capas_dir = library_root / "capas"
-    library = library_mod.load_library(library_path)
-
     fonte = f"wishlist:{source}"
     wishlist_appids, generos_por_nome = {}, {}
 
@@ -632,23 +665,33 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
         emit({"type": "log", "line": "lista vazia"})
         return
 
-    result = library_mod.sync_wishlist(library, fonte, plataforma, nomes)
+    def sync_and_maybe_save():
+        library = library_mod.load_library(library_path)
+        result = library_mod.sync_wishlist(library, fonte, plataforma, nomes)
+        novos = [g for g in library["games"] if g["id"] in result["novos_ids"]]
+        for game in novos:
+            genero = generos_por_nome.get(game["nome"])
+            if genero and not game.get("genero"):
+                game["genero"] = generos_mod._normalizar(genero)
+        if apply:
+            library_mod.save_library(library_path, library)
+        return library, result, novos
+
+    if apply:
+        with _library_transaction(library_path):
+            library, result, novos = sync_and_maybe_save()
+    else:
+        library, result, novos = sync_and_maybe_save()
+
     emit({"type": "log", "line": f"{fonte}: {len(nomes)} jogo(s) na lista atual"})
     emit({"type": "log", "line": f"  novo(s): {result['adicionados']}   já tinha: {result['ja_tinha']}"})
     emit({"type": "log", "line": f"  saiu da lista: {result['removidos']}   "
                                   f"apagado(s) (sem outra fonte): {result['apagados']}"})
 
-    novos = [g for g in library["games"] if g["id"] in result["novos_ids"]]
-    for game in novos:
-        genero = generos_por_nome.get(game["nome"])
-        if genero and not game.get("genero"):
-            game["genero"] = generos_mod._normalizar(genero)
-
     if not apply:
         emit({"type": "log", "line": "(modo simulação - nada foi salvo, marque \"aplicar\")"})
         return
 
-    library_mod.save_library(library_path, library)
     emit({"type": "log", "line": f"salvo - {len(library['games'])} jogo(s) no total"})
 
     if novos:
@@ -660,7 +703,14 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
             r = library_mod.fetch_covers({"games": novos}, capas_dir, api_key,
                                           steam_appids=steam_appids, cfg=cfg)
             emit({"type": "log", "line": f"  {r}"})
-            library_mod.save_library(library_path, library)
+            capas_por_id = {g["id"]: g.get("capa") for g in novos if g.get("capa")}
+            if capas_por_id:
+                with _library_transaction(library_path):
+                    atual = library_mod.load_library(library_path)
+                    for game in atual["games"]:
+                        if not game.get("capa") and game["id"] in capas_por_id:
+                            game["capa"] = capas_por_id[game["id"]]
+                    library_mod.save_library(library_path, atual)
 
         if source != "steam":
             emit({"type": "log", "line": "buscando gênero pro(s) novo(s)..."})
@@ -672,8 +722,6 @@ def run_library_add_job(emit, games_text: str, plataforma: str, fonte: str, appl
     cfg = load_config()
     library_root = Path(cfg["pc"]["library_root"]).expanduser()
     library_path = library_root / "library.json"
-    library = library_mod.load_library(library_path)
-
     owned = [
         {"nome": line.strip(), "plataforma": plataforma, "fonte": fonte}
         for line in games_text.splitlines() if line.strip() and not line.strip().startswith("#")
@@ -682,14 +730,24 @@ def run_library_add_job(emit, games_text: str, plataforma: str, fonte: str, appl
         emit({"type": "log", "line": "lista vazia"})
         return
 
-    result = library_mod.merge_owned(library, owned)
+    def merge_and_maybe_save():
+        library = library_mod.load_library(library_path)
+        result = library_mod.merge_owned(library, owned)
+        if apply:
+            library_mod.save_library(library_path, library)
+        return library, result
+
+    if apply:
+        with _library_transaction(library_path):
+            library, result = merge_and_maybe_save()
+    else:
+        library, result = merge_and_maybe_save()
     emit({"type": "log", "line": f"{len(owned)} jogo(s) na lista - novo(s): {result['added']}   "
                                   f"já rastreado(s): {result['merged']}"})
     for a, b in result["possible_dupes"]:
         emit({"type": "log", "line": f"possível duplicata: '{a}' ~ '{b}' (não mesclado)"})
 
     if apply:
-        library_mod.save_library(library_path, library)
         emit({"type": "log", "line": f"salvo - {len(library['games'])} jogo(s) no total"})
     else:
         emit({"type": "log", "line": "(modo simulação - nada foi salvo)"})
@@ -723,16 +781,30 @@ def run_library_fetch_covers_job(emit, apply: bool) -> None:
 
     counter = {"i": 0}
 
+    def persistir_capas():
+        capas_por_id = {g["id"]: g.get("capa") for g in library["games"] if g.get("capa")}
+        if not capas_por_id:
+            return
+        with _library_transaction(library_path):
+            atual = library_mod.load_library(library_path)
+            mudou = False
+            for game in atual["games"]:
+                if not game.get("capa") and game["id"] in capas_por_id:
+                    game["capa"] = capas_por_id[game["id"]]
+                    mudou = True
+            if mudou:
+                library_mod.save_library(library_path, atual)
+
     def on_progress(nome, status):
         counter["i"] += 1
         emit({"type": "progress", "code": "biblioteca", "label": nome, "status": status,
               "i": counter["i"], "total": total})
         if counter["i"] % 20 == 0:
-            library_mod.save_library(library_path, library)
+            persistir_capas()
 
     result = library_mod.fetch_covers(library, capas_dir, api_key, on_progress=on_progress,
                                       steam_appids=steam_appids, cfg=cfg)
-    library_mod.save_library(library_path, library)
+    persistir_capas()
     emit({"type": "log", "line": f"baixado(s): {result['baixado']} ({result['via_steam']} Steam, {result['via_ss']} ScreenScraper)   "
                                   f"sem_match: {result['sem_match']}   erro: {result['erro']}"})
 
@@ -1822,14 +1894,31 @@ class Handler(BaseHTTPRequestHandler):
         ("api", "library", "decompor"),
         ("api", "cover", "apply_url"),
     }
+    _ESCRITA_REGISTRY = {
+        ("api", "cover", "apply_url"), ("api", "cover", "flag"),
+        ("api", "cover", "unflag"), ("api", "cover", "duplicate"),
+        ("api", "cover", "unduplicate"), ("api", "cover", "rename"),
+        ("api", "cover", "delete"), ("api", "cover", "upload"),
+        ("api", "cover", "select"),
+    }
 
     def do_POST(self):
         # Trava só o que mexe na biblioteca - o resto (disparo de job,
         # memory card, organize) segue em paralelo como sempre.
         rota = tuple(p for p in urllib.parse.urlparse(self.path).path.split("/") if p)
         try:
+            library_path = None
             if rota in self._ESCRITA_BIBLIOTECA:
-                with _library_lock:
+                cfg = load_config()
+                library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            if library_path and rota in self._ESCRITA_REGISTRY:
+                with _library_transaction(library_path), _registry_transaction():
+                    return self._do_POST()
+            if library_path:
+                with _library_transaction(library_path):
+                    return self._do_POST()
+            if rota in self._ESCRITA_REGISTRY:
+                with _registry_transaction():
                     return self._do_POST()
             return self._do_POST()
         except Exception as e:
@@ -2347,7 +2436,9 @@ class Handler(BaseHTTPRequestHandler):
             with _jobs_lock:
                 _jobs[job_id] = q
 
-            t = threading.Thread(target=run_fetch_job, args=(job_id, code, apply, fallback), daemon=True)
+            t = threading.Thread(
+                target=_run_registry_job,
+                args=(run_fetch_job, job_id, code, apply, fallback), daemon=True)
             t.start()
             return self._json({"job": job_id})
 
@@ -2386,7 +2477,8 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "heavy", "fetch_covers"]:
             code = query.get("code", [""])[0]
             apply = query.get("apply", ["0"])[0] == "1"
-            job_id = _start_job(lambda emit: run_heavy_fetch_covers_job(emit, code, apply))
+            job_id = _start_job(
+                lambda emit: _run_registry_job(run_heavy_fetch_covers_job, emit, code, apply))
             return self._json({"job": job_id})
 
         if parts == ["api", "backup_config"]:
