@@ -2623,3 +2623,14 @@ filtros unificados).
   Super Spy" (único jogo em "Variados", categoria-lixo de 1 item).
 
   Total: **109 testes Python + 22 de JavaScript**.
+## 15/09/2026
+
+- **Auditoria técnica — travessia de caminhos fechada (#1 e #3).**
+  `/api/heavy/delete` e `/api/heavy/rename` agora validam `label`/
+  `old_label` antes de chegar às rotinas de arquivo; valores como `..`,
+  caminhos absolutos e subpastas não podem mais escapar da pasta do sistema.
+  `GET /images` passou a conferir o caminho resolvido com `dentro_de()` — o
+  teste anterior usava `../` cru, normalizado pelo cliente HTTP, e por isso
+  não reproduzia o bypass real com barras percent-encoded. O teste de
+  integração agora usa esse payload real e também cobre os dois endpoints de
+  ROM pesada.

@@ -18,6 +18,7 @@ import tempfile
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -361,12 +362,32 @@ class TestSegurancaHTTP(BaseAPI):
         self.assertFalse(list(self.raiz.glob("PWNED*")), "gravou fora da pasta de capas")
 
     def test_imagem_com_travessia_nao_vaza_arquivo(self):
-        status, _ = self.pedir("/images/SFC/../../../../etc/passwd")
+        # Segmentos ../ crus podem ser normalizados pelo cliente HTTP antes
+        # de chegar ao servidor. O bypass real codifica as barras: depois do
+        # unquote(), Path descarta capas_dir ao receber um caminho absoluto.
+        segredo = self.raiz / "segredo-fora-das-capas.json"
+        segredo.write_text('{"vazou": true}')
+        caminho_codificado = urllib.parse.quote(str(segredo), safe="")
+        status, _ = self.pedir(f"/images/SFC/{caminho_codificado}")
         self.assertEqual(status, 404)
 
     def test_library_images_com_travessia_nao_vaza_arquivo(self):
         status, _ = self.pedir("/library-images/../../../../etc/passwd")
         self.assertEqual(status, 404)
+
+    def test_rom_pesada_recusa_label_que_escapa_da_pasta(self):
+        ps2 = self.raiz / "ROMs" / "PS2"
+        ps2.mkdir(exist_ok=True)
+        (ps2 / "Jogo.iso").write_bytes(b"rom")
+
+        for label in ("..", "../Saves", "/tmp/fora", "sub/pasta"):
+            status, _ = self.pedir("/api/heavy/delete", {"code": "PS2", "label": label})
+            self.assertEqual(status, 400, f"delete aceitou label perigoso {label!r}")
+            status, _ = self.pedir("/api/heavy/rename", {
+                "code": "PS2", "old_label": label, "new_label": "Novo Nome"})
+            self.assertEqual(status, 400, f"rename aceitou label perigoso {label!r}")
+
+        self.assertTrue((ps2 / "Jogo.iso").is_file(), "endpoint mexeu na ROM legítima")
 
 
 if __name__ == "__main__":
