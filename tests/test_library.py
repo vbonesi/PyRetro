@@ -234,6 +234,31 @@ class TestGravacaoAtomica(unittest.TestCase):
             lm.save_library(alvo, {"games": []})
             self.assertTrue(alvo.exists())
 
+    def test_recusa_id_duplicado_sem_tocar_no_arquivo_anterior(self):
+        with tempfile.TemporaryDirectory() as d:
+            alvo = Path(d) / "library.json"
+            antes = {"games": [jogo("Íntegro", "Steam")]}
+            lm.save_library(alvo, antes)
+            duplicado = {"games": [jogo("A", "Steam", id="mesmo"),
+                                    jogo("B", "Xbox", id="mesmo")]}
+            with self.assertRaisesRegex(ValueError, "id\\(s\\) duplicado"):
+                lm.save_library(alvo, duplicado)
+            self.assertEqual(json.loads(alvo.read_text()), antes)
+
+
+class TestIdsUnicos(unittest.TestCase):
+    def test_sufixo_evitar_colisao_do_slug(self):
+        lib = {"games": [jogo("A B", "Steam")]}
+        self.assertEqual(lm._unique_game_id(lib, "A:B", "Steam"), "a-b-steam-2")
+
+    def test_criadores_usam_id_unico(self):
+        # Mesmo uma biblioteca antiga com id incoerente não pode fazer uma
+        # entrada nova sequestrar a mesma chave.
+        antigo = jogo("Outro", "Xbox", id="a-b-steam")
+        lib = {"games": [antigo]}
+        lm.merge_owned(lib, [{"nome": "A B", "plataforma": "Steam", "fonte": "steam"}])
+        self.assertEqual(lib["games"][1]["id"], "a-b-steam-2")
+
 
 class TestNomeDeJogoSwitch(unittest.TestCase):
     """A pasta do Switch usa tag de formato no nome ("[NSZ]"), que não

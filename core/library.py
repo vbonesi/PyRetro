@@ -103,9 +103,9 @@ def minutos_para_tempo(minutos: int) -> str | None:
     return f"{h:02d}:{m:02d}:00"
 
 
-def _blank_game(nome: str, plataforma: str) -> dict:
+def _blank_game(nome: str, plataforma: str, game_id: str | None = None) -> dict:
     return {
-        "id": _slug(nome, plataforma),
+        "id": game_id or _slug(nome, plataforma),
         "nome": nome,
         "plataforma": plataforma,
         "subgenero": None,
@@ -139,6 +139,23 @@ def _blank_game(nome: str, plataforma: str) -> dict:
     }
 
 
+def _unique_game_id(library: dict, nome: str, plataforma: str) -> str:
+    """ID estável para um registro novo, sem colidir com a Biblioteca.
+
+    Normalizar acentos/pontuação no slug é útil para URLs e nomes de capa,
+    mas pode transformar dois títulos distintos na mesma chave. O sufixo só
+    entra nesse caso raro; o id original continua legível e estável.
+    """
+    base = _slug(nome, plataforma) or "jogo"
+    existing = {g.get("id") for g in library.get("games", [])}
+    if base not in existing:
+        return base
+    number = 2
+    while f"{base}-{number}" in existing:
+        number += 1
+    return f"{base}-{number}"
+
+
 def load_library(path: Path) -> dict:
     if not path.exists():
         return {"games": []}
@@ -158,6 +175,14 @@ def save_library(path: Path, library: dict) -> None:
     estoura no json.loads e a tela não carrega. Com a troca atômica,
     quem lê sempre vê a versão inteira - a antiga ou a nova, nunca um
     pedaço."""
+    seen, duplicados = set(), set()
+    for game in library.get("games", []):
+        game_id = game.get("id")
+        if game_id in seen:
+            duplicados.add(game_id)
+        seen.add(game_id)
+    if duplicados:
+        raise ValueError(f"library.json contém id(s) duplicado(s): {', '.join(map(str, duplicados))}")
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(library, indent=1, ensure_ascii=False))
@@ -174,7 +199,8 @@ def import_sheet_csv(library: dict, csv_path: Path) -> dict:
     Observações, Lançamento, Desenvolvedora ('Capa' é ignorada - a
     planilha usava =IMAGE() sobre busca do Bing, nunca uma capa de
     verdade; capa de verdade é buscada à parte, ver fetch_covers)."""
-    by_id = {g["id"]: g for g in library["games"]}
+    by_identity = {(_normalize(g["nome"]), _normalize(g["plataforma"])): g
+                   for g in library["games"]}
     added, updated = 0, 0
 
     with open(csv_path, encoding="utf-8") as f:
@@ -200,15 +226,15 @@ def import_sheet_csv(library: dict, csv_path: Path) -> dict:
                 "lancamento": _to_iso_date(row.get("Lançamento")),
                 "desenvolvedora": _or_none(row.get("Desenvolvedora")),
             }
-            game_id = _slug(nome, plataforma)
-            if game_id in by_id:
-                by_id[game_id].update(fields)
+            identity = (_normalize(nome), _normalize(plataforma))
+            if identity in by_identity:
+                by_identity[identity].update(fields)
                 updated += 1
             else:
-                game = _blank_game(nome, plataforma)
+                game = _blank_game(nome, plataforma, _unique_game_id(library, nome, plataforma))
                 game.update(fields)
                 library["games"].append(game)
-                by_id[game_id] = game
+                by_identity[identity] = game
                 added += 1
 
     return {"added": added, "updated": updated}
@@ -670,7 +696,8 @@ def merge_owned(library: dict, owned: list) -> dict:
         if close:
             possible_dupes.append((item["nome"], close[0]))
 
-        game = _blank_game(item["nome"], item["plataforma"])
+        game = _blank_game(item["nome"], item["plataforma"],
+                            _unique_game_id(library, item["nome"], item["plataforma"]))
         game["fontes"].append(item["fonte"])
         if item.get("tempo"):
             game["tempo"] = item["tempo"]
@@ -728,7 +755,7 @@ def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list
             else:
                 resultado["ja_tinha"] += 1
             continue
-        novo = _blank_game(nome, plataforma)
+        novo = _blank_game(nome, plataforma, _unique_game_id(library, nome, plataforma))
         novo["fontes"].append(fonte)
         library["games"].append(novo)
         by_norm.setdefault(norm, []).append(novo)
@@ -857,7 +884,7 @@ def get_or_create_for_rom(library: dict, nome: str, code: str, plataforma: str, 
     em plataforma diferente - ver PLATAFORMA_ROM_CODES."""
     game = find_for_rom(index_by_rom_name(library), nome, code)
     if game is None:
-        game = _blank_game(nome, plataforma)
+        game = _blank_game(nome, plataforma, _unique_game_id(library, nome, plataforma))
         library["games"].append(game)
     if fonte not in game["fontes"]:
         game["fontes"].append(fonte)
