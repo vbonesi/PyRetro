@@ -1320,7 +1320,10 @@ class Handler(BaseHTTPRequestHandler):
             if not info or not info.get("capas"):
                 return self._file(Path("/nonexistent"), "image/png")
             capas_root = Path(cfg["pc"]["capas_root"]).expanduser()
-            path = capas_root / info["capas"] / "Named_Boxarts" / filename
+            capas_dir = capas_root / info["capas"] / "Named_Boxarts"
+            path = capas_dir / filename
+            if not dentro_de(capas_dir, path):
+                return self._file(Path("/nonexistent"), "image/png")
             ctype = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
             return self._file(path, ctype)
 
@@ -2499,6 +2502,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "sistema pesado desconhecido"}, 404)
             if not old_label or not new_label_raw:
                 return self._json({"error": "nome novo/antigo vazio"}, 400)
+            if not nome_de_arquivo_seguro(old_label):
+                return self._json({"error": "nome antigo inválido"}, 400)
             new_label = sanitize_mod.sanitize_name(new_label_raw)
             if new_label == old_label:
                 return self._json({"error": "nome novo é igual ao atual"}, 400)
@@ -2530,6 +2535,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "sistema pesado desconhecido"}, 404)
             if not label:
                 return self._json({"error": "label vazio"}, 400)
+            if not nome_de_arquivo_seguro(label):
+                return self._json({"error": "label inválido"}, 400)
 
             roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
             saves_dir = Path(cfg["pc"]["saves_root"]).expanduser()
