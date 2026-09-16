@@ -8,6 +8,18 @@ plano.
 
 ## 16/09/2026
 
+- **Pendências #9–#11 da auditoria encerradas.** O levantamento
+  `PATHFINDER-2026-08-07` (127 KB) foi arquivado e versionado em
+  `docs/planning/`, explicitamente marcado como histórico. `app.js` ganhou
+  teste de integração real no navegador: monta o HTML completo em documento
+  local e comprova abas principais + CSRF em POST inválido e sem efeito. A
+  Biblioteca teve o id duplicado das duas entradas de *Life is Strange: True
+  Colors* reparado sem tocar no progresso: Xbox agora usa
+  `life-is-strange-true-colors-xbox-one`; `save_library` recusa qualquer
+  duplicata futura e os criadores de registro geram sufixo seguro em colisão.
+  A coleção ficou com **2.838 IDs únicos**. Total: **126 testes Python + 23
+  JavaScript**.
+
 - **Sync de saves não sobrescreve destino alterado (#7 da auditoria).** Cada
   ação de `emu-sync` agora registra também o mtime que o destino tinha no
   planejamento. No `apply`, origem e destino são revalidados; se Insync,

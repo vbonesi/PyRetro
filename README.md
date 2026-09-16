@@ -64,6 +64,9 @@ olhando a tela:
 - **Concorrência** (`tests/test_concurrency.py`): reproduz o lost update
   de dois jobs gravando a Biblioteca ao mesmo tempo e confere a gravação
   atômica do registry de capas.
+- **Interface** (`tests/test_app.html`): além da lógica pura, abre o
+  `app.js` real num documento local, verifica a montagem das abas principais
+  e que o wrapper central envia CSRF em mutações sem executar uma escrita.
 
 Cada teste cita o problema real que o originou.
 
@@ -77,8 +80,9 @@ Não há runtime JS nesta máquina (sem node/deno), então o navegador é o
 executor: abra a página pelo próprio servidor da GUI e ela mostra o
 placar. A lógica pura da interface (cor da nota, agrupamento de abas,
 filtros) mora em `gui/static/logic.js`, separada de `app.js` justamente
-pra poder ser testada sem DOM montado. O resultado também fica em
-`window.RESULTADO`, pra checagem automatizada.
+pra poder ser testada sem DOM montado; a mesma suíte também carrega o
+`app.js` real contra o HTML completo e exercita sua inicialização + CSRF.
+O resultado fica em `window.RESULTADO`, pra checagem automatizada.
 
 ## Requisitos
 
