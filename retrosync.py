@@ -45,6 +45,7 @@ from core import sync as sync_mod
 CONFIG_PATH = Path(__file__).parent / "config.toml"
 REGISTRY_PATH = Path(__file__).parent / "cache" / "covers_registry.json"
 HEAVY_CATALOG_PATH = Path(__file__).parent / "cache" / "heavy_catalog.json"
+TRANSFER_LOCK_KEY = Path(__file__).parent / "cache" / "transferencias"
 
 
 def save_registry(registry: dict) -> None:
@@ -1134,6 +1135,10 @@ def main() -> None:
         cfg = load_config()
         library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
         with file_lock_mod.exclusive(library_path):
+            return _dispatch(args)
+    if ((args.command == "emu-sync" and getattr(args, "apply", False)) or
+            (args.command == "heavy-roms" and getattr(args, "send", None))):
+        with file_lock_mod.exclusive(TRANSFER_LOCK_KEY):
             return _dispatch(args)
     return _dispatch(args)
 

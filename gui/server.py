@@ -17,6 +17,7 @@ import copy
 import json
 import queue
 import re
+import secrets
 import subprocess
 import sys
 import threading
@@ -59,8 +60,10 @@ HEAVY_CATALOG_PATH = ROOT / "cache" / "heavy_catalog.json"
 # cacheado e é atualizado junto com "🔄 Switch"/library-refresh switch.
 SWITCH_PASTAS_PATH = ROOT / "cache" / "switch_pastas.json"
 STATIC_DIR = Path(__file__).parent / "static"
+TRANSFER_LOCK_KEY = ROOT / "cache" / "transferencias"
 
 COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
+CSRF_TOKEN = secrets.token_urlsafe(32)
 
 _jobs: dict[str, "queue.Queue"] = {}
 _jobs_lock = threading.Lock()
@@ -76,6 +79,37 @@ _jobs_lock = threading.Lock()
 # leitura ficar consistente com a escrita que vem depois.
 _library_lock = threading.RLock()
 _registry_lock = threading.RLock()
+_config_lock = threading.RLock()
+_transfer_lock = threading.Lock()
+_sgdb_urls_lock = threading.Lock()
+_ss_cache_lock = threading.Lock()
+_sgdb_candidate_urls: set[str] = set()
+MAX_COVER_DOWNLOAD = 15 * 1024 * 1024
+MAX_JSON_BODY = 22 * 1024 * 1024  # comporta uma capa de 15 MB em base64 + JSON
+JOB_QUEUE_SIZE = 1000
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Uma URL aprovada não pode redirecionar o downloader para a rede interna."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _new_job_queue() -> "queue.Queue":
+    return queue.Queue(maxsize=JOB_QUEUE_SIZE)
+
+
+def _emit_job(q: "queue.Queue", event: dict) -> None:
+    """Fila limitada: cliente SSE abandonado não cresce memória sem fim."""
+    try:
+        q.put_nowait(event)
+    except queue.Full:
+        try:
+            q.get_nowait()
+        except queue.Empty:
+            pass
+        q.put_nowait(event)
 
 
 @contextmanager
@@ -94,9 +128,40 @@ def _registry_transaction():
             yield
 
 
+@contextmanager
+def _config_transaction():
+    with _config_lock:
+        with file_lock_mod.exclusive(CONFIG_PATH):
+            yield
+
+
 def _run_registry_job(worker, *args):
     with _registry_transaction():
         return worker(*args)
+
+
+def _run_exclusive_log_job(worker, emit, *args):
+    if not _transfer_lock.acquire(blocking=False):
+        emit({"type": "log", "line": "já existe uma transferência/sincronização em andamento"})
+        return
+    try:
+        with file_lock_mod.exclusive(TRANSFER_LOCK_KEY):
+            return worker(emit, *args)
+    finally:
+        _transfer_lock.release()
+
+
+def _run_exclusive_heavy_send(job_id: str, code: str, name: str, overwrite: bool):
+    if not _transfer_lock.acquire(blocking=False):
+        q = _jobs[job_id]
+        _emit_job(q, {"type": "error", "message": "já existe uma transferência/sincronização em andamento"})
+        _emit_job(q, {"type": "job_done"})
+        return
+    try:
+        with file_lock_mod.exclusive(TRANSFER_LOCK_KEY):
+            return run_heavy_send_job(job_id, code, name, overwrite)
+    finally:
+        _transfer_lock.release()
 
 
 def _start_job(worker) -> str:
@@ -107,12 +172,12 @@ def _start_job(worker) -> str:
     "error" em vez de derrubar o servidor; "job_done" sempre é emitido
     por último, mesmo em erro, pra quem está ouvindo saber que acabou."""
     job_id = f"job-{threading.get_ident()}-{id(object())}"
-    q: "queue.Queue" = queue.Queue()
+    q: "queue.Queue" = _new_job_queue()
     with _jobs_lock:
         _jobs[job_id] = q
 
     def emit(event: dict) -> None:
-        q.put(event)
+        _emit_job(q, event)
 
     def run():
         try:
@@ -267,7 +332,10 @@ def search_cover_candidates(code: str, query: str, cfg: dict) -> list:
             ss_results = []
         for r in ss_results:
             ss_id = r["id"]
-            _ss_media_cache[f"{code}:{ss_id}"] = r["media_url"]
+            with _ss_cache_lock:
+                if len(_ss_media_cache) >= 1000:
+                    _ss_media_cache.pop(next(iter(_ss_media_cache)))
+                _ss_media_cache[f"{code}:{ss_id}"] = r["media_url"]
             results.append({
                 "source": "screenscraper", "name": r["name"], "ss_id": ss_id,
                 "preview": f"/api/cover/ss_preview?code={urllib.parse.quote(code)}&id={urllib.parse.quote(str(ss_id))}",
@@ -355,21 +423,51 @@ def write_settings_paths(updates: dict) -> None:
     config.toml, preservando o resto do arquivo (comentários, [systems],
     [cores]) intacto - regex linha a linha em vez de reescrever o TOML
     inteiro (tomllib da stdlib só lê, não escreve)."""
-    text = CONFIG_PATH.read_text()
-    lines = text.splitlines(keepends=True)
-    section = None
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            section = stripped.strip("[]")
-            continue
-        if section in updates:
-            m = re.match(r'^(\s*)([A-Za-z0-9_]+)(\s*=\s*)"([^"]*)"(.*?)(\r?\n?)$', line)
-            if m and m.group(2) in updates[section]:
-                indent, key, eq, _old_val, rest, newline = m.groups()
-                new_val = updates[section][key]
-                lines[i] = f'{indent}{key}{eq}"{new_val}"{rest}{newline}'
-    CONFIG_PATH.write_text("".join(lines))
+    with _config_transaction():
+        text = CONFIG_PATH.read_text()
+        lines = text.splitlines(keepends=True)
+        section = None
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                section = stripped.strip("[]")
+                continue
+            if section in updates:
+                m = re.match(r'^(\s*)([A-Za-z0-9_]+)(\s*=\s*)"([^"]*)"(.*?)(\r?\n?)$', line)
+                if m and m.group(2) in updates[section]:
+                    indent, key, eq, _old_val, rest, newline = m.groups()
+                    new_val = updates[section][key].replace("\\", "\\\\").replace('"', '\\"')
+                    lines[i] = f'{indent}{key}{eq}"{new_val}"{rest}{newline}'
+        _save_config_text("".join(lines))
+
+
+def _save_config_text(text: str) -> None:
+    tmp = CONFIG_PATH.with_name(CONFIG_PATH.name + ".tmp")
+    tmp.write_text(text)
+    tmp.replace(CONFIG_PATH)
+
+
+def validar_settings_paths(updates: dict) -> str | None:
+    """Devolve a mensagem de erro, ou None para um lote seguro."""
+    if not isinstance(updates, dict) or not updates:
+        return "configuração vazia"
+    home = Path.home().resolve()
+    for section, values in updates.items():
+        if section not in ("pc", "android") or not isinstance(values, dict):
+            return "seção de configuração inválida"
+        for key, value in values.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                return "caminho inválido"
+            value = value.strip()
+            if not value or "\x00" in value or "\n" in value or "\r" in value:
+                return f"caminho inválido em {section}.{key}"
+            if section == "pc":
+                path = Path(value).expanduser()
+                if not path.is_absolute() or path.resolve() in (Path("/"), home):
+                    return f"caminho do PC precisa ser absoluto e específico: {section}.{key}"
+            elif not value.startswith("/") or value == "/":
+                return f"caminho do Android precisa ser absoluto e específico: {section}.{key}"
+    return None
 
 
 def add_memcard_entry(console: str, label: str, path: str) -> None:
@@ -378,46 +476,48 @@ def add_memcard_entry(console: str, label: str, path: str) -> None:
     pra chave citada ("Slot 1" = "...") em vez de chave = valor simples
     - insere logo após o cabeçalho da seção (cria a seção se ainda não
     existir, ex: usuário nunca configurou nenhum card de PS2)."""
-    text = CONFIG_PATH.read_text()
-    lines = text.splitlines(keepends=True)
-    header = f"[memcards.{console}]"
-    esc_label = label.replace("\\", "\\\\").replace('"', '\\"')
-    esc_path = path.replace("\\", "\\\\").replace('"', '\\"')
-    new_line = f'"{esc_label}" = "{esc_path}"\n'
-    for i, line in enumerate(lines):
-        if line.strip() == header:
-            j = i + 1
-            while j < len(lines) and not lines[j].strip().startswith("["):
-                j += 1
-            lines.insert(j, new_line)
-            CONFIG_PATH.write_text("".join(lines))
-            return
-    if lines and not lines[-1].endswith("\n"):
-        lines[-1] += "\n"
-    lines.append(f"\n{header}\n{new_line}")
-    CONFIG_PATH.write_text("".join(lines))
+    with _config_transaction():
+        text = CONFIG_PATH.read_text()
+        lines = text.splitlines(keepends=True)
+        header = f"[memcards.{console}]"
+        esc_label = label.replace("\\", "\\\\").replace('"', '\\"')
+        esc_path = path.replace("\\", "\\\\").replace('"', '\\"')
+        new_line = f'"{esc_label}" = "{esc_path}"\n'
+        for i, line in enumerate(lines):
+            if line.strip() == header:
+                j = i + 1
+                while j < len(lines) and not lines[j].strip().startswith("["):
+                    j += 1
+                lines.insert(j, new_line)
+                _save_config_text("".join(lines))
+                return
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.append(f"\n{header}\n{new_line}")
+        _save_config_text("".join(lines))
 
 
 def remove_memcard_entry(console: str, label: str) -> bool:
     """Remove a linha da entrada em [memcards.<console>] - só
     desregistra do config.toml, nunca apaga o arquivo do card (mesmo
     princípio de "nunca apaga nada sozinho" do resto do projeto)."""
-    text = CONFIG_PATH.read_text()
-    lines = text.splitlines(keepends=True)
-    header = f"[memcards.{console}]"
-    esc_label = label.replace("\\", "\\\\").replace('"', '\\"')
-    key_re = re.compile(rf'^\s*"{re.escape(esc_label)}"\s*=')
-    in_section = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            in_section = (stripped == header)
-            continue
-        if in_section and key_re.match(line):
-            del lines[i]
-            CONFIG_PATH.write_text("".join(lines))
-            return True
-    return False
+    with _config_transaction():
+        text = CONFIG_PATH.read_text()
+        lines = text.splitlines(keepends=True)
+        header = f"[memcards.{console}]"
+        esc_label = label.replace("\\", "\\\\").replace('"', '\\"')
+        key_re = re.compile(rf'^\s*"{re.escape(esc_label)}"\s*=')
+        in_section = False
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                in_section = (stripped == header)
+                continue
+            if in_section and key_re.match(line):
+                del lines[i]
+                _save_config_text("".join(lines))
+                return True
+        return False
 
 
 def load_registry() -> dict:
@@ -438,7 +538,7 @@ def run_fetch_job(job_id: str, code: str, apply: bool, fallback_source: str) -> 
     q = _jobs[job_id]
 
     def emit(event: dict) -> None:
-        q.put(event)
+        _emit_job(q, event)
 
     try:
         cfg = load_config()
@@ -504,7 +604,7 @@ def run_heavy_send_job(job_id: str, code: str, name: str, overwrite: bool) -> No
     q = _jobs[job_id]
 
     def emit(event: dict) -> None:
-        q.put(event)
+        _emit_job(q, event)
 
     try:
         cfg = load_config()
@@ -543,7 +643,7 @@ def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
     q = _jobs[job_id]
 
     def emit(event: dict) -> None:
-        q.put(event)
+        _emit_job(q, event)
 
     try:
         cfg = load_config()
@@ -1118,8 +1218,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self._security_headers()
         self.end_headers()
         self.wfile.write(body)
+
+    def _security_headers(self, allow_inline_script: bool = False):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        script_src = "'self' 'unsafe-inline'" if allow_inline_script else "'self'"
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+            f"script-src {script_src}; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+        )
+        if self.headers.get("X-Forwarded-Proto", "").lower() == "https":
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
 
     def _read_json_body(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))
@@ -1156,7 +1270,8 @@ class Handler(BaseHTTPRequestHandler):
             return None, None
         return Path(path).expanduser(), console.upper()
 
-    def _file(self, path: Path, content_type: str, no_cache: bool = False):
+    def _file(self, path: Path, content_type: str, no_cache: bool = False,
+              allow_inline_script: bool = False):
         if not path.is_file():
             self.send_response(404)
             self.end_headers()
@@ -1165,6 +1280,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
+        self._security_headers(allow_inline_script=allow_inline_script)
         if no_cache:
             # app.js/index.html mudam com frequência durante o
             # desenvolvimento (sem Last-Modified/ETag o navegador é
@@ -1186,7 +1302,7 @@ class Handler(BaseHTTPRequestHandler):
         terminal, que é onde o dono do servidor consegue ler."""
         traceback.print_exc()
         try:
-            self._json({"error": f"erro interno: {type(e).__name__}: {e}"}, 500)
+            self._json({"error": "erro interno; consulte o log do serviço"}, 500)
         except Exception:
             pass  # conexão já morreu do outro lado; nada a fazer
 
@@ -1204,12 +1320,19 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/":
             return self._file(STATIC_DIR / "index.html", "text/html; charset=utf-8", no_cache=True)
 
+        if parts == ["api", "csrf"]:
+            return self._json({"token": CSRF_TOKEN})
+
         if parts == ["tests", "test_app.html"]:
             # Página de teste do JS (ver tests/test_app.html) - servida
             # pelo próprio servidor porque ela carrega /static/logic.js,
             # e abrir por file:// esbarraria na política de origem.
+            if (self.client_address[0] not in ("127.0.0.1", "::1") or
+                    self.headers.get("X-Forwarded-For")):
+                return self._file(Path("/nonexistent"), "text/html")
             return self._file(ROOT / "tests" / "test_app.html",
-                              "text/html; charset=utf-8", no_cache=True)
+                              "text/html; charset=utf-8", no_cache=True,
+                              allow_inline_script=True)
 
         if parts[:1] == ["static"] and len(parts) == 2:
             ext = parts[1].rsplit(".", 1)[-1]
@@ -1689,7 +1812,12 @@ class Handler(BaseHTTPRequestHandler):
             if not api_key:
                 return self._json({"error": "faltando api_key em [steamgriddb] no config.toml"}, 400)
             try:
-                return self._json(library_mod.search_covers_steamgriddb(q, api_key))
+                results = library_mod.search_covers_steamgriddb(q, api_key)
+                with _sgdb_urls_lock:
+                    if len(_sgdb_candidate_urls) > 1000:
+                        _sgdb_candidate_urls.clear()
+                    _sgdb_candidate_urls.update(r["url"] for r in results)
+                return self._json(results)
             except (OSError, json.JSONDecodeError, KeyError) as e:
                 return self._json({"error": f"falha na busca: {e}"}, 502)
 
@@ -1881,6 +2009,8 @@ class Handler(BaseHTTPRequestHandler):
                 except (BrokenPipeError, ConnectionResetError):
                     return
                 if event.get("type") == "job_done":
+                    with _jobs_lock:
+                        _jobs.pop(job_id, None)
                     return
 
         self.send_response(404)
@@ -1907,6 +2037,17 @@ class Handler(BaseHTTPRequestHandler):
         # memory card, organize) segue em paralelo como sempre.
         rota = tuple(p for p in urllib.parse.urlparse(self.path).path.split("/") if p)
         try:
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+            except ValueError:
+                return self._json({"error": "Content-Length inválido"}, 400)
+            if content_length < 0:
+                return self._json({"error": "Content-Length inválido"}, 400)
+            if content_length > MAX_JSON_BODY:
+                return self._json({"error": "requisição grande demais"}, 413)
+            recebido = self.headers.get("X-PyRetro-CSRF", "")
+            if not secrets.compare_digest(recebido, CSRF_TOKEN):
+                return self._json({"error": "token CSRF ausente ou inválido"}, 403)
             library_path = None
             if rota in self._ESCRITA_BIBLIOTECA:
                 cfg = load_config()
@@ -1931,6 +2072,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts == ["api", "settings"]:
             body = self._read_json_body()
+            erro = validar_settings_paths(body)
+            if erro:
+                return self._json({"error": erro}, 400)
             try:
                 write_settings_paths(body)
             except Exception as e:
@@ -2119,6 +2263,10 @@ class Handler(BaseHTTPRequestHandler):
             url = (body.get("url") or "").strip()
             if not url.startswith("https://"):
                 return self._json({"error": "url inválida"}, 400)
+            with _sgdb_urls_lock:
+                url_permitida = url in _sgdb_candidate_urls
+            if not url_permitida:
+                return self._json({"error": "url não veio da busca atual do SteamGridDB"}, 400)
             cfg = load_config()
 
             if body.get("kind") == "biblioteca":
@@ -2139,10 +2287,20 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": library_mod._BROWSER_USER_AGENT})
-                with urllib.request.urlopen(req, timeout=30) as r:
-                    data = r.read()
+                opener = urllib.request.build_opener(_NoRedirect)
+                with opener.open(req, timeout=30) as r:
+                    tamanho = r.headers.get("Content-Length")
+                    if tamanho:
+                        try:
+                            if int(tamanho) > MAX_COVER_DOWNLOAD:
+                                return self._json({"error": "imagem excede o limite de 15 MB"}, 413)
+                        except ValueError:
+                            return self._json({"error": "servidor retornou tamanho inválido"}, 502)
+                    data = r.read(MAX_COVER_DOWNLOAD + 1)
             except OSError as e:
                 return self._json({"error": f"falha ao baixar: {e}"}, 502)
+            if len(data) > MAX_COVER_DOWNLOAD:
+                return self._json({"error": "imagem excede o limite de 15 MB"}, 413)
             if len(data) < 100:
                 return self._json({"error": "imagem vazia"}, 502)
 
@@ -2151,7 +2309,13 @@ class Handler(BaseHTTPRequestHandler):
             src_tmp = capas_dir / f"{nome_base}.src.tmp"
             dest_tmp = capas_dir / f"{nome_base}.dst.png.tmp"
             src_tmp.write_bytes(data)
-            conv = subprocess.run(["convert", str(src_tmp), str(dest_tmp)], capture_output=True, text=True)
+            try:
+                conv = subprocess.run(["convert", str(src_tmp), str(dest_tmp)],
+                                      capture_output=True, text=True, timeout=30)
+            except subprocess.TimeoutExpired:
+                src_tmp.unlink(missing_ok=True)
+                dest_tmp.unlink(missing_ok=True)
+                return self._json({"error": "conversão da imagem excedeu 30 segundos"}, 504)
             src_tmp.unlink(missing_ok=True)
             if conv.returncode != 0 or not dest_tmp.exists() or dest_tmp.stat().st_size < 1000:
                 dest_tmp.unlink(missing_ok=True)
@@ -2432,7 +2596,7 @@ class Handler(BaseHTTPRequestHandler):
                 fallback = ""
 
             job_id = f"{code}-{threading.get_ident()}-{id(object())}"
-            q: "queue.Queue" = queue.Queue()
+            q: "queue.Queue" = _new_job_queue()
             with _jobs_lock:
                 _jobs[job_id] = q
 
@@ -2508,7 +2672,11 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "emu_sync"]:
             source = query.get("source", ["all"])[0]
             apply = query.get("apply", ["0"])[0] == "1"
-            job_id = _start_job(lambda emit: run_emu_sync_job(emit, source, apply))
+            worker = run_emu_sync_job if not apply else _run_exclusive_log_job
+            if apply:
+                job_id = _start_job(lambda emit: worker(run_emu_sync_job, emit, source, apply))
+            else:
+                job_id = _start_job(lambda emit: worker(emit, source, apply))
             return self._json({"job": job_id})
 
         if parts == ["api", "organize", "move"]:
@@ -2559,11 +2727,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "code e name obrigatorios"}, 400)
 
             job_id = f"heavy-{code}-{threading.get_ident()}-{id(object())}"
-            q: "queue.Queue" = queue.Queue()
+            q: "queue.Queue" = _new_job_queue()
             with _jobs_lock:
                 _jobs[job_id] = q
 
-            t = threading.Thread(target=run_heavy_send_job, args=(job_id, code, name, overwrite), daemon=True)
+            t = threading.Thread(target=_run_exclusive_heavy_send,
+                                 args=(job_id, code, name, overwrite), daemon=True)
             t.start()
             return self._json({"job": job_id})
 
@@ -2574,7 +2743,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "code e name obrigatorios"}, 400)
 
             job_id = f"heavydl-{code}-{threading.get_ident()}-{id(object())}"
-            q: "queue.Queue" = queue.Queue()
+            q: "queue.Queue" = _new_job_queue()
             with _jobs_lock:
                 _jobs[job_id] = q
 
@@ -2780,10 +2949,12 @@ def main() -> None:
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--host", default="127.0.0.1",
+                   help="endereço de escuta (padrão seguro: somente localhost)")
     args = p.parse_args()
 
-    server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
-    print(f"PyRetro GUI rodando em http://localhost:{args.port}")
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    print(f"PyRetro GUI rodando em http://{args.host}:{args.port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

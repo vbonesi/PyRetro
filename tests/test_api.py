@@ -98,6 +98,8 @@ class BaseAPI(unittest.TestCase):
         cls.servidor = ThreadingHTTPServer(("127.0.0.1", 0), srv.Handler)
         cls.url = f"http://127.0.0.1:{cls.servidor.server_address[1]}"
         threading.Thread(target=cls.servidor.serve_forever, daemon=True).start()
+        with urllib.request.urlopen(cls.url + "/api/csrf", timeout=30) as r:
+            cls.csrf_token = json.loads(r.read())["token"]
 
     @classmethod
     def tearDownClass(cls):
@@ -113,9 +115,9 @@ class BaseAPI(unittest.TestCase):
         """(status, json) - não levanta em erro HTTP, pra poder testar
         os caminhos de recusa."""
         dados = json.dumps(corpo).encode() if corpo is not None else None
-        req = urllib.request.Request(
-            self.url + rota, data=dados,
-            headers={"Content-Type": "application/json"} if dados else {})
+        headers = {"Content-Type": "application/json", "X-PyRetro-CSRF": self.csrf_token} \
+            if dados else {}
+        req = urllib.request.Request(self.url + rota, data=dados, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
                 return r.status, json.loads(r.read() or b"null")
@@ -360,6 +362,39 @@ class TestSegurancaHTTP(BaseAPI):
                 "code": "SFC", "label": label, "filename": "x.png", "data": payload})
             self.assertEqual(status, 404, f"aceitou label perigoso {label!r}")
         self.assertFalse(list(self.raiz.glob("PWNED*")), "gravou fora da pasta de capas")
+
+    def test_post_sem_csrf_e_bloqueado(self):
+        dados = json.dumps({"code": "PS2", "label": "Jogo"}).encode()
+        req = urllib.request.Request(
+            self.url + "/api/heavy/delete", data=dados,
+            headers={"Content-Type": "application/json"})
+        with self.assertRaises(urllib.error.HTTPError) as erro:
+            urllib.request.urlopen(req, timeout=30)
+        with erro.exception:
+            self.assertEqual(erro.exception.code, 403)
+
+    def test_cabecalhos_de_seguranca(self):
+        req = urllib.request.Request(
+            self.url + "/", headers={"X-Forwarded-Proto": "https"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            self.assertEqual(r.headers["X-Frame-Options"], "DENY")
+            self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
+            self.assertEqual(r.headers["Strict-Transport-Security"], "max-age=31536000")
+
+    def test_apply_url_recusa_endereco_que_nao_veio_da_busca(self):
+        status, resposta = self.pedir("/api/cover/apply_url", {
+            "kind": "rom", "code": "SFC", "label": "Chrono Trigger",
+            "url": "https://example.com/capa.png",
+        })
+        self.assertEqual(status, 400)
+        self.assertIn("SteamGridDB", resposta["error"])
+
+    def test_settings_recusa_raiz_e_caminho_relativo(self):
+        for body in ({"pc": {"roms_root": "/"}},
+                     {"pc": {"roms_root": "relativo"}},
+                     {"android": {"jogos_root": "/"}}):
+            status, _ = self.pedir("/api/settings", body)
+            self.assertEqual(status, 400)
 
     def test_imagem_com_travessia_nao_vaza_arquivo(self):
         # Segmentos ../ crus podem ser normalizados pelo cliente HTTP antes

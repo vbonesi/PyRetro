@@ -70,6 +70,24 @@ class TestDentroDe(unittest.TestCase):
                              "symlink permitiu escapar da pasta")
 
 
+class TestValidarSettingsPaths(unittest.TestCase):
+    def test_aceita_caminhos_especificos(self):
+        updates = {
+            "pc": {"roms_root": "~/Drive/Jogos/ROMs"},
+            "android": {"jogos_root": "/storage/emulated/0/Jogos"},
+        }
+        self.assertIsNone(srv.validar_settings_paths(updates))
+
+    def test_recusa_alvos_amplos_ou_invalidos(self):
+        for updates in (
+            {"pc": {"roms_root": "/"}},
+            {"pc": {"roms_root": "relativo"}},
+            {"android": {"jogos_root": "/"}},
+            {"outra": {"x": "/tmp/x"}},
+        ):
+            self.assertIsNotNone(srv.validar_settings_paths(updates), updates)
+
+
 class TestJogoEhROM(unittest.TestCase):
     """is_rom_backed decide se um jogo da Biblioteca some da listagem
     porque já "mora" numa aba de ROM. Exige nome E plataforma - só nome
