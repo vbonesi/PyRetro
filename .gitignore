@@ -20,3 +20,6 @@ venv/
 # Claude Code - configuracao/memoria local, nao e produto do projeto
 .claude/
 CLAUDE.md
+
+# Auditoria técnica (2026-09-15) — só na nuvem, nunca no git
+auditoria/

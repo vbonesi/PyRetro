@@ -1,3 +1,24 @@
+// Toda mutação exige um token que outra origem não consegue ler por causa da
+// política same-origin do navegador. A autenticação externa é feita pelo
+// Tailscale Serve; isto protege a sessão autenticada contra CSRF.
+const nativeFetch = window.fetch.bind(window);
+const csrfTokenPromise = nativeFetch("/api/csrf")
+  .then(r => {
+    if (!r.ok) throw new Error(`não foi possível obter token CSRF (HTTP ${r.status})`);
+    return r.json();
+  })
+  .then(r => r.token);
+
+window.fetch = async function pyretroFetch(input, init = {}) {
+  const method = String(init.method || "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const headers = new Headers(init.headers || {});
+    headers.set("X-PyRetro-CSRF", await csrfTokenPromise);
+    init = { ...init, headers };
+  }
+  return nativeFetch(input, init);
+};
+
 let currentSystem = null;
 let currentKind = "leve"; // "leve" | "pesado" | "biblioteca" - decide o que selectSystem/renderGallery fazem
 let systems = [];

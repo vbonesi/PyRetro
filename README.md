@@ -58,8 +58,12 @@ olhando a tela:
 - **Integração HTTP** (`tests/test_api.py`): sobe o servidor de verdade
   contra um acervo temporário e conversa por HTTP - pega rota que sumiu,
   contrato de resposta que mudou, escrita que não persiste, validação
-  que deixou passar, e travessia de caminho pelos endpoints reais.
+  que deixou passar, CSRF, cabeçalhos de segurança e travessia de caminho
+  pelos endpoints reais (inclusive barras percent-encoded).
   Nenhum teste fala com Steam/SteamGridDB/rclone/adb.
+- **Concorrência** (`tests/test_concurrency.py`): reproduz o lost update
+  de dois jobs gravando a Biblioteca ao mesmo tempo e confere a gravação
+  atômica do registry de capas.
 
 Cada teste cita o problema real que o originou.
 
@@ -777,16 +781,14 @@ capas já usava (`GET /api/fetch/stream?job=<id>`) - o mesmo texto que a
 CLI já imprimia, só que na tela. Front consome via `runJob()`, um
 wrapper genérico (evita reimplementar `EventSource` pra cada botão).
 
-**Limitação conhecida, ainda não corrigida (achada 12/09)**: cada job
-faz seu próprio ciclo ler→modificar→gravar em `library.json` sem usar
-`_library_lock` - esse lock só protege as rotas SÍNCRONAS listadas em
-`_ESCRITA_BIBLIOTECA` (`gui/server.py`), não os jobs assíncronos acima.
-Dois jobs rodando ao mesmo tempo (ex: sincronizar Steam enquanto
-sincroniza Xbox) colidem: o que salvar por último sobrescreve o outro
-inteiro, incluindo mudança que o outro tinha acabado de fazer. Já
-aconteceu de verdade (ver `docs/changelog.md` 12/09) - por sorte o
-resultado desfez um erro em vez de causar um, mas o mecanismo em si
-precisa do mesmo lock antes que aconteça ao contrário.
+**Concorrência corrigida em 15/09**: rotas, jobs e CLI compartilham um
+lock local entre threads/processos durante cada ciclo
+ler→modificar→gravar de `library.json`. Busca longa de capas não segura
+o lock durante a rede: aplica somente as capas novas sobre a versão mais
+recente em checkpoints. O mesmo vale para `covers_registry.json`, que
+também passou a gravação atômica. Isso fecha o mecanismo do incidente de
+12/09 (ver changelog); sincronização simultânea por duas máquinas físicas
+continua dependendo da serialização do serviço de nuvem.
 
 - **Biblioteca**: `🔄 Heroic`/`🔄 Steam` (`library-refresh`), `🖼 Capas`
   (`library-fetch-covers`), `+ Lista` (`library-add` - textarea +
@@ -807,12 +809,29 @@ precisa do mesmo lock antes que aconteça ao contrário.
 ```bash
 python3 gui/server.py              # abre em http://localhost:8000
 python3 gui/server.py --port 8080  # outra porta
+python3 gui/server.py --host 0.0.0.0  # LAN direta (não recomendado)
 ```
 
 Servidor local, stdlib só (`http.server`), sem dependência nova - mesma
-filosofia do resto do projeto. Dá pra acessar do navegador do celular também,
-se PC e celular estiverem na mesma rede (usa o IP da máquina em vez de
-`localhost`).
+filosofia do resto do projeto. Por padrão escuta **somente em localhost**.
+Nesta instalação, o acesso remoto seguro é feito pela identidade do tailnet
+e HTTPS do Tailscale Serve:
+
+```
+https://automaarch.tailcc66ce.ts.net:8443/
+```
+
+O backend continua em `127.0.0.1:8000`; não há senha própria duplicada no
+PyRetro. O Tailscale autentica o dispositivo/usuário e o servidor acrescenta
+proteção CSRF e cabeçalhos CSP/HSTS/clickjacking. Acesso direto pela LAN só
+deve ser habilitado conscientemente com `--host 0.0.0.0`, pois volta a expor
+os endpoints administrativos a todos os aparelhos daquela rede.
+
+Operações sensíveis têm defesas adicionais: caminhos de arquivo são
+confinados à raiz esperada; downloads manuais de capa só aceitam candidatos
+emitidos pelo SteamGridDB e têm limite de tamanho/tempo; `library.json`,
+registry e `config.toml` são gravados atomicamente e serializados entre GUI e
+CLI; sincronização revalida a origem imediatamente antes da cópia.
 
 O que tem até agora:
 - Galeria pra navegar pelas capas de cada sistema

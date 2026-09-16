@@ -155,16 +155,20 @@ def plan(source_key: str, cfg: dict, serial: str | None = None, local_mode: bool
 
         winner = d
         if pc_ahead:
-            actions.append({"source": source_key, "rel_path": rel, "direction": "pc->drive"})
+            actions.append({"source": source_key, "rel_path": rel, "direction": "pc->drive",
+                            "source_mtime": p})
             winner = p
         elif android_ahead:
-            actions.append({"source": source_key, "rel_path": rel, "direction": "android->drive"})
+            actions.append({"source": source_key, "rel_path": rel, "direction": "android->drive",
+                            "source_mtime": a})
             winner = a
 
         if pc_root is not None and not pc_ahead and winner is not None and (p is None or winner > p + MTIME_EPSILON):
-            actions.append({"source": source_key, "rel_path": rel, "direction": "drive->pc"})
+            actions.append({"source": source_key, "rel_path": rel, "direction": "drive->pc",
+                            "source_mtime": winner})
         if not android_ahead and winner is not None and (a is None or winner > a + MTIME_EPSILON):
-            actions.append({"source": source_key, "rel_path": rel, "direction": "drive->android"})
+            actions.append({"source": source_key, "rel_path": rel, "direction": "drive->android",
+                            "source_mtime": winner})
 
     return {"actions": actions, "conflicts": conflicts}
 
@@ -182,6 +186,21 @@ def apply(actions: list, cfg: dict, serial: str | None = None, local_mode: bool 
         rel = item["rel_path"]
         direction = item["direction"]
         try:
+            expected = item.get("source_mtime")
+            if expected is not None:
+                if direction == "pc->drive":
+                    current = (pc_root / rel).stat().st_mtime
+                elif direction.startswith("drive->"):
+                    current = (drive_root / rel).stat().st_mtime
+                elif local_mode:
+                    current = (android_root / rel).stat().st_mtime
+                else:
+                    remote = f"{info['android_root'].rstrip('/')}/{rel}"
+                    out = adb_mod.shell(f"stat -c %Y {adb_mod.shquote(remote)}", serial=serial)
+                    current = float(out.strip())
+                if abs(current - expected) > MTIME_EPSILON:
+                    raise RuntimeError("origem mudou depois do plano; sincronização cancelada para este arquivo")
+
             if direction == "pc->drive":
                 dest = drive_root / rel
                 dest.parent.mkdir(parents=True, exist_ok=True)

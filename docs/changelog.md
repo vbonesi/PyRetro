@@ -2650,3 +2650,33 @@ filtros unificados).
   `replace`, evitando JSON parcial e alterações perdidas entre busca de capas
   e ações manuais. Total depois deste bloco: **112 testes Python + 22 de
   JavaScript**.
+
+- **Autenticação/rede unificada com os apps pessoais (#2).** Em vez de criar
+  outra senha dentro do PyRetro, o padrão comum ficou: identidade do
+  Tailscale + HTTPS pelo Serve, backend preso a `127.0.0.1`. O PyRetro está
+  publicado em `https://automaarch.tailcc66ce.ts.net:8443/`; a porta 8000
+  direta deixou de aceitar LAN/Tailscale. O servidor agora usa localhost por
+  padrão (`--host` explícito para exceções), exige token CSRF em todo POST e
+  envia CSP, HSTS quando está atrás do proxy HTTPS, proteção contra iframe,
+  MIME sniffing e vazamento de Referer. A interface injeta o token em todas
+  as mutações por um wrapper central de `fetch`. Testes novos cobrem recusa
+  sem token e os cabeçalhos.
+
+- **Downloads, sync e configuração endurecidos (#6–#8).** Aplicar capa por
+  URL agora aceita somente uma URL exata devolvida pela busca atual do
+  SteamGridDB, não segue redirects, limita a resposta a 15 MB e mata o
+  ImageMagick após 30 segundos. `config.toml` passou a lock + temporário +
+  `replace`; caminhos vazios, relativos ou amplos como `/`/`$HOME` são
+  recusados. `emu-sync` grava no plano o mtime da origem e o revalida antes
+  de cada cópia; se o save mudou nesse intervalo, aquele arquivo é cancelado
+  em vez de sobrescrito. Sync e envio de ROM pesada também compartilham um
+  mutex entre GUI e CLI.
+
+- **Manutenção defensiva da auditoria (#10/#11).** Corpo JSON tem teto de
+  22 MB, erro 500 não expõe exceção interna, filas SSE e caches ficaram
+  limitados, jobs consumidos saem do registro, transferências ADB ganharam
+  timeout adequado a ROMs grandes e `/tests/test_app.html` só é servido
+  diretamente em localhost. Total: **120 testes Python + 22 JavaScript**.
+  A colisão de id de duas entradas de *Life is Strange: True Colors* segue
+  sem mudança: é uma decisão de modelagem/dado já pendente com o usuário,
+  não algo seguro de resolver automaticamente durante a auditoria.

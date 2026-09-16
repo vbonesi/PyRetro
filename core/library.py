@@ -1227,7 +1227,12 @@ def gravar_png(data: bytes, dest: Path) -> bool:
     tmp = dest.with_suffix(".origem.tmp")
     tmp.write_bytes(data)
     try:
-        r = subprocess.run(["convert", str(tmp), str(dest)], capture_output=True, text=True)
+        try:
+            r = subprocess.run(["convert", str(tmp), str(dest)],
+                               capture_output=True, text=True, timeout=30)
+        except subprocess.TimeoutExpired:
+            tmp.unlink(missing_ok=True)
+            return False
         # O que prova a conversão é o CONTEÚDO ser PNG, não o tamanho.
         # (Copiei de início o `st_size > 1000` do launchbox e um teste
         # com imagem de cor sólida derrubou: lá a checagem é de

@@ -79,7 +79,7 @@ def shell(cmd: str, serial: str | None = None, timeout: int = 30) -> str:
     return r.stdout
 
 
-def push(local: Path, remote: str, serial: str | None = None, timeout: int = 120, archive: bool = False) -> bool:
+def push(local: Path, remote: str, serial: str | None = None, timeout: int = 1800, archive: bool = False) -> bool:
     """archive=True usa `-a` (preserva mtime/permissão do lado de
     origem) - precisa disso pra sync por mtime real (ver
     core/emu_sync.py); default False porque os outros usos (transferir
@@ -89,7 +89,7 @@ def push(local: Path, remote: str, serial: str | None = None, timeout: int = 120
     return r.returncode == 0
 
 
-def pull(remote: str, local: Path, serial: str | None = None, timeout: int = 120, archive: bool = False) -> bool:
+def pull(remote: str, local: Path, serial: str | None = None, timeout: int = 1800, archive: bool = False) -> bool:
     local.parent.mkdir(parents=True, exist_ok=True)
     args = ["pull"] + (["-a"] if archive else []) + [remote, str(local)]
     r = run(args, serial=serial, timeout=timeout)
