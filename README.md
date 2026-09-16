@@ -831,7 +831,7 @@ Operações sensíveis têm defesas adicionais: caminhos de arquivo são
 confinados à raiz esperada; downloads manuais de capa só aceitam candidatos
 emitidos pelo SteamGridDB e têm limite de tamanho/tempo; `library.json`,
 registry e `config.toml` são gravados atomicamente e serializados entre GUI e
-CLI; sincronização revalida a origem imediatamente antes da cópia.
+CLI; sincronização revalida origem e destino imediatamente antes da cópia.
 
 O que tem até agora:
 - Galeria pra navegar pelas capas de cada sistema

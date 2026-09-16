@@ -6,6 +6,16 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/09/2026
+
+- **Sync de saves não sobrescreve destino alterado (#7 da auditoria).** Cada
+  ação de `emu-sync` agora registra também o mtime que o destino tinha no
+  planejamento. No `apply`, origem e destino são revalidados; se Insync,
+  emulador ou outro processo criou/alterou o destino nesse intervalo, a
+  ação é cancelada como conflito e o arquivo externo permanece intacto.
+  Testes reproduzem tanto destino alterado quanto destino criado após o
+  plano. Total: **123 testes Python + 22 JavaScript**.
+
 ## Fase inicial (antes de 01/08/2026)
 
 - **Fase 1 - GUI de capas**: galeria, busca com progresso ao vivo,

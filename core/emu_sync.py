@@ -97,6 +97,15 @@ def _local_mtimes(root: Path) -> dict:
     return {str(p.relative_to(root)): p.stat().st_mtime for p in root.rglob("*") if p.is_file()}
 
 
+def _local_mtime(path: Path) -> float | None:
+    """mtime atual de um arquivo, ou None se ele ainda não existe."""
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise RuntimeError(f"caminho esperado de arquivo não é arquivo: {path}")
+    return path.stat().st_mtime
+
+
 def _android_mtimes(android_root: str, serial: str | None) -> dict:
     """Uma chamada só (find + stat), mesma técnica de core/sync.py -
     achado real lá: overhead de processo adb por arquivo não escala."""
@@ -119,12 +128,28 @@ def _android_mtimes(android_root: str, serial: str | None) -> dict:
     return result
 
 
+def _android_mtime(android_root: str, rel: str, serial: str | None) -> float | None:
+    """Versão pontual de _android_mtimes para revalidar uma ação antes
+    de escrever. O `if` mantém status 0 quando o destino ainda não existe."""
+    remote = f"{android_root.rstrip('/')}/{rel}"
+    quoted = adb_mod.shquote(remote)
+    out = adb_mod.shell(
+        f"if [ -e {quoted} ] && [ ! -f {quoted} ]; then printf '__PYRETRO_NOT_FILE__'; "
+        f"elif [ -f {quoted} ]; then stat -c %Y {quoted}; fi", serial=serial)
+    value = out.strip()
+    if value == "__PYRETRO_NOT_FILE__":
+        raise RuntimeError(f"caminho esperado de arquivo não é arquivo: {remote}")
+    return float(value) if value else None
+
+
 def plan(source_key: str, cfg: dict, serial: str | None = None, local_mode: bool = False) -> dict:
     """{"actions": [...], "conflicts": [...]}. action:
     {source, rel_path, direction} - direction em "pc->drive",
     "drive->pc", "android->drive", "drive->android". Nunca escreve
-    nada - só lê (local via os.stat, Android via um `find`+`stat` só,
-    ou local também quando local_mode=True - ver docstring do módulo).
+    nada - só lê; também guarda os mtimes de origem e destino para o
+    apply abortar se algum dos dois mudar (local via os.stat, Android via
+    um `find`+`stat` só, ou local também quando local_mode=True - ver
+    docstring do módulo).
 
     local_mode=True: sem perna PC (não alcançável a partir do celular
     sem adb no sentido contrário) e a perna "android" é lida como
@@ -156,19 +181,19 @@ def plan(source_key: str, cfg: dict, serial: str | None = None, local_mode: bool
         winner = d
         if pc_ahead:
             actions.append({"source": source_key, "rel_path": rel, "direction": "pc->drive",
-                            "source_mtime": p})
+                            "source_mtime": p, "destination_mtime": d})
             winner = p
         elif android_ahead:
             actions.append({"source": source_key, "rel_path": rel, "direction": "android->drive",
-                            "source_mtime": a})
+                            "source_mtime": a, "destination_mtime": d})
             winner = a
 
         if pc_root is not None and not pc_ahead and winner is not None and (p is None or winner > p + MTIME_EPSILON):
             actions.append({"source": source_key, "rel_path": rel, "direction": "drive->pc",
-                            "source_mtime": winner})
+                            "source_mtime": winner, "destination_mtime": p})
         if not android_ahead and winner is not None and (a is None or winner > a + MTIME_EPSILON):
             actions.append({"source": source_key, "rel_path": rel, "direction": "drive->android",
-                            "source_mtime": winner})
+                            "source_mtime": winner, "destination_mtime": a})
 
     return {"actions": actions, "conflicts": conflicts}
 
@@ -186,20 +211,36 @@ def apply(actions: list, cfg: dict, serial: str | None = None, local_mode: bool 
         rel = item["rel_path"]
         direction = item["direction"]
         try:
-            expected = item.get("source_mtime")
-            if expected is not None:
-                if direction == "pc->drive":
-                    current = (pc_root / rel).stat().st_mtime
-                elif direction.startswith("drive->"):
-                    current = (drive_root / rel).stat().st_mtime
-                elif local_mode:
-                    current = (android_root / rel).stat().st_mtime
-                else:
-                    remote = f"{info['android_root'].rstrip('/')}/{rel}"
-                    out = adb_mod.shell(f"stat -c %Y {adb_mod.shquote(remote)}", serial=serial)
-                    current = float(out.strip())
-                if abs(current - expected) > MTIME_EPSILON:
+            if direction == "pc->drive":
+                source_mtime = _local_mtime(pc_root / rel)
+                destination_mtime = _local_mtime(drive_root / rel)
+            elif direction == "drive->pc":
+                source_mtime = _local_mtime(drive_root / rel)
+                destination_mtime = _local_mtime(pc_root / rel)
+            elif direction == "android->drive":
+                source_mtime = (_local_mtime(android_root / rel) if local_mode
+                                else _android_mtime(info["android_root"], rel, serial))
+                destination_mtime = _local_mtime(drive_root / rel)
+            else:  # drive->android
+                source_mtime = _local_mtime(drive_root / rel)
+                destination_mtime = (_local_mtime(android_root / rel) if local_mode
+                                     else _android_mtime(info["android_root"], rel, serial))
+
+            expected_source = item.get("source_mtime")
+            if expected_source is not None:
+                if source_mtime is None or abs(source_mtime - expected_source) > MTIME_EPSILON:
                     raise RuntimeError("origem mudou depois do plano; sincronização cancelada para este arquivo")
+
+            # Emuladores e Insync não respeitam o lock do PyRetro. Se algum
+            # deles alterou o destino desde o dry-run, preservar o arquivo é
+            # mais seguro que deixar o plano antigo sobrescrevê-lo.
+            if "destination_mtime" in item:
+                expected_destination = item["destination_mtime"]
+                if ((expected_destination is None and destination_mtime is not None) or
+                        (expected_destination is not None and
+                         (destination_mtime is None or
+                          abs(destination_mtime - expected_destination) > MTIME_EPSILON))):
+                    raise RuntimeError("destino mudou depois do plano; conflito preservado, sincronização cancelada para este arquivo")
 
             if direction == "pc->drive":
                 dest = drive_root / rel

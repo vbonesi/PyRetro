@@ -49,6 +49,44 @@ class TestRevalidacaoAntesDeCopiar(unittest.TestCase):
         self.assertIn("origem mudou", result[0]["erro"])
         self.assertEqual(drive_file.read_bytes(), b"antigo")
 
+    def test_cancela_se_destino_mudou_depois_do_plano(self):
+        drive_file, _android_file, actions = self._preparar()
+        drive_file.write_bytes(b"alterado no drive depois do plano")
+        os.utime(drive_file, (3000, 3000))
+
+        result = emu_sync.apply(actions, {}, local_mode=True)
+        self.assertFalse(result[0]["ok"])
+        self.assertIn("destino mudou", result[0]["erro"])
+        self.assertEqual(drive_file.read_bytes(), b"alterado no drive depois do plano")
+
+    def test_cancela_se_destino_surgiu_depois_do_plano(self):
+        drive_file = self.drive / "save.bin"
+        android_file = self.android / "save.bin"
+        android_file.write_bytes(b"origem")
+        os.utime(android_file, (2000, 2000))
+        actions = emu_sync.plan("teste", {}, local_mode=True)["actions"]
+        self.assertIsNone(actions[0]["destination_mtime"])
+
+        drive_file.write_bytes(b"save criado por outro processo")
+        os.utime(drive_file, (3000, 3000))
+        result = emu_sync.apply(actions, {}, local_mode=True)
+        self.assertFalse(result[0]["ok"])
+        self.assertIn("destino mudou", result[0]["erro"])
+        self.assertEqual(drive_file.read_bytes(), b"save criado por outro processo")
+
+    def test_cancela_se_destino_virou_pasta_depois_do_plano(self):
+        drive_file = self.drive / "save.bin"
+        android_file = self.android / "save.bin"
+        android_file.write_bytes(b"origem")
+        os.utime(android_file, (2000, 2000))
+        actions = emu_sync.plan("teste", {}, local_mode=True)["actions"]
+
+        drive_file.mkdir()
+        result = emu_sync.apply(actions, {}, local_mode=True)
+        self.assertFalse(result[0]["ok"])
+        self.assertIn("não é arquivo", result[0]["erro"])
+        self.assertTrue(drive_file.is_dir())
+
     def test_copia_quando_origem_continua_igual(self):
         drive_file, _android_file, actions = self._preparar()
         result = emu_sync.apply(actions, {}, local_mode=True)
