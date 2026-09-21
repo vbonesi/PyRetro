@@ -1227,9 +1227,20 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         script_src = "'self' 'unsafe-inline'" if allow_inline_script else "'self'"
+        # img-src precisa liberar as fontes de prévia de capa usadas no
+        # popup de busca (openCapa/buscarCapa em app.js) - SteamGridDB
+        # (Biblioteca e ROM), LaunchBox e libretro-thumbnails (ROM). O
+        # ScreenScraper não entra aqui porque já é proxied same-origin
+        # (/api/cover/ss_preview) de propósito. Sem isso a CSP bloqueia
+        # silenciosamente o <img> (sem erro visível pro usuário, só
+        # ícone quebrado) mesmo com a busca funcionando normalmente.
+        img_src = (
+            "'self' data: https://*.steamgriddb.com "
+            "https://images.launchbox-app.com https://raw.githubusercontent.com"
+        )
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+            f"default-src 'self'; img-src {img_src}; style-src 'self' 'unsafe-inline'; "
             f"script-src {script_src}; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
         )
         if self.headers.get("X-Forwarded-Proto", "").lower() == "https":
