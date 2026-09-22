@@ -34,14 +34,12 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 24/08/2026.
 | Montar playlist `.lpl` do RetroArch (`retrosync rebuild-playlist`) | ✅ Pronto, testado no aparelho real (24/08) - PC e Android tratados separado, `core_path`/`core_name` "DETECT" |
 | Backup datado das configs do RetroArch (`retrosync backup-config`) | ✅ Pronto, testado no aparelho real (24/08) - `retroarch.cfg`+`config/`+`playlists/`, PC e Android |
 | Busca de capa a partir do catálogo no Drive (`retrosync fetch-covers-cloud`) | ✅ Pronto, testado no acervo real (24/08) - Saturn 37/37, Dreamcast 9/9 (1 via fallback LaunchBox) |
-| PyRetro rodando no Android (Termux) | 📝 Passo a passo escrito ([`docs/termux_setup.md`](termux_setup.md)), agora incluindo `emu-sync` em local_mode e procedimento de `git pull` pra atualizar - não testado no aparelho |
+| PyRetro rodando no Android (Termux) | ❌ **Descontinuado (22/09/2026)** - saiu do plano: o PyRetro não roda mais no celular. O passo a passo ([`docs/termux_setup.md`](termux_setup.md)) fica como histórico, nunca chegou a ser testado no aparelho. O celular continua sendo **cliente** da GUI pelo Tailscale, e o `adb` continua sendo o caminho pra mexer no acervo dele. |
 | `sync.py` pra saves/states/runtime-logs | ❌ Cancelado (sempre vai usar Google Drive pra isso) |
 
 ## Próximos passos (em ordem)
 
-1. Testar [`docs/termux_setup.md`](termux_setup.md) contra o aparelho
-   real.
-2. Se algum dia fizer sentido voltar no backup de saves fora do
+1. Se algum dia fizer sentido voltar no backup de saves fora do
    RetroArch - achados reais via adb em 05/08, ainda válidos (a parte
    de Flycast/Dreamcast saiu daqui em 24/08 junto com a mudança pra
    RetroArch - ver docs/changelog.md, não é mais um caso "fora do
@@ -57,6 +55,11 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 24/08/2026.
      mesma família (fork do Citra), mas nome/pacote diferentes.
 
 ## Arquitetura de dois modos
+
+> **Nota (22/09/2026):** o modo Android saiu do plano - o PyRetro não roda
+> mais no celular, ele é só cliente da GUI pelo Tailscale. O desenho abaixo
+> continua valendo como descrição do código (`local_mode` existe e é
+> exercitado nos testes), mas não há intenção de usar.
 
 `core/sync.py` (e o resto do backend) pensados pra dois modos de
 operação:
@@ -92,4 +95,5 @@ navegador) que merecem conversa própria quando o resto da base
 - [`docs/memory_card_editor.md`](memory_card_editor.md) - pesquisa do
   editor de memory card PS1/PS2.
 - [`docs/termux_setup.md`](termux_setup.md) - passo a passo pra rodar o
-  PyRetro direto no Android.
+  PyRetro direto no Android. **Histórico:** a trilha foi descontinuada em
+  22/09/2026 e o passo a passo nunca foi testado no aparelho.

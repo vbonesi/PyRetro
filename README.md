@@ -1004,7 +1004,7 @@ PyRetro/
 │   ├── fontes_de_capas.md             # pesquisa de fontes de capa alternativas
 │   ├── capas_sem_correspondencia.md   # capas não resolvidas por nenhuma fonte
 │   ├── memory_card_editor.md          # editor de memory card PS1/PS2 - pesquisa + implementação
-│   └── termux_setup.md                # rodar o PyRetro direto no Android
+│   └── termux_setup.md                # rodar no Android - descontinuado 22/09
 ├── cache/
 │   ├── covers_registry.json   # histórico do que já foi processado por fetch-covers
 │   └── heavy_catalog.json     # catálogo de pesados no Drive, gerado por heavy-catalog - usado pelo sortear
@@ -1042,7 +1042,9 @@ pesquisa de fontes de capa alternativas
 notas de implementação do editor de memory card PS1/PS2
 ([`docs/memory_card_editor.md`](docs/memory_card_editor.md)), rodar o
 PyRetro direto no Android
-([`docs/termux_setup.md`](docs/termux_setup.md)).
+([`docs/termux_setup.md`](docs/termux_setup.md) - trilha descontinuada em
+22/09/2026, nunca testada no aparelho; o celular é cliente da GUI, não
+servidor).
 
 O mapa do acervo de Nintendo Switch por título-base e o plano de
 reorganização daquela pasta **não ficam no repositório**: são inventário
