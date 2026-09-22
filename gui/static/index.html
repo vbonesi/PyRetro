@@ -303,6 +303,13 @@
         <button id="btn-editar-close" class="secondary" type="button">Fechar</button>
       </div>
       <div id="editar-campos" class="editar-campos"></div>
+      <!-- Só aparece quando o ✎ foi aberto pela aba Desejados: é de lá
+           que se sai da lista, um jogo por vez (pedido do usuário
+           21/09). Ver openEditar/editarCtx.wishlist em app.js. -->
+      <div id="editar-wishlist" class="editar-wishlist hidden">
+        <button id="btn-editar-comprado" class="tiny secondary" type="button">✅ Comprado (vai pra Biblioteca)</button>
+        <button id="btn-editar-tirar" class="tiny secondary" type="button">🗑 Tirar da lista</button>
+      </div>
       <div class="modal-footer">
         <span id="editar-status" class="settings-status"></span>
         <button id="btn-editar-save" type="button">Salvar</button>
@@ -391,9 +398,10 @@
 
       <div id="desejados-secao-psn" class="desejados-secao hidden">
         <div class="saves-add-card">
-          <textarea id="desejados-texto-psn" placeholder="Cole aqui a lista da PSN, um jogo por linha" rows="4"></textarea>
+          <textarea id="desejados-texto-psn" placeholder="Jogos da PSN pra ADICIONAR à lista, um por linha" rows="4"></textarea>
           <label class="tiny apply-toggle"><input type="checkbox" id="desejados-apply-psn" checked> aplicar</label>
-          <button id="btn-desejados-sync-psn" class="tiny" type="button">💾 Sincronizar</button>
+          <button id="btn-desejados-sync-psn" class="tiny" type="button">➕ Adicionar à lista</button>
+          <p class="dica">só acrescenta - pra tirar um jogo daqui use o ✎ dele.</p>
         </div>
         <div id="desejados-log-psn" class="job-log hidden"></div>
         <div id="desejados-grid-psn" class="lista-conteudo"></div>
@@ -401,9 +409,10 @@
 
       <div id="desejados-secao-xbox" class="desejados-secao hidden">
         <div class="saves-add-card">
-          <textarea id="desejados-texto-xbox" placeholder="Cole aqui a lista da Xbox, um jogo por linha" rows="4"></textarea>
+          <textarea id="desejados-texto-xbox" placeholder="Jogos da Xbox pra ADICIONAR à lista, um por linha" rows="4"></textarea>
           <label class="tiny apply-toggle"><input type="checkbox" id="desejados-apply-xbox" checked> aplicar</label>
-          <button id="btn-desejados-sync-xbox" class="tiny" type="button">💾 Sincronizar</button>
+          <button id="btn-desejados-sync-xbox" class="tiny" type="button">➕ Adicionar à lista</button>
+          <p class="dica">só acrescenta - pra tirar um jogo daqui use o ✎ dele.</p>
         </div>
         <div id="desejados-log-xbox" class="job-log hidden"></div>
         <div id="desejados-grid-xbox" class="lista-conteudo"></div>

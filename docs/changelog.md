@@ -6,6 +6,51 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/09/2026
+
+- **Lista de desejos de PSN/Xbox virou "só adicionar" - e 154 registros
+  foram recuperados do Drive.** A caixa de texto das abas PSN/Xbox de
+  🌟 Desejados era uma *sincronização*: o texto digitado valia como "minha
+  lista inteira agora é essa", então tudo que não estivesse ali perdia a
+  marca da fonte e, sem outra fonte no registro, era apagado
+  (`sync_wishlist`). Registrar 3 jogos novos na PSN e 1 no Xbox apagou,
+  por isso, **29 registros da PSN e 125 do Xbox**. É a segunda vez: o
+  mesmo erro tinha apagado 125 jogos do Xbox em 12/09, e naquela vez a
+  recuperação foi por acaso (um sync concorrente da Steam desfez o dano
+  sozinho).
+
+  *Recuperação:* a cópia do `library.json` no Google Drive ainda era a de
+  16:50, anterior ao estrago - baixada com `rclone` e comparada registro a
+  registro com a local. A diferença era exatamente o esperado: 154
+  registros ausentes, 7 que só tinham perdido a marca de desejo (sobreviveram
+  por serem posse real em outra fonte: ROM de PS2, Heroic, PSN físico) e os
+  4 jogos novos que o usuário tinha acabado de adicionar. A restauração foi
+  **aditiva** - devolveu os 154 e as 7 marcas sem desfazer nada do que existia
+  no arquivo local, então os 4 novos continuaram lá. Nenhum dos apagados
+  tinha nota, tempo ou comentário (eram registros de desejo com gênero e
+  capa). Lista final: **PSN 34, Xbox 131, Steam 56**.
+
+  *Correção (decidida pelo usuário):* PSN/Xbox só adicionam, nunca removem.
+  `core/library.py` ganhou `add_to_wishlist` (só acrescenta, é o novo
+  caminho de PSN/Xbox), `remove_from_wishlist` (tira um jogo de uma lista) e
+  `mark_wishlist_owned` (troca a marca de desejo pela fonte de posse da
+  mesma loja - ver `WISHLIST_FONTE_POSSE`). `sync_wishlist`, a única rotina
+  do projeto que apaga registro sozinha, continua existindo mas **só a Steam
+  usa**, e só porque lá a lista vem da API ao vivo, onde "não veio" significa
+  mesmo "saiu da wishlist".
+
+  Na tela, o botão "💾 Sincronizar" das abas PSN/Xbox virou "➕ Adicionar à
+  lista", e sair da lista passou a ser ação de um jogo por vez dentro do ✎
+  (pedido do usuário: *"eu possa apagar, no lapizinho, ou marcar como
+  comprado e ele vai para minha biblioteca"*): **"✅ Comprado"** move o jogo
+  pra Biblioteca levando capa, gênero e comentário que já tinha, e **"🗑 Tirar
+  da lista"** só tira a marca - o registro só some se não sobrar nenhuma
+  outra fonte nele. Rotas novas `/api/wishlist/remove` e
+  `/api/wishlist/comprado`, ambas em `_ESCRITA_BIBLIOTECA` (lock da
+  biblioteca). Testado de ponta a ponta contra o servidor real, inclusive o
+  cenário do incidente: 1 nome enviado com 35 na lista, nada removido.
+  Total: **138 testes Python**.
+
 ## 16/09/2026
 
 - **Pendências #9–#11 da auditoria encerradas.** O levantamento

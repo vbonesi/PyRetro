@@ -729,13 +729,17 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
     Wishlist da Steam ... PSN e Xbox eu gerenciaria manualmente").
     Steam via API pública (só precisa do steamid64 já em [steam],
     perfil/lista têm que estar públicos); PSN/Xbox não têm API de
-    wishlist confiável, então o usuário cola a lista aqui mesmo -
+    wishlist confiável, então o usuário digita a lista aqui mesmo -
     mesma decisão de sempre pra essas duas fontes (ver
-    run_library_refresh_job). Diferente de merge_owned (só adiciona),
-    aqui um nome que sai da lista perde a marca dessa fonte e, se não
-    sobrar nenhuma outra fonte no registro, o registro inteiro é
-    apagado (confirmado pelo usuário: lista de desejos não tem
-    progresso pra perder)."""
+    run_library_refresh_job).
+
+    Steam continua sendo sincronização de verdade (`sync_wishlist`): a
+    lista vem da API ao vivo, então "não veio" significa mesmo "saiu da
+    wishlist" e o registro pode perder a marca. PSN/Xbox são SÓ adição
+    (`add_to_wishlist`) desde 21/09 - tratar o texto digitado como a
+    lista completa apagou a lista duas vezes (154 registros em 21/09,
+    125 em 12/09). Lá, tirar da lista é ação item a item pelo ✎ da aba
+    Desejados (/api/wishlist/remove e /api/wishlist/comprado)."""
     cfg = load_config()
     library_root = Path(cfg["pc"]["library_root"]).expanduser()
     library_path = library_root / "library.json"
@@ -765,9 +769,12 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
         emit({"type": "log", "line": "lista vazia"})
         return
 
+    # Só a Steam pode remover; PSN/Xbox só acrescentam (ver docstring).
+    sincronizar = library_mod.sync_wishlist if source == "steam" else library_mod.add_to_wishlist
+
     def sync_and_maybe_save():
         library = library_mod.load_library(library_path)
-        result = library_mod.sync_wishlist(library, fonte, plataforma, nomes)
+        result = sincronizar(library, fonte, plataforma, nomes)
         novos = [g for g in library["games"] if g["id"] in result["novos_ids"]]
         for game in novos:
             genero = generos_por_nome.get(game["nome"])
@@ -783,10 +790,14 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
     else:
         library, result, novos = sync_and_maybe_save()
 
-    emit({"type": "log", "line": f"{fonte}: {len(nomes)} jogo(s) na lista atual"})
+    rotulo = "jogo(s) na lista atual" if source == "steam" else "jogo(s) recebido(s)"
+    emit({"type": "log", "line": f"{fonte}: {len(nomes)} {rotulo}"})
     emit({"type": "log", "line": f"  novo(s): {result['adicionados']}   já tinha: {result['ja_tinha']}"})
-    emit({"type": "log", "line": f"  saiu da lista: {result['removidos']}   "
-                                  f"apagado(s) (sem outra fonte): {result['apagados']}"})
+    if source == "steam":
+        emit({"type": "log", "line": f"  saiu da lista: {result['removidos']}   "
+                                      f"apagado(s) (sem outra fonte): {result['apagados']}"})
+    else:
+        emit({"type": "log", "line": "  (nada é removido aqui - pra tirar da lista use o ✎ do jogo)"})
 
     if not apply:
         emit({"type": "log", "line": "(modo simulação - nada foi salvo, marque \"aplicar\")"})
@@ -1755,8 +1766,9 @@ class Handler(BaseHTTPRequestHandler):
             # continua aparecendo aqui enquanto a marca de desejo não
             # sair - Steam se autocorrige sozinho na próxima
             # sincronização (a wishlist ao vivo já não traz mais o jogo
-            # comprado); PSN/Xbox o usuário tira recolando a lista sem
-            # esse nome.
+            # comprado); PSN/Xbox o usuário tira pelo ✎ do jogo, em
+            # "🗑 Tirar da lista" ou "✅ Comprado" (ver as rotas
+            # /api/wishlist/remove e /api/wishlist/comprado).
             cfg = load_config()
             library_root = Path(cfg["pc"]["library_root"]).expanduser()
             library = library_mod.load_library(library_root / "library.json")
@@ -2034,6 +2046,7 @@ class Handler(BaseHTTPRequestHandler):
         ("api", "library", "edit"), ("api", "library", "cover_upload"),
         ("api", "library", "decompor"),
         ("api", "cover", "apply_url"),
+        ("api", "wishlist", "remove"), ("api", "wishlist", "comprado"),
     }
     _ESCRITA_REGISTRY = {
         ("api", "cover", "apply_url"), ("api", "cover", "flag"),
@@ -2639,6 +2652,35 @@ class Handler(BaseHTTPRequestHandler):
             apply = bool(body.get("apply"))
             job_id = _start_job(lambda emit: run_wishlist_sync_job(emit, source, texto, apply))
             return self._json({"job": job_id})
+
+        if parts in (["api", "wishlist", "remove"], ["api", "wishlist", "comprado"]):
+            # Sair da lista de desejos, um jogo por vez, pelo ✎ da aba
+            # Desejados (pedido do usuário 21/09: "eu possa apagar, no
+            # lapizinho, ou marcar como comprado e ele vai para minha
+            # biblioteca"). Substitui o jeito antigo de tirar da lista
+            # em PSN/Xbox, que era recolar a lista inteira sem o nome -
+            # e que, colada incompleta, apagava tudo (ver
+            # run_wishlist_sync_job).
+            body = self._read_json_body()
+            source = body.get("source")
+            if source not in ("steam", "psn", "xbox"):
+                return self._json({"error": "fonte desconhecida"}, 400)
+            game_id = body.get("id")
+            if not game_id:
+                return self._json({"error": "id obrigatório"}, 400)
+            fonte = f"wishlist:{source}"
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+
+            if parts[-1] == "comprado":
+                r = library_mod.mark_wishlist_owned(library, fonte, game_id)
+            else:
+                r = library_mod.remove_from_wishlist(library, fonte, game_id)
+            if r is None:
+                return self._json({"error": "jogo desconhecido"}, 404)
+            library_mod.save_library(library_path, library)
+            return self._json({"ok": True, **r})
 
         if parts == ["api", "library", "fetch_covers"]:
             apply = query.get("apply", ["0"])[0] == "1"

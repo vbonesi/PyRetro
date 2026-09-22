@@ -712,30 +712,48 @@ def merge_owned(library: dict, owned: list) -> dict:
 def remove_game(library: dict, game_id: str) -> bool:
     """Apaga um registro inteiro (diferente de `oculto`, que só some da
     listagem - aqui some do arquivo mesmo). Só faz sentido pra registro
-    sem histórico de progresso pra perder de verdade: usado por
-    `sync_wishlist` quando um item sai da lista de desejos e não sobra
-    nenhuma outra fonte nele (pedido do usuário 11/09: "apagar da lista
-    mesmo, ele já vai estar em outra fonte, logo não precisa desse
-    histórico") - nunca chame isso pra jogo rastreado (ROM ou
-    Biblioteca de posse de verdade)."""
+    sem histórico de progresso pra perder de verdade: usado pelas
+    rotinas de lista de desejos (`sync_wishlist` na Steam,
+    `remove_from_wishlist` no botão do ✎) quando um item sai da lista e
+    não sobra nenhuma outra fonte nele (pedido do usuário 11/09:
+    "apagar da lista mesmo, ele já vai estar em outra fonte, logo não
+    precisa desse histórico") - nunca chame isso pra jogo rastreado
+    (ROM ou Biblioteca de posse de verdade)."""
     antes = len(library["games"])
     library["games"] = [g for g in library["games"] if g["id"] != game_id]
     return len(library["games"]) < antes
 
 
-def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list) -> dict:
-    """Sincroniza uma lista de desejos (`fonte` tipo "wishlist:steam"/
-    "wishlist:psn"/"wishlist:xbox") contra `nomes_atuais` (a lista de
-    verdade AGORA - API da Steam ao vivo, ou o texto que o usuário
-    colou de PSN/Xbox): nome novo ganha (ou cria) registro com essa
-    fonte marcada; registro que tinha essa fonte mas o nome saiu da
-    lista perde só a marca - e se não sobrar NENHUMA fonte (nunca foi
-    rastreado por posse de verdade em lugar nenhum), o registro inteiro
-    é apagado (ver `remove_game`). Casa só por nome normalizado, igual
-    `merge_owned` - lista de desejos não tem o problema de "nome igual
-    plataforma diferente" que ROM tem, então não precisa checar
-    plataforma aqui."""
-    atuais_norm = {_normalize(n) for n in nomes_atuais}
+# Fonte de posse equivalente a cada lista de desejos: "✅ Comprado"
+# (botão do ✎ na aba Desejados, pedido do usuário 21/09) troca a marca
+# de desejo por essa, e o jogo passa a contar como Biblioteca de
+# verdade. É de propósito a MESMA fonte que a sincronização de posse de
+# cada loja grava (ver read_steam_owned/read_psn_owned e `merge_owned`),
+# pra próxima sincronização só confirmar o que já está lá em vez de
+# criar um registro paralelo.
+WISHLIST_FONTE_POSSE = {
+    "wishlist:steam": "steam",
+    "wishlist:psn": "psn",
+    "wishlist:xbox": "xbox",
+}
+
+
+def add_to_wishlist(library: dict, fonte: str, plataforma: str, nomes: list) -> dict:
+    """Acrescenta nomes a uma lista de desejos (`fonte` tipo
+    "wishlist:steam"/"wishlist:psn"/"wishlist:xbox") sem NUNCA tirar
+    nada: nome que já tem registro só ganha a marca da fonte, nome novo
+    vira registro novo. Casa por nome normalizado, igual `merge_owned` -
+    lista de desejos não tem o problema de "nome igual, plataforma
+    diferente" que ROM tem, então não precisa checar plataforma aqui.
+
+    É o caminho de PSN/Xbox, onde a lista é DIGITADA à mão: lá tratar o
+    texto colado como "minha lista inteira agora é essa" apagou a lista
+    duas vezes de verdade (incidente de 21/09: 3 nomes colados na PSN e
+    1 no Xbox apagaram 154 registros; antes disso, 12/09, 125 do Xbox) -
+    tirar da lista virou ação item a item, por `remove_from_wishlist` e
+    `mark_wishlist_owned`. `sync_wishlist` (Steam, lista que vem da API
+    e é confiavelmente completa) reaproveita isso aqui pra parte de
+    adicionar."""
     by_norm = {}
     for g in library["games"]:
         by_norm.setdefault(_normalize(g["nome"]), []).append(g)
@@ -743,7 +761,7 @@ def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list
     resultado = {"adicionados": 0, "ja_tinha": 0, "removidos": 0, "apagados": 0,
                  "novos_ids": []}
 
-    for nome in nomes_atuais:
+    for nome in nomes:
         norm = _normalize(nome)
         existentes = by_norm.get(norm)
         if existentes:
@@ -762,6 +780,23 @@ def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list
         resultado["adicionados"] += 1
         resultado["novos_ids"].append(novo["id"])
 
+    return resultado
+
+
+def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list) -> dict:
+    """Sincroniza uma lista de desejos contra `nomes_atuais` tratando
+    essa lista como a verdade COMPLETA de agora: além de adicionar (ver
+    `add_to_wishlist`), um registro que tinha essa fonte mas cujo nome
+    não está na lista perde a marca - e se não sobrar NENHUMA fonte, o
+    registro inteiro é apagado (ver `remove_game`).
+
+    Só a Steam usa isso, e só porque lá a lista vem da API ao vivo, onde
+    "não veio" significa mesmo "saiu da wishlist". PSN/Xbox, onde a
+    lista é digitada à mão, usam `add_to_wishlist` desde 21/09 - ver o
+    porquê lá."""
+    resultado = add_to_wishlist(library, fonte, plataforma, nomes_atuais)
+    atuais_norm = {_normalize(n) for n in nomes_atuais}
+
     for g in list(library["games"]):
         if fonte in g["fontes"] and _normalize(g["nome"]) not in atuais_norm:
             g["fontes"].remove(fonte)
@@ -771,6 +806,49 @@ def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list
                 resultado["apagados"] += 1
 
     return resultado
+
+
+def remove_from_wishlist(library: dict, fonte: str, game_id: str) -> dict | None:
+    """Tira UM jogo de UMA lista de desejos (botão "🗑 Tirar da lista"
+    do ✎, na aba Desejados). Devolve None se o id não existe.
+
+    Mesma regra de sempre: o registro só é apagado de verdade se não
+    sobrar nenhuma outra fonte nele - jogo que também é posse real em
+    outro lugar (ROM, Heroic, físico) sobrevive, só sem a marca de
+    desejo."""
+    alvo = next((g for g in library["games"] if g["id"] == game_id), None)
+    if alvo is None:
+        return None
+    if fonte not in alvo["fontes"]:
+        return {"removido": False, "apagado": False}
+    alvo["fontes"].remove(fonte)
+    apagado = False
+    if not alvo["fontes"]:
+        remove_game(library, game_id)
+        apagado = True
+    return {"removido": True, "apagado": apagado}
+
+
+def mark_wishlist_owned(library: dict, fonte: str, game_id: str) -> dict | None:
+    """"✅ Comprado": troca a marca de desejo pela fonte de posse
+    equivalente (ver `WISHLIST_FONTE_POSSE`), então o jogo sai de
+    Desejados e entra na Biblioteca guardando tudo que já tinha (capa,
+    gênero, observações). Devolve None se o id não existe.
+
+    Nunca apaga registro: mesmo que a marca de desejo não estivesse
+    lá, a fonte de posse é garantida no fim."""
+    alvo = next((g for g in library["games"] if g["id"] == game_id), None)
+    if alvo is None:
+        return None
+    posse = WISHLIST_FONTE_POSSE.get(fonte)
+    if not posse:
+        raise ValueError(f"lista de desejos desconhecida: {fonte}")
+    if fonte in alvo["fontes"]:
+        alvo["fontes"].remove(fonte)
+    ja_tinha = posse in alvo["fontes"]
+    if not ja_tinha:
+        alvo["fontes"].append(posse)
+    return {"fonte_posse": posse, "ja_tinha_posse": ja_tinha}
 
 
 # Mapeia plataforma (texto livre gravado em library.json - planilha ou

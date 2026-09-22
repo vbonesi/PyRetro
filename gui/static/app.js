@@ -1895,10 +1895,15 @@ const EDITAR_CAMPOS_BIBLIOTECA = [
 // ROM (leve/pesada): sem "Plataforma" - vem do sistema, não é editável aqui.
 const EDITAR_CAMPOS_ROM = EDITAR_CAMPOS_BIBLIOTECA.filter((c) => c.campo !== "plataforma");
 
-let editarCtx = { kind: "biblioteca", id: null, rom: null, onDone: null, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: null };
+let editarCtx = { kind: "biblioteca", id: null, rom: null, onDone: null, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: null, wishlist: null };
 
-function openEditar(g, onDone) {
-  editarCtx = { kind: "biblioteca", id: g.id, rom: null, onDone, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: g.nome };
+// `wishlist` ("steam"/"psn"/"xbox") só vem quando o ✎ foi aberto pela aba
+// Desejados: é o que destrava "✅ Comprado" e "🗑 Tirar da lista" aqui
+// dentro. Foi assim que tirar da lista virou ação item a item (pedido do
+// usuário 21/09) - antes, em PSN/Xbox, a única forma era recolar a lista
+// inteira sem o nome, e uma lista colada incompleta apagava o resto.
+function openEditar(g, onDone, wishlist = null) {
+  editarCtx = { kind: "biblioteca", id: g.id, rom: null, onDone, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: g.nome, wishlist };
   _preencherEditar(g);
 }
 
@@ -1916,7 +1921,7 @@ function openEditarRom(rom, estado, onDone) {
   const camposDef = semArquivoLocal
     ? EDITAR_CAMPOS_ROM.filter((c) => c.campo !== "nome")
     : EDITAR_CAMPOS_ROM;
-  editarCtx = { kind: rom.kind, id: null, rom, onDone, camposDef, nomeOriginal: rom.label };
+  editarCtx = { kind: rom.kind, id: null, rom, onDone, camposDef, nomeOriginal: rom.label, wishlist: null };
   _preencherEditar({ nome: rom.label, ...(estado || {}) });
 }
 
@@ -1935,13 +1940,50 @@ function _preencherEditar(g) {
     box.querySelector(`[data-campo="${campo}"]`).value = g[campo] ?? "";
   }
   document.getElementById("editar-status").textContent = "";
+  document.getElementById("editar-wishlist").classList.toggle("hidden", !editarCtx.wishlist);
   document.getElementById("editar-modal").classList.remove("hidden");
 }
 
 function closeEditar() {
   document.getElementById("editar-modal").classList.add("hidden");
-  editarCtx = { kind: "biblioteca", id: null, rom: null, onDone: null, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: null };
+  editarCtx = { kind: "biblioteca", id: null, rom: null, onDone: null, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: null, wishlist: null };
 }
+
+// "✅ Comprado" troca a marca de desejo pela fonte de posse da mesma
+// loja (o jogo passa pra Biblioteca levando capa/gênero/comentário que
+// já tinha); "🗑 Tirar da lista" só tira a marca - e o registro só some
+// de verdade se não sobrar nenhuma outra fonte nele (jogo que também é
+// ROM/Heroic/físico sobrevive). Ver core/library.mark_wishlist_owned e
+// remove_from_wishlist.
+async function sairDaWishlist(acao) {
+  if (!editarCtx.wishlist || !editarCtx.id) return;
+  const nome = editarCtx.nomeOriginal;
+  const pergunta = acao === "comprado"
+    ? `Marcar "${nome}" como comprado? Sai dos Desejados e entra na Biblioteca.`
+    : `Tirar "${nome}" da lista de desejos?`;
+  if (!confirm(pergunta)) return;
+
+  const status = document.getElementById("editar-status");
+  status.textContent = acao === "comprado" ? "movendo..." : "tirando...";
+  status.style.color = "";
+  const res = await fetch(`/api/wishlist/${acao === "comprado" ? "comprado" : "remove"}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source: editarCtx.wishlist, id: editarCtx.id }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    status.textContent = `erro: ${data.error || "falha"}`;
+    status.style.color = "var(--err)";
+    return;
+  }
+  const onDone = editarCtx.onDone;
+  closeEditar();
+  if (onDone) onDone();
+}
+
+document.getElementById("btn-editar-comprado").addEventListener("click", () => sairDaWishlist("comprado"));
+document.getElementById("btn-editar-tirar").addEventListener("click", () => sairDaWishlist("remove"));
 
 async function salvarEditar() {
   if (editarCtx.kind === "biblioteca" && !editarCtx.id) return;
@@ -2296,13 +2338,23 @@ document.getElementById("estatisticas-modal").addEventListener("click", (e) => {
 // Desejados (pedido do usuário 11/09: "sincronizar com a Wishlist da
 // Steam... PSN e Xbox eu gerenciaria manualmente") - Steam atualiza
 // sozinha (API pública, só o steamid64 que já está configurado); PSN/
-// Xbox não têm API de wishlist confiável, então o usuário cola a lista
-// aqui (mesma decisão de sempre pra essas duas fontes, ver "+ Lista"
-// da Biblioteca). Um jogo que sai da lista colada perde a marca - e
-// vira posse de verdade em outro lugar (ROM/Heroic/etc), fica só sem
-// o "desejado"; sem sobrar nenhuma fonte, o registro some (não tem
-// progresso pra perder, diferente do resto da Biblioteca).
-function buildDesejadoCard(item) {
+// Xbox não têm API de wishlist confiável, então o usuário digita a
+// lista aqui (mesma decisão de sempre pra essas duas fontes, ver
+// "+ Lista" da Biblioteca).
+//
+// A caixa de texto de PSN/Xbox SÓ ADICIONA (21/09). Antes ela era
+// sincronização: o que não estivesse no texto saía da lista, e uma
+// lista digitada incompleta apagava o resto - aconteceu duas vezes
+// (154 registros em 21/09, 125 em 12/09). Sair da lista virou ação de
+// um jogo por vez, pelo ✎: "✅ Comprado" (vai pra Biblioteca com capa/
+// gênero/comentário) ou "🗑 Tirar da lista" (o registro só some se não
+// sobrar nenhuma outra fonte - jogo que também é ROM/Heroic/físico
+// sobrevive, só sem o "desejado"). Ver sairDaWishlist.
+//
+// Na Steam os dois botões também aparecem, mas lá a lista continua
+// vindo da API: tirar à mão só vale até a próxima sincronização, que
+// devolve o jogo se ele ainda estiver na wishlist de verdade.
+function buildDesejadoCard(item, fonte) {
   // Formato de lista compacta (11/09, pedido do usuário: o card grande
   // de capa "bugou toda a visualização" - a Desejados pode ter
   // centenas de itens, então usa o mesmo layout enxuto do
@@ -2341,7 +2393,9 @@ function buildDesejadoCard(item) {
   btnEditar.className = "icon-btn";
   btnEditar.title = "Editar dados do jogo";
   btnEditar.textContent = "✎";
-  btnEditar.addEventListener("click", () => openEditar(item, carregarDesejados));
+  // A fonte vai junto porque é pelo ✎ que se SAI da lista de desejos
+  // (21/09) - sem ela o modal não sabe de qual lista tirar o jogo.
+  btnEditar.addEventListener("click", () => openEditar(item, carregarDesejados, fonte));
   div.appendChild(btnEditar);
 
   return div;
@@ -2358,7 +2412,7 @@ async function carregarDesejados() {
       grid.innerHTML = '<div class="empty-state">nada na lista ainda.</div>';
       continue;
     }
-    for (const item of itens) grid.appendChild(buildDesejadoCard(item));
+    for (const item of itens) grid.appendChild(buildDesejadoCard(item, fonte));
   }
 }
 
@@ -2398,7 +2452,7 @@ for (const fonte of ["psn", "xbox"]) {
   document.getElementById(`btn-desejados-sync-${fonte}`).addEventListener("click", () => {
     const texto = document.getElementById(`desejados-texto-${fonte}`).value;
     const apply = document.getElementById(`desejados-apply-${fonte}`).checked;
-    if (!texto.trim()) { alert("cole a lista antes de sincronizar"); return; }
+    if (!texto.trim()) { alert("digite os jogos que quer adicionar"); return; }
     runJob("/api/wishlist/sync", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ source: fonte, texto, apply }),

@@ -1437,6 +1437,23 @@ button.tiny.danger {
   font-size: 11px;
 }
 
+/* Ações de saída da lista de desejos, no rodapé do ✎ (só aparecem
+   quando o modal foi aberto pela aba Desejados). Rolam em linha única
+   igual as outras barras de botão, pra não quebrar no celular. */
+.editar-wishlist {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.saves-add-card .dica {
+  margin: 0;
+  opacity: 0.6;
+  font-size: 11px;
+}
+
 .detalhe-modal {
   margin: 0 0 10px;
   font-size: 12px;
