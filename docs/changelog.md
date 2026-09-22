@@ -2321,7 +2321,8 @@ plano.
   **"novo(s): 0   já rastreado(s): 154"** - nenhuma das 13 coletâneas
   voltou.
 
-  O mapa completo das 154 pastas ficou em `docs/NSW-mapa.md`.
+  O mapa completo das 154 pastas ficou fora do repositório (inventário
+  de acervo pessoal, só na máquina).
 
 - **Capa dos 177 jogos novos: 180 sem capa -> 22.** A primeira passada
   achou só 56. A causa das 124 restantes era o **selo da linha de
@@ -2374,7 +2375,7 @@ plano.
   usuário: "o nome dos arquivos não pode mexer, mas o nome das pastas
   sim, aí já separar também os jogos de coletânea... organizar mods,
   traduções (apagar as que não são em português)". Planejado por
-  escrito primeiro (`docs/NSW-reorganizacao-plano.md`), aprovado, e só
+  escrito primeiro (plano mantido fora do repositório), aprovado, e só
   então executado - 355 operações via rclone contra as 175 pastas de
   topo (154 do mapeamento de 29/08 + 21 chegadas por upload do Insync
   nesse meio tempo, incluindo 3 coletâneas novas: Pokémon Brilliant

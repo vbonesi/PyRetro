@@ -27,3 +27,7 @@ AGENTS.md
 
 # Auditoria técnica (2026-09-15) — só na nuvem, nunca no git
 auditoria/
+
+# Inventario de acervo pessoal - nunca versionar
+docs/NSW-mapa.md
+docs/NSW-reorganizacao-plano.md
