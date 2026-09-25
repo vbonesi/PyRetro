@@ -11,7 +11,7 @@ plano.
 - **Revisão dos commits de CSP e Wishlist de 21/09.** Conferidos os domínios
   usados nas prévias de capa, o `Referrer-Policy: no-referrer`, o `script-src
   'self'`, a separação entre adição manual (PSN/Xbox) e sincronização da Steam,
-  e o lock das rotas que gravam `library.json`. A suíte passou com 141 testes
+  e o lock das rotas que gravam `library.json`. A suíte passou com 142 testes
   Python e 23 no navegador.
 - **Ação “Comprado” com ID de outra lista.** Uma requisição atrasada ou
   manipulada podia transformar um jogo fora da lista pedida em posse. Agora a

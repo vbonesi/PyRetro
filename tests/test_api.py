@@ -195,6 +195,16 @@ class TestBibliotecaHTTP(BaseAPI):
         salvo = json.loads(self.lib_path.read_text())
         self.assertEqual(salvo["games"][0]["fontes"], ["wishlist:xbox"])
 
+    def test_comprado_troca_somente_a_marca_pedida(self):
+        jogo = lm._blank_game("Jogo desejado", "PSN")
+        jogo["fontes"] = ["wishlist:psn", "wishlist:steam"]
+        self.gravar_biblioteca([jogo])
+        status, dados = self.pedir("/api/wishlist/comprado", {"source": "psn", "id": jogo["id"]})
+        self.assertEqual(status, 200)
+        self.assertEqual(dados["fonte_posse"], "psn")
+        salvo = json.loads(self.lib_path.read_text())
+        self.assertEqual(salvo["games"][0]["fontes"], ["wishlist:steam", "psn"])
+
     def test_update_recusa_campo_protegido(self):
         _, dados = self.pedir("/api/library")
         gid = dados[0]["id"]
