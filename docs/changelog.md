@@ -8,6 +8,10 @@ plano.
 
 ## 25/09/2026
 
+- **Orientação PSN/Xbox atualizada.** O README ainda dizia que colar um só nome
+  apagava os desejos anteriores, apesar de o código já usar adição sem remoção.
+  O aviso antigo foi retirado da orientação operacional; o incidente segue no
+  histórico de 12/09 e 21/09.
 - **Wishlist Steam protege contra resposta parcial.** Um erro de `appdetails`,
   appid ausente ou resposta incompleta cancela a sincronização antes de gravar
   a biblioteca. Regressões sintéticas cobrem detalhe indisponível e lista

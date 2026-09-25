@@ -757,11 +757,9 @@ falha e a sincronização inteira é cancelada; uma resposta parcial nunca
 autoriza remoção. PSN e Xbox só acrescentam os nomes colados; a retirada é
 individual pelo editor do jogo.
 
-**Cuidado operacional real**: o campo de PSN/Xbox precisa da lista
-**inteira** a cada sincronização, não só o que mudou - colar só um nome
-novo apaga todo o resto que não estiver naquela lista (já aconteceu de
-verdade, ver `docs/changelog.md` 12/09). Layout da lista é compacto
-(capa pequena, uma linha por item, mesmo padrão de Ranking/Jogando) -
+O campo de PSN/Xbox aceita só os nomes novos; os desejos anteriores permanecem.
+O incidente causado pela regra antiga está registrado em `docs/changelog.md`.
+O layout da lista é compacto (capa pequena, uma linha por item, mesmo padrão de Ranking/Jogando) -
 o grid de capa grande das outras abas quebra com centenas de itens.
 
 Cada item tem os mesmos ícones 🖼 (buscar/trocar capa) e ✎ (editar
