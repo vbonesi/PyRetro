@@ -11,11 +11,30 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "gui"))
 import server as srv
 from core import library as lm
+
+
+class TestWishlistSteamFalhaParcial(unittest.TestCase):
+    def test_erro_de_detalhe_nao_grava_biblioteca(self):
+        eventos = []
+        with tempfile.TemporaryDirectory() as pasta:
+            with (
+                patch.object(srv, "load_config", return_value={
+                    "pc": {"library_root": pasta}, "steam": {"steamid64": "123"}}),
+                patch.object(srv.library_mod, "read_steam_wishlist",
+                             side_effect=RuntimeError("appid 2 não resolvido")),
+                patch.object(srv.library_mod, "sync_wishlist") as sync,
+                patch.object(srv.library_mod, "save_library") as salvar,
+            ):
+                srv.run_wishlist_sync_job(eventos.append, "steam", "", True)
+        sync.assert_not_called()
+        salvar.assert_not_called()
+        self.assertTrue(any("appid 2" in evento.get("line", "") for evento in eventos))
 
 
 class TestNomeDeArquivoSeguro(unittest.TestCase):

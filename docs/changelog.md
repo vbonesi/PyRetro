@@ -6,6 +6,13 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 25/09/2026
+
+- **Wishlist Steam protege contra resposta parcial.** Um erro de `appdetails`,
+  appid ausente ou resposta incompleta cancela a sincronização antes de gravar
+  a biblioteca. Regressões sintéticas cobrem detalhe indisponível e lista
+  inválida; a remoção continua possível quando a leitura inteira conclui.
+
 ## 24/09/2026
 
 - **Revisão dos commits de CSP e Wishlist de 21/09.** Conferidos os domínios

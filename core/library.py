@@ -391,27 +391,34 @@ def read_steam_wishlist(steam_cfg: dict) -> list:
             data = json.loads(r.read())
     except (OSError, ValueError) as e:
         raise RuntimeError(f"falha ao consultar a wishlist da Steam: {e}") from e
-    itens = (data.get("response") or {}).get("items") or []
+    response = data.get("response") if isinstance(data, dict) else None
+    if not isinstance(response, dict) or not isinstance(response.get("items"), list):
+        raise RuntimeError("wishlist da Steam sem lista de itens válida; sincronização cancelada")
+    itens = response["items"]
 
     resultado = []
     for item in itens:
+        if not isinstance(item, dict):
+            raise RuntimeError("wishlist da Steam contém item inválido; sincronização cancelada")
         appid = item.get("appid")
         if not appid:
-            continue
+            raise RuntimeError("wishlist da Steam contém item sem appid; sincronização cancelada")
         detail_url = f"https://store.steampowered.com/api/appdetails?appids={appid}&l=portuguese"
         req = urllib.request.Request(detail_url, headers={"User-Agent": _BROWSER_USER_AGENT})
         try:
             with urllib.request.urlopen(req, timeout=15) as r:
                 detail = json.loads(r.read())
-        except (OSError, ValueError):
-            continue
+        except (OSError, ValueError) as e:
+            raise RuntimeError(f"falha ao resolver appid {appid} da wishlist; sincronização cancelada: {e}") from e
+        if not isinstance(detail, dict):
+            raise RuntimeError(f"appid {appid} da wishlist teve resposta inválida; sincronização cancelada")
         entry = detail.get(str(appid)) or {}
         if not entry.get("success"):
-            continue
+            raise RuntimeError(f"appid {appid} da wishlist não foi resolvido; sincronização cancelada")
         info = entry.get("data") or {}
         nome = info.get("name")
         if not nome:
-            continue
+            raise RuntimeError(f"appid {appid} da wishlist veio sem nome; sincronização cancelada")
         generos = info.get("genres") or []
         resultado.append({
             "nome": nome, "appid": appid,

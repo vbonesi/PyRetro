@@ -750,13 +750,12 @@ sozinha (endpoint público `IWishlistService/GetWishlist` + `appdetails`
 pra nome/gênero/capa). PSN e Xbox não têm API de wishlist confiável -
 o usuário cola a lista direto na textarea da tela.
 
-`sync_wishlist()` (`core/library.py`) faz **diff de verdade** contra o
-texto colado, diferente de `merge_owned()` (que só adiciona): nome que
-sai da lista perde a marca `wishlist:<fonte>`, e se não sobrar nenhuma
-outra fonte no registro, o registro inteiro é apagado
-(`remove_game()` - único lugar do projeto que apaga registro sozinho,
-decisão explícita do usuário porque lista de desejos não tem progresso
-de verdade pra perder).
+Na Steam, `sync_wishlist()` (`core/library.py`) faz **diff de verdade** com a
+lista da API: nome que saiu perde a marca `wishlist:steam`, e o registro sem
+outra fonte é apagado. Se qualquer appid vier sem detalhes válidos, a leitura
+falha e a sincronização inteira é cancelada; uma resposta parcial nunca
+autoriza remoção. PSN e Xbox só acrescentam os nomes colados; a retirada é
+individual pelo editor do jogo.
 
 **Cuidado operacional real**: o campo de PSN/Xbox precisa da lista
 **inteira** a cada sincronização, não só o que mudou - colar só um nome

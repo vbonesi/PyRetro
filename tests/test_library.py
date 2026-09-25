@@ -10,14 +10,34 @@ Sem dependência externa (unittest da stdlib), igual ao resto do projeto:
     python3 -m unittest discover -s tests -v
 """
 import json
+import io
 import sys
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from core import library as lm
+
+
+class TestSteamWishlistCompleta(unittest.TestCase):
+    def test_falha_em_um_detalhe_cancela_lista_inteira(self):
+        respostas = [
+            io.BytesIO(json.dumps({"response": {"items": [{"appid": 1}, {"appid": 2}]}}).encode()),
+            io.BytesIO(json.dumps({"1": {"success": True, "data": {"name": "Jogo 1"}}}).encode()),
+            OSError("falha temporária"),
+        ]
+        with patch.object(lm.urllib.request, "urlopen", side_effect=respostas):
+            with patch.object(lm, "find_cover_steam_cdn", return_value=None):
+                with self.assertRaisesRegex(RuntimeError, "appid 2.*sincronização cancelada"):
+                    lm.read_steam_wishlist({"steamid64": "123"})
+
+    def test_resposta_incompleta_nao_vira_lista_vazia(self):
+        with patch.object(lm.urllib.request, "urlopen", return_value=io.BytesIO(b'{"response": {}}')):
+            with self.assertRaisesRegex(RuntimeError, "sem lista de itens válida"):
+                lm.read_steam_wishlist({"steamid64": "123"})
 
 
 def jogo(nome, plataforma, **campos):
