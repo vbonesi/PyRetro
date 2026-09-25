@@ -6,6 +6,19 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 24/09/2026
+
+- **Revisão dos commits de CSP e Wishlist de 21/09.** Conferidos os domínios
+  usados nas prévias de capa, o `Referrer-Policy: no-referrer`, o `script-src
+  'self'`, a separação entre adição manual (PSN/Xbox) e sincronização da Steam,
+  e o lock das rotas que gravam `library.json`. A suíte passou com 141 testes
+  Python e 23 no navegador.
+- **Ação “Comprado” com ID de outra lista.** Uma requisição atrasada ou
+  manipulada podia transformar um jogo fora da lista pedida em posse. Agora a
+  operação recusa o ID sem a marca de desejo correspondente, sem gravar o
+  arquivo. Há regressão no núcleo e na rota HTTP. O uso real da ação no
+  celular continua para homologação do Victor.
+
 ## 21/09/2026
 
 - **Lista de desejos de PSN/Xbox virou "só adicionar" - e 154 registros

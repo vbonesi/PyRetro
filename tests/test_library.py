@@ -629,6 +629,12 @@ class TestMarkWishlistOwned(unittest.TestCase):
     def test_id_desconhecido_devolve_none(self):
         self.assertIsNone(lm.mark_wishlist_owned({"games": []}, "wishlist:psn", "nada"))
 
+    def test_id_de_jogo_fora_da_lista_nao_vira_posse(self):
+        g = jogo("Jogo de outra lista", "Xbox", fontes=["wishlist:xbox"])
+        lib = {"games": [g]}
+        self.assertIsNone(lm.mark_wishlist_owned(lib, "wishlist:psn", g["id"]))
+        self.assertEqual(g["fontes"], ["wishlist:xbox"])
+
 
 class TestSyncWishlist(unittest.TestCase):
     """sync_wishlist (só a Steam usa, onde a lista vem da API ao vivo)

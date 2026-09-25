@@ -2678,7 +2678,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 r = library_mod.remove_from_wishlist(library, fonte, game_id)
             if r is None:
-                return self._json({"error": "jogo desconhecido"}, 404)
+                return self._json({"error": "jogo desconhecido ou fora desta lista"}, 404)
             library_mod.save_library(library_path, library)
             return self._json({"ok": True, **r})
 

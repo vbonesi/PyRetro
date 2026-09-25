@@ -835,16 +835,17 @@ def mark_wishlist_owned(library: dict, fonte: str, game_id: str) -> dict | None:
     Desejados e entra na Biblioteca guardando tudo que já tinha (capa,
     gênero, observações). Devolve None se o id não existe.
 
-    Nunca apaga registro: mesmo que a marca de desejo não estivesse
-    lá, a fonte de posse é garantida no fim."""
+    Nunca apaga registro. Uma ação atrasada ou com ID errado não pode
+    promover um jogo que não está na lista pedida."""
     alvo = next((g for g in library["games"] if g["id"] == game_id), None)
     if alvo is None:
+        return None
+    if fonte not in alvo["fontes"]:
         return None
     posse = WISHLIST_FONTE_POSSE.get(fonte)
     if not posse:
         raise ValueError(f"lista de desejos desconhecida: {fonte}")
-    if fonte in alvo["fontes"]:
-        alvo["fontes"].remove(fonte)
+    alvo["fontes"].remove(fonte)
     ja_tinha = posse in alvo["fontes"]
     if not ja_tinha:
         alvo["fontes"].append(posse)

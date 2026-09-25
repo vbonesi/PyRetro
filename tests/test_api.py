@@ -131,6 +131,14 @@ class BaseAPI(unittest.TestCase):
 
 
 class TestLeitura(BaseAPI):
+    def test_csp_permite_previas_de_capa_sem_liberar_scripts_externos(self):
+        with urllib.request.urlopen(self.url + "/api/csrf", timeout=30) as resposta:
+            csp = resposta.headers["Content-Security-Policy"]
+        for origem in ("https://*.steamgriddb.com", "https://images.launchbox-app.com",
+                       "https://raw.githubusercontent.com"):
+            self.assertIn(origem, csp)
+        self.assertIn("script-src 'self'", csp)
+
     def test_systems_lista_o_sistema_configurado(self):
         status, dados = self.pedir("/api/systems")
         self.assertEqual(status, 200)
@@ -177,6 +185,15 @@ class TestBibliotecaHTTP(BaseAPI):
         self.assertEqual(status, 200)
         salvo = json.loads(self.lib_path.read_text())
         self.assertEqual(next(g["nota"] for g in salvo["games"] if g["id"] == gid), 9.5)
+
+    def test_comprado_nao_promove_id_de_outra_lista(self):
+        jogo = lm._blank_game("Ainda desejado no Xbox", "Xbox")
+        jogo["fontes"] = ["wishlist:xbox"]
+        self.gravar_biblioteca([jogo])
+        status, _ = self.pedir("/api/wishlist/comprado", {"source": "psn", "id": jogo["id"]})
+        self.assertEqual(status, 404)
+        salvo = json.loads(self.lib_path.read_text())
+        self.assertEqual(salvo["games"][0]["fontes"], ["wishlist:xbox"])
 
     def test_update_recusa_campo_protegido(self):
         _, dados = self.pedir("/api/library")
