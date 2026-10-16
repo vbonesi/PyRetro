@@ -6,6 +6,41 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 (noite) — NFS Underground 2 a 40+ fps, texturas HD e GameCube fora do celular
+
+- **Causa das quedas do NFSU2 (30–37 fps):** o PCSX2 estava no Vulkan com `Adapter` vazio e o
+  log de 16/10 dizia "No GPU requested, using first (Intel RPL-P)": o jogo rodava na **GPU
+  integrada**, não na RTX. O doc de gráficos dizia que o PCSX2 ia na NVIDIA pelo PRIME offload;
+  isso valia para outros emuladores, não para o Vulkan do PCSX2. Fixado
+  `Adapter = NVIDIA GeForce RTX 4060 Laptop GPU` em `PCSX2.ini` (backup do `.ini` anterior em
+  `~/Drive/Jogos/Backups/PCSX2.ini.antes_nfsu2_2026-10-16`). Medido pelo OSD, na troca de carro
+  da seleção: 60 fps parado, queda para ~40 só no instante de carregar o modelo, volta a 59–60.
+  Em corrida real o usuário relatou "não crava 60, mas não baixa de 40, super jogável".
+  EE 27%, GS 38%, GPU 30%: nada saturado, o piso de 40 é do próprio jogo (30 fps nativo).
+- **Armadilha:** editar `PCSX2.ini` com o PCSX2 aberto não vale, ele regrava o arquivo ao sair
+  e desfaz a edição (aconteceu no teste). Fechar antes (`pkill -x pcsx2-qt`).
+- **Textura HD validada no PCSX2** (3x, Vulkan, RTX): dump de textura ligado (`textures/<SERIAL>/dumps`),
+  uma textura de teste do Hummer trocada por uma versão 1024×1024 apareceu no jogo, e depois o
+  pacote real "NFSU2 HD Remaster" (3.085 arquivos, 552 MB, Internet Archive, SHA-1 conferido) foi
+  instalado pelo PyRetro: OSD mostrou **118 texturas substituídas a 60 fps**. Teste de dump/troca
+  removido depois. Opção `LoadTextureReplacements = true` ficou ligada.
+- **Nova aba 🎨 Texturas** (`core/texturas.py`, `tools/gerar_catalogo_texturas.py`,
+  `core/texturas_catalogo.json`, rotas `/api/texturas`, `/instalar`, `/remover`, `tests/test_texturas.py`).
+  Catálogo de 342 pacotes de PS2 gerado da listagem do item `pcsx2-hd-texture-packs` do Internet
+  Archive (nome, tamanho e SHA-1 vêm de lá; só https de archive.org/github). Baixa, confere o
+  SHA-1, extrai (zip/7z/rar), copia para a pasta do emulador e grava um manifesto; remover apaga só
+  o que o PyRetro instalou. Apaga o arquivo baixado depois (o cache fica no ~/Drive sincronizado).
+  Liga a opção de carregar texturas no `.ini` se o emulador estiver fechado. "Só jogos que tenho"
+  cruza o título do pacote com as ROMs (igualdade de palavras).
+  **Não testados:** Dolphin (GC/Wii) e PPSSPP (pastas e chaves de `.ini` seguem a convenção deles,
+  mas o catálogo ainda não tem nenhum pacote para eles) e PS1/DuckStation (fora de propósito).
+- **GameCube fora do celular** (pedido do usuário): `heavy_systems.NGC` ganhou `celular = false`
+  (sem botão Enviar, sem consulta por adb, sem "celular não conectado", `/api/heavy/send` recusa);
+  a aba Saves perdeu a seção GameCube; `emu_saves` e `emu_sync` perderam o Dolphin GC. O backup
+  PC→Drive dos saves do Dolphin GC/Wii (`core/pc_backup.py`) continua, é do PC.
+- Teste JS: `test_app.html` deu 36/37; a falha ("modo TV ... A não abriu jogo", polling de
+  gamepad) é em arquivo que não foi tocado e não foi investigada. Python: 193 passando.
+
 ## 16/10/2026 — Saves dos testes removidos; RetroArch do PC sem pasta por núcleo
 
 - Os testes de emulador do dia criaram saves novos, espelhados no PC e no celular pelo

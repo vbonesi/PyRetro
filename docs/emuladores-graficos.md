@@ -23,7 +23,7 @@ fica nítido na TV por HDMI). Nada de opção que custa muito e quase não apare
 | Sistema | Emulador | Antes | Agora |
 |---|---|---|---|
 | PS1 | DuckStation (AppImage) | padrão de fábrica; **não iniciava jogo** pelo lançador | Vulkan **fixado na RTX** (`[GPU] Adapter`), **5x** (1200p), PGXP (geometria/textura/cor + culling), true color sem dithering, suavização de croma em FMV, FMV forçado 4:3, deinterlace adaptativo, VSync |
-| PS2 | PCSX2 (Flatpak) | 1x nativo, renderer automático, sem VSync | Vulkan, **3x** (~1344p), anisotrópico 16x, CAS só nitidez (40), VSync, **patches de widescreen e de remover entrelaçamento** ligados |
+| PS2 | PCSX2 (Flatpak) | 1x nativo, renderer automático, sem VSync | Vulkan **fixado na RTX** (`Adapter`; vazio caía na Intel, ver NFSU2 abaixo), **3x** (~1344p), anisotrópico 16x, CAS só nitidez (40), VSync, **patches de widescreen e de remover entrelaçamento** ligados |
 | GC / Wii | Dolphin (Flatpak) | padrão de fábrica (1x) | Vulkan, **3x** (1584p/1440p), MSAA 2x, anisotrópico 16x, detecção de mipmap arbitrário, shaders assíncronos (ubershaders) + pré-compilação no início, VSync |
 | PSP | PPSSPP (Flatpak) | sem `ppsspp.ini` (nunca aberto) | Vulkan, **5x** (1360p), anisotrópico 16x, filtragem 2D inteligente, VSync, tela cheia |
 | N64 | RetroArch / Mupen64Plus-Next | GLideN64 1920×1440, MSAA 4x, CRT royale global por cima, **rodando a 40 fps** (rewind) | **rewind desligado só neste núcleo** (`Mupen64Plus-Next.cfg`) → 60 fps; filtro filtro **3-point** (o do N64 real) + texrects nativos otimizados; preset **bilinear** no lugar do CRT (CRT em imagem de 1440 linhas gera moiré) |
@@ -62,6 +62,16 @@ Observações:
   uma cópia antes e restaure depois.
 - O PCSX2 não consegue gravar o NVRAM da BIOS porque o Flatpak vê `~/Drive/Jogos` como
   somente leitura (`errno 30`). Só afeta relógio/idioma do console; saves não.
+
+## NFS Underground 2: GPU errada e texturas HD (16/10, noite)
+
+O NFSU2 oscilava entre 30 e 37 fps com carros na tela porque o PCSX2 usava a **Intel**
+(`Adapter` vazio; o log diz "No GPU requested, using first"). Com a RTX fixada, fica a 60 fps
+parado e cai a ~40 só ao carregar um carro novo; em corrida, 40–60. Texturas HD
+(`textures/SLUS-21065/replacements`, 3.085 arquivos) instaladas pela aba Texturas do PyRetro:
+118 texturas substituídas a 60 fps. Mais em `docs/changelog.md`. Dolphin e PPSSPP também estão
+com adaptador vazio (`VulkanDevice =` no PPSSPP): não medi qual GPU eles usam; confira com
+`nvidia-smi pmon` antes de confiar no PRIME offload. O RetroArch/DuckStation já estão fixos.
 
 ## PC × celular
 
