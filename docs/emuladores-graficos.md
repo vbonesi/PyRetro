@@ -99,6 +99,10 @@ contados pelo `dumpsys SurfaceFlinger --latency`, intervalo mediano de 16,6 ms, 
 | PPSSPP | `~/.var/app/org.ppsspp.PPSSPP/config/ppsspp/PSP/SYSTEM/ppsspp.ini` | Não. `Saves/PPSSPP/SYSTEM` é o espelho do celular |
 | DuckStation | `~/.local/share/duckstation/settings.ini` | Não (memory cards e save states sim, em `Saves/PS1-DuckStation`) |
 
+Saves e states do RetroArch ficam soltos em `Saves/saves` e `Saves/states`, sem subpasta
+por núcleo, no PC e no celular (`sort_savefiles_enable` e `sort_savestates_enable` =
+`"false"` nos dois desde 16/10). É a convenção que o PyRetro espera.
+
 **Não copie** os `.ini` do espelho do Drive para o PC nem o contrário: os caminhos
 (`content://` no Android) e as escolhas de desempenho são diferentes.
 

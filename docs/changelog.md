@@ -6,6 +6,21 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 — Saves dos testes removidos; RetroArch do PC sem pasta por núcleo
+
+- Os testes de emulador do dia criaram saves novos, espelhados no PC e no celular pelo
+  FolderSync: pastas `saves/` e `states/` `Mupen64Plus-Next` e `Snes9x` (3 `.srm` e 4
+  `.state.auto`), `PS1-DuckStation/savestates/SLES-00049_resume.sav` e, no celular,
+  `states/Super Mario 64.state.auto`. Todos removidos. Para saber o que era teste, valeu a
+  data de **criação** no Google Drive (hoje), não a de modificação. Ficaram os cartões de
+  memória de PS1 e PS2 (de julho) e o `Super Mario 64.srm` solto, que o teste só regravou
+  com o mesmo conteúdo (md5 igual ao do PC).
+- **Causa das pastas por núcleo:** o `retroarch.cfg` do PC tinha `sort_savefiles_enable` e
+  `sort_savestates_enable` = `"true"` (já assim no backup de 24/08). O celular e o PyRetro
+  (`rom_rename`, `emu_saves`) usam `saves/` e `states/` sem subpasta, então o PC não achava os
+  saves antigos e criava outros. As duas chaves foram para `"false"` no PC, com o RetroArch
+  fechado; nada mais mudou no arquivo.
+
 ## 16/10/2026 — Rewind desligado no N64 e no Dreamcast do celular
 
 - Confirmado pelo `adb` que o `retroarch.cfg` do celular tem `rewind_enable = "true"`
