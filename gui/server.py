@@ -746,10 +746,18 @@ def _texturas_arquivo_local(body: dict, cfg: dict):
 
 
 def run_texturas_instalar_job(emit, chave: str, alvo: str, body: dict) -> None:
+    baixado_do_link = None
     try:
         cfg = load_config()
         pacote = _texturas_pacote(body, cfg)
         arquivo = _texturas_arquivo_local(body, cfg)
+        sha1_link = ""
+        if body.get("url"):
+            # Link escolhido pelo usuário: sem hash de referência, então o SHA-1 calculado vai na mensagem final.
+            limite = int(float((cfg.get("texturas") or {}).get("limite_gb", 12)) * 1024 ** 3)
+            arquivo, sha1 = texturas_mod.baixar_url(str(body["url"]), emit, limite=limite)
+            baixado_do_link = arquivo
+            sha1_link = f" SHA-1 do arquivo baixado: {sha1}."
         if alvo == "celular":
             serial = _texturas_serial_celular(cfg)
             if not serial:
@@ -767,10 +775,12 @@ def run_texturas_instalar_job(emit, chave: str, alvo: str, body: dict) -> None:
                 texturas_mod.set_loading(pacote["sistema"])
             except texturas_mod.TexturaErro as e:
                 aviso = f" Aviso: ligue a opção de texturas no emulador ({e})."
-        emit({"type": "system_done", "result": {"ok": True, "message": f"{n} arquivos instalados.{aviso}"}})
+        emit({"type": "system_done", "result": {"ok": True, "message": f"{n} arquivos instalados.{aviso}{sha1_link}"}})
     except (texturas_mod.TexturaErro, OSError) as e:
         emit({"type": "system_done", "result": {"ok": False, "message": str(e)}})
     finally:
+        if baixado_do_link is not None:
+            baixado_do_link.unlink(missing_ok=True)  # cache/ fica no Drive sincronizado
         with _texturas_lock:
             _texturas_em_andamento.discard(chave)
 
@@ -3093,6 +3103,10 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 cfg = load_config()
                 pacote = _texturas_pacote(body, cfg)
+                if body.get("url") and body.get("arquivo"):
+                    raise texturas_mod.TexturaErro("informe o link ou o arquivo, não os dois")
+                if body.get("url"):
+                    texturas_mod.validar_url(str(body["url"]))
                 _texturas_arquivo_local(body, cfg)
                 if pacote["sistema"] not in _texturas_sistemas(alvo):
                     raise texturas_mod.TexturaErro(f"{pacote['sistema']} não tem suporte a texturas no {alvo}")

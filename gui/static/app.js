@@ -2869,13 +2869,21 @@ async function removerTextura(p) {
   carregarTexturas();
 }
 
-function importarTextura(remover) {
+function importarTextura(remover, porLink) {
   const corpo = {
     alvo: textAlvo(), sistema: document.getElementById("texturas-imp-sistema").value,
     id_jogo: document.getElementById("texturas-imp-id").value.trim(),
     arquivo: document.getElementById("texturas-imp-arquivo").value.trim(),
   };
-  if (!corpo.id_jogo || (!remover && !corpo.arquivo)) { textStatus("preencha o ID do jogo e o nome do arquivo"); return; }
+  const url = document.getElementById("texturas-imp-url").value.trim();
+  if (porLink) {
+    if (!corpo.id_jogo || !url) { textStatus("preencha o ID do jogo e o link"); return; }
+    if (!confirm(`Baixar e instalar este arquivo?\n\n${url}\n\nO PyRetro não tem como conferir a integridade de um link avulso: use só fontes em que você confia. Ao final, o SHA-1 do arquivo aparece aqui.`)) return;
+    delete corpo.arquivo;
+    corpo.url = url;
+  } else if (!corpo.id_jogo || (!remover && !corpo.arquivo)) {
+    textStatus("preencha o ID do jogo e o nome do arquivo"); return;
+  }
   if (remover) delete corpo.arquivo;
   fetch(remover ? "/api/texturas/remover" : "/api/texturas/instalar", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
@@ -2887,7 +2895,8 @@ function importarTextura(remover) {
       const evt = new EventSource(`/api/fetch/stream?job=${d.job}`);
       evt.onmessage = (e) => {
         const m = JSON.parse(e.data);
-        if (m.type === "progress" && m.status) textStatus(m.status + "...");
+        if (m.type === "progress" && m.status === "baixando" && m.total) textStatus(`baixando ${Math.floor(100 * m.feito / m.total)}%`);
+        else if (m.type === "progress" && m.status) textStatus(m.status + "...");
         else if (m.type === "system_done") textStatus(m.result.message);
         else if (m.type === "error") textStatus(`erro: ${m.message}`);
         else if (m.type === "job_done") { evt.close(); carregarTexturas(); }
@@ -2896,8 +2905,9 @@ function importarTextura(remover) {
     })
     .catch(err => textStatus(`erro: ${err.message}`));
 }
-document.getElementById("texturas-imp-ir").addEventListener("click", () => importarTextura(false));
-document.getElementById("texturas-imp-remover").addEventListener("click", () => importarTextura(true));
+document.getElementById("texturas-imp-ir").addEventListener("click", () => importarTextura(false, false));
+document.getElementById("texturas-imp-link").addEventListener("click", () => importarTextura(false, true));
+document.getElementById("texturas-imp-remover").addEventListener("click", () => importarTextura(true, false));
 document.getElementById("texturas-alvo").addEventListener("change", () => { textStatus(""); carregarTexturas(); });
 
 document.getElementById("btn-texturas").addEventListener("click", () => {

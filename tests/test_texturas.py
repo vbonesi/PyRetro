@@ -232,5 +232,73 @@ class TexturasCelularTest(unittest.TestCase):
         self.assertEqual(tx.set_loading_celular("PSP", "ULUS10307"), "ja_ligado")
 
 
+class TexturasLinkTest(unittest.TestCase):
+    """Download por link avulso: validação de URL e limites, sem rede (DNS e opener simulados)."""
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        import socket
+        self.dns = {"exemplo.org": "93.184.216.34", "interno.lan": "192.168.1.9"}
+        p = mock.patch.object(socket, "getaddrinfo", side_effect=lambda h, *a, **k: [(2, 1, 6, "", (self.dns.get(h, h), 443))])
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_validar_url(self):
+        self.assertEqual(tx.validar_url("https://exemplo.org/a.zip"), "exemplo.org")
+        for ruim in ("http://exemplo.org/a.zip", "ftp://exemplo.org/a.zip", "https://u:p@exemplo.org/a.zip",
+                     "https://exemplo.org:8443/a.zip", "https://interno.lan/a.zip", "https://127.0.0.1/a.zip",
+                     "https://10.0.0.1/a.zip", "https://100.64.0.5/a.zip", "https:///a.zip", "nao e url"):
+            with self.assertRaises(tx.TexturaErro, msg=ruim):
+                tx.validar_url(ruim)
+
+    def _opener(self, dados=b"conteudo", tipo="application/zip", cd=None, url="https://exemplo.org/p.zip", tamanho=None):
+        class Resp:
+            headers = {"Content-Type": tipo, "Content-Length": str(len(dados) if tamanho is None else tamanho)}
+            def __init__(self):
+                self.b = dados
+                if cd:
+                    self.headers["Content-Disposition"] = cd
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+            def geturl(self): return url
+            def read(self, n):
+                b, self.b = self.b, b""
+                return b
+        class Opener:
+            def open(self, req, timeout=0): return Resp()
+        return mock.patch.object(urllib.request, "build_opener", return_value=Opener())
+
+    def test_baixa_e_devolve_sha1(self):
+        with self._opener():
+            arq, sha = tx.baixar_url("https://exemplo.org/p.zip", cache_dir=self.dir)
+        self.assertEqual(arq.read_bytes(), b"conteudo")
+        self.assertEqual(sha, hashlib.sha1(b"conteudo").hexdigest())
+        self.assertEqual(arq.suffix, ".zip")
+
+    def test_nome_vem_do_content_disposition(self):
+        with self._opener(cd='attachment; filename="pack.7z"', url="https://exemplo.org/download?id=3"):
+            arq, _ = tx.baixar_url("https://exemplo.org/download?id=3", cache_dir=self.dir)
+        self.assertEqual(arq.suffix, ".7z")
+
+    def test_recusas_sem_deixar_arquivo(self):
+        casos = {
+            "pagina html": self._opener(tipo="text/html; charset=utf-8"),
+            "extensao": self._opener(url="https://exemplo.org/p.exe"),
+            "tamanho declarado": self._opener(tamanho=10 * 1024 ** 4),
+        }
+        for nome, op in casos.items():
+            with op, self.assertRaises(tx.TexturaErro, msg=nome):
+                tx.baixar_url("https://exemplo.org/p.zip", cache_dir=self.dir)
+        with self._opener(dados=b"x" * 100, tamanho=0), self.assertRaises(tx.TexturaErro):
+            tx.baixar_url("https://exemplo.org/p.zip", cache_dir=self.dir, limite=10)
+        self.assertEqual(list(self.dir.iterdir()), [])
+
+    def test_redirecionamento_para_endereco_interno_e_recusado(self):
+        h = tx._RedirectSeguro()
+        with self.assertRaises(tx.TexturaErro):
+            h.redirect_request(mock.Mock(), None, 302, "Found", {}, "https://interno.lan/a.zip")
+
+
 if __name__ == "__main__":
     unittest.main()

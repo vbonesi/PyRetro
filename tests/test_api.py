@@ -535,6 +535,32 @@ class TexturasAPI(BaseAPI):
         self.assertEqual((status, d["removidos"]), (200, 1))
         self.assertFalse((self.raiz / "tex/ps2/SLUS-21065/replacements/a.png").exists())
 
+    def test_importa_por_link(self):
+        import zipfile
+        from core import texturas as tx
+        z = self.raiz / "cache" / "baixado.zip"
+        with zipfile.ZipFile(z, "w") as f:
+            f.writestr("SLUS-21065/replacements/b.png", "1")
+        corpo = {"alvo": "pc", "sistema": "PS2", "id_jogo": "SLUS-21065", "url": "https://exemplo.org/p.zip"}
+        with mock.patch.object(tx, "baixar_url", return_value=(z, "abc123")), \
+                mock.patch.object(tx, "set_loading", return_value="ligado"), \
+                mock.patch.object(tx, "CACHE_DIR", self.raiz / "cache" / "texturas"):
+            status, d = self.pedir("/api/texturas/instalar", corpo)
+            self.assertEqual(status, 200)
+            eventos = self._stream(d["job"])
+        feito = [e for e in eventos if e["type"] == "system_done"][0]["result"]
+        self.assertTrue(feito["ok"], feito)
+        self.assertIn("abc123", feito["message"])
+        self.assertTrue((self.raiz / "tex/ps2/SLUS-21065/replacements/b.png").is_file())
+        self.assertFalse(z.exists())  # o arquivo baixado é apagado depois de instalar
+        self.pedir("/api/texturas/remover", {k: corpo[k] for k in ("alvo", "sistema", "id_jogo")})
+
+    def test_link_recusado_na_rota(self):
+        base = {"alvo": "pc", "sistema": "PS2", "id_jogo": "SLUS-21065"}
+        for url in ("http://exemplo.org/a.zip", "https://127.0.0.1/a.zip", "file:///etc/passwd"):
+            self.assertEqual(self.pedir("/api/texturas/instalar", {**base, "url": url})[0], 400, url)
+        self.assertEqual(self.pedir("/api/texturas/instalar", {**base, "url": "https://archive.org/a.zip", "arquivo": "x.zip"})[0], 400)
+
     def test_recusas(self):
         base = {"alvo": "pc", "sistema": "PS2", "id_jogo": "SLUS-21065"}
         for ruim in ("../fora.zip", "/etc/passwd", ".oculto.zip", "a\\b.zip", "nao-existe.zip", "pack.txt"):

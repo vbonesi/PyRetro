@@ -21,12 +21,16 @@ Cada emulador também precisa da opção "carregar texturas" ligada; set_loading
 liga, mas só com o emulador fechado (ele regrava o .ini ao sair e desfaria a
 mudança)."""
 import hashlib
+import ipaddress
 import json
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import socket
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -141,6 +145,93 @@ def baixar(pacote: dict, emit=None, cache_dir: Path = CACHE_DIR) -> Path:
     return final
 
 
+LIMITE_URL = 12 * 1024 ** 3  # bytes; configurável em [texturas] limite_gb
+
+
+def validar_url(url: str) -> str:
+    """Aceita só https para um host público (sem usuário/senha na URL, porta 443).
+    Impede que um link vire acesso a serviços da rede local (localhost, 192.168.x, tailnet...).
+    Devolve o host."""
+    try:
+        u = urllib.parse.urlsplit(url)
+        porta = u.port
+    except ValueError:
+        raise TexturaErro("link inválido") from None
+    if u.scheme != "https" or not u.hostname:
+        raise TexturaErro("o link precisa ser https://")
+    if u.username or u.password:
+        raise TexturaErro("link com usuário/senha não é aceito")
+    if porta not in (None, 443):
+        raise TexturaErro("só a porta 443 é aceita")
+    try:
+        enderecos = {i[4][0] for i in socket.getaddrinfo(u.hostname, 443, proto=socket.IPPROTO_TCP)}
+    except OSError as e:
+        raise TexturaErro(f"não consegui resolver {u.hostname}: {e}") from None
+    for a in enderecos:
+        if not ipaddress.ip_address(a.split("%")[0]).is_global:
+            raise TexturaErro("o link aponta para um endereço que não é público")
+    return u.hostname
+
+
+class _RedirectSeguro(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        validar_url(newurl)  # cada salto passa pela mesma validação
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _nome_do_link(url: str, cabecalhos) -> str:
+    nome = ""
+    cd = cabecalhos.get("Content-Disposition") or ""
+    m = re.search(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", cd, re.I)
+    if m:
+        nome = urllib.parse.unquote(m.group(1))
+    if not nome:
+        nome = urllib.parse.unquote(Path(urllib.parse.urlsplit(url).path).name)
+    return nome
+
+
+def baixar_url(url: str, emit=None, cache_dir: Path = CACHE_DIR, limite: int = LIMITE_URL) -> tuple[Path, str]:
+    """Baixa um pacote de um link direto escolhido pelo usuário. Sem hash de referência: devolve
+    (arquivo, sha1 calculado) para o usuário registrar. O arquivo precisa ser .zip/.7z/.rar."""
+    validar_url(url)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    opener = urllib.request.build_opener(_RedirectSeguro)
+    req = urllib.request.Request(url, headers={"User-Agent": "PyRetro"})
+    parcial = None
+    try:
+        with opener.open(req, timeout=60) as r:
+            if not r.geturl().startswith("https://"):
+                raise TexturaErro("redirecionamento inseguro")
+            tipo = (r.headers.get("Content-Type") or "").lower()
+            if tipo.startswith("text/html"):
+                raise TexturaErro("o link abre uma página, não o arquivo; use o link direto do .zip/.7z/.rar")
+            nome = _nome_do_link(r.geturl(), r.headers)
+            ext = Path(nome).suffix.lower()
+            if ext not in EXTENSOES:
+                raise TexturaErro("o link precisa apontar direto para um .zip, .7z ou .rar")
+            total = int(r.headers.get("Content-Length") or 0)
+            if total > limite:
+                raise TexturaErro(f"arquivo grande demais ({total // 1024 ** 2} MB; limite {limite // 1024 ** 2} MB)")
+            fd, tmp = tempfile.mkstemp(dir=cache_dir, prefix="link-", suffix=ext)
+            parcial = Path(tmp)
+            h = hashlib.sha1()
+            feito = 0
+            with os.fdopen(fd, "wb") as f:
+                while chunk := r.read(1 << 20):
+                    feito += len(chunk)
+                    if feito > limite:
+                        raise TexturaErro("o arquivo passou do limite de tamanho; download cancelado")
+                    f.write(chunk)
+                    h.update(chunk)
+                    if emit:
+                        emit({"type": "progress", "status": "baixando", "feito": feito, "total": total})
+        return parcial, h.hexdigest()
+    except (TexturaErro, urllib.error.URLError, OSError):
+        if parcial is not None:
+            parcial.unlink(missing_ok=True)
+        raise
+
+
 def _sha1(path: Path) -> str:
     h = hashlib.sha1()
     with open(path, "rb") as f:
@@ -253,6 +344,13 @@ def remover(pacote: dict, cfg: dict | None = None) -> int:
             d.rmdir()
         except OSError:
             pass
+    # pasta do pacote (e a do jogo, quando há "replacements/") só somem se ficaram vazias
+    for d in (destino, destino.parent if destino.name == "replacements" else None):
+        if d is not None:
+            try:
+                d.rmdir()
+            except OSError:
+                pass
     return n
 
 

@@ -6,6 +6,17 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 (fim, 2) — Texturas: importação por link
+
+- **Importar por link** (aba Texturas > "Importar um pacote de arquivo" > link direto): para os sistemas sem fonte confiável no
+  catálogo (GameCube/Wii, 3DS, PS1). `core/texturas.baixar_url` só aceita **https para host público** (recusa `http`, usuário/senha na
+  URL, porta que não seja 443, localhost, rede local e tailnet, e cada redirecionamento passa pela mesma checagem), exige que o link
+  seja direto para `.zip/.7z/.rar` (página HTML é recusada), limita o tamanho (12 GB, `[texturas] limite_gb`) e apaga o arquivo depois
+  de instalar. Sem hash de referência, a tela pede confirmação e mostra o **SHA-1** calculado no fim, para você registrar.
+  Testado de ponta a ponta com um link real (zip do repositório do PyRetro num ID falso de PS1, removido em seguida) e com testes
+  novos (core e API). Links de Mega/Google Drive não são diretos e não funcionam; baixe o arquivo e use a importação por arquivo.
+- `remover` agora também apaga a pasta vazia do pacote/jogo.
+
 ## 16/10/2026 (fim) — Catálogo com PSP, pesquisa dos demais, setup e registro
 
 - **Catálogo de texturas: 352 pacotes** (342 de PS2 e 10 de PSP). O gerador (`tools/gerar_catalogo_texturas.py`) agora lê
