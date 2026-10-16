@@ -147,5 +147,90 @@ class TexturasTest(unittest.TestCase):
             self.assertEqual(len(p["sha1"]), 40)
 
 
+class TexturasCelularTest(unittest.TestCase):
+    """O celular é simulado: shell/push de core.adb viram operações num dict."""
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        self.remoto = {}
+        self.cmds = []
+        from core import adb as adb_mod
+        self.adb = adb_mod
+
+        def shell(cmd, serial=None, timeout=30):
+            self.cmds.append(cmd)
+            if cmd.startswith("cat "):
+                caminho = cmd[4:].split(" 2>")[0].strip("'")
+                if caminho not in self.remoto and "; true" not in cmd:
+                    raise self.adb.AdbError("adb shell falhou: cat inexistente")  # como o adb real (exit 1)
+                return self.remoto.get(caminho, "")
+            return ""
+
+        def push(local, remote, serial=None, timeout=1800, archive=False):
+            if str(local).endswith("/."):
+                raiz = Path(str(local)[:-2])
+                for f in raiz.rglob("*"):
+                    if f.is_file():
+                        self.remoto[remote + "/" + f.relative_to(raiz).as_posix()] = f.read_text()
+            else:
+                self.remoto[remote] = Path(local).read_text()
+            return True
+        for nome, fn in (("shell", shell), ("push", push)):
+            p = mock.patch.object(adb_mod, nome, fn)
+            p.start()
+            self.addCleanup(p.stop)
+        c = mock.patch.object(tx, "CACHE_DIR", self.dir / "cache")
+        c.start()
+        self.addCleanup(c.stop)
+
+    def test_destinos_do_celular(self):
+        self.assertTrue(tx._cel_destino("PS1", "SLES-00049").endswith("/textures/SLES-00049/replacements"))
+        self.assertEqual(tx._cel_destino("PSP", "ULUS10307"), "/sdcard/Jogos/PSP/PSP/TEXTURES/ULUS10307")
+        self.assertEqual(tx._cel_destino("3DS", "000400000008F800"), "/sdcard/Jogos/3DS/load/textures/000400000008F800")
+        for sis, ruim in (("3DS", "../x"), ("3DS", "123"), ("PSP", "ULUS-10307"), ("GC", "G2MP01")):
+            with self.assertRaises(tx.TexturaErro):
+                tx._cel_destino(sis, ruim)
+
+    def test_instala_e_remove_no_celular(self):
+        p = {"id": "psp-x", "sistema": "PSP", "id_jogo": "ULUS10307", "nome": "J", "arquivo": "x.zip"}
+        z = _zip(self.dir / "p.zip", {"ULUS10307/a.png": "1", "ULUS10307/textures.ini": "[options]"})
+        self.assertEqual(tx.instalar_celular(p, arquivo=z), 2)
+        base = "/sdcard/Jogos/PSP/PSP/TEXTURES/ULUS10307"
+        self.assertEqual(self.remoto[base + "/a.png"], "1")
+        self.assertIn(base + "/" + tx.MANIFESTO, self.remoto)
+        self.assertEqual(tx.estado_celular(p), {"instalado": True, "arquivos": 2})
+        self.assertEqual(tx.remover_celular(p), 2)
+        self.assertTrue(any(c.startswith("rm -f") and "a.png" in c for c in self.cmds))
+
+    def test_remover_celular_sem_instalar_falha(self):
+        p = {"id": "psp-x", "sistema": "PSP", "id_jogo": "ULUS10307", "nome": "J", "arquivo": "x.zip"}
+        with self.assertRaises(tx.TexturaErro):
+            tx.remover_celular(p)
+
+    def test_ini_valor(self):
+        t, mudou = tx._ini_valor("[Graphics]\nReplaceTextures = False\nX = 1\n", "Graphics", "ReplaceTextures", "True")
+        self.assertTrue(mudou)
+        self.assertEqual(t, "[Graphics]\nReplaceTextures = True\nX = 1\n")
+        self.assertFalse(tx._ini_valor(t, "Graphics", "ReplaceTextures", "True")[1])
+        t2, _ = tx._ini_valor("[A]\nb = 1\n", "Utility", "custom_textures", "true")
+        self.assertIn("[Utility]\ncustom_textures = true", t2)
+        t3, _ = tx._ini_valor("", "TextureReplacements", "EnableVRAMWriteReplacements", "true")
+        self.assertIn("EnableVRAMWriteReplacements = true", t3)
+
+    def test_set_loading_celular_cria_arquivo_que_nao_existe(self):
+        self.assertEqual(tx.set_loading_celular("PS1", "SLUS-00619"), "ligado")
+        self.assertIn("EnableVRAMWriteReplacements = true",
+                      self.remoto[tx._CEL_DUCK + "/gamesettings/SLUS-00619.ini"])
+        self.assertEqual(tx.set_loading_celular("3DS", "0004000000055D00"), "ligado")
+        self.assertIn("custom_textures = 1", self.remoto[tx._CEL_INI_3DS])
+
+    def test_set_loading_celular_so_envia_quando_muda(self):
+        self.remoto["/sdcard/Jogos/PSP/PSP/SYSTEM/ppsspp.ini"] = "[Graphics]\nReplaceTextures = False\n"
+        self.assertEqual(tx.set_loading_celular("PSP", "ULUS10307"), "ligado")
+        self.assertIn("ReplaceTextures = True", self.remoto["/sdcard/Jogos/PSP/PSP/SYSTEM/ppsspp.ini"])
+        self.assertEqual(tx.set_loading_celular("PSP", "ULUS10307"), "ja_ligado")
+
+
 if __name__ == "__main__":
     unittest.main()

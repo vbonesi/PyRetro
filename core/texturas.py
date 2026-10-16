@@ -327,3 +327,157 @@ def tem_rom(pacote: dict, nomes_rom: list[str]) -> bool:
     a ROM de "NFS Underground 2"."""
     alvo = _normalizar(pacote["nome"])
     return bool(alvo) and any(alvo == _normalizar(Path(n).stem) for n in nomes_rom)
+
+
+# ---------------------------------------------------------------------------
+# Celular (Android, via adb). Mesma ideia do PC: copia as texturas para a pasta
+# do emulador e grava um manifesto. Pastas confirmadas por `adb shell ls` em
+# 16/10/2026; a troca de textura em jogo no celular AINDA NÃO foi testada.
+#   PS1  DuckStation  Android/data/com.github.stenzek.duckstation/files/textures/<SERIAL>/replacements
+#   PSP  PPSSPP Gold  /sdcard/Jogos/PSP/PSP/TEXTURES/<ID>
+#   3DS  Lime3DS      /sdcard/Jogos/3DS/load/textures/<TITLE ID DE 16 HEX>
+# O DuckStation do Android guarda o settings.ini na área privada do app, então a
+# opção "trocar texturas" vai por jogo, em gamesettings/<SERIAL>.ini.
+# ---------------------------------------------------------------------------
+_CEL_DUCK = "/sdcard/Android/data/com.github.stenzek.duckstation/files"
+_CELULAR = {
+    "PS1": _CEL_DUCK + "/textures",
+    "PSP": "/sdcard/Jogos/PSP/PSP/TEXTURES",
+    "3DS": "/sdcard/Jogos/3DS/load/textures",
+}
+_CEL_ID = dict(_ID_JOGO, **{"3DS": re.compile(r"^[0-9A-F]{16}$")})
+_CEL_INI_PSP = "/sdcard/Jogos/PSP/PSP/SYSTEM/ppsspp.ini"
+_CEL_INI_3DS = "/sdcard/Jogos/3DS/config/config.ini"
+
+
+def sistemas_celular() -> list[str]:
+    return list(_CELULAR)
+
+
+def _cel_destino(sistema: str, id_jogo: str) -> str:
+    if sistema not in _CELULAR:
+        raise TexturaErro(f"sistema sem suporte a texturas no celular: {sistema}")
+    if not _CEL_ID[sistema].match(id_jogo or ""):
+        raise TexturaErro(f"ID de jogo inválido para {sistema}: {id_jogo!r}")
+    base = f"{_CELULAR[sistema]}/{id_jogo}"
+    return base + "/replacements" if sistema == "PS1" else base
+
+
+def estado_celular(pacote: dict, serial: str | None = None) -> dict:
+    from core import adb as adb_mod
+    destino = _cel_destino(pacote["sistema"], pacote["id_jogo"])
+    try:
+        bruto = adb_mod.shell(f"cat {adb_mod.shquote(destino + '/' + MANIFESTO)} 2>/dev/null", serial)
+        man = json.loads(bruto)
+    except (adb_mod.AdbError, ValueError):
+        return {"instalado": False, "arquivos": 0}
+    if man.get("pacote") == pacote["id"]:
+        return {"instalado": True, "arquivos": len(man["arquivos"])}
+    return {"instalado": False, "arquivos": 0}
+
+
+def instalar_celular(pacote: dict, serial: str | None = None, emit=None, arquivo: Path | None = None) -> int:
+    """Baixa (ou usa `arquivo`), extrai no PC e envia por adb para o emulador do celular."""
+    from core import adb as adb_mod
+    sistema, id_jogo = pacote["sistema"], pacote["id_jogo"]
+    destino = _cel_destino(sistema, id_jogo)
+    baixado = arquivo is None
+    if baixado:
+        arquivo = baixar(pacote, emit)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        with tempfile.TemporaryDirectory(dir=CACHE_DIR, prefix="extr-") as tmp:
+            if emit:
+                emit({"type": "progress", "status": "extraindo"})
+            extrair(arquivo, Path(tmp))
+            raiz = _achar_raiz(Path(tmp), id_jogo)
+            if sistema == "PS1" and (raiz / "replacements").is_dir():
+                raiz = raiz / "replacements"
+            arquivos = [f.relative_to(raiz).as_posix() for f in sorted(raiz.rglob("*"))
+                        if f.is_file() and not f.is_symlink() and f.name != MANIFESTO]
+            if not arquivos:
+                raise TexturaErro("o pacote não trouxe nenhum arquivo de textura")
+            if emit:
+                emit({"type": "progress", "status": "enviando"})
+            adb_mod.shell(f"mkdir -p {adb_mod.shquote(destino)}", serial)
+            # "dir/." (string): o Path descartaria o ".", e o adb criaria destino/<nome-da-pasta>
+            if not adb_mod.push(f"{raiz}/.", destino, serial):
+                raise TexturaErro("o adb falhou ao enviar as texturas")
+            man = Path(tmp) / MANIFESTO
+            man.write_text(json.dumps({"pacote": pacote["id"], "arquivos": arquivos}), encoding="utf-8")
+            if not adb_mod.push(man, destino + "/" + MANIFESTO, serial):
+                raise TexturaErro("o adb falhou ao gravar o manifesto")
+            return len(arquivos)
+    except adb_mod.AdbError as e:
+        raise TexturaErro(f"celular indisponível: {e}") from e
+    finally:
+        if baixado:
+            arquivo.unlink(missing_ok=True)
+
+
+def remover_celular(pacote: dict, serial: str | None = None) -> int:
+    from core import adb as adb_mod
+    destino = _cel_destino(pacote["sistema"], pacote["id_jogo"])
+    try:
+        man = json.loads(adb_mod.shell(f"cat {adb_mod.shquote(destino + '/' + MANIFESTO)} 2>/dev/null", serial))
+    except (adb_mod.AdbError, ValueError):
+        raise TexturaErro("este pacote não está instalado pelo PyRetro no celular") from None
+    if man.get("pacote") != pacote["id"]:
+        raise TexturaErro("este pacote não está instalado pelo PyRetro no celular")
+    n = 0
+    for rel in man["arquivos"]:
+        if ".." in Path(rel).parts or rel.startswith("/"):
+            continue
+        adb_mod.shell(f"rm -f {adb_mod.shquote(destino + '/' + rel)}", serial)
+        n += 1
+    adb_mod.shell(f"rm -f {adb_mod.shquote(destino + '/' + MANIFESTO)}; "
+                  f"find {adb_mod.shquote(destino)} -depth -type d -empty -delete", serial)
+    return n
+
+
+def _ini_valor(texto: str, secao: str, chave: str, valor: str) -> tuple[str, bool]:
+    """Define chave = valor dentro de [secao] num texto .ini; devolve (texto, mudou)."""
+    linhas = texto.splitlines(keepends=True)
+    atual = None
+    for i, l in enumerate(linhas):
+        s = l.strip().lstrip("\ufeff")
+        if s.startswith("["):
+            atual = s.strip("[]")
+        elif atual == secao and re.match(rf"^{re.escape(chave)}\s*=", s):
+            if s.split("=", 1)[1].strip().lower() == valor.lower():
+                return texto, False
+            linhas[i] = f"{chave} = {valor}\n"
+            return "".join(linhas), True
+    for i, l in enumerate(linhas):
+        if l.strip().lstrip("\ufeff") == f"[{secao}]":
+            linhas.insert(i + 1, f"{chave} = {valor}\n")
+            return "".join(linhas), True
+    sep = "" if texto.endswith("\n") or not texto else "\n"
+    return texto + f"{sep}\n[{secao}]\n{chave} = {valor}\n", True
+
+
+def set_loading_celular(sistema: str, id_jogo: str, serial: str | None = None) -> str:
+    """Liga a troca de textura no emulador do celular. Devolve 'ligado' ou 'ja_ligado'.
+    PS1: gamesettings/<SERIAL>.ini do DuckStation; PSP: ppsspp.ini; 3DS: config.ini do Lime3DS."""
+    from core import adb as adb_mod
+    _cel_destino(sistema, id_jogo)
+    if sistema == "PS1":
+        remoto, secao, chave, valor = f"{_CEL_DUCK}/gamesettings/{id_jogo}.ini", "TextureReplacements", "EnableVRAMWriteReplacements", "true"
+    elif sistema == "PSP":
+        remoto, secao, chave, valor = _CEL_INI_PSP, "Graphics", "ReplaceTextures", "True"
+    else:
+        remoto, secao, chave, valor = _CEL_INI_3DS, "Utility", "custom_textures", "1"
+    try:
+        # "; true": arquivo ainda inexistente (ex.: gamesettings do jogo) não é erro
+        atual = adb_mod.shell(f"cat {adb_mod.shquote(remoto)} 2>/dev/null; true", serial)
+        novo, mudou = _ini_valor(atual, secao, chave, valor)
+        if not mudou:
+            return "ja_ligado"
+        with tempfile.TemporaryDirectory(dir=CACHE_DIR if CACHE_DIR.is_dir() else None) as tmp:
+            f = Path(tmp) / "ini"
+            f.write_text(novo, encoding="utf-8")
+            if not adb_mod.push(f, remoto, serial):
+                raise TexturaErro("o adb falhou ao gravar a configuração do emulador")
+    except adb_mod.AdbError as e:
+        raise TexturaErro(f"celular indisponível: {e}") from e
+    return "ligado"
