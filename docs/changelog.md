@@ -6,6 +6,35 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 (fim da noite) — Texturas validadas nos 4 emuladores, capas no ES-DE/emuladores, GPUs
+
+- **Texturas HD validadas em jogo com troca de ida e volta** (o emulador despeja uma textura, ela
+  é editada e instalada pelo `core/texturas.py`, o jogo reabre): **Dolphin** (Metroid Prime 2,
+  `Load/Textures/G2MP01`, `HiresTextures = True`), **PPSSPP** (Patapon 2, `PSP/TEXTURES/UCUS98732`,
+  `ReplaceTextures = True`) e **DuckStation** (Rayman, `textures/SLES-00049/replacements`,
+  `[TextureReplacements] EnableVRAMWriteReplacements = true`; PS1 entrou no módulo agora).
+  Não existe pacote HD verificado para Metroid Prime 2/Patapon 2/Rayman nas buscas, então o
+  catálogo continua só com PS2; os testes usaram texturas de teste (removidas depois).
+  Achado: o PPSSPP **só carregou a troca com um `textures.ini`** na pasta do jogo (os pacotes
+  costumam trazer o deles); sem ele nada mudou. Dolphin/PPSSPP/DuckStation voltaram ao normal
+  (`DumpTextures`/`SaveNewTextures`/`DumpVRAMWrites` desligados; as chaves de carregar ficaram
+  ligadas). Backups dos `.ini` em `~/Drive/Jogos/Backups/`.
+- **GPU:** Dolphin e PPSSPP rodam na RTX (`nvidia-smi` listou os dois processos), mesmo com o
+  adaptador vazio no `.ini`; o DuckStation já tinha `Adapter` fixo. Só o PCSX2 caía na Intel.
+- **Modo TV (teste JS 36/37):** não era bug do app. O painel de navegador embutido do Claude não
+  dispara `requestAnimationFrame` (nem na página principal), e o modo TV lê o controle por esse
+  callback. Com o `rAF` simulado o teste passa **37/37**, também no código de antes das mudanças do
+  dia. Rode o `test_app.html` num Chrome/Firefox normal.
+- **Capas do PyRetro no ES-DE e nos emuladores** (`core/capas_emuladores.py`, Manutenção >
+  "Capas do PyRetro no ES-DE, DuckStation, PCSX2 e Dolphin", `tests/test_capas_emuladores.py`):
+  tudo por symlink para `Capas/<sistema>/Named_Boxarts`, sem copiar. ES-DE: `downloaded_media/<sistema>/covers`
+  (17 sistemas; confirmado na tela do PS2). DuckStation: `covers/<nome da ROM>.png` (confirmado).
+  PCSX2: `covers/<nome da ROM>.png` **e** `covers/<SERIAL>.png`, com o serial lido do `SYSTEM.CNF` da
+  ISO, porque o PCSX2 dá prioridade à capa baixada por ele (nome = serial); as dele vão para
+  `covers/_baixadas_pelo_emulador/` (confirmado: mostra as nossas). **Dolphin não confirmado:** os
+  links `cache/GameCovers/<ID>.png` existem, mas a grade continuou com os banners.
+- Python: 200 testes passando.
+
 ## 16/10/2026 (noite) — NFS Underground 2 a 40+ fps, texturas HD e GameCube fora do celular
 
 - **Causa das quedas do NFSU2 (30–37 fps):** o PCSX2 estava no Vulkan com `Adapter` vazio e o
