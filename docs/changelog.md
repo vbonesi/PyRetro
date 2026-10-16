@@ -6,6 +6,28 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 15/10/2026 — Jogar pelo modo TV
+
+- Botão Jogar usa `bonisarch-emulator` com mapeamento explícito de sistemas e
+  argumentos sem shell. Valida a ROM local e as referências CUE/GDI/M3U,
+  recusando traversal, symlinks externos, arquivos vazios e ciclos. Vários
+  discos/formatos exigem escolha. CCD permanece bloqueado até validar IMG/SUB.
+- Baixar e jogar exige confirmação e revalida os arquivos antes de executar.
+  Sessão única acompanhada pelo servidor, com erros visíveis e oferta de
+  registrar progresso/nota ao sair; não marca o jogo como finalizado sozinho.
+- Download pesado passou a staging temporário exclusivo, `copyto` para arquivo
+  e `copy` para pasta própria, incluindo faixas referenciadas. Completa
+  descritores locais sem substituir arquivos; publicação recusa destino que
+  surgiu durante a operação. Não modifica ROMs existentes nem apaga acervo.
+- Instalador do atalho Steam com simulação, recusa enquanto Steam aberta,
+  preservação dos atalhos existentes, cópia do VDF e execução idempotente.
+  Atalho **PyRetro — Acervo** instalado nesta máquina; Chrome usa perfil separado
+  em tela cheia. Script e contrato documentados em `docs/modo-tv.md`.
+- Validação com acervo temporário: 173 testes Python e 35 de interface passaram.
+  Ciclo baixar/abrir/encerrar conferido com lançador fictício. Homologação do
+  controle físico, foco dos emuladores reais e Steam Link continua com o Victor.
+  Cópia isolada desta etapa: 169 testes Python e 25 de interface passaram.
+
 ## 15/10/2026 — Modo TV
 
 - Primeira etapa para Big Picture: `/tv`, com Biblioteca/Jogando, ROMs leves e

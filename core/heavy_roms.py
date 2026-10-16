@@ -33,10 +33,16 @@ primeiro em staging_dir (config [rclone], padrão ~/Downloads) e só
 depois move pro lugar certo, um rename local instantâneo."""
 import json
 import re
+import os
+import ctypes
+import errno
+import tempfile
 import subprocess
 from pathlib import Path
 
 from core import adb as adb_mod
+from core import file_lock as file_lock_mod
+from core import play as play_mod
 
 _TRACK_RE = re.compile(r"^(.+) \(Track \d+\)$")
 
@@ -203,30 +209,113 @@ def list_drive_items(code: str, cfg: dict) -> list:
 
 
 def download_from_drive(code: str, name: str, roms_root: Path, cfg: dict) -> tuple[bool, str]:
-    """Baixa um item do Drive pro PC via rclone. Nunca escreve direto em
-    roms_root/<CODE>/ (pasta sincronizada pelo Google Drive Desktop) -
-    baixa primeiro em staging_dir e só move pro lugar certo depois que
-    o download termina por completo (ver docstring do módulo)."""
+    """Baixa para staging exclusivo e publica somente arquivos completos.
+
+    CUE/GDI/M3U incluem suas referências explícitas, inclusive quando o descritor
+    já existe localmente mas faltam as faixas. Não substitui arquivos existentes.
+    """
+    try:
+        if not isinstance(code, str) or code not in load_heavy_systems(cfg):
+            raise ValueError("sistema pesado desconhecido")
+        rel = play_mod.safe_relative(name)
+        if len(rel.parts) != 1:
+            raise ValueError("selecione um item do catálogo, sem subpastas")
+        root = roms_root.expanduser() / code
+        if not root.resolve().is_relative_to(roms_root.expanduser().resolve()):
+            raise ValueError("pasta do sistema fora do acervo")
+        with file_lock_mod.exclusive(root / ".download"):
+            return _download_item(code, name, root, cfg)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+        return False, str(e)
+
+
+def _download_item(code, name, root, cfg):
     rc = _rclone_cfg(cfg)
-    remote_path = f"{rc['remote']}:{rc['drive_roms_root']}/{code}/{name}"
+    remote = f"{rc['remote']}:{rc['drive_roms_root']}/{code}"
     staging = Path(rc["staging_dir"]).expanduser()
+    # Downloads não podem ser escritos dentro da árvore sincronizada.
+    if staging.resolve().is_relative_to(root.parent.resolve()):
+        raise ValueError("staging precisa ficar fora da pasta de ROMs")
     staging.mkdir(parents=True, exist_ok=True)
+    dest = root / name
+    if not dest.resolve().is_relative_to(root.resolve()):
+        raise ValueError("destino fora da pasta do sistema")
 
-    dest_final = roms_root / code / name
-    if dest_final.exists():
+    def run(args):
+        result = subprocess.run(["rclone", *args], capture_output=True, text=True, timeout=3600)
+        if result.returncode:
+            raise ValueError("rclone falhou: " + result.stderr.strip()[:200])
+        return result.stdout
+
+    # --stat distingue arquivo de pasta; copy de uma pasta copia seu conteúdo.
+    metadata = json.loads(run(["lsjson", remote + '/' + name, "--stat"]))
+    is_dir = metadata.get("IsDir")
+    if not isinstance(is_dir, bool):
+        raise ValueError("tipo de item inválido no Drive")
+    if dest.exists() and (is_dir or dest.suffix.lower() not in ('.cue', '.gdi', '.m3u')):
         return False, "já existe no PC"
+    with tempfile.TemporaryDirectory(prefix="pyretro-rom-", dir=staging) as work:
+        stage = Path(work)
+        primary = stage / name
+        if is_dir:
+            run(["copy", remote + '/' + name, str(primary)])
+            if not primary.is_dir() or not any(primary.rglob('*')):
+                raise ValueError("download da pasta vazio ou incompleto")
+            for path in primary.rglob('*'):
+                if path.is_symlink():
+                    raise ValueError("symlink inesperado no download")
+                if path.suffix.lower() in ('.cue', '.gdi', '.m3u') and path.is_file():
+                    play_mod.validate_bundle(primary, str(path.relative_to(primary)))
+            root.mkdir(parents=True, exist_ok=True)
+            if dest.exists():
+                return False, "destino surgiu durante o download; não foi substituído"
+            # renameat2(RENAME_NOREPLACE), no Linux: até uma pasta vazia
+            # que o Insync tenha criado no intervalo deve ser preservada.
+            libc = ctypes.CDLL(None, use_errno=True)
+            rename = getattr(libc, "renameat2", None)
+            if rename is None:
+                raise OSError(errno.ENOTSUP, "publicação segura de pastas indisponível")
+            rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+            rename.restype = ctypes.c_int
+            if rename(-100, os.fsencode(primary), -100, os.fsencode(dest), 1):
+                error = ctypes.get_errno()
+                raise OSError(error, os.strerror(error))
+            return True, "baixado"
 
-    r = subprocess.run(
-        ["rclone", "copy", remote_path, str(staging)],
-        capture_output=True, text=True, timeout=3600,
-    )
-    if r.returncode != 0:
-        return False, f"rclone falhou: {r.stderr.strip()[:200]}"
-
-    staged_path = staging / name
-    if not staged_path.exists():
-        return False, "rclone terminou mas o arquivo não apareceu no staging"
-
-    dest_final.parent.mkdir(parents=True, exist_ok=True)
-    staged_path.rename(dest_final)
-    return True, "baixado"
+        pending = {}
+        visited = set()
+        def collect(relative, branch):
+            relative = str(play_mod.safe_relative(relative))
+            if relative in branch:
+                raise ValueError("referência circular no conjunto de discos")
+            if relative in visited:
+                return
+            if len(visited) >= 1000 or len(branch) >= 100:
+                raise ValueError("conjunto de discos excessivamente grande")
+            visited.add(relative)
+            local = root / relative
+            if not local.resolve().is_relative_to(root.resolve()):
+                raise ValueError("arquivo associado fora da pasta do sistema")
+            if local.exists():
+                source = play_mod.checked_file(root, relative)
+            else:
+                source = stage / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                run(["copyto", remote + '/' + relative, str(source)])
+                play_mod.checked_file(stage, relative)
+                pending[relative] = source
+            for ref in play_mod.references(source):
+                collect(str(Path(relative).parent / ref), branch | {relative})
+        collect(name, set())
+        if not pending:
+            return False, "já existe no PC e os arquivos associados estão completos"
+        # Faixas primeiro, descritores por último. link é atômico e recusa um
+        # destino que tenha surgido após a validação, sem sobrescrevê-lo.
+        for relative, source in sorted(pending.items(), key=lambda pair: pair[1].suffix.lower() in ('.cue', '.gdi', '.m3u')):
+            final = root / relative
+            final.parent.mkdir(parents=True, exist_ok=True)
+            if not final.parent.resolve().is_relative_to(root.resolve()):
+                raise ValueError("destino alterado durante o download")
+            os.link(source, final)
+        play_mod.validate_bundle(root, name)
+        return True, "baixado (arquivos associados conferidos)"

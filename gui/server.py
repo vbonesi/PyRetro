@@ -45,6 +45,7 @@ from core import library as library_mod
 from core import memcard as memcard_mod
 from core import organize as organize_mod
 from core import pc_backup as pc_backup_mod
+from core import play as play_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
 from core import sanitize as sanitize_mod
@@ -61,6 +62,7 @@ HEAVY_CATALOG_PATH = ROOT / "cache" / "heavy_catalog.json"
 SWITCH_PASTAS_PATH = ROOT / "cache" / "switch_pastas.json"
 STATIC_DIR = Path(__file__).parent / "static"
 TRANSFER_LOCK_KEY = ROOT / "cache" / "transferencias"
+PLAY_SESSIONS = play_mod.Sessions()
 
 COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
 CSRF_TOKEN = secrets.token_urlsafe(32)
@@ -1348,6 +1350,19 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "csrf"]:
             return self._json({"token": CSRF_TOKEN})
 
+        if parts == ["api", "play", "status"]:
+            return self._json(PLAY_SESSIONS.status())
+
+        if parts == ["api", "play", "options"]:
+            try:
+                code = query.get("code", [""])[0]
+                name = query.get("name", [""])[0]
+                options = play_mod.candidates(load_config(), code, name)
+                launcher = play_mod.LAUNCHER
+                return self._json({"options": options, "launcher": launcher.is_file()})
+            except (OSError, ValueError) as e:
+                return self._json({"error": str(e)}, 400)
+
         if parts == ["tests", "test_app.html"]:
             # Página de teste do JS (ver tests/test_app.html) - servida
             # pelo próprio servidor porque ela carrega /static/logic.js,
@@ -2096,6 +2111,13 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
+
+        if parts == ["api", "play", "start"]:
+            body = self._read_json_body()
+            try:
+                return self._json(PLAY_SESSIONS.start(load_config(), body.get("code"), body.get("name")))
+            except (OSError, ValueError) as e:
+                return self._json({"error": str(e)}, 400)
 
         if parts == ["api", "settings"]:
             body = self._read_json_body()

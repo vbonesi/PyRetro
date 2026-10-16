@@ -35,9 +35,9 @@ não são só estilo:
 ## Modo TV
 
 Acesse `http://127.0.0.1:8000/tv` para navegar pelo acervo com controle,
-registrar progresso/notas e baixar ROMs pesadas do seu Drive. Integração
-com lançamento de emuladores ainda pendente. Uso e contrato para o atalho
-do Big Picture: [`docs/modo-tv.md`](docs/modo-tv.md).
+registrar progresso/notas, baixar ROMs pesadas do seu Drive e abrir os
+emuladores pelo lançador do setup. Instalação do atalho e limitações:
+[`docs/modo-tv.md`](docs/modo-tv.md).
 
 ## Testes
 

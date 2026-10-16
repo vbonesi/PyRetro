@@ -39,3 +39,30 @@ class TestTV(BaseAPI):
         for campos in ({'iniciado': True, 'nota': 99}, {'iniciado': True, 'inexistente': 1}, [], {}):
             self.assertEqual(self.track(campos)[0], 400)
             self.assertEqual(self.lib_path.read_bytes(), before)
+
+    def test_play_options_validate_local_rom_without_launching(self):
+        from unittest.mock import patch
+        from core import play
+        rom = self.raiz / 'ROMs/PS2/Teste.iso'
+        rom.parent.mkdir(parents=True, exist_ok=True)
+        rom.write_bytes(b'iso ficticio')
+        with patch.object(play, 'LAUNCHER', rom):
+            status, data = self.pedir('/api/play/options?code=PS2&name=Teste.iso')
+        self.assertEqual(status, 200)
+        self.assertEqual(data['options'], [{'name': 'Teste.iso', 'error': None}])
+        status, _ = self.pedir('/api/play/options?code=PS2&name=../fora.iso')
+        self.assertEqual(status, 400)
+
+    def test_play_start_uses_csrf_and_only_starts_validated_request(self):
+        from unittest.mock import patch
+        with patch.object(__import__('server').PLAY_SESSIONS, 'start', return_value={'status': 'running'}) as start:
+            status, data = self.pedir('/api/play/start', {'code': 'PS2', 'name': 'Teste.iso'})
+            self.assertEqual(status, 200)
+            self.assertEqual(data['status'], 'running')
+            self.assertEqual(start.call_args.args[1:], ('PS2', 'Teste.iso'))
+        import urllib.error
+        req = urllib.request.Request(self.url + '/api/play/start', data=b'{}', headers={'Content-Type': 'application/json'})
+        with self.assertRaises(urllib.error.HTTPError) as response:
+            urllib.request.urlopen(req)
+        self.assertEqual(response.exception.code, 403)
+        response.exception.close()

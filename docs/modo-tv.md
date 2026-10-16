@@ -1,6 +1,7 @@
 # Modo TV do PyRetro
 
-Primeira etapa da integração com Steam Big Picture, criada em 15/10/2026.
+Integração com Steam Big Picture, iniciada em 15/10/2026.
+O modo TV já oferece lançamento de ROMs pelo `bonisarch-emulator`.
 
 ## Acesso
 
@@ -33,19 +34,61 @@ o download: o acompanhamento fica na sessão da página. Se a conexão cair, con
 a coleção antes de tentar novamente. O modo TV permite um download por vez na página;
 outras abas e clientes continuam sujeitos às regras já existentes do backend.
 
-## Integração com setup-linux-bonesi
+## Jogar e baixar sob demanda
 
-Contrato da primeira etapa: abrir `http://127.0.0.1:8000/tv` num navegador com
-Gamepad API, como aplicativo/tela cheia, por um atalho da Steam. HTTPS e localhost
-são os contextos previstos para o controle. A instalação do atalho e a escolha do
-navegador/perfil de Steam Input devem ser feitas no setup da máquina.
+Nos sistemas com lançador configurado, o card oferece **Jogar** quando há uma
+ROM local completa. Quando há vários discos ou formatos, cada opção aparece
+separadamente para você escolher, sem adivinhar qual abrir. Pastas de jogos são
+examinadas para encontrar os arquivos executáveis pelo emulador. Jogos de PC
+continuam sendo abertos pela Steam/Heroic; a Biblioteca TV registra seu progresso.
 
-Esta etapa **ainda não executa emuladores**. O próximo bloco deve conectar um
-lançador local ao `bonisarch-emulator` preparado no setup, validando sistema e ROM
-local, arquivos associados e resultado do download antes de abrir o emulador.
-Também precisa validar o retorno do foco ao navegador e à Steam ao sair do jogo,
-inclusive no Steam Link. Sair do emulador encerra a sessão; finalizar o jogo é
-uma decisão explícita do usuário.
+Para um jogo só no Drive, **Baixar e jogar** pede confirmação e abre o emulador
+somente após o resultado positivo do download e uma nova validação dos arquivos.
+Se o download contém vários discos/formatos, é preciso escolher qual abrir.
+**Baixar para o PC** continua disponível sem iniciar nada. Descritores locais
+incompletos podem oferecer **Completar download**, preservando os arquivos existentes.
+
+CUE/GDI/M3U são conferidos junto com as referências. Não são aceitos arquivos
+vazios, caminhos fora do sistema, ciclos de playlists ou symlinks externos.
+CCD ainda não é liberado para jogar pela TV: falta validar IMG/SUB. Um sistema
+sem mapeamento no lançador, como 3DS, continua disponível para progresso/download.
+
+O download usa uma pasta temporária exclusiva no staging, fora de ROMs, e busca
+as faixas referenciadas por descritores. Não reaproveita um arquivo antigo com o
+mesmo nome no staging, não substitui arquivos locais e só publica depois que a
+transferência termina. Pastas mantêm seu próprio diretório (o `rclone copy` copia
+seu conteúdo). Staging e destino precisam estar no mesmo filesystem, como no
+fluxo anterior por rename. A publicação de pastas sem sobrescrita usa renameat2
+no Linux. Nunca há remoção de ROMs para liberar espaço.
+
+O servidor acompanha uma sessão de emulador por vez. Ao sair, a TV oferece
+registrar progresso e nota; não marca iniciado/finalizado automaticamente. Erros
+de abertura ou saída são visíveis na TV; detalhes do processo vão para o journal
+de `pyretro-gui`. Recarregar a página retoma o acompanhamento da sessão do servidor.
+O retorno do foco da janela e a captura pelo Steam Link dependem da sessão gráfica
+e precisam ser conferidos com os emuladores reais.
+
+## Atalho Steam e integração com setup-linux-bonesi
+
+O script `tools/pyretro-tv.sh` inicia o serviço e abre o Chrome Flatpak em tela
+cheia na URL local, com um perfil próprio dentro da configuração do Chrome.
+Isso mantém a janela independente do navegador de uso pessoal e mantém seu
+processo ligado ao atalho até fechar a TV. O controle usa as permissões já
+existentes do Chrome; não há relaxamento do sandbox do navegador.
+
+Instalação: `python3 tools/install_tv.py` simula;
+`python3 tools/install_tv.py --apply` instala com a Steam fechada. O instalador
+adiciona **PyRetro — Acervo**, preserva os atalhos existentes e guarda uma cópia
+anterior do VDF em `~/.local/share/pyretro/steam-shortcuts/`. Havendo mais de uma
+conta, exige `--config CAMINHO`. Não grava com a Steam aberta nem troca um atalho
+que já exista com outro comando. Na máquina atual o atalho já foi instalado.
+
+A Steam Flatpak chama o script no host por `flatpak-spawn --host`, seguindo o
+padrão do ES-DE instalado pelo setup. O lançamento de ROMs pelo backend usa o
+executável fixo `~/.local/bin/bonisarch-emulator`, sem shell nem comandos livres
+recebidos do navegador. O mapeamento é explícito em `core/play.py`; o bridge
+continua sendo mantido no setup-linux-bonesi. A pasta de ROMs configurada no
+PyRetro precisa ser compatível com a pasta permitida por esse bridge.
 
 ## Validação
 
@@ -53,5 +96,8 @@ A suíte Python verifica rota/CSP, progresso em lote, preservação de outros ca
 e recusa sem gravação parcial. A suíte `/tests/test_app.html` monta o modo TV
 com APIs falsas, sem acessar dados reais, e verifica cascata, token CSRF,
 restauração de foco, falha de gravação, confirmação de download, sucesso/falha SSE,
-A/B simulados e largura de celular. Controle físico, Steam Input, download real
-e Steam Link precisam de homologação na máquina.
+A/B simulados e largura de celular. Testes adicionais cobrem lançamento sem shell, sessão única, referências ausentes,
+traversal/symlinks, download em staging, preservação de arquivos, pastas e atalhos
+VDF. O ciclo baixar → abrir → encerrar também foi conferido em navegador com ROM
+e lançador fictícios. Controle físico, Steam Input, download real e Steam Link
+precisam de homologação na máquina.

@@ -1,6 +1,9 @@
 /* Modo TV: cliente das mesmas APIs da GUI, sem acesso direto ao acervo. */
 "use strict";
 const $ = id => document.getElementById(id);
+if (window.ResizeObserver) new ResizeObserver(entries => {
+  document.documentElement.style.setProperty("--footer-height", `${entries[0].target.getBoundingClientRect().height}px`);
+}).observe(document.querySelector("footer"));
 let csrf;
 async function api(url, body) {
   const options = body === undefined ? {} : {method: "POST", headers: {
@@ -57,6 +60,7 @@ async function load(kind = state.kind, code = "") {
         platform: sys.nome || sys.capas || c, cover: kind === "heavy" ? g.capa : (g.file ? `/images/${encodeURIComponent(c)}/${encodeURIComponent(g.file)}` : null),
         tracking: g.biblioteca || {}, downloadName: kind === "heavy" && !g.in_pc && g.in_drive ? g.name : null,
         local: kind === "heavy" ? g.in_pc : null,
+        romName: kind === "heavy" ? g.name : g.label, driveName: kind === "heavy" && g.in_drive ? g.name : null,
       }));
     }
     if (request !== state.request) return;
@@ -73,7 +77,7 @@ function render() {
     else { const art = document.createElement("div"); art.className = "art placeholder"; art.textContent = "✦"; card.append(art); }
     const title = document.createElement("strong"); title.textContent = g.name;
     const meta = document.createElement("small"); const t = g.tracking;
-    meta.textContent = [g.platform, g.downloadName ? "Só no Drive" : g.local ? "No PC" : "", t.platinado ? "🏆 Platinado" : t.finalizado ? "✓ Finalizado" : t.iniciado ? "▶ Iniciado" : "", t.nota != null ? `★ ${t.nota}` : ""].filter(Boolean).join(" · ");
+    meta.textContent = [g.platform, g.downloadName && !g.local ? "Só no Drive" : g.local ? "No PC" : "", t.platinado ? "🏆 Platinado" : t.finalizado ? "✓ Finalizado" : t.iniciado ? "▶ Iniciado" : "", t.nota != null ? `★ ${t.nota}` : ""].filter(Boolean).join(" · ");
     card.append(title, meta); gallery.append(card);
   }
   report(items.length ? `${items.length} jogos · escolha uma capa` : "Nenhum jogo nesta seleção.");
@@ -87,6 +91,7 @@ function openGame(g, origin = document.activeElement) {
   $("download").hidden = !g.downloadName; $("download").textContent = "Baixar para o PC"; $("download").dataset.confirm = "";
   $("download").disabled = !!state.download;
   $("details").showModal(); $("tracking").querySelector("button").focus();
+  refreshPlayOptions(g);
 }
 function renderTracking() {
   const fields = [["iniciado", "Iniciado"], ["finalizado", "Finalizado"], ["platinado", "Platinado"]];
@@ -110,6 +115,7 @@ function closeGame() { if (!state.busy) { $("details").close(); (returnFocus?.is
 $("close").onclick = closeGame;
 $("details").addEventListener("cancel", e => { e.preventDefault(); closeGame(); });
 $("save").onclick = async () => {
+  if (state.busy) return;
   const g = state.selected; const campos = {...state.draft}; state.busy = true;
   $("details").querySelectorAll("button").forEach(b => { b.disabled = true; });
   report("Salvando…", false, "detail-status");
@@ -117,12 +123,14 @@ $("save").onclick = async () => {
     await api(g.id ? "/api/library/edit" : "/api/library/track", g.id ? {id: g.id, campos} : {nome: g.name, code: g.code, plataforma: g.platform, fonte: `rom:${g.code}`, campos});
     Object.assign(g.tracking, campos); render(); report("Progresso salvo.", false, "detail-status");
   } catch (e) { report(`Não foi salvo: ${e.message}`, true, "detail-status"); }
-  finally { state.busy = false; $("details").querySelectorAll("button").forEach(b => { b.disabled = false; }); $("download").disabled = !!state.download; $("save").focus(); }
+  finally { state.busy = false; $("details").querySelectorAll("button").forEach(b => { b.disabled = b.dataset.unavailable === "true"; }); $("download").disabled = !!state.download; $("save").focus(); }
 };
-$("download").onclick = async () => {
-  if (state.download) return;
+$("download").onclick = () => downloadGame(false);
+async function downloadGame(playAfter) {
+  if (state.download || state.busy) return;
   const b = $("download"); const g = state.selected;
-  if (!b.dataset.confirm) { b.dataset.confirm = "yes"; b.textContent = "Confirmar download"; report("Baixar este jogo do seu Drive para o PC?", false, "detail-status"); return; }
+  if (!b.dataset.confirm) { b.dataset.confirm = "yes"; b.textContent = "Confirmar download"; b.dataset.playAfter = String(playAfter); report(playAfter ? "Baixar este jogo e abrir o emulador ao concluir?" : "Baixar este jogo do seu Drive para o PC?", false, "detail-status"); return; }
+  playAfter = b.dataset.playAfter === "true";
   b.disabled = true; state.download = g;
   report(`Baixando ${g.name}…`, false, "download-status");
   try {
@@ -135,14 +143,83 @@ $("download").onclick = async () => {
       if (data.type === "system_done") { success = data.result.ok; if (!success) failure = data.result.message || "falha no download"; }
       if (data.type === "error") failure = data.message || "falha no download";
       if (data.type === "job_done") {
-        if (success && !failure) { g.local = true; g.downloadName = null; render(); finish(`${g.name}: download concluído.`, false); }
+        if (success && !failure) { g.local = true; g.downloadName = null; render(); finish(`${g.name}: download concluído.`, false);
+          if (state.selected === g && $("details").open) refreshPlayOptions(g);
+          if (playAfter) playDownloaded(g); }
         else finish(`${g.name}: ${failure || "download não confirmado"}.`, true);
       }
     };
     stream.onerror = () => finish("A conexão com o download foi interrompida. Confira o resultado na coleção antes de tentar novamente.", true);
     if (state.selected === g) report("Download em andamento. Você pode voltar e navegar pelo acervo.", false, "detail-status");
   } catch (e) { state.download = null; b.disabled = false; b.dataset.confirm = ""; b.textContent = "Baixar para o PC"; report(e.message, true, "download-status"); }
-};
+}
+let playRequest = 0, sessionTimer, sessionGame;
+async function refreshPlayOptions(g) {
+  const request = ++playRequest;
+  const box = $("play-actions"); box.replaceChildren();
+  $("play-hint").textContent = g.code ? "Conferindo arquivos para jogar…" : "Lançamento por aqui disponível para ROMs; jogos de PC continuam na Steam/Heroic.";
+  if (!g.code) return;
+  try {
+    const data = await api(`/api/play/options?code=${encodeURIComponent(g.code)}&name=${encodeURIComponent(g.romName)}`);
+    if (request !== playRequest || state.selected !== g) return;
+    if (!data.launcher) throw new Error("O lançador bonisarch-emulator precisa estar instalado.");
+    const options = data.options || [];
+    for (const option of options) {
+      const b = button(options.length === 1 ? "Jogar" : `Jogar: ${option.name}`, () => startGame(g, option.name));
+      b.disabled = !!option.error; b.dataset.unavailable = String(!!option.error); box.append(b);
+    }
+    const broken = options.filter(o => o.error);
+    $("play-hint").textContent = broken.length ? broken.map(o => `${o.name}: ${o.error}`).join(" · ") : options.length ? "Escolha o disco/formato quando houver mais de uma opção." : "A ROM precisa estar completa no PC para abrir o emulador.";
+    if ((broken.length || !options.length) && g.driveName) {
+      g.downloadName = g.driveName;
+      $("download").hidden = false; $("download").disabled = !!state.download;
+      $("download").textContent = g.local ? "Completar download" : "Baixar para o PC";
+      box.append(button("Baixar e jogar", () => { $("download").dataset.confirm = ""; downloadGame(true); $("download").focus(); }));
+    }
+    if ($("details").open && document.activeElement === document.body) box.querySelector("button:not(:disabled)")?.focus();
+  } catch (e) { if (request === playRequest && state.selected === g) $("play-hint").textContent = e.message; }
+}
+async function startGame(g, name) {
+  if (state.busy) return;
+  state.busy = true;
+  try {
+    const session = await api("/api/play/start", {code: g.code, name});
+    sessionGame = g; report(`Em jogo: ${g.name}. Ao sair, volte aqui para registrar progresso e nota.`, false, "play-status");
+    if (state.selected === g) report("Emulador iniciado. Sair dele encerra a sessão; finalizar o jogo é uma escolha sua.", false, "detail-status");
+    watchSession(session);
+  } catch (e) { report(`Não foi possível jogar: ${e.message}`, true, "play-status"); }
+  finally { state.busy = false; }
+}
+async function playDownloaded(g) {
+  try {
+    const data = await api(`/api/play/options?code=${encodeURIComponent(g.code)}&name=${encodeURIComponent(g.romName)}`);
+    const valid = data.options.filter(o => !o.error);
+    if (valid.length !== 1) {
+      report(valid.length ? `${g.name}: download concluído. Escolha o disco/formato em Jogar.` : `${g.name}: download concluído, mas os arquivos ainda não estão prontos para jogar.`, !valid.length, "play-status");
+      return;
+    }
+    await startGame(g, valid[0].name);
+  } catch (e) { report(e.message, true, "play-status"); }
+}
+function watchSession(session) {
+  clearTimeout(sessionTimer);
+  if (session.status === "running") {
+    if (!sessionGame) report(`Em jogo: ${session.name}`, false, "play-status");
+    sessionTimer = setTimeout(async () => {
+      try { watchSession(await api("/api/play/status")); }
+      catch (e) { report(`Não foi possível acompanhar o emulador: ${e.message}. Recarregue para conferir a sessão.`, true, "play-status"); }
+    }, 2000);
+  } else if (session.status === "finished" || session.status === "error") {
+    const error = session.status === "error";
+    report(error ? `O emulador encerrou com erro (${session.returncode}). Consulte o log do serviço.` : "Sessão encerrada. Você pode marcar o progresso e dar uma nota.", error, "play-status");
+    if (sessionGame && state.selected === sessionGame && $("details").open) {
+      report(error ? "O emulador encerrou com erro." : "Como foi a sessão? Registre o progresso e a nota.", error, "detail-status");
+      $("tracking").querySelector("button")?.focus();
+    }
+    sessionGame = null;
+  }
+}
+
 function focusable() {
   return [...($("details").open ? $("details") : document).querySelectorAll("button:not(:disabled),a[href]")].filter(e => !e.hidden && e.getClientRects().length);
 }
@@ -199,3 +276,4 @@ async function init() {
   $("collections").querySelector("button")?.focus();
 }
 requestAnimationFrame(pollGamepad); init();
+api("/api/play/status").then(watchSession).catch(() => {});

@@ -215,3 +215,15 @@ output{
     font-size:.65rem
   }
 }
+/* Reserva a altura real dos avisos, inclusive depois de iniciar uma sessão. */
+html {
+  scroll-padding-bottom: calc(var(--footer-height, 8rem) + 1rem);
+}
+main {
+  padding-bottom: calc(var(--footer-height, 8rem) + 2rem);
+}
+#play-status {
+  width: 100%;
+  margin: 0;
+  color: var(--accent);
+}

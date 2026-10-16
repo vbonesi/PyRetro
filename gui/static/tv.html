@@ -14,9 +14,11 @@
   <nav id="platforms" aria-label="Plataformas"></nav>
 </header>
 <main><h2 id="title">Biblioteca</h2><p id="message" role="status" aria-live="polite">Carregando…</p><div id="gallery" aria-label="Jogos"></div></main>
-<footer><span>Direcional / analógico: navegar · A / Enter: escolher · B / Esc: voltar</span><span id="controller">Controle: pressione um botão para conectar</span><p id="download-status" role="status" aria-live="polite"></p></footer>
+<footer><span>Direcional / analógico: navegar · A / Enter: escolher · B / Esc: voltar</span><span id="controller">Controle: pressione um botão para conectar</span><p id="play-status" role="status" aria-live="polite"></p><p id="download-status" role="status" aria-live="polite"></p></footer>
 <dialog id="details" aria-labelledby="game-title">
   <h2 id="game-title"></h2><p id="game-platform"></p>
+  <div id="play-actions" class="actions"></div>
+  <p id="play-hint" class="hint" role="status"></p>
   <div id="tracking"></div>
   <div class="rating"><button id="rating-down" aria-label="Diminuir nota">−</button><output id="rating" aria-live="polite"></output><button id="rating-up" aria-label="Aumentar nota">+</button><button id="rating-fine-down" aria-label="Diminuir nota em um décimo">−0,1</button><button id="rating-fine-up" aria-label="Aumentar nota em um décimo">+0,1</button><button id="rating-clear">Sem nota</button></div>
   <p class="hint">Nota de 0 a 11 · +/− ajustam 1 ponto; +0,1/−0,1 refinam a nota</p>

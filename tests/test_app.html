@@ -278,6 +278,55 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
   } finally { frame.remove(); }
 });
 
+teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finalizado", async () => {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
+  document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
+  const app = frame.contentWindow, doc = app.document;
+  let downloaded = false, events, starts = 0, failure = false;
+  const mutations = [];
+  app.fetch = async (url, init) => {
+    let data;
+    if (url === "/api/csrf") data = {token: "tv-token"};
+    else if (url === "/api/play/status") data = {status: "idle"};
+    else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
+    else if (url === "/api/systems" || url === "/api/library") data = [];
+    else if (url === "/api/heavy/roms/PS2") data = {items: [{name: "Teste.iso", label: "Teste", in_drive: true, in_pc: downloaded}]};
+    else if (url.startsWith("/api/play/options?")) data = {launcher: true, options: downloaded ? [{name: "Teste.iso", error: null}] : []};
+    else if (url === "/api/heavy/download") data = {job: "download-tv"};
+    else if (url === "/api/play/start") {
+      starts++; igual(JSON.parse(init.body), {code: "PS2", name: "Teste.iso"});
+      igual(init.headers["X-PyRetro-CSRF"], "tv-token");
+      if (failure) return {ok: false, json: async () => ({error: "emulador indisponível"})};
+      data = {status: "running", name: "Teste.iso", session: starts};
+    } else { mutations.push(url); throw new Error(`requisição inesperada: ${url}`); }
+    return {ok: true, json: async () => data};
+  };
+  app.EventSource = class { constructor() { events = this; } close() {} };
+  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  try {
+    await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
+    await esperar(() => doc.getElementById("message").textContent.includes("Nenhum jogo"), "catálogo não terminou");
+    await app.load("heavy"); doc.querySelector("#gallery .game").click();
+    await esperar(() => doc.getElementById("play-actions").textContent.includes("Baixar e jogar"), "não ofereceu baixar e jogar");
+    doc.querySelector("#play-actions button").click();
+    igual(starts, 0); igual(doc.getElementById("download").textContent, "Confirmar download");
+    doc.getElementById("download").click(); await esperar(() => events?.onmessage, "stream ausente");
+    downloaded = true;
+    events.onmessage({data: JSON.stringify({type: "system_done", result: {ok: true}})});
+    events.onmessage({data: JSON.stringify({type: "job_done"})});
+    await esperar(() => starts === 1 && doc.getElementById("play-status").textContent.includes("Em jogo"), "não abriu após revalidar");
+    app.watchSession({status: "finished", returncode: 0});
+    verdade(doc.getElementById("play-status").textContent.includes("Sessão encerrada"));
+    igual(mutations, [], "sair do emulador não deve gravar progresso sozinho");
+    igual(doc.querySelectorAll("#tracking button")[1].getAttribute("aria-pressed"), "false");
+    failure = true; doc.querySelector("#play-actions button").click();
+    await esperar(() => doc.getElementById("play-status").textContent.includes("emulador indisponível"), "falha de abertura ficou invisível");
+  } finally { frame.remove(); }
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];
