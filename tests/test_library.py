@@ -639,6 +639,11 @@ class TestMarkWishlistOwned(unittest.TestCase):
         self.assertEqual((g["genero"], g["capa"]), ("Sandbox", "capas/dreams.png"))
         self.assertEqual(len(lib["games"]), 1)
 
+    def test_compra_preserva_plataforma_especifica(self):
+        g = jogo("Jogo de teste", "PlayStation 3", fontes=["wishlist:psn"])
+        lm.mark_wishlist_owned({"games": [g]}, "wishlist:psn", g["id"])
+        self.assertEqual(g["plataforma"], "PlayStation 3")
+
     def test_quem_ja_era_posse_so_perde_a_marca_sem_duplicar_fonte(self):
         g = jogo("Horizon Zero Dawn", "PSN", fontes=["psn:fisico", "wishlist:psn", "psn"])
         lib = {"games": [g]}

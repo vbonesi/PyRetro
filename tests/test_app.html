@@ -198,6 +198,224 @@ teste("app.js inicializa a interface e protege POST com CSRF", async () => {
   igual(resposta.status, 400, "POST deveria atravessar CSRF e ser recusado só pelo corpo inválido");
 });
 
+// Regressões com respostas fictícias: nenhuma mutação chega ao acervo real.
+teste("iniciado atualiza o filtro da Biblioteca sem recarregar a página", async () => {
+  const app = document.getElementById("app-under-test").contentWindow;
+  const doc = app.document;
+  const originalFetch = app.fetch;
+  const g = jogo({ id: "teste-progresso", nome: "Teste progresso" });
+  app.fetch = async (url, init) => {
+    if (url === "/api/library/update") {
+      const body = JSON.parse(init.body);
+      g[body.field] = body.value;
+      return { ok: true };
+    }
+    if (url === "/api/library") return { json: async () => [g] };
+    throw new Error(`requisição inesperada: ${url}`);
+  };
+  try {
+    await app.refreshLibrary();
+    await app.selectLibraryGroupTab("");
+    const iniciado = doc.querySelector('#gallery input[data-field="iniciado"]');
+    iniciado.click();
+    await esperar(() => doc.querySelector('#gallery input[data-field="iniciado"]') !== iniciado,
+                  "card não atualizou após a gravação");
+    verdade(doc.querySelector('#gallery input[data-field="iniciado"]').checked);
+    doc.getElementById("library-filter-iniciado").checked = true;
+    doc.getElementById("library-filter-iniciado").dispatchEvent(new app.Event("change"));
+    const desmarcar = doc.querySelector('#gallery input[data-field="iniciado"]');
+    desmarcar.click();
+    await esperar(() => !doc.querySelector("#gallery .cover"), "jogo ficou no filtro de iniciados");
+  } finally {
+    doc.getElementById("library-filter-iniciado").checked = false;
+    app.fetch = originalFetch;
+  }
+});
+
+teste("progresso de ROM atualiza a Biblioteca e o badge sem F5", async () => {
+  const app = document.getElementById("app-under-test").contentWindow;
+  const doc = app.document;
+  await app.selectSystem("SFC");
+  const originalFetch = app.fetch;
+  const g = jogo({ id: "teste-rom", nome: "Chrono Trigger", plataforma: "Super Nintendo", fontes: ["rom:SFC"] });
+  app.fetch = async (url, init) => {
+    if (url === "/api/library/track") {
+      const body = JSON.parse(init.body);
+      g[body.field] = body.value;
+      return { ok: true };
+    }
+    if (url === "/api/library") return { json: async () => [g] };
+    throw new Error(`requisição inesperada: ${url}`);
+  };
+  try {
+    const iniciado = doc.querySelector('.cover[data-label="Chrono Trigger"] input[data-field="iniciado"]');
+    iniciado.click();
+    await esperar(() => doc.querySelector('.cover[data-label="Chrono Trigger"] input[data-field="iniciado"]') !== iniciado,
+                  "ROM não atualizou após a gravação");
+    verdade(doc.querySelector('.cover[data-label="Chrono Trigger"] .lib-badge').textContent.includes("▶"));
+    await app.selectLibraryGroupTab("");
+    verdade(doc.querySelector('.cover[data-label="teste-rom"] input[data-field="iniciado"]').checked,
+            "Biblioteca manteve progresso antigo da ROM");
+  } finally {
+    app.fetch = originalFetch;
+  }
+});
+
+teste("ROM pesada salva a cascata antes de atualizar a Biblioteca", async () => {
+  const app = document.getElementById("app-under-test").contentWindow;
+  const doc = app.document;
+  const originalFetch = app.fetch;
+  const g = jogo({ id: "teste-pesado", nome: "Bomba Patch", plataforma: "PlayStation 2", fontes: ["rom:PS2"], nota: 8 });
+  const gravados = [];
+  app.fetch = async (url, init) => {
+    if (url === "/api/heavy/roms/PS2") return { json: async () => ({ items: [{ name: "Bomba Patch.iso", is_dir: false, size: 123, biblioteca: g }], android_ok: false }) };
+    if (url === "/api/library/track") {
+      const body = JSON.parse(init.body);
+      gravados.push(body.field);
+      g[body.field] = body.value;
+      return { ok: true };
+    }
+    if (url === "/api/library") {
+      igual(gravados, ["finalizado", "iniciado"], "Biblioteca foi lida antes da cascata terminar");
+      return { json: async () => [g] };
+    }
+    throw new Error(`requisição inesperada: ${url}`);
+  };
+  try {
+    await app.selectHeavyTab("PS2");
+    // Card fictício com nota evita pedir avaliação durante o teste.
+    const card = app.buildHeavyCard("PS2", { name: "Bomba Patch.iso", is_dir: false, size: 123, biblioteca: g });
+    doc.getElementById("gallery").replaceChildren(card);
+    const finalizado = card.querySelector('input[data-field="finalizado"]');
+    finalizado.click();
+    await esperar(() => doc.querySelector('#gallery input[data-field="finalizado"]') !== finalizado,
+                  "ROM pesada não atualizou após a cascata");
+    await app.selectLibraryGroupTab("");
+    verdade(doc.querySelector('#gallery input[data-field="iniciado"]').checked);
+    verdade(doc.querySelector('#gallery input[data-field="finalizado"]').checked);
+  } finally {
+    app.fetch = originalFetch;
+  }
+});
+
+teste("alça do menu acompanha a borda e permanece visível recolhida", async () => {
+  const app = document.getElementById("app-under-test").contentWindow;
+  const doc = app.document;
+  const btn = doc.getElementById("btn-toggle-chrome");
+  app.setChromeCollapsed(false);
+  const header = doc.getElementById("topbar");
+  verdade(btn.getBoundingClientRect().top >= header.getBoundingClientRect().bottom,
+            "alça não está abaixo do menu");
+  btn.click();
+  igual(app.getComputedStyle(header).display, "none");
+  verdade(btn.getBoundingClientRect().height > 0, "alça sumiu junto com o menu");
+  igual(btn.getAttribute("aria-expanded"), "false");
+  verdade(app.getComputedStyle(doc.getElementById("gallery")).display !== "none");
+  btn.click();
+  verdade(app.getComputedStyle(header).display !== "none");
+  igual(btn.getAttribute("aria-expanded"), "true");
+});
+
+teste("ações e filtros recolhem por uma alça independente", () => {
+  const app = document.getElementById("app-under-test").contentWindow;
+  const doc = app.document;
+  app.setChromeCollapsed(false);
+  app.setFiltersCollapsed(false);
+  const btn = doc.getElementById("btn-toggle-filters");
+  const controls = doc.getElementById("gallery-controls");
+  verdade(btn.getBoundingClientRect().top >= controls.getBoundingClientRect().bottom);
+  btn.click();
+  igual(app.getComputedStyle(controls).display, "none");
+  verdade(app.getComputedStyle(doc.getElementById("topbar")).display !== "none");
+  verdade(btn.getBoundingClientRect().height > 0);
+  igual(btn.getAttribute("aria-expanded"), "false");
+  app.setChromeCollapsed(true);
+  verdade(btn.getBoundingClientRect().height > 0);
+  btn.click();
+  verdade(app.getComputedStyle(controls).display !== "none");
+  verdade(app.getComputedStyle(doc.getElementById("topbar")).display !== "none");
+  app.setChromeCollapsed(false);
+});
+
+teste("focar e marcar jogo no fim da galeria não tira a página da janela", async () => {
+  const frame = document.getElementById("app-under-test");
+  const app = frame.contentWindow;
+  const doc = app.document;
+  const originalFetch = app.fetch;
+  const games = Array.from({ length: 120 }, (_, i) => jogo({ id: `teste-longo-${i}`, nome: `Jogo ${String(i).padStart(3, "0")}` }));
+  frame.style.width = "900px";
+  frame.style.height = "600px";
+  app.fetch = async (url, init) => {
+    if (url === "/api/library") return { json: async () => games };
+    if (url === "/api/library/update") {
+      const body = JSON.parse(init.body);
+      games.find(g => g.id === body.id)[body.field] = body.value;
+      return { ok: true };
+    }
+    throw new Error(`requisição inesperada: ${url}`);
+  };
+  try {
+    await app.refreshLibrary();
+    await app.selectLibraryGroupTab("");
+    const cb = doc.querySelector('#gallery .cover:last-child input[data-field="iniciado"]');
+    cb.scrollIntoView({ block: "center" });
+    cb.focus();
+    cb.click();
+    await esperar(() => doc.querySelector('#gallery .cover:last-child input[data-field="iniciado"]') !== cb,
+                  "progresso não terminou de atualizar");
+    igual(app.scrollY, 0, "documento rolou para fora da janela");
+    igual(doc.querySelector(".app").getBoundingClientRect().top, 0, "interface saiu da janela");
+    verdade(doc.querySelector('#gallery .cover:last-child input[data-field="iniciado"]').checked);
+  } finally {
+    app.fetch = originalFetch;
+    frame.style.width = "1px";
+    frame.style.height = "1px";
+  }
+});
+
+teste("wishlist não cria abas nem cards na Biblioteca", () => {
+  const desejo = jogo({ plataforma: "PSN", fontes: ["wishlist:psn"] });
+  igual(libraryTabGroupsFor(desejo), []);
+  verdade(!libraryMatchesFilters(desejo, "", false, false));
+  const misto = jogo({ plataforma: "Steam", fontes: ["steam", "wishlist:psn"] });
+  igual(libraryTabGroupsFor(misto), ["Steam"]);
+  verdade(libraryMatchesFilters(misto, "Steam", false, false));
+  igual(libraryTabGroupsFor(jogo({ plataforma: "PlayStation 4", fontes: ["psn"] })), ["PlayStation 4"]);
+});
+
+teste("ROM pesada exibe nome limpo e mantém arquivo nas ações", () => {
+  const app = document.getElementById("app-under-test").contentWindow;
+  const card = app.buildHeavyCard("PS2", { name: "Jogo.iso", is_dir: false, size: 1 });
+  igual(card.querySelector(".label").textContent, "Jogo");
+  igual(card.dataset.label, "Jogo.iso");
+});
+
+teste("duas faixas recolhidas usam uma alça para expandir ambas", () => {
+  const app = document.getElementById("app-under-test").contentWindow;
+  const doc = app.document;
+  app.setChromeCollapsed(true);
+  app.setFiltersCollapsed(true);
+  igual(app.getComputedStyle(doc.getElementById("menu-handle-edge")).display, "none");
+  const btn = doc.getElementById("btn-toggle-filters");
+  verdade(btn.getBoundingClientRect().height > 0);
+  igual(btn.title, "Expandir menus");
+  btn.click();
+  verdade(app.getComputedStyle(doc.getElementById("topbar")).display !== "none");
+  verdade(app.getComputedStyle(doc.getElementById("gallery-controls")).display !== "none");
+});
+
+teste("sorteio da Biblioteca exibe plataforma em vez de null", async () => {
+  const app = document.getElementById("app-under-test").contentWindow;
+  const originalFetch = app.fetch;
+  app.fetch = async () => ({ ok: true, json: async () => ({ nome: "Jogo de teste", codigo: null, plataforma: "PlayStation 4", label: "Biblioteca", kind: "biblioteca", pool_size: 1 }) });
+  try {
+    await app.runSortear();
+    const meta = app.document.querySelector(".sortear-meta").textContent;
+    verdade(meta.includes("PlayStation 4"));
+    verdade(!meta.includes("null"));
+  } finally { app.fetch = originalFetch; }
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {

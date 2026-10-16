@@ -1,15 +1,15 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PyRetro</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <button id="btn-toggle-chrome" class="chrome-toggle" type="button" title="Esconder/mostrar menus">⌃</button>
   <div class="app">
-    <header class="topbar">
+    <header id="topbar" class="topbar">
       <div class="topbar-row">
         <h1>PyRetro</h1>
         <div class="topbar-buttons">
@@ -32,7 +32,12 @@
       </div>
       <nav id="system-tabs" class="system-tabs"></nav>
     </header>
+    <div id="menu-handle-edge" class="chrome-toggle-edge">
+      <button id="btn-toggle-chrome" class="chrome-toggle" type="button"
+              aria-controls="topbar" aria-expanded="true" title="Recolher menu superior">⌃</button>
+    </div>
 
+    <section id="gallery-controls" class="gallery-controls">
     <h2 id="current-system" class="current-system-heading">Selecione um sistema</h2>
 
     <details id="menubar" class="collapsible">
@@ -170,6 +175,12 @@
         <input type="checkbox" id="heavy-filter-sem-genero">
         🎭 Só sem gênero
       </label>
+    </div>
+
+    </section>
+    <div class="chrome-toggle-edge">
+      <button id="btn-toggle-filters" class="chrome-toggle" type="button"
+              aria-controls="gallery-controls" aria-expanded="true" title="Recolher ações e filtros">⌃</button>
     </div>
 
     <div id="progress-panel" class="progress-panel hidden">

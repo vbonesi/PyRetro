@@ -99,7 +99,9 @@ function fonteLabel(f) {
 // que é o que reflete a realidade. Rótulo repetido é deduplicado em
 // libraryTabGroupsFor.
 function libraryGroupsFor(g) {
-  return [...new Set([...g.fontes, g.plataforma])];
+  const owned = g.fontes.filter(f => !f.startsWith("wishlist:"));
+  if (g.fontes.length && !owned.length) return [];
+  return [...new Set([...owned, ...(g.plataforma === "PSN" ? [] : [g.plataforma])])];
 }
 
 // Curadoria manual de agrupamento pra NAVEGAÇÃO (sub-abas) - nunca
@@ -148,6 +150,7 @@ function libraryTabGroupsFor(g) {
 // visual do resto, as checkbox" no lugar do select único de antes, que
 // só deixava escolher UM status por vez.
 function libraryMatchesFilters(g, fonte, noCover, mostrarOcultos, status) {
+  if (g.fontes.length && g.fontes.every(f => f.startsWith("wishlist:"))) return false;
   if (g.oculto && !mostrarOcultos) return false;
   if (fonte && !libraryTabGroupsFor(g).includes(fonte)) return false;
   if (noCover && g.capa) return false;

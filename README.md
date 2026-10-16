@@ -752,6 +752,13 @@ junta PSN/PS3/PS4 (só ~40 jogos, não compensa separar por geração), PC
 
 ### Aba "🌟 Desejados" (lista de desejos)
 
+Jogos que só têm fontes `wishlist:*` aparecem apenas em **Desejados**,
+não nas abas da Biblioteca nem no sorteio. Um jogo já possuído em outra
+loja continua na Biblioteca, sem criar abas extras para suas marcas de desejo.
+Ao marcar **Comprado**, a Biblioteca atualiza imediatamente: PSN genérico
+vai para **PlayStation 4**, Xbox para **Xbox** e Steam para **Steam**.
+Uma plataforma específica já registrada (como PlayStation 3) é preservada.
+
 Steam/PSN/Xbox juntos, cada fonte na própria sub-aba. Steam sincroniza
 sozinha (endpoint público `IWishlistService/GetWishlist` + `appdetails`
 pra nome/gênero/capa). PSN e Xbox não têm API de wishlist confiável -

@@ -170,6 +170,37 @@ class TestBibliotecaHTTP(BaseAPI):
             lm._blank_game("Chrono Trigger", "Nintendo - Super Nintendo Entertainment System"),
         ])
 
+    def test_desejos_so_aparecem_na_wishlist_e_compra_vai_para_plataforma(self):
+        for source, plataforma in (("psn", "PlayStation 4"), ("steam", "Steam"), ("xbox", "Xbox")):
+            with self.subTest(source=source):
+                g = lm._blank_game("Jogo de teste", "PSN")
+                g["fontes"] = [f"wishlist:{source}"]
+                self.gravar_biblioteca([g])
+                self.assertEqual(self.pedir("/api/library")[1], [])
+                self.assertEqual(self.pedir("/api/sortear?system=biblioteca")[0], 404)
+                self.assertEqual(len(self.pedir("/api/wishlist")[1][source]), 1)
+                status, _ = self.pedir("/api/wishlist/comprado", {"source": source, "id": g["id"]})
+                self.assertEqual(status, 200)
+                games = self.pedir("/api/library")[1]
+                self.assertEqual(len(games), 1)
+                self.assertEqual(games[0]["plataforma"], plataforma)
+                self.assertEqual(games[0]["fontes"], [source])
+                self.assertEqual(self.pedir("/api/wishlist")[1][source], [])
+
+    def test_posse_com_desejo_em_outra_loja_permanece_na_biblioteca(self):
+        g = lm._blank_game("Jogo de teste", "Steam")
+        g["fontes"] = ["steam", "wishlist:psn"]
+        self.gravar_biblioteca([g])
+        self.assertEqual(len(self.pedir("/api/library")[1]), 1)
+
+    def test_sorteio_da_biblioteca_informa_plataforma(self):
+        g = lm._blank_game("Jogo de teste", "PlayStation 4")
+        g["fontes"] = ["psn"]
+        self.gravar_biblioteca([g])
+        status, data = self.pedir("/api/sortear?system=biblioteca")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["plataforma"], "PlayStation 4")
+
     def test_jogo_que_e_rom_nao_aparece_na_biblioteca(self):
         # "Chrono Trigger" existe como ROM de SFC: o dado dele mora na
         # aba do sistema, não na Biblioteca.

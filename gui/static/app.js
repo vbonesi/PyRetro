@@ -380,7 +380,7 @@ function buildTrackingRow(biblioteca, onChange, nome, extras) {
   const chk = (campo) => flags.querySelector(`input[data-field="${campo}"]`);
 
   flags.querySelectorAll("input").forEach((cb) => {
-    cb.addEventListener("change", (e) => {
+    cb.addEventListener("change", async (e) => {
       const campo = e.target.dataset.field;
       const ligado = e.target.checked;
       const i = ORDEM.indexOf(campo);
@@ -396,7 +396,7 @@ function buildTrackingRow(biblioteca, onChange, nome, extras) {
         }
       }
 
-      for (const [c, v] of alterados) { b[c] = v; onChange(c, v); }
+      const mudancas = [...alterados];
 
       // Pede a nota ao concluir, se ainda não tiver uma.
       if (ligado && (campo === "finalizado" || campo === "platinado")
@@ -412,10 +412,26 @@ function buildTrackingRow(biblioteca, onChange, nome, extras) {
               const nota = Math.round(n * 10) / 10;
               notaBox.definirNota(nota, true);
               b.nota = nota;
-              onChange("nota", nota);
+              mudancas.push(["nota", nota]);
             }
           }
         }
+      }
+      // Aguarda a cascata inteira antes de atualizar filtros e a Biblioteca.
+      // Antes, a ROM gravava no servidor mas a lista já carregada ficava velha.
+      flags.querySelectorAll("input").forEach(input => { input.disabled = true; });
+      try {
+        for (const [c, v] of mudancas) {
+          b[c] = v;
+          if (!await onChange(c, v)) return;
+        }
+        await refreshLibrary();
+        if (currentKind === "leve") renderGallery();
+        else if (currentKind === "pesado") renderHeavyGrid();
+      } catch (e) {
+        alert(`O progresso foi salvo, mas não consegui atualizar a tela: ${e.message}\n\nRecarregue a página.`);
+      } finally {
+        flags.querySelectorAll("input").forEach(input => { input.disabled = false; });
       }
     });
   });
@@ -530,7 +546,7 @@ function buildCoverCard(code, item, cacheBust) {
   // em cima, sozinho, e cada aba tinha um layout diferente.
   div.appendChild(buildTrackingRow(biblioteca, (field, value) => {
     item.biblioteca = { ...(item.biblioteca || { nota: null, iniciado: false, finalizado: false, platinado: false }), [field]: value };
-    trackGame(shown, code, sysLabel, `rom:${code}`, field, value);
+    return trackGame(shown, code, sysLabel, `rom:${code}`, field, value);
   }, shown, [
     { icone: "🖼", titulo: "Buscar/trocar capa", onClick: () => openEdit(code, label, display_name) },
     { icone: "✎", titulo: "Editar dados do jogo",
@@ -973,6 +989,7 @@ wireFilterChange(["heavy-filter-nocover", "heavy-filter-iniciado", "heavy-filter
                  renderHeavyGrid);
 
 function buildHeavyCard(code, item) {
+  const shown = stemOf(item);
   const notInPc = !item.in_pc;
   const onCelular = item.status === "no_celular";
   const div = document.createElement("div");
@@ -982,14 +999,14 @@ function buildHeavyCard(code, item) {
   // ver gui/server.py) - evita <img> quebrada gerando 404 no console
   // pra todo item sem match exato (PS1 nunca tem, ver COVERS_EXCLUDED).
   const coverHtml = item.capa
-    ? `<img src="${item.capa}" alt="${item.name}">`
+    ? `<img src="${item.capa}" alt="${shown}">`
     : `<div class="cover-placeholder">${item.is_dir ? "📁" : "🖼<br>sem capa"}</div>`;
   div.innerHTML = `
     <div class="cover-img-wrap">
       ${coverHtml}
       ${notInPc ? '<span class="lib-badge">☁ só no Drive</span>' : (item.in_drive ? '<span class="lib-badge">☁ no Drive</span>' : "")}
     </div>
-    <div class="label" title="${item.name}">${item.is_dir ? "📁 " : ""}${item.name}</div>
+    <div class="label" title="${shown}">${item.is_dir ? "📁 " : ""}${shown}</div>
     <div class="card-meta">${notInPc ? "só no Drive" : (onCelular ? "no celular" : "só no PC")}</div>
     ${item.biblioteca && item.biblioteca.genero ? `<div class="card-genero">🎭 ${item.biblioteca.genero}</div>` : ""}
     <div class="cover-actions">
@@ -1021,7 +1038,7 @@ function buildHeavyCard(code, item) {
   // SteamGridDB) com uma aba pra escolher (openCapa, kind "rom").
   div.appendChild(buildTrackingRow(item.biblioteca, (field, value) => {
     item.biblioteca = { ...(item.biblioteca || { nota: null, iniciado: false, finalizado: false, platinado: false }), [field]: value };
-    trackGame(nome, code, sysLabel, `rom:${code}`, field, value);
+    return trackGame(nome, code, sysLabel, `rom:${code}`, field, value);
   }, nome, [
     { icone: "🖼", titulo: "Buscar/trocar capa",
       onClick: () => openCapa(nome, { kind: "rom", code, label: nome }, () => selectHeavyTab(code)) },
@@ -1659,7 +1676,7 @@ function buildLibraryCard(g, rank) {
   const apelido = (s) => GROUP_TAB_ALIASES[s] || s;
   const platApelido = apelido(g.plataforma);
   const extras = [...new Set(
-    g.fontes.map(f => fonteLabel(f)).filter(label => apelido(label) !== platApelido)
+    g.fontes.filter(f => !f.startsWith("wishlist:")).map(f => fonteLabel(f)).filter(label => apelido(label) !== platApelido)
   )];
   const meta = [g.plataforma, ...extras].join(" · ");
 
@@ -1680,7 +1697,7 @@ function buildLibraryCard(g, rank) {
 
   div.appendChild(buildTrackingRow(g, (field, value) => {
     g[field] = value;
-    updateLibraryField(g.id, field, value);
+    return updateLibraryField(g.id, field, value);
   }, g.nome, [
     { icone: "🖼", titulo: "Buscar/trocar capa",
       // Recarrega do servidor em vez de só mexer no objeto local: é
@@ -1798,7 +1815,7 @@ async function runSortear() {
       ${cover}
       <div>
         <div class="sortear-nome">${data.nome}</div>
-        <div class="sortear-meta">${data.codigo} - ${data.label} (${data.kind}, ${data.pool_size} jogo(s) no pool)</div>
+        <div class="sortear-meta">${data.plataforma || data.codigo || data.label} - ${data.label} (${data.kind}, ${data.pool_size} jogo(s) no pool)</div>
         ${extra}
       </div>
     </div>
@@ -1979,6 +1996,7 @@ async function sairDaWishlist(acao) {
   }
   const onDone = editarCtx.onDone;
   closeEditar();
+  if (acao === "comprado") await refreshLibrary();
   if (onDone) onDone();
 }
 
@@ -2663,32 +2681,50 @@ wireFilterChange(["library-filter-nocover", "library-filter-ocultos", "library-f
                  renderLibraryGrid);
 document.getElementById("library-sort").addEventListener("change", renderLibraryGrid);
 
-// 2 etapas, a pedido do usuário: 0 = tudo visível, 1 = esconde
-// busca/filtro de capas (menubar+filterbar), 2 = esconde também o
-// topbar (nav de sistemas incluída) - cicla de volta pro 0.
-const CHROME_STAGES = [
-  { classes: [], icon: "⌄", title: "Esconder busca de capas" },
-  { classes: ["hide-search"], icon: "⌄⌄", title: "Esconder também o menu superior" },
-  { classes: ["hide-search", "hide-topbar"], icon: "⌃", title: "Mostrar tudo" },
-];
-
-function setChromeStage(stage) {
-  const app = document.querySelector(".app");
-  app.classList.remove("hide-search", "hide-topbar");
-  const cfg = CHROME_STAGES[stage];
-  app.classList.add(...cfg.classes);
+// A alça acompanha a borda inferior do menu e continua acessível recolhida.
+function setChromeCollapsed(collapsed) {
+  document.querySelector(".app").classList.toggle("hide-topbar", collapsed);
   const btn = document.getElementById("btn-toggle-chrome");
-  btn.textContent = cfg.icon;
-  btn.title = cfg.title;
-  localStorage.setItem("pyretro_chrome_stage", String(stage));
+  btn.textContent = collapsed ? "⌄" : "⌃";
+  btn.title = collapsed ? "Expandir menu superior" : "Recolher menu superior";
+  btn.setAttribute("aria-expanded", String(!collapsed));
+  localStorage.setItem("pyretro_menu_collapsed", String(collapsed));
+  updateMergedHandle();
 }
 
 document.getElementById("btn-toggle-chrome").addEventListener("click", () => {
-  const current = Number(localStorage.getItem("pyretro_chrome_stage") || "0");
-  setChromeStage((current + 1) % CHROME_STAGES.length);
+  setChromeCollapsed(!document.querySelector(".app").classList.contains("hide-topbar"));
 });
 
-const savedChromeStage = Number(localStorage.getItem("pyretro_chrome_stage") || "0");
-if (savedChromeStage > 0) setChromeStage(savedChromeStage);
+setChromeCollapsed(localStorage.getItem("pyretro_menu_collapsed") === "true");
+
+function setFiltersCollapsed(collapsed) {
+  document.querySelector(".app").classList.toggle("hide-filters", collapsed);
+  const btn = document.getElementById("btn-toggle-filters");
+  btn.textContent = collapsed ? "⌄" : "⌃";
+  btn.title = collapsed ? "Expandir ações e filtros" : "Recolher ações e filtros";
+  btn.setAttribute("aria-expanded", String(!collapsed));
+  localStorage.setItem("pyretro_filters_collapsed", String(collapsed));
+  updateMergedHandle();
+}
+
+function updateMergedHandle() {
+  const app = document.querySelector(".app");
+  const merged = app.classList.contains("hide-topbar") && app.classList.contains("hide-filters");
+  const btn = document.getElementById("btn-toggle-filters");
+  btn.title = merged ? "Expandir menus" : (app.classList.contains("hide-filters") ? "Expandir ações e filtros" : "Recolher ações e filtros");
+  btn.setAttribute("aria-controls", merged ? "topbar gallery-controls" : "gallery-controls");
+}
+
+document.getElementById("btn-toggle-filters").addEventListener("click", () => {
+  const app = document.querySelector(".app");
+  if (app.classList.contains("hide-topbar") && app.classList.contains("hide-filters")) {
+    setChromeCollapsed(false);
+    setFiltersCollapsed(false);
+    return;
+  }
+  setFiltersCollapsed(!document.querySelector(".app").classList.contains("hide-filters"));
+});
+setFiltersCollapsed(localStorage.getItem("pyretro_filters_collapsed") === "true");
 
 loadSystems();

@@ -6,6 +6,20 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 15/10/2026 — Encerramento e publicação das pendências locais
+
+- A pedido do Victor, incluídas na publicação as alterações de interface,
+  progresso, wishlist e sorteio que já estavam locais ao iniciar esta conversa,
+  com seus testes e histórico de 02–03/10. A validação da pasta completa nesta
+  sessão passou com 173 testes Python e 35 de interface, usando dados fictícios.
+- Preservados no repositório o pacote de revisão do Nitro de 15/10 e o ponteiro
+  local para o relatório Google Docs. O `.gddoc` contém apenas o endereço e
+  metadados do documento; o conteúdo do relatório não está embutido nele.
+- Modo TV e atalho Steam instalados e publicados. Permanece a homologação de
+  controle físico, retorno de foco dos emuladores reais e Steam Link. Contexto
+  local de agentes atualizado para permitir encerrar a conversa sem perder essas
+  pendências; `AGENTS.md` continua intencionalmente fora do versionamento.
+
 ## 15/10/2026 — Jogar pelo modo TV
 
 - Botão Jogar usa `bonisarch-emulator` com mapeamento explícito de sistemas e
@@ -44,6 +58,51 @@ plano.
   simulados, preservação de foco e ausência de transbordamento a 390 px.
   Cópia isolada deste commit: 148 testes Python e 24 de interface passaram
   sem depender das alterações locais anteriores, que permanecem fora dele.
+
+## 03/10/2026
+
+- **Alças unificadas com tudo recolhido.** Sobra uma alça; ela expande as
+  duas faixas juntas. Com uma faixa aberta, os controles são independentes.
+- **ROMs pesadas sem extensão na exibição.** O card mostra o nome sem
+  extensão, mantendo o nome real nas ações de arquivo. Pastas conservam seu nome.
+- **Desejos separados da Biblioteca.** Registros só com fontes de desejo
+  ficam em Desejados e saem do sorteio; marcas de desejo em jogos possuídos
+  não geram abas nem rótulos extras. Comprado atualiza a Biblioteca e encaminha
+  a plataforma genérica para PS4, Xbox ou Steam, preservando plataformas específicas.
+- **Sorteio exibe plataforma.** Jogos da Biblioteca tinham código ROM nulo,
+  exibido literalmente como `null`; a resposta agora inclui a plataforma
+  do registro e a interface a usa no resultado. Validação deste bloco:
+  149 testes Python e 33 de interface passaram com acervo sintético.
+
+- **Segunda alça para ações e filtros.** A faixa de título, ações e filtros
+  pode recolher pela própria borda inferior, independentemente do menu
+  superior. As duas alças permanecem visíveis recolhidas e guardam o estado
+  separadamente no navegador. Validação: 145 testes Python e 29 de interface
+  passaram com acervo sintético.
+
+- **Progresso atualiza a tela sem F5.** Marcar/desmarcar iniciado, finalizado
+  ou platinado agora aguarda a gravação e atualiza a Biblioteca carregada,
+  os filtros e os cards de ROM. A cascata grava os campos em sequência antes
+  da atualização. Antes, a ROM alterava o disco e seu objeto local, mas a
+  Biblioteca em memória permanecia antiga. Regressões com jogos fictícios
+  cobrem o filtro de iniciados, ROM leve e a cascata em ROM pesada.
+  A primeira correção de atualização não resolvia a tela só com o fundo,
+  relatada depois pelo Victor; a causa de rolagem foi reproduzida separadamente.
+- **Tela permanece na janela.** Uma coleção sintética de 120 jogos reproduziu
+  o documento rolando cerca de 9.900 pixels para fora da janela ao alcançar
+  o último card. A estrutura principal agora fica fixa na janela, com altura
+  dinâmica e rolagem interna da galeria, sem deslocar o documento inteiro.
+- **Retração conforme o desenho.** A alça fica na borda inferior do menu
+  superior, permanece acessível recolhida e alterna entre recolher e expandir.
+  Substitui o botão fixo no topo e o ciclo antigo de três etapas.
+  Validação: 145 testes Python e 28 de interface passaram; clique real no
+  último jogo fictício salvou o progresso mantendo a tela visível. Chrome
+  do Victor não estava conectado nesta sessão; uso real ainda requer conferência.
+
+## 02/10/2026
+
+- Ícone de controle na aba do navegador, servido localmente em SVG. O servidor
+  reconhece o tipo `image/svg+xml` para arquivos estáticos.
 
 ## 25/09/2026
 

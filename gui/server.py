@@ -1376,7 +1376,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts[:1] == ["static"] and len(parts) == 2:
             ext = parts[1].rsplit(".", 1)[-1]
-            ctype = {"js": "application/javascript", "css": "text/css"}.get(ext, "application/octet-stream")
+            ctype = {"js": "application/javascript", "css": "text/css", "svg": "image/svg+xml"}.get(ext, "application/octet-stream")
             return self._file(STATIC_DIR / parts[1], ctype, no_cache=True)
 
         if parts[:2] == ["api", "systems"]:
@@ -1640,6 +1640,7 @@ class Handler(BaseHTTPRequestHandler):
                 # Capa/progresso do jogo de Biblioteca sorteado - mesma
                 # resolução que /api/ranking e /api/iniciados já fazem.
                 jogo = next((g for g in library["games"] if g["nome"] == nome), None)
+                resp["plataforma"] = jogo.get("plataforma") if jogo else None
                 if jogo and jogo.get("capa"):
                     resp["capa"] = com_versao(f"/library-images/{urllib.parse.quote(jogo['capa'])}",
                                               Path(cfg["pc"]["library_root"]).expanduser() / jogo["capa"])
@@ -1687,7 +1688,9 @@ class Handler(BaseHTTPRequestHandler):
             library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
             library = library_mod.load_library(library_path)
             rom_names_by_code = rom_normalized_names_by_code(cfg)
-            games = [g for g in library["games"] if not is_rom_backed(g, rom_names_by_code)]
+            games = [g for g in library["games"]
+                     if not is_rom_backed(g, rom_names_by_code)
+                     and not (g["fontes"] and all(f.startswith("wishlist:") for f in g["fontes"]))]
             # capa_url já vem pronta e versionada (ver com_versao) - o
             # cliente não monta mais a URL na mão, senão perderia o
             # cache-bust e a troca de capa não apareceria.

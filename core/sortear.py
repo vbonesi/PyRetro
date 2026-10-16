@@ -89,6 +89,8 @@ def _pool_biblioteca(library: dict, rom_names_by_code: dict, subgrupo: str | Non
     for g in library["games"]:
         if g.get("oculto"):
             continue
+        if g["fontes"] and all(f.startswith("wishlist:") for f in g["fontes"]):
+            continue
         code = library_mod.rom_code_for_plataforma(g["plataforma"])
         if code and library_mod.covers_mod.normalize(g["nome"]) in rom_names_by_code.get(code, set()):
             continue

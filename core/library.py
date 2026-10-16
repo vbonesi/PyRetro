@@ -744,6 +744,12 @@ WISHLIST_FONTE_POSSE = {
     "wishlist:xbox": "xbox",
 }
 
+WISHLIST_PLATAFORMA_POSSE = {
+    "wishlist:steam": "Steam",
+    "wishlist:psn": "PlayStation 4",
+    "wishlist:xbox": "Xbox",
+}
+
 
 def add_to_wishlist(library: dict, fonte: str, plataforma: str, nomes: list) -> dict:
     """Acrescenta nomes a uma lista de desejos (`fonte` tipo
@@ -852,10 +858,16 @@ def mark_wishlist_owned(library: dict, fonte: str, game_id: str) -> dict | None:
     posse = WISHLIST_FONTE_POSSE.get(fonte)
     if not posse:
         raise ValueError(f"lista de desejos desconhecida: {fonte}")
+    somente_desejos = all(f.startswith("wishlist:") for f in alvo["fontes"])
     alvo["fontes"].remove(fonte)
     ja_tinha = posse in alvo["fontes"]
     if not ja_tinha:
         alvo["fontes"].append(posse)
+    # Desejos PSN usam plataforma genérica; compras manuais são de PS4.
+    # Uma plataforma específica já registrada conserva sua identidade.
+    if (somente_desejos and alvo["plataforma"] in ("PSN", "Steam", "Xbox")) or (
+            fonte == "wishlist:psn" and alvo["plataforma"] == "PSN"):
+        alvo["plataforma"] = WISHLIST_PLATAFORMA_POSSE[fonte]
     return {"fonte_posse": posse, "ja_tinha_posse": ja_tinha}
 
 
