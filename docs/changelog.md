@@ -6,6 +6,21 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 (madrugada, 2) — Aba Texturas com alvo celular e importação; saves de teste limpos
+
+- **Aba 🎨 Texturas:** seletor "Instalar no PC / no celular" e bloco **Importar um pacote de arquivo** (sistema + ID do
+  jogo + nome do .zip/.7z/.rar na pasta de importação, `[texturas] importar_dir`, padrão `~/Downloads`; só o nome do
+  arquivo, nunca um caminho). Rotas `/api/texturas?alvo=`, `/instalar` e `/remover` aceitam `alvo` e pacote local
+  (`sistema` + `id_jogo`). Instalar não falha mais se a opção de texturas não puder ser ligada: devolve um aviso.
+  O catálogo ainda só tem PS2, então no celular o caminho é a importação. Testado de ponta a ponta com o celular
+  (zip de teste do PSP instalado e removido pela rota). 3 testes novos em `tests/test_api.py` (209 no total).
+- **Saves gerados pelos testes, removidos:** `Saves/PS2/sstates/SLUS-21065 (F5C7B45F).01.p2s` (F1 do teste do NFSU2) e
+  `savestates/SLUS-00619_resume.sav` do DuckStation do celular (Diablo). **Deixei** os memory cards do PS2
+  (`Mcd001/002.ps2`, tocados às 18:48) e `PS1-DuckStation/memcards/Mcd001.mcd` (18:41): podem ser só regravação ao fechar o
+  emulador, mas são o seu progresso e não tenho como provar o que mudou; compare com a versão do Drive se quiser.
+  Também ficaram `RetroArch/config/Nestopia/FC.opt` e `remaps/Nestopia/FC.rmp` do celular (criados/regravados pelo teste de
+  intent do RetroArch; são opções, não saves) e `log/play_time.bin` do Lime3DS.
+
 ## 16/10/2026 (madrugada) — Texturas no celular (PSP e 3DS validados, PS1 instalado)
 
 - `core/texturas.py` ganhou o alvo **celular** (`instalar_celular`, `remover_celular`, `estado_celular`,

@@ -84,7 +84,7 @@ o seu OK; o app é instalado pelo adb.
 | PSP | `/sdcard/Jogos/PSP/PSP/TEXTURES/<ID>` (pasta já existe) | `ReplaceTextures` em `SYSTEM/ppsspp.ini` | idem |
 | 3DS | `/sdcard/Jogos/3DS/load/textures/<TITLE ID 16 hex>` | `custom_textures = true` em `config/config.ini` do Lime3DS | idem |
 
-O envio é por `adb push` (`instalar_celular` em `core/texturas.py`); falta ligar isso à aba Texturas. PS1: o dump não
+O envio é por `adb push` (`instalar_celular` em `core/texturas.py`); a aba Texturas já tem o alvo celular e a importação de arquivo. PS1: o dump não
 liga no app Android, então o pacote vem de um dump feito no PC com o mesmo jogo.
 
 ### Alternativas descartadas por ora
