@@ -46,6 +46,8 @@ from core import memcard as memcard_mod
 from core import organize as organize_mod
 from core import pc_backup as pc_backup_mod
 from core import play as play_mod
+from core import pc_games as pc_games_mod
+from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
 from core import sanitize as sanitize_mod
@@ -56,6 +58,7 @@ from core import sortear as sortear_mod
 CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
 HEAVY_CATALOG_PATH = ROOT / "cache" / "heavy_catalog.json"
+LAST_PLAYED_PATH = ROOT / "cache" / "last_played.json"
 # {nome limpo: nome real da pasta} do Switch - listar a NSW inteira via
 # rclone leva minutos, inviável num clique da tela, então o mapa fica
 # cacheado e é atualizado junto com "🔄 Switch"/library-refresh switch.
@@ -1259,6 +1262,17 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("X-Forwarded-Proto", "").lower() == "https":
             self.send_header("Strict-Transport-Security", "max-age=31536000")
 
+    def _pc_found(self, game_id):
+        """Como abrir o jogo de PC `game_id` da Biblioteca, ou None se não instalado."""
+        if not isinstance(game_id, str) or not game_id:
+            raise ValueError("id do jogo inválido")
+        cfg = load_config()
+        library = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
+        game = next((g for g in library["games"] if g["id"] == game_id), None)
+        if not game:
+            raise ValueError("jogo não encontrado na Biblioteca")
+        return pc_games_mod.find(cfg, game)
+
     def _read_json_body(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))
         return json.loads(self.rfile.read(length)) if length else {}
@@ -1362,6 +1376,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"options": options, "launcher": launcher.is_file()})
             except (OSError, ValueError) as e:
                 return self._json({"error": str(e)}, 400)
+
+        if parts == ["api", "pc", "options"]:
+            try:
+                found = self._pc_found(query.get("id", [""])[0])
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json({"available": bool(found), "store": found["store"] if found else None})
 
         if parts == ["tests", "test_app.html"]:
             # Página de teste do JS (ver tests/test_app.html) - servida
@@ -1728,6 +1749,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 sel = [g for g in visiveis if g["iniciado"] and not g["finalizado"]]
                 sel.sort(key=lambda g: g["nome"].lower())
+                recentes = recent_mod.load(LAST_PLAYED_PATH)
 
             # Capa: jogo que é ROM tem a capa na pasta do sistema, não
             # em library_root/capas - resolve os dois casos aqui pra
@@ -1751,7 +1773,19 @@ class Handler(BaseHTTPRequestHandler):
                                 capa = com_versao(f"/images/{code}/{urllib.parse.quote(g['nome'] + ext)}",
                                                   capas_dir / f"{g['nome']}{ext}")
                                 break
-                out.append({**g, "capa_url": capa})
+                extra = {}
+                if parts[1] == "iniciados":
+                    is_rom = bool(code and covers_mod.normalize(g["nome"]) in rom_names_by_code.get(code, set()))
+                    quando = recentes.get(recent_mod.pc_key(g["id"]))
+                    if is_rom:
+                        extra["rom_code"] = code
+                        quando = max(filter(None, [quando, recentes.get(recent_mod.rom_key(code, g["nome"]))]), default=None)
+                    extra["ultimo_jogado"] = quando
+                out.append({**g, "capa_url": capa, **extra})
+            if parts[1] == "iniciados":
+                # Mais recente primeiro; quem nunca foi aberto por aqui fica depois, por nome.
+                abertos = sorted((g for g in out if g["ultimo_jogado"]), key=lambda g: g["ultimo_jogado"], reverse=True)
+                out = abertos + [g for g in out if not g["ultimo_jogado"]]
             return self._json(out)
 
         if parts == ["api", "estatisticas"]:
@@ -2118,9 +2152,29 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "play", "start"]:
             body = self._read_json_body()
             try:
-                return self._json(PLAY_SESSIONS.start(load_config(), body.get("code"), body.get("name")))
+                session = PLAY_SESSIONS.start(load_config(), body.get("code"), body.get("name"))
             except (OSError, ValueError) as e:
                 return self._json({"error": str(e)}, 400)
+            try:
+                recent_mod.touch(LAST_PLAYED_PATH, recent_mod.rom_key(body["code"], body["name"]))
+            except OSError:
+                pass
+            return self._json(session)
+
+        if parts == ["api", "pc", "launch"]:
+            body = self._read_json_body()
+            try:
+                found = self._pc_found(body.get("id"))
+                if not found:
+                    return self._json({"error": "este jogo não está instalado na Steam/Heroic"}, 400)
+                pc_games_mod.launch(found)
+            except (OSError, ValueError) as e:
+                return self._json({"error": str(e)}, 400)
+            try:
+                recent_mod.touch(LAST_PLAYED_PATH, recent_mod.pc_key(body["id"]))
+            except OSError:
+                pass
+            return self._json({"status": "launched", "store": found["store"]})
 
         if parts == ["api", "settings"]:
             body = self._read_json_body()

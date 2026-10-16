@@ -586,6 +586,42 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
   } finally { frame.remove(); }
 });
 
+teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", async () => {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
+  document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
+  const app = frame.contentWindow, doc = app.document;
+  const posts = []; let instalado = true;
+  app.fetch = async (url, init) => {
+    let data;
+    if (url === "/api/csrf") data = {token: "tv-token"};
+    else if (url === "/api/play/status") data = {status: "idle"};
+    else if (url === "/api/heavy/systems") data = [];
+    else if (url === "/api/systems") data = [];
+    else if (url === "/api/library") data = [jogo({id: "pc-1", nome: "Jogo PC", plataforma: "Steam"})];
+    else if (url === "/api/pc/options?id=pc-1") data = {available: instalado, store: "steam"};
+    else if (url === "/api/pc/launch") { posts.push(JSON.parse(init.body)); data = {status: "launched", store: "steam"}; }
+    else throw new Error(`requisição inesperada: ${url}`);
+    return {ok: true, json: async () => data};
+  };
+  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  try {
+    await esperar(() => doc.querySelector("#gallery .game"), "TV não carregou");
+    doc.querySelector("#gallery .game").click();
+    await esperar(() => doc.getElementById("play-actions").textContent.includes("Jogar (Steam)"), "não ofereceu abrir pela Steam");
+    doc.querySelector("#play-actions button").click();
+    await esperar(() => doc.getElementById("play-status").textContent.includes("aberto pela loja"), "abertura não foi confirmada");
+    igual(posts, [{id: "pc-1"}]);
+    igual(doc.querySelectorAll("#tracking button")[0].getAttribute("aria-pressed"), "false", "abrir a loja não deve marcar iniciado");
+    doc.getElementById("close").click(); instalado = false;
+    doc.querySelector("#gallery .game").click();
+    await esperar(() => doc.getElementById("play-hint").textContent.includes("Não instalado"), "não avisou que não está instalado");
+    igual(doc.getElementById("play-actions").children.length, 0);
+  } finally { frame.remove(); }
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];

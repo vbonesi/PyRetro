@@ -6,15 +6,36 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 15/10/2026 — Último jogado e jogos de PC no modo TV
+
+- **Jogando por último jogado:** abrir uma ROM pela TV grava a data em
+  `cache/last_played.json` (arquivo local, fora do `library.json` sincronizado).
+  `/api/iniciados` devolve `ultimo_jogado` e a aba Jogando ordena do mais recente;
+  quem nunca foi aberto por aqui fica depois, por nome. Jogos de ROM em Jogando
+  agora têm `rom_code` e podem ser abertos direto do card.
+- **Jogos de PC:** `core/pc_games.py` descobre jogos instalados na Steam (manifestos
+  `appmanifest_*.acf`, ignorando runtimes/Proton) e no Heroic (Epic e GOG). Novas rotas
+  `GET /api/pc/options?id=` e `POST /api/pc/launch`; o cliente só manda o id do
+  registro, o comando é fixo (`flatpak run … steam://rungameid/N` ou
+  `heroic://launch/<loja>/<app>`), com appid/app_name validados, sem shell. O jogo precisa
+  estar instalado e a fonte do registro precisa bater com a loja. Não vira sessão
+  acompanhada: a loja devolve o controle na hora; a TV só avisa e o progresso continua manual.
+  Amazon (nile) ainda não é tratada.
+- **Não verificado em máquina real:** abrir o jogo pela Steam Flatpak já aberta, e o formato
+  `heroic://launch/<loja>/<app>` (pode variar com a versão do Heroic). Testado só com
+  comando fictício e leitura dos arquivos reais (Steam: 2 jogos instalados; Epic: Alien: Isolation).
+- Validação: 180 testes Python e 37 de interface passaram. Os testes de interface
+  precisam do painel do navegador visível: com ele oculto o `requestAnimationFrame`
+  pausa e o teste de controle falha (foi a causa das falhas intermitentes anteriores).
+
 ## 15/10/2026 — Sorteio no modo TV
 
 - Nova aba **🎲 Sortear** em `/tv`: escolhe grupo (leves, pesadas, Biblioteca e
   subgrupos Switch/Xbox/PlayStation/PC) e gênero, chama o `/api/sortear` já
   existente e mostra o jogo sorteado como card normal (Jogar, Baixar e jogar,
   progresso). Sem rota nova no backend. Coexiste com o ES-DE, que segue instalado.
-- "Continuar jogando" já era coberto pela aba **Jogando** (iniciados não
-  finalizados); não foi alterada. Ordenar por último jogado exigiria registrar
-  a data da sessão, o que ainda não existe.
+- "Continuar jogando" já era coberto pela aba **Jogando**; a ordenação por
+  último jogado veio na entrada seguinte.
 - Validação: 173 testes Python e 36 de interface passaram (novo teste do
   sorteio com APIs fictícias). Uma rodada isolada falhou no teste de controle
   por temporização de `requestAnimationFrame` e passou ao repetir.

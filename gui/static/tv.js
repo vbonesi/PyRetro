@@ -47,7 +47,11 @@ function platformTabs() {
 function collectionTabs() {
   $("collections").replaceChildren(...[["library", "Biblioteca"], ["playing", "Jogando"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"]].map(([kind, title]) => button(title, () => load(kind), state.kind === kind)));
 }
-function libraryItem(g) { return {id: g.id, name: g.nome, platform: g.plataforma || "Biblioteca", cover: g.capa_url, tracking: g}; }
+function libraryItem(g) {
+  const item = {id: g.id, name: g.nome, platform: g.plataforma || "Biblioteca", cover: g.capa_url, tracking: g};
+  if (g.rom_code) { item.code = g.rom_code; item.romName = g.nome; }
+  return item;
+}
 function romItem(kind, c, sys, g) {
   return {
     name: kind === "heavy" ? g.label : (g.display_name || g.label), code: c,
@@ -201,8 +205,8 @@ let playRequest = 0, sessionTimer, sessionGame;
 async function refreshPlayOptions(g) {
   const request = ++playRequest;
   const box = $("play-actions"); box.replaceChildren();
-  $("play-hint").textContent = g.code ? "Conferindo arquivos para jogar…" : "Lançamento por aqui disponível para ROMs; jogos de PC continuam na Steam/Heroic.";
-  if (!g.code) return;
+  $("play-hint").textContent = g.code ? "Conferindo arquivos para jogar…" : g.id ? "Conferindo se está instalado na Steam/Heroic…" : "";
+  if (!g.code) return g.id ? refreshPcOption(g, request) : undefined;
   try {
     const data = await api(`/api/play/options?code=${encodeURIComponent(g.code)}&name=${encodeURIComponent(g.romName)}`);
     if (request !== playRequest || state.selected !== g) return;
@@ -222,6 +226,28 @@ async function refreshPlayOptions(g) {
     }
     if ($("details").open && document.activeElement === document.body) box.querySelector("button:not(:disabled)")?.focus();
   } catch (e) { if (request === playRequest && state.selected === g) $("play-hint").textContent = e.message; }
+}
+async function refreshPcOption(g, request) {
+  try {
+    const data = await api(`/api/pc/options?id=${encodeURIComponent(g.id)}`);
+    if (request !== playRequest || state.selected !== g) return;
+    const box = $("play-actions");
+    if (data.available) {
+      box.append(button(`Jogar (${data.store === "steam" ? "Steam" : "Heroic"})`, () => startPcGame(g)));
+      $("play-hint").textContent = "Abre pela loja instalada neste PC; depois registre o progresso aqui.";
+      if ($("details").open && document.activeElement === document.body) box.querySelector("button")?.focus();
+    } else $("play-hint").textContent = "Não instalado na Steam/Heroic deste PC; abra pela loja para jogar.";
+  } catch (e) { if (request === playRequest && state.selected === g) $("play-hint").textContent = e.message; }
+}
+async function startPcGame(g) {
+  if (state.busy) return;
+  state.busy = true;
+  try {
+    await api("/api/pc/launch", {id: g.id});
+    report(`${g.name} foi aberto pela loja. Ao terminar, volte aqui para registrar progresso e nota.`, false, "play-status");
+    report("Pedido enviado à loja. A janela do jogo pode demorar a aparecer.", false, "detail-status");
+  } catch (e) { report(`Não foi possível abrir: ${e.message}`, true, "play-status"); report(e.message, true, "detail-status"); }
+  finally { state.busy = false; }
 }
 async function startGame(g, name) {
   if (state.busy) return;

@@ -48,7 +48,10 @@ Nos sistemas com lançador configurado, o card oferece **Jogar** quando há uma
 ROM local completa. Quando há vários discos ou formatos, cada opção aparece
 separadamente para você escolher, sem adivinhar qual abrir. Pastas de jogos são
 examinadas para encontrar os arquivos executáveis pelo emulador. Jogos de PC
-continuam sendo abertos pela Steam/Heroic; a Biblioteca TV registra seu progresso.
+instalados na Steam, Epic ou GOG (Heroic) mostram **Jogar (Steam/Heroic)**: o PyRetro pede à
+loja já aberta que inicie o jogo, sem acompanhar a sessão, e o progresso é registrado
+manualmente. Jogo não instalado avisa isso no card. A aba Jogando lista primeiro o que foi aberto
+por último pela TV (data guardada em `cache/last_played.json`).
 
 Para um jogo só no Drive, **Baixar e jogar** pede confirmação e abre o emulador
 somente após o resultado positivo do download e uma nova validação dos arquivos.
