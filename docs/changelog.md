@@ -6,6 +6,20 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 15/10/2026 — Sorteio no modo TV
+
+- Nova aba **🎲 Sortear** em `/tv`: escolhe grupo (leves, pesadas, Biblioteca e
+  subgrupos Switch/Xbox/PlayStation/PC) e gênero, chama o `/api/sortear` já
+  existente e mostra o jogo sorteado como card normal (Jogar, Baixar e jogar,
+  progresso). Sem rota nova no backend. Coexiste com o ES-DE, que segue instalado.
+- "Continuar jogando" já era coberto pela aba **Jogando** (iniciados não
+  finalizados); não foi alterada. Ordenar por último jogado exigiria registrar
+  a data da sessão, o que ainda não existe.
+- Validação: 173 testes Python e 36 de interface passaram (novo teste do
+  sorteio com APIs fictícias). Uma rodada isolada falhou no teste de controle
+  por temporização de `requestAnimationFrame` e passou ao repetir.
+  Homologação no sofá continua com o Victor.
+
 ## 15/10/2026 — Encerramento e publicação das pendências locais
 
 - A pedido do Victor, incluídas na publicação as alterações de interface,

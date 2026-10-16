@@ -34,6 +34,14 @@ o download: o acompanhamento fica na sessão da página. Se a conexão cair, con
 a coleção antes de tentar novamente. O modo TV permite um download por vez na página;
 outras abas e clientes continuam sujeitos às regras já existentes do backend.
 
+## Sortear
+
+A aba **🎲 Sortear** tem uma fileira de grupos (Tudo, ROMs leves/pesadas, Biblioteca e
+seus subgrupos) e outra de gêneros. **Sortear** escolhe um jogo com o mesmo critério da
+interface completa; o resultado aparece como card, com Jogar/Baixar/progresso. ROM pesada
+sorteada pode estar só no Drive: o card oferece Baixar e jogar. Use o botão de novo
+para outro sorteio.
+
 ## Jogar e baixar sob demanda
 
 Nos sistemas com lançador configurado, o card oferece **Jogar** quando há uma

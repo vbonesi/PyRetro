@@ -545,6 +545,47 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
   } finally { frame.remove(); }
 });
 
+teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async () => {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
+  document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
+  const app = frame.contentWindow, doc = app.document;
+  const consultas = []; let falha = false;
+  app.fetch = async (url) => {
+    let data;
+    if (url === "/api/csrf") data = {token: "tv-token"};
+    else if (url === "/api/play/status") data = {status: "idle"};
+    else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
+    else if (url === "/api/systems") data = [];
+    else if (url === "/api/library") data = [{id: "sorteado", nome: "Sorteado", plataforma: "Steam"}];
+    else if (url === "/api/sortear/systems") data = {grupos: [{code: "biblioteca", label: "📚 Biblioteca (toda)"}], sistemas: [], generos: ["RPG"]};
+    else if (url.startsWith("/api/sortear?")) {
+      consultas.push(url);
+      if (falha) return {ok: false, json: async () => ({error: "nenhum jogo encontrado pra sortear"})};
+      data = {nome: "Sorteado", kind: "biblioteca", plataforma: "Steam", label: "Biblioteca"};
+    } else throw new Error(`requisição inesperada: ${url}`);
+    return {ok: true, json: async () => data};
+  };
+  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  try {
+    await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
+    await app.load("draw");
+    verdade(!doc.getElementById("genres").hidden, "gêneros deveriam aparecer na aba Sortear");
+    [...doc.querySelectorAll("#platforms button")].find(b => b.textContent.includes("Biblioteca")).click();
+    [...doc.querySelectorAll("#genres button")].find(b => b.textContent === "RPG").click();
+    doc.querySelector("#gallery .draw").click();
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 2, "sorteio não mostrou o jogo");
+    igual(consultas, ["/api/sortear?system=biblioteca&genero=RPG"]);
+    verdade(doc.querySelectorAll("#gallery .game")[1].textContent.includes("Sorteado"));
+    falha = true; doc.querySelector("#gallery .draw").click();
+    await esperar(() => doc.getElementById("message").textContent.includes("Não foi possível sortear"), "falha do sorteio ficou invisível");
+    await app.load("library");
+    verdade(doc.getElementById("genres").hidden, "gêneros deveriam sumir fora do sorteio");
+  } finally { frame.remove(); }
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];

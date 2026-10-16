@@ -14,7 +14,7 @@ async function api(url, body) {
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
   return data;
 }
-const state = {kind: "library", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null};
+const state = {draw: {group: "", genre: ""}, sortear: null, kind: "library", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null};
 function button(text, action, pressed) {
   const b = document.createElement("button"); b.textContent = text; b.type = "button";
   if (pressed !== undefined) b.setAttribute("aria-pressed", String(pressed));
@@ -23,8 +23,17 @@ function button(text, action, pressed) {
 function report(message, error = false, target = "message") {
   $(target).textContent = message; $(target).classList.toggle("error", error);
 }
+function drawTabs() {
+  const nav = $("platforms"), genres = $("genres"); nav.replaceChildren(); genres.replaceChildren();
+  if (state.kind !== "draw" || !state.sortear) { genres.hidden = true; return; }
+  const groups = [{code: "", label: "🎲 Tudo"}, ...state.sortear.grupos];
+  for (const g of groups) nav.append(button(g.label, () => { state.draw.group = g.code; drawTabs(); nav.querySelector(`[aria-pressed="true"]`)?.focus(); }, state.draw.group === g.code));
+  genres.hidden = false;
+  for (const name of ["", ...state.sortear.generos]) genres.append(button(name || "Qualquer gênero", () => { state.draw.genre = name; drawTabs(); genres.querySelector(`[aria-pressed="true"]`)?.focus(); }, state.draw.genre === name));
+}
 function platformTabs() {
-  const nav = $("platforms"); nav.replaceChildren();
+  drawTabs();
+  const nav = $("platforms"); if (state.kind === "draw") return; nav.replaceChildren();
   if (state.kind === "library" || state.kind === "playing") {
     const platforms = [...new Set(state.items.map(g => g.platform))].sort();
     for (const p of ["", ...platforms]) nav.append(button(p || "Todas as plataformas", () => {
@@ -36,7 +45,17 @@ function platformTabs() {
   }
 }
 function collectionTabs() {
-  $("collections").replaceChildren(...[["library", "Biblioteca"], ["playing", "Jogando"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"]].map(([kind, title]) => button(title, () => load(kind), state.kind === kind)));
+  $("collections").replaceChildren(...[["library", "Biblioteca"], ["playing", "Jogando"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"]].map(([kind, title]) => button(title, () => load(kind), state.kind === kind)));
+}
+function libraryItem(g) { return {id: g.id, name: g.nome, platform: g.plataforma || "Biblioteca", cover: g.capa_url, tracking: g}; }
+function romItem(kind, c, sys, g) {
+  return {
+    name: kind === "heavy" ? g.label : (g.display_name || g.label), code: c,
+    platform: sys.nome || sys.capas || c, cover: kind === "heavy" ? g.capa : (g.file ? `/images/${encodeURIComponent(c)}/${encodeURIComponent(g.file)}` : null),
+    tracking: g.biblioteca || {}, downloadName: kind === "heavy" && !g.in_pc && g.in_drive ? g.name : null,
+    local: kind === "heavy" ? g.in_pc : null,
+    romName: kind === "heavy" ? g.name : g.label, driveName: kind === "heavy" && g.in_drive ? g.name : null,
+  };
 }
 async function load(kind = state.kind, code = "") {
   const request = ++state.request;
@@ -44,24 +63,21 @@ async function load(kind = state.kind, code = "") {
   const systems = kind === "heavy" ? state.systems : state.light;
   state.code = code || systems[0]?.code || "";
   state.items = []; collectionTabs(); platformTabs(); render();
-  $("title").textContent = ({library: "Biblioteca", playing: "Jogando", heavy: "ROMs pesadas", light: "ROMs leves"})[kind];
+  $("title").textContent = ({library: "Biblioteca", playing: "Jogando", heavy: "ROMs pesadas", light: "ROMs leves", draw: "Sortear"})[kind];
   report("Carregando catálogo…");
   try {
     let items;
     if (kind === "library" || kind === "playing") {
-      items = (await api(kind === "library" ? "/api/library" : "/api/iniciados")).filter(g => !g.oculto).map(g => ({id: g.id, name: g.nome, platform: g.plataforma || "Biblioteca", cover: g.capa_url, tracking: g}));
+      items = (await api(kind === "library" ? "/api/library" : "/api/iniciados")).filter(g => !g.oculto).map(libraryItem);
+    } else if (kind === "draw") {
+      if (!state.sortear) state.sortear = await api("/api/sortear/systems");
+      items = [];
     } else {
       if (!state.code) { report("Nenhum sistema configurado."); return; }
       const c = state.code;
       const data = await api(kind === "heavy" ? `/api/heavy/roms/${encodeURIComponent(c)}` : `/api/covers/${encodeURIComponent(c)}`);
       const sys = systems.find(s => s.code === c);
-      items = (kind === "heavy" ? data.items : data).map(g => ({
-        name: kind === "heavy" ? g.label : (g.display_name || g.label), code: c,
-        platform: sys.nome || sys.capas || c, cover: kind === "heavy" ? g.capa : (g.file ? `/images/${encodeURIComponent(c)}/${encodeURIComponent(g.file)}` : null),
-        tracking: g.biblioteca || {}, downloadName: kind === "heavy" && !g.in_pc && g.in_drive ? g.name : null,
-        local: kind === "heavy" ? g.in_pc : null,
-        romName: kind === "heavy" ? g.name : g.label, driveName: kind === "heavy" && g.in_drive ? g.name : null,
-      }));
+      items = (kind === "heavy" ? data.items : data).map(g => romItem(kind, c, sys, g));
     }
     if (request !== state.request) return;
     state.items = items; platformTabs(); render();
@@ -71,6 +87,7 @@ async function load(kind = state.kind, code = "") {
 function render() {
   const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
   const gallery = $("gallery"); gallery.replaceChildren();
+  if (state.kind === "draw") gallery.append(Object.assign(button("🎲 Sortear", drawGame), {className: "game draw"}));
   for (const g of items) {
     const card = button("", () => openGame(g, card)); card.className = "game";
     if (g.cover) { const img = document.createElement("img"); img.src = g.cover; img.alt = ""; img.loading = "lazy"; img.className = "art"; card.append(img); }
@@ -80,7 +97,34 @@ function render() {
     meta.textContent = [g.platform, g.downloadName && !g.local ? "Só no Drive" : g.local ? "No PC" : "", t.platinado ? "🏆 Platinado" : t.finalizado ? "✓ Finalizado" : t.iniciado ? "▶ Iniciado" : "", t.nota != null ? `★ ${t.nota}` : ""].filter(Boolean).join(" · ");
     card.append(title, meta); gallery.append(card);
   }
+  if (state.kind === "draw") return report(items.length ? "Sorteado! Abra a capa para jogar ou registrar progresso." : "Escolha grupo e gênero, depois sorteie.");
   report(items.length ? `${items.length} jogos · escolha uma capa` : "Nenhum jogo nesta seleção.");
+}
+async function drawGame() {
+  if (state.busy || state.drawing) return;
+  state.drawing = true; report("Sorteando…");
+  try {
+    const query = new URLSearchParams(); if (state.draw.group) query.set("system", state.draw.group); if (state.draw.genre) query.set("genero", state.draw.genre);
+    const r = await api(`/api/sortear?${query}`);
+    let item;
+    if (r.kind === "biblioteca") {
+      const g = (await api("/api/library")).find(x => x.nome === r.nome && (!r.plataforma || x.plataforma === r.plataforma));
+      if (!g) throw new Error(`"${r.nome}" não foi encontrado na Biblioteca`);
+      item = libraryItem(g);
+    } else {
+      const kind = r.kind === "pesado" ? "heavy" : "light";
+      const sys = (kind === "heavy" ? state.systems : state.light).find(s => s.code === r.codigo) || {code: r.codigo};
+      const data = await api(kind === "heavy" ? `/api/heavy/roms/${encodeURIComponent(r.codigo)}` : `/api/covers/${encodeURIComponent(r.codigo)}`);
+      const stem = r.nome.replace(/\.[^.]+$/, "");
+      const g = (kind === "heavy" ? data.items : data).find(x => kind === "heavy" ? x.name === r.nome : x.label === stem || x.label === r.nome);
+      if (!g) throw new Error(`"${r.nome}" não foi encontrado em ${r.label}`);
+      item = romItem(kind, r.codigo, sys, g);
+    }
+    if (state.kind !== "draw") return;
+    state.items = [item]; render();
+    $("gallery").children[1]?.focus();
+  } catch (e) { report(`Não foi possível sortear: ${e.message}`, true); }
+  finally { state.drawing = false; }
 }
 let returnFocus, returnIndex;
 function openGame(g, origin = document.activeElement) {
