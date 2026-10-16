@@ -198,6 +198,86 @@ teste("app.js inicializa a interface e protege POST com CSRF", async () => {
   igual(resposta.status, 400, "POST deveria atravessar CSRF e ser recusado só pelo corpo inválido");
 });
 
+// Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
+// Não consulta nem grava a biblioteca real; simula também controle e SSE.
+teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
+  document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve);
+  frame.srcdoc = html;
+  await loaded;
+  const app = frame.contentWindow, doc = app.document;
+  const writes = []; let fail = false, events;
+  const g = jogo({id: "tv-test", nome: "Teste TV", plataforma: "Steam"});
+  app.fetch = async (url, init) => {
+    let data;
+    if (url === "/api/csrf") data = {token: "tv-token"};
+    else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
+    else if (url === "/api/systems") data = [];
+    else if (url === "/api/library" || url === "/api/iniciados") data = [g];
+    else if (url === "/api/heavy/roms/PS2") data = {items: [{name: "Teste.iso", label: "Teste", in_drive: true, in_pc: false, biblioteca: null}]};
+    else if (init?.method === "POST") {
+      igual(init.headers["X-PyRetro-CSRF"], "tv-token");
+      writes.push({url, body: JSON.parse(init.body)});
+      if (fail) return {ok: false, json: async () => ({error: "falha fictícia"})};
+      data = url === "/api/heavy/download" ? {job: "tv-download"} : {ok: true};
+    } else throw new Error(`requisição inesperada no modo TV: ${url}`);
+    return {ok: true, json: async () => data};
+  };
+  app.EventSource = class { constructor() { events = this; } close() {} };
+  let pad = null;
+  Object.defineProperty(app.navigator, "getGamepads", {value: () => [pad], configurable: true});
+  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  try {
+    await esperar(() => doc.querySelector("#gallery .game"), "modo TV não carregou");
+    doc.querySelector("#gallery .game").click();
+    doc.querySelectorAll("#tracking button")[2].click();
+    doc.getElementById("rating-fine-up").click();
+    doc.getElementById("save").click();
+    await esperar(() => doc.getElementById("detail-status").textContent === "Progresso salvo.", "TV não salvou");
+    igual(writes.length, 1, "progresso deve ser uma única requisição");
+    igual(writes[0].body.campos, {iniciado: true, finalizado: true, platinado: true, nota: 0.1});
+    doc.getElementById("close").click();
+    verdade(doc.activeElement.classList.contains("game"), "perdeu foco depois de salvar");
+    doc.querySelector("#gallery .game").click(); fail = true;
+    doc.querySelectorAll("#tracking button")[0].click(); doc.getElementById("save").click();
+    await esperar(() => doc.getElementById("detail-status").textContent.includes("Não foi salvo"), "falha ficou invisível");
+    doc.getElementById("close").click();
+    verdade(doc.querySelector("#gallery .game").textContent.includes("Platinado"), "falha alterou o card");
+    fail = false;
+    await app.load("heavy");
+    doc.querySelector("#gallery .game").click();
+    const count = writes.length;
+    doc.getElementById("download").click(); igual(writes.length, count, "baixou antes de confirmar");
+    doc.getElementById("download").click();
+    await esperar(() => events?.onmessage, "download não abriu stream");
+    events.onmessage({data: JSON.stringify({type: "system_done", result: {ok: false, message: "sem espaço"}})});
+    events.onmessage({data: JSON.stringify({type: "job_done"})});
+    verdade(doc.getElementById("download-status").textContent.includes("sem espaço"));
+    verdade(!doc.getElementById("download").hidden, "falha foi tratada como sucesso");
+    doc.getElementById("download").click(); doc.getElementById("download").click();
+    const old = events;
+    await esperar(() => events !== old && events?.onmessage, "segundo download não abriu stream");
+    events.onmessage({data: JSON.stringify({type: "system_done", result: {ok: true}})});
+    events.onmessage({data: JSON.stringify({type: "job_done"})});
+    verdade(doc.getElementById("download").hidden, "download concluído ainda oferecido");
+    doc.getElementById("close").click();
+    doc.querySelector("#gallery .game").focus();
+    // A abre, segurar A não repete; B fecha.
+    pad = {id: "Controle fictício", axes: [0, 0], buttons: Array.from({length: 16}, (_, i) => ({pressed: i === 0}))};
+    await esperar(() => doc.getElementById("details").open, "A não abriu jogo");
+    await new Promise(resolve => setTimeout(resolve, 450));
+    verdade(doc.querySelectorAll("#tracking button")[0].getAttribute("aria-pressed") === "false", "A repetiu ao segurar");
+    pad.buttons[0].pressed = false; pad.buttons[1].pressed = true;
+    await esperar(() => !doc.getElementById("details").open, "B não voltou");
+    pad = null; frame.style.width = "390px";
+    await new Promise(resolve => app.requestAnimationFrame(resolve));
+    verdade(doc.documentElement.scrollWidth <= 390, "modo TV transbordou em tela pequena");
+  } finally { frame.remove(); }
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];

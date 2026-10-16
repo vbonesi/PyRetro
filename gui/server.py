@@ -1342,6 +1342,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/":
             return self._file(STATIC_DIR / "index.html", "text/html; charset=utf-8", no_cache=True)
 
+        if parsed.path in ("/tv", "/tv/"):
+            return self._file(STATIC_DIR / "tv.html", "text/html; charset=utf-8", no_cache=True)
+
         if parts == ["api", "csrf"]:
             return self._json({"token": CSRF_TOKEN})
 
@@ -2265,12 +2268,18 @@ class Handler(BaseHTTPRequestHandler):
             library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
             library = library_mod.load_library(library_path)
             game = library_mod.get_or_create_for_rom(library, nome, code, plataforma, fonte)
+            # O modo TV envia o progresso inteiro numa única gravação, para
+            # não deixar a cascata iniciado/finalizado/platinado pela metade.
+            # Clientes antigos continuam enviando field/value.
+            campos = body.get("campos", {body.get("field"): body.get("value")})
+            if not isinstance(campos, dict) or not campos or any(
+                    c not in library_mod.EDITABLE_FIELDS for c in campos):
+                return self._json({"error": "campo desconhecido"}, 400)
             try:
-                ok = library_mod.update_game(library, game["id"], body.get("field"), body.get("value"))
+                for campo, valor in campos.items():
+                    library_mod.update_game(library, game["id"], campo, valor)
             except (TypeError, ValueError):
                 return self._json({"error": "valor inválido"}, 400)
-            if not ok:
-                return self._json({"error": "campo desconhecido"}, 400)
             library_mod.save_library(library_path, library)
             return self._json({"ok": True, "id": game["id"]})
 

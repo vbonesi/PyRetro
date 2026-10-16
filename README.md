@@ -32,6 +32,13 @@ não são só estilo:
 - **Capa sem ROM correspondente não é lixo.** O acervo de capas é
   intencionalmente maior que o de ROMs, pelo mesmo motivo acima.
 
+## Modo TV
+
+Acesse `http://127.0.0.1:8000/tv` para navegar pelo acervo com controle,
+registrar progresso/notas e baixar ROMs pesadas do seu Drive. Integração
+com lançamento de emuladores ainda pendente. Uso e contrato para o atalho
+do Big Picture: [`docs/modo-tv.md`](docs/modo-tv.md).
+
 ## Testes
 
 ```bash

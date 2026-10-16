@@ -6,6 +6,23 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 15/10/2026 — Modo TV
+
+- Primeira etapa para Big Picture: `/tv`, com Biblioteca/Jogando, ROMs leves e
+  pesadas, filtros de plataforma/sistema, navegação espacial por setas e Gamepad
+  API (direcional/analógico, A/B), progresso e notas sem teclado. Download
+  pesado pede confirmação e acompanha início/resultado via SSE existente.
+- Tracking de ROM aceita `campos` em lote, validando tudo antes da gravação;
+  clientes com `field/value` continuam compatíveis. Salvamento pela TV mantém
+  cascata de iniciado/finalizado/platinado em uma única requisição.
+- Documentado o contrato do atalho da Steam em `docs/modo-tv.md`. Execução de
+  emuladores e homologação com controle físico/Steam Link ficam para a próxima
+  etapa. Desenvolvimento e testes usam acervo temporário/APIs fictícias.
+  Validação: 152 testes Python e 34 de interface passaram, incluindo A/B
+  simulados, preservação de foco e ausência de transbordamento a 390 px.
+  Cópia isolada deste commit: 148 testes Python e 24 de interface passaram
+  sem depender das alterações locais anteriores, que permanecem fora dele.
+
 ## 25/09/2026
 
 - **Orientação PSN/Xbox atualizada.** O README ainda dizia que colar um só nome
