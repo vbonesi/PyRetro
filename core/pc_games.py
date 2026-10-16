@@ -19,6 +19,11 @@ SAFE_ID = re.compile(r'^[A-Za-z0-9_-]{1,64}$')
 FIELD = r'"%s"\s+"([^"]*)"'
 
 
+def _norm(name):
+    # A Steam grava "The Sims™ 4"; a Biblioteca, "The Sims 4".
+    return covers_mod.normalize(re.sub(r'[™®©]', '', name))
+
+
 def _steamapps_dirs():
     dirs = []
     for root in STEAM_ROOTS:
@@ -49,7 +54,7 @@ def steam_installed():
                 continue
             if any(name.group(1).lower().startswith(p) for p in IGNORED_STEAM):
                 continue
-            out[covers_mod.normalize(name.group(1))] = appid.group(1)
+            out[_norm(name.group(1))] = appid.group(1)
     return out
 
 
@@ -68,7 +73,7 @@ def heroic_installed(heroic_cfg, store):
         data = _json(base / 'legendaryConfig/legendary/installed.json')
         for app, info in (data.items() if isinstance(data, dict) else []):
             if isinstance(info, dict) and not info.get('is_dlc') and info.get('title') and SAFE_ID.match(str(app)):
-                out[covers_mod.normalize(info['title'])] = app
+                out[_norm(info['title'])] = app
     elif store == 'gog':
         installed = _json(base / 'gog_store/installed.json')
         entries = installed.get('installed', []) if isinstance(installed, dict) else []
@@ -80,13 +85,13 @@ def heroic_installed(heroic_cfg, store):
         for e in entries:
             app = str(e.get('appName') or e.get('app_name') or '')
             if app in titles and SAFE_ID.match(app):
-                out[covers_mod.normalize(titles[app])] = app
+                out[_norm(titles[app])] = app
     return out
 
 
 def find(cfg, game):
     """Descreve como abrir `game` (registro da Biblioteca) ou devolve None."""
-    names = [covers_mod.normalize(n) for n in [game['nome'], *game.get('nomes_alt', [])]]
+    names = [_norm(n) for n in [game['nome'], *game.get('nomes_alt', [])]]
     for fonte in game.get('fontes', []):
         if fonte == 'steam':
             index, store = steam_installed(), 'steam'

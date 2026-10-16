@@ -20,6 +20,7 @@ class TestPcGames(unittest.TestCase):
         steamapps.mkdir(parents=True)
         (steamapps / 'appmanifest_10.acf').write_text('"AppState"\n{\n\t"appid"\t\t"10"\n\t"name"\t\t"Hollow Knight"\n}')
         (steamapps / 'appmanifest_11.acf').write_text('"AppState"\n{\n\t"appid"\t\t"11"\n\t"name"\t\t"Steam Linux Runtime 3"\n}')
+        (steamapps / 'appmanifest_12.acf').write_text('"AppState"\n{\n\t"appid"\t\t"12"\n\t"name"\t\t"The Sims\u2122 4"\n}')
         (steamapps / 'appmanifest_x.acf').write_text('"AppState"\n{\n\t"appid"\t\t"1;rm"\n\t"name"\t\t"Mau"\n}')
         heroic = self.root / 'heroic/legendaryConfig/legendary'
         heroic.mkdir(parents=True)
@@ -30,13 +31,14 @@ class TestPcGames(unittest.TestCase):
         p = patch.object(pc_games, 'STEAM_ROOTS', (str(self.root / 'steam'),)); p.start(); self.addCleanup(p.stop)
 
     def test_installed_only_and_runtime_or_unsafe_ids_ignored(self):
-        self.assertEqual(pc_games.steam_installed(), {'hollowknight': '10'})
+        self.assertEqual(pc_games.steam_installed(), {'hollowknight': '10', 'sims4': '12'})
         self.assertEqual(pc_games.heroic_installed(self.cfg['heroic'], 'legendary'), {'alienisolation': 'abc123'})
 
     def test_find_requires_matching_source(self):
         game = {'nome': 'Hollow Knight', 'nomes_alt': [], 'fontes': ['steam']}
         self.assertEqual(pc_games.find(self.cfg, game), {'store': 'steam', 'id': '10'})
         self.assertIsNone(pc_games.find(self.cfg, {**game, 'fontes': ['heroic:gog']}))
+        self.assertEqual(pc_games.find(self.cfg, {'nome': 'The Sims 4', 'nomes_alt': [], 'fontes': ['steam']}), {'store': 'steam', 'id': '12'})
         self.assertEqual(pc_games.find(self.cfg, {'nome': 'Alien: Isolation', 'nomes_alt': [], 'fontes': ['heroic:epic']}),
                          {'store': 'legendary', 'id': 'abc123'})
 
