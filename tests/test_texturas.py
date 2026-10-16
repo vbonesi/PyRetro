@@ -75,6 +75,14 @@ class TexturasTest(unittest.TestCase):
         with self.assertRaises(tx.TexturaErro):
             tx.extrair(z, self.dir / "out")
 
+    def test_ps1_usa_replacements_e_serial(self):
+        cfg = {"texturas": {"ps1": str(self.dir / "ps1")}}
+        p = {"id": "ps1-sles-00049", "sistema": "PS1", "id_jogo": "SLES-00049", "nome": "Rayman", "arquivo": "x.zip"}
+        z = _zip(self.dir / "p.zip", {"SLES-00049/vram-write-AB.png": "1"})
+        with mock.patch.object(tx, "CACHE_DIR", self.dir / "cache"):
+            tx.instalar(p, cfg, arquivo=z)
+        self.assertTrue((self.dir / "ps1/SLES-00049/replacements/vram-write-AB.png").is_file())
+
     def test_psp_usa_pasta_do_id_sem_replacements(self):
         p = {"id": "psp-ulus10000", "sistema": "PSP", "id_jogo": "ULUS10000", "nome": "Jogo", "arquivo": "x.zip"}
         z = _zip(self.dir / "p.zip", {"ULUS10000/a.png": "1"})

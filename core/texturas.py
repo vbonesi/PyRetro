@@ -12,10 +12,10 @@ o PyRetro instalou (dumps e pacotes manuais ficam intactos).
 Pastas de destino (confirmadas em 16/10/2026 só para o PCSX2 - NFS Underground 2,
 SLUS-21065, com troca de textura vista em jogo; Dolphin e PPSSPP seguem a
 convenção documentada deles e ainda NÃO foram testados aqui):
+  PS1   textures/<SERIAL>/replacements/     (DuckStation; troca "vram-write-<hash>.png")
   PS2   textures/<SERIAL>/replacements/     (PCSX2, Flatpak)
   GC/Wii Load/Textures/<ID DE 6 LETRAS>/    (Dolphin, Flatpak)
   PSP   PSP/TEXTURES/<ID DO DISCO>/         (PPSSPP, Flatpak)
-O PS1 (DuckStation) não tem substituição de textura estável: fica de fora.
 
 Cada emulador também precisa da opção "carregar texturas" ligada; set_loading
 liga, mas só com o emulador fechado (ele regrava o .ini ao sair e desfaria a
@@ -38,13 +38,15 @@ EXTENSOES = (".zip", ".7z", ".rar")
 
 _FLATPAK = Path.home() / ".var/app"
 _PADRAO = {
+    "PS1": Path.home() / ".local/share/duckstation/textures",
     "PS2": _FLATPAK / "net.pcsx2.PCSX2/config/PCSX2/textures",
     "GC": _FLATPAK / "org.DolphinEmu.dolphin-emu/data/dolphin-emu/Load/Textures",
     "WII": _FLATPAK / "org.DolphinEmu.dolphin-emu/data/dolphin-emu/Load/Textures",
     "PSP": _FLATPAK / "org.ppsspp.PPSSPP/config/ppsspp/PSP/TEXTURES",
 }
-_PROCESSO = {"PS2": "pcsx2-qt", "GC": "dolphin-emu", "WII": "dolphin-emu", "PSP": "PPSSPPSDL"}
+_PROCESSO = {"PS1": "DuckStation-x64", "PS2": "pcsx2-qt", "GC": "dolphin-emu", "WII": "dolphin-emu", "PSP": "PPSSPPSDL"}
 _ID_JOGO = {
+    "PS1": re.compile(r"^[A-Z]{4}-\d{5}$"),
     "PS2": re.compile(r"^[A-Z]{4}-\d{5}$"),
     "GC": re.compile(r"^[A-Z0-9]{6}$"),
     "WII": re.compile(r"^[A-Z0-9]{6}$"),
@@ -89,7 +91,7 @@ def pasta_jogo(sistema: str, id_jogo: str, cfg: dict | None = None) -> Path:
 
 def _destino_arquivos(sistema: str, id_jogo: str, cfg: dict | None) -> Path:
     base = pasta_jogo(sistema, id_jogo, cfg)
-    return base / "replacements" if sistema == "PS2" else base
+    return base / "replacements" if sistema in ("PS1", "PS2") else base
 
 
 def estado(pacote: dict, cfg: dict | None = None) -> dict:
@@ -190,7 +192,7 @@ def instalar_de_pasta(extraido: Path, sistema: str, id_jogo: str, pacote_id: str
     Devolve quantos arquivos foram copiados."""
     destino = _destino_arquivos(sistema, id_jogo, cfg)
     raiz = _achar_raiz(extraido, id_jogo)
-    if sistema == "PS2" and (raiz / "replacements").is_dir():
+    if sistema in ("PS1", "PS2") and (raiz / "replacements").is_dir():
         raiz = raiz / "replacements"
     copiados = []
     destino.mkdir(parents=True, exist_ok=True)
@@ -266,6 +268,8 @@ def emulador_aberto(sistema: str) -> bool:
 
 
 _CHAVES = {
+    "PS1": ("~/.local/share/duckstation/settings.ini", "TextureReplacements",
+            "EnableVRAMWriteReplacements", "true"),
     "PS2": ("~/.var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini", "EmuCore/GS",
             "LoadTextureReplacements", "true"),
     "GC": ("~/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/GFX.ini", "Settings",

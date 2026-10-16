@@ -673,7 +673,7 @@ def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
 # baixando o mesmo pacote de GB ao mesmo tempo.
 _texturas_em_andamento: set = set()
 _texturas_lock = threading.Lock()
-_TEXTURAS_PASTA_ROM = {"PS2": "PS2", "GC": "NGC", "WII": "WII", "PSP": "PSP"}
+_TEXTURAS_PASTA_ROM = {"PS1": "PS", "PS2": "PS2", "GC": "NGC", "WII": "WII", "PSP": "PSP"}
 
 
 def _texturas_lista() -> list:
