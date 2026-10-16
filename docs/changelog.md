@@ -6,6 +6,35 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 (madrugada) — Texturas no celular (PSP e 3DS validados, PS1 instalado)
+
+- `core/texturas.py` ganhou o alvo **celular** (`instalar_celular`, `remover_celular`, `estado_celular`,
+  `set_loading_celular`), tudo por `adb`, com manifesto e validação de ID. Ainda não está na aba Texturas.
+- **PSP (PPSSPP Gold, Patapon 2, `UCUS98732`)**: validado em jogo. Dump → textura vermelha 2× → instalada
+  pelo PyRetro em `/sdcard/Jogos/PSP/PSP/TEXTURES/UCUS98732` (com `textures.ini`) → "Options" e cantos
+  vermelhos na tela. Abrir o jogo por intent `VIEW` com `file://` **não** carregou o jogo (só abriu o menu);
+  pelo toque no menu "Recentes" funciona.
+- **3DS (Lime3DS, Pokémon X, `0004000000055D00`)**: validado em jogo. A pasta de usuário é `/sdcard/Jogos/3DS`;
+  `dump_textures`/`custom_textures` em `config/config.ini` seção `[Utility]` (usei `1`/`0`, como no comentário
+  do arquivo). Dump de 29 texturas → versões vermelhas 2× instaladas em `load/textures/<TITLE ID>` → a
+  interface do jogo ficou toda vermelha.
+- **PS1 (DuckStation Android 0.1-8969, Diablo `SLUS-00619`)**: textura **instalada**, troca **não validada em jogo**.
+  O app não deixa ligar o dump por arquivo (o `settings.ini` é privado e o `gamesettings/<serial>.ini` com
+  `DumpVRAMWrites` não gerou nada), então o dump foi feito no PC com o mesmo jogo (o nome da textura vem do
+  conteúdo) e as texturas (invertidas e 2×) foram enviadas para
+  `Android/data/com.github.stenzek.duckstation/files/textures/SLUS-00619/replacements`, com
+  `EnableVRAMWriteReplacements = true` em `gamesettings/SLUS-00619.ini`. Para desfazer, use `remover_celular`
+  (pacote `teste-ps1-diablo-cel`) e apague o `.ini` do jogo. Se não trocar, ligar a opção global no app.
+- **PS1 no celular validado pelo usuário** (Diablo, 4 texturas): a imagem mudou na tela de título, mas "toda
+  bugada". É esperado: no Diablo os `vram-write-*.png` de 160×240/128×240 são dados 8-bit crus da VRAM (não
+  imagens), então inverter e ampliar 2× embaralha o resultado. O que ficou provado é o caminho (nomes
+  iguais entre PC e celular, pasta certa, opção por jogo respeitada). Pacote de verdade para jogo com textura
+  paletizada exige o modo "página" do DuckStation. Teste removido do celular depois.
+- Celular: `svc power stayon true` foi ligado a pedido (tela sempre acesa no cabo);
+  desligar com `adb shell svc power stayon false`.
+- Bug achado nos testes: `set_loading_celular` falhava quando o `.ini` ainda não existia (`cat` com exit 1 no adb).
+- Erro meu: simulei teclas (uinput) enquanto você digitava; não faço mais isso com a tela em uso.
+
 ## 16/10/2026 (fim da noite) — Texturas validadas nos 4 emuladores, capas no ES-DE/emuladores, GPUs
 
 - **Texturas HD validadas em jogo com troca de ida e volta** (o emulador despeja uma textura, ela
