@@ -6,6 +6,15 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 — Janela do modo TV atrás do Big Picture
+
+- Teste pelo Steam Link: os atalhos PyRetro e ES-DE iniciavam (processos e log
+  confirmados), mas a janela ficava atrás do Big Picture, que permanece ativo em
+  tela cheia no KWin. `tools/raise-window.sh` ativa a janela pela classe via script
+  do KWin; `pyretro-tv.sh` o chama em segundo plano. Ativação manual confirmada
+  nesta máquina; o atalho completo ainda precisa de novo teste. O ES-DE usa o
+  `bonisarch-esde` do setup-linux-bonesi e não foi alterado aqui.
+
 ## 15/10/2026 — Último jogado e jogos de PC no modo TV
 
 - **Jogando por último jogado:** abrir uma ROM pela TV grava a data em

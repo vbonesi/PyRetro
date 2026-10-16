@@ -83,6 +83,9 @@ e precisam ser conferidos com os emuladores reais.
 
 O script `tools/pyretro-tv.sh` inicia o serviço e abre o Chrome Flatpak em tela
 cheia na URL local, com um perfil próprio dentro da configuração do Chrome.
+Como o Big Picture fica ativo em tela cheia, o script chama `tools/raise-window.sh`
+(KWin/Wayland via qdbus6) por até 25 s para trazer a janela do PyRetro para a frente;
+sem isso ela abria atrás e não aparecia no Steam Link (achado em 16/10).
 Isso mantém a janela independente do navegador de uso pessoal e mantém seu
 processo ligado ao atalho até fechar a TV. O controle usa as permissões já
 existentes do Chrome; não há relaxamento do sandbox do navegador.

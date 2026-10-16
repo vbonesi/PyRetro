@@ -6,6 +6,8 @@ if [ "${1-}" = '--dry-run' ]; then
     exit 0
 fi
 systemctl --user start pyretro-gui
+# Em segundo plano: o Big Picture fica ativo em tela cheia e esconderia a janela.
+"$(dirname "$(readlink -f "$0")")/raise-window.sh" chrome-127.0.0.1__tv 25 >/dev/null 2>&1 &
 exec flatpak run com.google.Chrome \
     --user-data-dir="$HOME/.var/app/com.google.Chrome/config/pyretro-tv" \
     --no-first-run --no-default-browser-check \
