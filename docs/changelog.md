@@ -6,6 +6,21 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 (fim) — Catálogo com PSP, pesquisa dos demais, setup e registro
+
+- **Catálogo de texturas: 352 pacotes** (342 de PS2 e 10 de PSP). O gerador (`tools/gerar_catalogo_texturas.py`) agora lê
+  dois itens do Internet Archive (`pcsx2-hd-texture-packs` e `ppsspp-hd-texture-packs`); os de PSP têm download liberado
+  (HTTP 200) e SHA-1 do próprio archive.org. **Pesquisa dos outros sistemas:** GameCube/Wii têm uma pasta de pacotes
+  (`nintendo-gamecube-roms/Dolphin - Texture Packs/`, 39 arquivos: Mario Galaxy 1 e 2, Luigi's Mansion, Mario Kart Wii,
+  Zelda Twilight Princess/Wind Waker, Smash Melee, Wii Sports...) mas todos respondem **401** (bloqueados), então não
+  entram; os nomes não trazem o ID do jogo. 3DS: só o pacote de Ocarina of Time 3D via Patreon e nada de Pokémon X. PS1:
+  sem pacote verificável (o DuckStation só troca texturas em poucos jogos). Para esses, a aba Texturas importa de arquivo.
+- **Dolphin sem capa do PyRetro:** ignorado por decisão (links criados, mas a grade mostra os banners).
+- **Planejado, não implementado:** PyRetro no lugar do ES-DE e app Android nativo (`docs/plano-frontend.md`).
+- **setup-linux-bonesi** (commit `e766410`): `tools/install-emulator-access.py` + `step_emulator_access` (overrides Flatpak para
+  PCSX2/Dolphin/PPSSPP lerem `~/Drive/Jogos`, PCSX2 gravar em `Saves/PS2`) e `docs/EMULADORES-PC.md` (Adapter do PCSX2,
+  runtime NVIDIA, dependências). Registrado também no Notion (Ferramentas/PyRetro) e no `ContextoPessoal/10-projetos.md`.
+
 ## 16/10/2026 (madrugada, 2) — Aba Texturas com alvo celular e importação; saves de teste limpos
 
 - **Aba 🎨 Texturas:** seletor "Instalar no PC / no celular" e bloco **Importar um pacote de arquivo** (sistema + ID do

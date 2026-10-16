@@ -90,3 +90,10 @@ liga no app Android, então o pacote vem de um dump feito no PC com o mesmo jogo
 ### Alternativas descartadas por ora
 Termux + PyRetro (exige permissão de sobreposição e não resolve o DuckStation), links `intent:` do Chrome
 (só o PPSSPP é `BROWSABLE`) e Daijishō/ES-DE Android (sem o tracking do PyRetro).
+
+## Texturas: o que falta no catálogo (pesquisa de 16/10/2026)
+- PSP: 10 pacotes no catálogo (Internet Archive, verificados).
+- GameCube/Wii: 39 pacotes em `nintendo-gamecube-roms/Dolphin - Texture Packs/`, todos com HTTP 401; ficam de fora até
+  alguém liberar. Os nomes não trazem o ID do jogo (Dolphin aceita pasta pelo ID de 3, 4 ou 6 caracteres).
+- 3DS e PS1: sem fonte verificável; usar "Importar um pacote de arquivo".
+- Dolphin sem capa do PyRetro: ignorado.
