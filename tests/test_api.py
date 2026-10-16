@@ -17,6 +17,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -49,6 +50,10 @@ runtime_logs_root = "/storage/emulated/0/RetroArch/logs"
 retroarch_root    = "/storage/emulated/0/RetroArch"
 retroarch_cfg_path = "/data/data/com.retroarch/retroarch.cfg"
 library_root      = "/storage/emulated/0/Jogos/Biblioteca"
+
+[texturas]
+ps2 = "{raiz}/tex/ps2"
+importar_dir = "{raiz}/Importar"
 
 [systems.SFC]
 capas = "Nintendo - Super Nintendo Entertainment System"
@@ -482,6 +487,60 @@ class TestSegurancaHTTP(BaseAPI):
             self.assertEqual(status, 400, f"rename aceitou label perigoso {label!r}")
 
         self.assertTrue((ps2 / "Jogo.iso").is_file(), "endpoint mexeu na ROM legítima")
+
+
+class TexturasAPI(BaseAPI):
+    def _stream(self, job):
+        eventos = []
+        with urllib.request.urlopen(self.url + "/api/fetch/stream?job=" + job, timeout=30) as r:
+            for linha in r:
+                linha = linha.decode().strip()
+                if linha.startswith("data:"):
+                    e = json.loads(linha[5:])
+                    eventos.append(e)
+                    if e["type"] == "job_done":
+                        break
+        return eventos
+
+    def test_lista_pc_e_celular_sem_aparelho(self):
+        from core import adb as adb_mod
+        status, d = self.pedir("/api/texturas")
+        self.assertEqual(status, 200)
+        self.assertTrue(d["pacotes"])
+        self.assertIn("PS2", d["sistemas"])
+        with mock.patch.object(adb_mod, "ensure_connected", side_effect=adb_mod.AdbError("sem aparelho")):
+            status, d = self.pedir("/api/texturas?alvo=celular")
+        self.assertEqual(status, 200)
+        self.assertIs(d["celular_ok"], False)
+        self.assertEqual(d["pacotes"], [])
+        self.assertEqual(self.pedir("/api/texturas?alvo=xx")[0], 400)
+
+    def test_importa_pacote_local_e_remove(self):
+        import zipfile
+        from core import texturas as tx
+        (self.raiz / "Importar").mkdir(exist_ok=True)
+        with zipfile.ZipFile(self.raiz / "Importar" / "pack.zip", "w") as z:
+            z.writestr("SLUS-21065/replacements/a.png", "1")
+        corpo = {"alvo": "pc", "sistema": "PS2", "id_jogo": "SLUS-21065", "arquivo": "pack.zip"}
+        with mock.patch.object(tx, "set_loading", return_value="ligado"), \
+                mock.patch.object(tx, "CACHE_DIR", self.raiz / "cache" / "texturas"):
+            status, d = self.pedir("/api/texturas/instalar", corpo)
+            self.assertEqual(status, 200)
+            eventos = self._stream(d["job"])
+        feito = [e for e in eventos if e["type"] == "system_done"][0]
+        self.assertTrue(feito["result"]["ok"], feito)
+        self.assertTrue((self.raiz / "tex/ps2/SLUS-21065/replacements/a.png").is_file())
+        status, d = self.pedir("/api/texturas/remover", {k: corpo[k] for k in ("alvo", "sistema", "id_jogo")})
+        self.assertEqual((status, d["removidos"]), (200, 1))
+        self.assertFalse((self.raiz / "tex/ps2/SLUS-21065/replacements/a.png").exists())
+
+    def test_recusas(self):
+        base = {"alvo": "pc", "sistema": "PS2", "id_jogo": "SLUS-21065"}
+        for ruim in ("../fora.zip", "/etc/passwd", ".oculto.zip", "a\\b.zip", "nao-existe.zip", "pack.txt"):
+            self.assertEqual(self.pedir("/api/texturas/instalar", {**base, "arquivo": ruim})[0], 400, ruim)
+        self.assertEqual(self.pedir("/api/texturas/instalar", {**base, "sistema": "N64", "arquivo": "x.zip"})[0], 400)
+        self.assertEqual(self.pedir("/api/texturas/instalar", {**base, "alvo": "celular", "arquivo": "x.zip"})[0], 400)
+        self.assertEqual(self.pedir("/api/texturas/instalar", {"alvo": "pc", "id": "nao-existe"})[0], 400)
 
 
 if __name__ == "__main__":

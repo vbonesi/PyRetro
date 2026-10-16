@@ -670,46 +670,109 @@ def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
 
 
 
-# Pacotes de textura em instalação (id -> True) - impede dois cliques/abas
+# Pacotes de textura em instalação ("alvo:id") - impede dois cliques/abas
 # baixando o mesmo pacote de GB ao mesmo tempo.
 _texturas_em_andamento: set = set()
 _texturas_lock = threading.Lock()
-_TEXTURAS_PASTA_ROM = {"PS1": "PS", "PS2": "PS2", "GC": "NGC", "WII": "WII", "PSP": "PSP"}
+_TEXTURAS_PASTA_ROM = {"PS1": "PS", "PS2": "PS2", "GC": "NGC", "WII": "WII", "PSP": "PSP", "3DS": "3DS"}
+_TEXTURAS_EXTS = (".zip", ".7z", ".rar")
 
 
-def _texturas_lista() -> list:
+def _texturas_serial_celular(cfg: dict):
+    """Serial adb do celular, ou None se não houver aparelho conectado."""
+    try:
+        return adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+    except adb_mod.AdbError:
+        return None
+
+
+def _texturas_sistemas(alvo: str) -> list:
+    return texturas_mod.sistemas_celular() if alvo == "celular" else texturas_mod.sistemas_suportados()
+
+
+def _texturas_lista(alvo: str = "pc") -> dict:
     cfg = load_config()
     roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+    serial = _texturas_serial_celular(cfg) if alvo == "celular" else None
     nomes = {}
     out = []
     for p in texturas_mod.carregar_catalogo():
         sis = p["sistema"]
+        if sis not in _texturas_sistemas(alvo):
+            continue
         if sis not in nomes:
             pasta = roms_root / _TEXTURAS_PASTA_ROM[sis]
             nomes[sis] = [f.name for f in pasta.iterdir()] if pasta.is_dir() else []
         with _texturas_lock:
-            andamento = p["id"] in _texturas_em_andamento
+            andamento = f"{alvo}:{p['id']}" in _texturas_em_andamento
+        if alvo == "celular":
+            est = texturas_mod.estado_celular(p, serial) if serial else {"instalado": False, "arquivos": 0}
+        else:
+            est = texturas_mod.estado(p, cfg)
         out.append({**{k: p[k] for k in ("id", "sistema", "id_jogo", "nome", "tamanho", "origem")},
-                    **texturas_mod.estado(p, cfg),
-                    "tem_rom": texturas_mod.tem_rom(p, nomes[sis]),
-                    "em_andamento": andamento})
-    return out
+                    **est, "tem_rom": texturas_mod.tem_rom(p, nomes[sis]), "em_andamento": andamento})
+    return {"pacotes": out, "alvo": alvo, "celular_ok": serial is not None if alvo == "celular" else None,
+            "sistemas": _texturas_sistemas(alvo),
+            "importar_dir": str(_texturas_importar_dir(cfg))}
 
 
-def run_texturas_instalar_job(emit, pacote_id: str) -> None:
+def _texturas_importar_dir(cfg: dict) -> Path:
+    return Path((cfg.get("texturas") or {}).get("importar_dir") or "~/Downloads").expanduser()
+
+
+def _texturas_pacote(body: dict, cfg: dict) -> dict:
+    """Pacote do catálogo (body.id) ou um pacote local (body.sistema + body.id_jogo): o
+    arquivo local só pode vir da pasta de importação, por nome, nunca por caminho."""
+    if body.get("id"):
+        return texturas_mod.achar_pacote(str(body["id"]))
+    sistema, id_jogo = str(body.get("sistema", "")), str(body.get("id_jogo", ""))
+    if sistema not in texturas_mod.sistemas_suportados() + texturas_mod.sistemas_celular():
+        raise texturas_mod.TexturaErro(f"sistema desconhecido: {sistema!r}")
+    return {"id": f"local-{sistema.lower()}-{id_jogo.lower()}", "sistema": sistema, "id_jogo": id_jogo,
+            "nome": f"Importado ({id_jogo})", "arquivo": "local"}
+
+
+def _texturas_arquivo_local(body: dict, cfg: dict):
+    nome = body.get("arquivo")
+    if not nome:
+        return None
+    if not isinstance(nome, str) or "/" in nome or "\\" in nome or nome.startswith(".") or "\x00" in nome:
+        raise texturas_mod.TexturaErro("informe só o nome do arquivo, que deve estar na pasta de importação")
+    pasta = _texturas_importar_dir(cfg).resolve()
+    f = (pasta / nome).resolve()
+    if f.parent != pasta or not f.is_file() or f.suffix.lower() not in _TEXTURAS_EXTS:
+        raise texturas_mod.TexturaErro(f"arquivo .zip/.7z/.rar não encontrado em {pasta}")
+    return f
+
+
+def run_texturas_instalar_job(emit, chave: str, alvo: str, body: dict) -> None:
     try:
         cfg = load_config()
-        pacote = texturas_mod.achar_pacote(pacote_id)
-        n = texturas_mod.instalar(pacote, cfg, emit)
-        status = texturas_mod.set_loading(pacote["sistema"])
-        extra = {"ligado": " Opção de carregar texturas ligada.",
-                 "ja_ligado": ""}[status]
-        emit({"type": "system_done", "result": {"ok": True, "message": f"{n} arquivos instalados.{extra}"}})
+        pacote = _texturas_pacote(body, cfg)
+        arquivo = _texturas_arquivo_local(body, cfg)
+        if alvo == "celular":
+            serial = _texturas_serial_celular(cfg)
+            if not serial:
+                raise texturas_mod.TexturaErro("celular não conectado por adb")
+            n = texturas_mod.instalar_celular(pacote, serial, emit, arquivo)
+            aviso = ""
+            try:
+                texturas_mod.set_loading_celular(pacote["sistema"], pacote["id_jogo"], serial)
+            except texturas_mod.TexturaErro as e:
+                aviso = f" Aviso: não consegui ligar a opção no emulador ({e})."
+        else:
+            n = texturas_mod.instalar(pacote, cfg, emit, arquivo)
+            aviso = ""
+            try:
+                texturas_mod.set_loading(pacote["sistema"])
+            except texturas_mod.TexturaErro as e:
+                aviso = f" Aviso: ligue a opção de texturas no emulador ({e})."
+        emit({"type": "system_done", "result": {"ok": True, "message": f"{n} arquivos instalados.{aviso}"}})
     except (texturas_mod.TexturaErro, OSError) as e:
         emit({"type": "system_done", "result": {"ok": False, "message": str(e)}})
     finally:
         with _texturas_lock:
-            _texturas_em_andamento.discard(pacote_id)
+            _texturas_em_andamento.discard(chave)
 
 
 # A partir daqui: jobs que usam o helper genérico _start_job (evento
@@ -2089,7 +2152,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"items": out, "android_ok": android_ok, "celular": usa_celular})
 
         if parts == ["api", "texturas"]:
-            return self._json({"pacotes": _texturas_lista()})
+            alvo = query.get("alvo", ["pc"])[0]
+            if alvo not in ("pc", "celular"):
+                return self._json({"error": "alvo inválido"}, 400)
+            return self._json(_texturas_lista(alvo))
 
         if parts == ["api", "memcards"]:
             cfg = load_config()
@@ -3021,27 +3087,45 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts == ["api", "texturas", "instalar"]:
             body = self._read_json_body()
+            alvo = body.get("alvo", "pc")
+            if alvo not in ("pc", "celular"):
+                return self._json({"error": "alvo inválido"}, 400)
             try:
-                pacote = texturas_mod.achar_pacote(str(body.get("id", "")))
+                cfg = load_config()
+                pacote = _texturas_pacote(body, cfg)
+                _texturas_arquivo_local(body, cfg)
+                if pacote["sistema"] not in _texturas_sistemas(alvo):
+                    raise texturas_mod.TexturaErro(f"{pacote['sistema']} não tem suporte a texturas no {alvo}")
             except texturas_mod.TexturaErro as e:
                 return self._json({"error": str(e)}, 400)
+            chave = f"{alvo}:{pacote['id']}"
             with _texturas_lock:
-                if pacote["id"] in _texturas_em_andamento:
+                if chave in _texturas_em_andamento:
                     return self._json({"error": "este pacote já está sendo instalado"}, 409)
-                _texturas_em_andamento.add(pacote["id"])
+                _texturas_em_andamento.add(chave)
             try:
-                job_id = _start_job(lambda emit: run_texturas_instalar_job(emit, pacote["id"]))
+                job_id = _start_job(lambda emit: run_texturas_instalar_job(emit, chave, alvo, body))
             except Exception:
                 with _texturas_lock:
-                    _texturas_em_andamento.discard(pacote["id"])
+                    _texturas_em_andamento.discard(chave)
                 raise
             return self._json({"job": job_id})
 
         if parts == ["api", "texturas", "remover"]:
             body = self._read_json_body()
+            alvo = body.get("alvo", "pc")
+            if alvo not in ("pc", "celular"):
+                return self._json({"error": "alvo inválido"}, 400)
             try:
-                pacote = texturas_mod.achar_pacote(str(body.get("id", "")))
-                n = texturas_mod.remover(pacote, load_config())
+                cfg = load_config()
+                pacote = _texturas_pacote(body, cfg)
+                if alvo == "celular":
+                    serial = _texturas_serial_celular(cfg)
+                    if not serial:
+                        raise texturas_mod.TexturaErro("celular não conectado por adb")
+                    n = texturas_mod.remover_celular(pacote, serial)
+                else:
+                    n = texturas_mod.remover(pacote, cfg)
             except texturas_mod.TexturaErro as e:
                 return self._json({"error": str(e)}, 400)
             return self._json({"ok": True, "removidos": n})

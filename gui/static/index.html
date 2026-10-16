@@ -490,6 +490,10 @@
         </div>
       </div>
       <div class="search-bar">
+        <select id="texturas-alvo">
+          <option value="pc">Instalar no PC</option>
+          <option value="celular">Instalar no celular</option>
+        </select>
         <input id="texturas-busca" type="search" placeholder="Buscar jogo...">
         <select id="texturas-sistema">
           <option value="">Todos os sistemas</option>
@@ -498,9 +502,21 @@
           <option value="GC">GameCube</option>
           <option value="WII">Wii</option>
           <option value="PSP">PSP</option>
+          <option value="3DS">3DS</option>
         </select>
         <label class="tiny"><input id="texturas-so-meus" type="checkbox" checked> só jogos que tenho</label>
       </div>
+      <details id="texturas-importar" class="saves-add-card">
+        <summary>Importar um pacote de arquivo (.zip/.7z/.rar)</summary>
+        <div class="search-bar">
+          <select id="texturas-imp-sistema"></select>
+          <input id="texturas-imp-id" type="text" placeholder="ID do jogo (SLUS-21065, ULUS10307...)">
+          <input id="texturas-imp-arquivo" type="text" placeholder="nome do arquivo">
+          <button id="texturas-imp-ir" class="tiny" type="button">Importar</button>
+          <button id="texturas-imp-remover" class="tiny secondary" type="button">Remover</button>
+        </div>
+        <div id="texturas-imp-dica" class="tiny"></div>
+      </details>
       <div id="texturas-lista" class="heavy-list"></div>
     </div>
   </div>

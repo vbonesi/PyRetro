@@ -2739,7 +2739,10 @@ loadSystems();
 // confere o SHA-1, extrai e copia para a pasta do emulador. Fechar o emulador
 // antes é necessário só para ligar a opção "carregar texturas" no .ini.
 let texturasPacotes = [];
+let texturasMeta = {};
 const TEXTURAS_LIMITE = 150;
+const textAlvo = () => document.getElementById("texturas-alvo").value;
+const textStatus = (msg) => { document.getElementById("texturas-status").textContent = msg; };
 
 function fmtTamanhoTextura(b) {
   return b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
@@ -2748,9 +2751,18 @@ function fmtTamanhoTextura(b) {
 async function carregarTexturas() {
   const lista = document.getElementById("texturas-lista");
   lista.innerHTML = '<div class="empty-state">carregando...</div>';
-  const res = await fetch("/api/texturas");
+  const res = await fetch(`/api/texturas?alvo=${textAlvo()}`);
   const data = await res.json();
   texturasPacotes = data.pacotes || [];
+  texturasMeta = data;
+  const sel = document.getElementById("texturas-imp-sistema");
+  const atual = sel.value;
+  sel.innerHTML = "";
+  for (const s of data.sistemas || []) sel.add(new Option(s, s));
+  if ([...sel.options].some(o => o.value === atual)) sel.value = atual;
+  document.getElementById("texturas-imp-dica").textContent =
+    `O arquivo precisa estar em ${data.importar_dir || "~/Downloads"} (só o nome, sem caminho).`;
+  if (data.celular_ok === false) textStatus("celular não conectado por adb");
   renderTexturas();
 }
 
@@ -2767,7 +2779,9 @@ function renderTexturas() {
   itens = itens.slice(0, TEXTURAS_LIMITE);
   lista.innerHTML = "";
   if (total === 0) {
-    lista.innerHTML = '<div class="empty-state">Nenhum pacote. Desmarque "só jogos que tenho" para ver o catálogo todo.</div>';
+    lista.innerHTML = textAlvo() === "celular"
+      ? '<div class="empty-state">O catálogo ainda não tem pacotes para PS1, PSP e 3DS. Use "Importar um pacote de arquivo".</div>'
+      : '<div class="empty-state">Nenhum pacote. Desmarque "só jogos que tenho" para ver o catálogo todo.</div>';
     return;
   }
   for (const p of itens) {
@@ -2807,7 +2821,7 @@ function instalarTextura(p, btn, st) {
   fetch("/api/texturas/instalar", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: p.id }),
+    body: JSON.stringify({ id: p.id, alvo: textAlvo() }),
   })
     .then(async r => {
       const d = await r.json();
@@ -2848,12 +2862,43 @@ async function removerTextura(p) {
   const res = await fetch("/api/texturas/remover", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: p.id }),
+    body: JSON.stringify({ id: p.id, alvo: textAlvo() }),
   });
   const d = await res.json();
   document.getElementById("texturas-status").textContent = res.ok ? `${d.removidos} arquivos removidos.` : `erro: ${d.error}`;
   carregarTexturas();
 }
+
+function importarTextura(remover) {
+  const corpo = {
+    alvo: textAlvo(), sistema: document.getElementById("texturas-imp-sistema").value,
+    id_jogo: document.getElementById("texturas-imp-id").value.trim(),
+    arquivo: document.getElementById("texturas-imp-arquivo").value.trim(),
+  };
+  if (!corpo.id_jogo || (!remover && !corpo.arquivo)) { textStatus("preencha o ID do jogo e o nome do arquivo"); return; }
+  if (remover) delete corpo.arquivo;
+  fetch(remover ? "/api/texturas/remover" : "/api/texturas/instalar", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+  })
+    .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "falha"); return d; })
+    .then((d) => {
+      if (remover) { textStatus(`${d.removidos} arquivos removidos.`); return; }
+      textStatus("instalando...");
+      const evt = new EventSource(`/api/fetch/stream?job=${d.job}`);
+      evt.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.type === "progress" && m.status) textStatus(m.status + "...");
+        else if (m.type === "system_done") textStatus(m.result.message);
+        else if (m.type === "error") textStatus(`erro: ${m.message}`);
+        else if (m.type === "job_done") { evt.close(); carregarTexturas(); }
+      };
+      evt.onerror = () => { evt.close(); carregarTexturas(); };
+    })
+    .catch(err => textStatus(`erro: ${err.message}`));
+}
+document.getElementById("texturas-imp-ir").addEventListener("click", () => importarTextura(false));
+document.getElementById("texturas-imp-remover").addEventListener("click", () => importarTextura(true));
+document.getElementById("texturas-alvo").addEventListener("change", () => { textStatus(""); carregarTexturas(); });
 
 document.getElementById("btn-texturas").addEventListener("click", () => {
   document.getElementById("texturas-modal").classList.remove("hidden");
