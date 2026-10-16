@@ -287,6 +287,17 @@
    "origem": "archive.org"
   },
   {
+   "id": "psp-ulus10279",
+   "sistema": "PSP",
+   "id_jogo": "ULUS10279",
+   "nome": "Brave Story New Traveler (USA)",
+   "arquivo": "Brave Story New Traveler (USA) [ULUS10279] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/Brave%20Story%20New%20Traveler%20%28USA%29%20%5BULUS10279%5D%20HD%20Remaster.rar",
+   "tamanho": 1400955463,
+   "sha1": "ce08c14f600805548a2505f758074181122a3601",
+   "origem": "archive.org"
+  },
+  {
    "id": "ps2-slus-20499",
    "sistema": "PS2",
    "id_jogo": "SLUS-20499",
@@ -383,6 +394,17 @@
    "url": "https://archive.org/download/pcsx2-hd-texture-packs/Castlevania%20Lament%20of%20Innocence%20%28USA%29%20%5BSLUS-20733%5D%20HD%20Remaster.rar",
    "tamanho": 2965842459,
    "sha1": "a70cbdb6984105495d3a827f04bcffb4e2cfb3a5",
+   "origem": "archive.org"
+  },
+  {
+   "id": "psp-ulus10277",
+   "sistema": "PSP",
+   "id_jogo": "ULUS10277",
+   "nome": "Castlevania The Dracula X Chronicles (USA)",
+   "arquivo": "Castlevania The Dracula X Chronicles (USA) [ULUS10277] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/Castlevania%20The%20Dracula%20X%20Chronicles%20%28USA%29%20%5BULUS10277%5D%20HD%20Remaster.rar",
+   "tamanho": 832548429,
+   "sha1": "543d3e77c612db4d01cfdcf32a370e0c59d44622",
    "origem": "archive.org"
   },
   {
@@ -493,6 +515,17 @@
    "url": "https://archive.org/download/pcsx2-hd-texture-packs/Curse%20The%20Eye%20of%20Isis%20%28Europe%29%20%5BSLES-51934%5D%20HD%20Remaster.rar",
    "tamanho": 54131015,
    "sha1": "75ab49f4df7c936e7b739d4baeca1b8f71050c6f",
+   "origem": "archive.org"
+  },
+  {
+   "id": "psp-ulus10469",
+   "sistema": "PSP",
+   "id_jogo": "ULUS10469",
+   "nome": "Dante's Inferno (USA)",
+   "arquivo": "Dante's Inferno (USA) [ULUS10469] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/Dante%27s%20Inferno%20%28USA%29%20%5BULUS10469%5D%20HD%20Remaster.rar",
+   "tamanho": 1568483404,
+   "sha1": "8c47d0632c9650473f93619d073f0444cb94a783",
    "origem": "archive.org"
   },
   {
@@ -892,6 +925,17 @@
    "origem": "archive.org"
   },
   {
+   "id": "psp-ulus10297",
+   "sistema": "PSP",
+   "id_jogo": "ULUS10297",
+   "nome": "Final Fantasy Tactics War of the Lions (USA)",
+   "arquivo": "Final Fantasy Tactics War of the Lions (USA) [ULUS10297] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/Final%20Fantasy%20Tactics%20War%20of%20the%20Lions%20%28USA%29%20%5BULUS10297%5D%20HD%20Remaster.rar",
+   "tamanho": 2730151007,
+   "sha1": "c88f61fadc23581ed7629e2a19d773ead61cf81d",
+   "origem": "archive.org"
+  },
+  {
    "id": "ps2-slus-20312",
    "sistema": "PS2",
    "id_jogo": "SLUS-20312",
@@ -1076,6 +1120,28 @@
    "url": "https://archive.org/download/pcsx2-hd-texture-packs/God%20of%20War%20%28USA%29%20%5BSCUS-97399%5D%20HD%20Remaster.rar",
    "tamanho": 1249743267,
    "sha1": "cb817190a60c4b74897da09a36ddf4a9d2a4850e",
+   "origem": "archive.org"
+  },
+  {
+   "id": "psp-ucus98653",
+   "sistema": "PSP",
+   "id_jogo": "UCUS98653",
+   "nome": "God of War Chains of Olympus (USA)",
+   "arquivo": "God of War Chains of Olympus (USA) [UCUS98653] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/God%20of%20War%20Chains%20of%20Olympus%20%28USA%29%20%5BUCUS98653%5D%20HD%20Remaster.rar",
+   "tamanho": 372226084,
+   "sha1": "7433804d3b2843c6463e054bf0348b5ececd3ffd",
+   "origem": "archive.org"
+  },
+  {
+   "id": "psp-ucus98737",
+   "sistema": "PSP",
+   "id_jogo": "UCUS98737",
+   "nome": "God of War Ghost of Sparta (USA)",
+   "arquivo": "God of War Ghost of Sparta (USA) [UCUS98737] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/God%20of%20War%20Ghost%20of%20Sparta%20%28USA%29%20%5BUCUS98737%5D%20HD%20Remaster.rar",
+   "tamanho": 325750743,
+   "sha1": "03515c70a47fe9d6dccabead74d92eb0b2cfee9a",
    "origem": "archive.org"
   },
   {
@@ -1717,6 +1783,17 @@
    "origem": "archive.org"
   },
   {
+   "id": "psp-ulus10068",
+   "sistema": "PSP",
+   "id_jogo": "ULUS10068",
+   "nome": "Mega Man Maverick Hunter X (USA)",
+   "arquivo": "Mega Man Maverick Hunter X (USA) [ULUS10068] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/Mega%20Man%20Maverick%20Hunter%20X%20%28USA%29%20%5BULUS10068%5D%20HD%20Remaster.rar",
+   "tamanho": 335796944,
+   "sha1": "7e8a85983cc67a37688f5b7bbc10dd4944c8374f",
+   "origem": "archive.org"
+  },
+  {
    "id": "ps2-slus-20487",
    "sistema": "PS2",
    "id_jogo": "SLUS-20487",
@@ -2143,6 +2220,17 @@
    "url": "https://archive.org/download/pcsx2-hd-texture-packs/Primal%20%28USA%29%20%5BSCUS-97142%5D%20HD%20Remaster.rar",
    "tamanho": 1194146688,
    "sha1": "71f628d4f912cf41434a12bb9017f3fee5c7e03d",
+   "origem": "archive.org"
+  },
+  {
+   "id": "psp-ulus10240",
+   "sistema": "PSP",
+   "id_jogo": "ULUS10240",
+   "nome": "Prince of Persia Rival Swords (USA)",
+   "arquivo": "Prince of Persia Rival Swords (USA) [ULUS10240] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/Prince%20of%20Persia%20Rival%20Swords%20%28USA%29%20%5BULUS10240%5D%20HD%20Remaster.rar",
+   "tamanho": 2084989353,
+   "sha1": "3aba5b0b6ccb7f7eb899db380c2bee111eb368d1",
    "origem": "archive.org"
   },
   {
@@ -2594,6 +2682,17 @@
    "url": "https://archive.org/download/pcsx2-hd-texture-packs/Silent%20Hill%20Origins%20%28USA%29%20%5BSLUS-21731%5D%20HD%20Remaster.rar",
    "tamanho": 942536164,
    "sha1": "5d8c5a124f7db6ea7380d972942ad25b605218b7",
+   "origem": "archive.org"
+  },
+  {
+   "id": "psp-ulus10285",
+   "sistema": "PSP",
+   "id_jogo": "ULUS10285",
+   "nome": "Silent Hill Origins (USA)",
+   "arquivo": "Silent Hill Origins (USA) [ULUS10285] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/Silent%20Hill%20Origins%20%28USA%29%20%5BULUS10285%5D%20HD%20Remaster.rar",
+   "tamanho": 6762315609,
+   "sha1": "941ba536df2479556ff7325a87f37bb6bf0b0287",
    "origem": "archive.org"
   },
   {
@@ -3518,6 +3617,17 @@
    "url": "https://archive.org/download/pcsx2-hd-texture-packs/Twisted%20Metal%20Black%20%28USA%29%20%5BSCUS-97101%5D%20HD%20Remaster.rar",
    "tamanho": 149380932,
    "sha1": "af10d9782ed3abc7ee5f23fc39a0c5a7afc42c3f",
+   "origem": "archive.org"
+  },
+  {
+   "id": "psp-ulus10105",
+   "sistema": "PSP",
+   "id_jogo": "ULUS10105",
+   "nome": "Ultimate Ghosts 'n Goblins (USA)",
+   "arquivo": "Ultimate Ghosts 'n Goblins (USA) [ULUS10105] HD Remaster.rar",
+   "url": "https://archive.org/download/ppsspp-hd-texture-packs/Ultimate%20Ghosts%20%27n%20Goblins%20%28USA%29%20%5BULUS10105%5D%20HD%20Remaster.rar",
+   "tamanho": 857397790,
+   "sha1": "d5ed77851cfbe000583c7d338e1137711576af6e",
    "origem": "archive.org"
   },
   {

@@ -2780,7 +2780,7 @@ function renderTexturas() {
   lista.innerHTML = "";
   if (total === 0) {
     lista.innerHTML = textAlvo() === "celular"
-      ? '<div class="empty-state">O catálogo ainda não tem pacotes para PS1, PSP e 3DS. Use "Importar um pacote de arquivo".</div>'
+      ? '<div class="empty-state">Nenhum pacote para este filtro. PS1 e 3DS não têm pacotes no catálogo: use "Importar um pacote de arquivo".</div>'
       : '<div class="empty-state">Nenhum pacote. Desmarque "só jogos que tenho" para ver o catálogo todo.</div>';
     return;
   }

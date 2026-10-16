@@ -512,7 +512,8 @@ class TexturasAPI(BaseAPI):
             status, d = self.pedir("/api/texturas?alvo=celular")
         self.assertEqual(status, 200)
         self.assertIs(d["celular_ok"], False)
-        self.assertEqual(d["pacotes"], [])
+        self.assertTrue(d["pacotes"])  # catálogo de PSP; sem aparelho nada aparece como instalado
+        self.assertTrue(all(p["sistema"] in ("PS1", "PSP", "3DS") and not p["instalado"] for p in d["pacotes"]))
         self.assertEqual(self.pedir("/api/texturas?alvo=xx")[0], 400)
 
     def test_importa_pacote_local_e_remove(self):
