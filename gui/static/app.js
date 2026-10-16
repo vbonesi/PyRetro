@@ -2657,6 +2657,9 @@ function runMaintAction(action) {
     const target = document.getElementById("maint-playlist-target").value;
     const apply = document.getElementById("maint-playlist-apply").checked ? "1" : "0";
     url = `/api/rebuild_playlist/${system}?target=${target}&apply=${apply}`;
+  } else if (action === "capas-emu") {
+    const apply = document.getElementById("maint-capas-emu-apply").checked ? "1" : "0";
+    url = `/api/capas_emuladores?apply=${apply}`;
   } else if (action === "emu-sync") {
     const source = document.getElementById("maint-emu-sync-source").value;
     const apply = document.getElementById("maint-emu-sync-apply").checked ? "1" : "0";

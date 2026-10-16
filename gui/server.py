@@ -55,6 +55,7 @@ from core import screenscraper as screenscraper_mod
 from core import serials as serials_mod
 from core import sortear as sortear_mod
 from core import texturas as texturas_mod
+from core import capas_emuladores as capas_emu_mod
 
 CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
@@ -1117,6 +1118,19 @@ def run_heavy_catalog_job(emit) -> None:
     sortear_mod.save_heavy_catalog(HEAVY_CATALOG_PATH, catalog)
     total = sum(len(n) for n in catalog.values())
     emit({"type": "log", "line": f"catálogo salvo - {total} jogo(s) no total"})
+
+
+def run_capas_emuladores_job(emit, apply: bool) -> None:
+    """Liga as capas do PyRetro ao ES-DE, DuckStation, PCSX2 e Dolphin (symlinks)."""
+    contagem: dict = {}
+    for a in capas_emu_mod.plano(load_config(), apply):
+        contagem[a["estado"]] = contagem.get(a["estado"], 0) + 1
+        if a["estado"] not in ("ok", "sem capa"):
+            motivo = f" ({a['motivo']})" if a.get("motivo") else ""
+            emit({"type": "log", "line": f"[{a['alvo']}] {a['estado']}: {a.get('destino', '')}{motivo}"})
+    emit({"type": "log", "line": "resumo: " + ", ".join(f"{k} {v}" for k, v in sorted(contagem.items()))})
+    if not apply:
+        emit({"type": "log", "line": "(modo simulação - nada foi criado)"})
 
 
 def run_backup_config_job(emit, target: str, apply: bool) -> None:
@@ -2840,6 +2854,11 @@ class Handler(BaseHTTPRequestHandler):
             target = query.get("target", ["all"])[0]
             apply = query.get("apply", ["0"])[0] == "1"
             job_id = _start_job(lambda emit: run_backup_config_job(emit, target, apply))
+            return self._json({"job": job_id})
+
+        if parts == ["api", "capas_emuladores"]:
+            apply = query.get("apply", ["0"])[0] == "1"
+            job_id = _start_job(lambda emit: run_capas_emuladores_job(emit, apply))
             return self._json({"job": job_id})
 
         if parts == ["api", "backup_saves"]:
