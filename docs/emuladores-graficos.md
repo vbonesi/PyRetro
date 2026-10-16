@@ -101,9 +101,11 @@ quebrar a HUD de algum jogo, desligue-o só nas propriedades daquele jogo.
   Abrir/fechar, renderer e GPU foram confirmados pelos logs e pelo `nvidia-smi`,
   mas a imagem em si e o fps sob carga ainda precisam ser vistos.
 - **PPSSPP em Vulkan**: testar de novo com a tela desbloqueada (ver acima).
-- **VRR**: a tela de 165 Hz está com VRR em "Nunca" no KDE. Jogo a 60 fps numa tela
-  de 165 Hz sem VRR tem cadência irregular (165/60 = 2,75). Ativar VRR em
-  Configurações do Sistema > Tela, ou usar 60 Hz para jogar, deixa o movimento liso.
-  O RetroArch já está com "sincronizar com a taxa exata do conteúdo" ligado e
-  aproveita o VRR assim que ele for ativado.
+- **60 Hz**: decisão de 16/10, a tela vai ficar fixa em 60 Hz em vez de 165 Hz sem VRR
+  (165/60 = 2,75 deixava a cadência irregular). O RetroArch já está ajustado para isso:
+  `vrr_runloop_enable = "false"` ("sincronizar com a taxa exata do conteúdo" só faz
+  sentido com VRR; em tela fixa, o controle dinâmico de taxa é que mantém o movimento liso).
+  A troca da tela em si é feita pelo usuário (Configurações do Sistema > Tela, ou
+  `kscreen-doctor output.eDP-1.mode.1920x1080@60`). Se um dia o VRR for ligado, volte
+  essa chave para `"true"`.
 - **NDS no PC**: falta instalar o núcleo melonDS DS e mapear `nds` no lançador.
