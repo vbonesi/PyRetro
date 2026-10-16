@@ -6,6 +6,20 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 — Streaming: Steam Link descartado, Moonlight com Sunshine
+
+- Pelo Steam Link o PyRetro abria preto e o ES-DE derrubava a transmissão; na captura
+  Wayland a Steam também pedia permissão a cada reconexão. A TV LG (webOS) foi
+  descartada por exigir sideload. Ficaram **Android e Switch Lite** como clientes
+  (Moonlight) e, para a TV, o notebook por HDMI com o Big Picture, sem streaming.
+- Servidor: Sunshine (Flatpak) com captura por portal do KDE, que lembra a permissão.
+  Apps: Área de trabalho, PyRetro (modo TV), ES-DE, RetroArch, Heroic e Steam Big
+  Picture, cada um trazendo sua janela para a frente com `tools/raise-window.sh`.
+  Instalados também chiaki-ng (PS4) e Greenlight (Xbox). A instalação passou a fazer parte
+  do setup-linux-bonesi; este repositório só mantém o `raise-window.sh`.
+- Alcance: Android pelo Tailscale (`bonisarch.<tailnet>.ts.net`) funciona dentro e fora de
+  casa; o Switch Lite só em casa, pelo IP da rede local (reservar no roteador).
+
 ## 16/10/2026 — Janela do modo TV atrás do Big Picture
 
 - Teste pelo Steam Link: os atalhos PyRetro e ES-DE iniciavam (processos e log
