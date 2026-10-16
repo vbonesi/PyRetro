@@ -39,6 +39,11 @@ registrar progresso/notas, baixar ROMs pesadas do seu Drive e abrir os
 emuladores pelo lançador do setup. Instalação do atalho e limitações:
 [`docs/modo-tv.md`](docs/modo-tv.md).
 
+## Gráficos dos emuladores
+
+Resolução interna, shaders e diferenças PC × celular de cada emulador, com o
+hardware medido e como desfazer: [`docs/emuladores-graficos.md`](docs/emuladores-graficos.md).
+
 ## Testes
 
 ```bash

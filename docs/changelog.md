@@ -6,6 +6,23 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 — Gráficos dos emuladores no PC (Nitro V 15, RTX 4060 a 60–75 W)
+
+- Hardware medido: `nvidia-smi` dá 60 W padrão e 75 W máximo para a 4060 deste ANV15-52
+  (os 140 W de lojas não valem aqui). Alvo: render interno de 1080p a 1440p.
+- PCSX2 3x Vulkan + widescreen; Dolphin 3x + MSAA 2x; DuckStation 5x + PGXP; PPSSPP 5x;
+  Flycast 1920×1440; N64 e Dreamcast com preset bilinear em vez do CRT global. Os presets 2D
+  (CRT royale, Mega Bezel etc.) não mudaram. Detalhes e tabela PC × celular em
+  [`emuladores-graficos.md`](emuladores-graficos.md).
+- **DuckStation não abria jogo pelo lançador:** o `-batch` parava na pergunta do AppImage
+  sobre criar atalho, e o Vulkan pegava a Intel. Corrigido no `settings.ini`
+  (`NoDesktopFile`, `[GPU] Adapter`). A pergunta foi achada lendo o diálogo por AT-SPI,
+  já que a tela estava bloqueada.
+- PPSSPP ficou em OpenGL: em Vulkan parou antes do primeiro quadro com a tela bloqueada e
+  não fechou com SIGTERM. Precisa de novo teste desbloqueado.
+- Celular não alterado (sem `adb` nesta sessão). Backup do antes:
+  `Backups/emuladores_pc_2026-10-16_antes/`.
+
 ## 16/10/2026 — Streaming: Steam Link descartado, Moonlight com Sunshine
 
 - Pelo Steam Link o PyRetro abria preto e o ES-DE derrubava a transmissão; na captura
