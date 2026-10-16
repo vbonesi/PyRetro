@@ -58,12 +58,6 @@ def _dolphin_android_root(sub: str) -> str:
 
 
 SOURCES = {
-    "dolphin_gc": {
-        "nome": "Dolphin - GameCube",
-        "get_pc_root": lambda cfg: Path(cfg["pc"]["dolphin_data_root"]).expanduser() / "GC",
-        "get_drive_root": lambda cfg: Path(cfg["pc"]["saves_root"]).expanduser().parent / "Dolphin" / "GC",
-        "android_root": _dolphin_android_root("GC"),
-    },
     "dolphin_wii": {
         "nome": "Dolphin - Wii",
         "get_pc_root": lambda cfg: Path(cfg["pc"]["dolphin_data_root"]).expanduser() / "Wii" / "title",

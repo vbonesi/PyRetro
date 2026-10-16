@@ -938,7 +938,7 @@ async function selectHeavyTab(code) {
   const res = await fetch(`/api/heavy/roms/${code}`);
   const data = await res.json();
   heavyItems = data.items;
-  if (!data.android_ok) {
+  if (data.celular !== false && !data.android_ok) {
     document.getElementById("current-system").textContent += " · celular não conectado";
   }
   renderHeavyGrid();
@@ -992,6 +992,7 @@ function buildHeavyCard(code, item) {
   const shown = stemOf(item);
   const notInPc = !item.in_pc;
   const onCelular = item.status === "no_celular";
+  const semCelular = (heavySystems.find(s => s.code === code) || {}).celular === false;
   const div = document.createElement("div");
   div.className = "cover";
   div.dataset.label = item.name;
@@ -1007,12 +1008,12 @@ function buildHeavyCard(code, item) {
       ${notInPc ? '<span class="lib-badge">☁ só no Drive</span>' : (item.in_drive ? '<span class="lib-badge">☁ no Drive</span>' : "")}
     </div>
     <div class="label" title="${shown}">${item.is_dir ? "📁 " : ""}${shown}</div>
-    <div class="card-meta">${notInPc ? "só no Drive" : (onCelular ? "no celular" : "só no PC")}</div>
+    <div class="card-meta">${notInPc ? "só no Drive" : (onCelular ? "no celular" : (semCelular ? "no PC" : "só no PC"))}</div>
     ${item.biblioteca && item.biblioteca.genero ? `<div class="card-genero">🎭 ${item.biblioteca.genero}</div>` : ""}
     <div class="cover-actions">
       ${notInPc
         ? '<button class="tiny" data-action="download">⬇ Baixar</button>'
-        : `<button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>
+        : `${semCelular ? "" : `<button class="tiny ${onCelular ? "secondary" : ""}" data-action="send">${onCelular ? "Reenviar" : "Enviar"}</button>`}
            <button class="tiny danger" data-action="delete">🗑 Apagar</button>`}
     </div>
   `;
@@ -1020,7 +1021,7 @@ function buildHeavyCard(code, item) {
   if (notInPc) {
     div.querySelector('[data-action="download"]').addEventListener("click", () => downloadHeavyItem(code, item.name));
   } else {
-    div.querySelector('[data-action="send"]').addEventListener("click", () => sendHeavyItem(code, item.name, onCelular));
+    if (!semCelular) div.querySelector('[data-action="send"]').addEventListener("click", () => sendHeavyItem(code, item.name, onCelular));
     div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteHeavyItem(code, item));
   }
 
@@ -1219,11 +1220,11 @@ document.getElementById("organize-modal").addEventListener("click", (e) => {
 
 let savesCards = [];       // [{console, label, key, tool_ok}]
 let savesItemsByKey = {};  // key -> items[] (carregado uma vez, uma seção por card)
-let emuSaves = {}; // "GC"/"PSP" -> {items, android_ok} | {error}
+let emuSaves = {}; // "PSP" -> {items, android_ok} | {error}
 let currentSavesConsole = "PS1";
 const SAVES_CONSOLES = [
   { key: "PS1", label: "PS1" }, { key: "PS2", label: "PS2" },
-  { key: "GC", label: "GameCube" }, { key: "PSP", label: "PPSSPP" },
+  { key: "PSP", label: "PPSSPP" },
 ];
 
 function openSaves() {
@@ -1258,7 +1259,7 @@ async function loadSavesCards() {
       const data = await r.json();
       savesItemsByKey[card.key] = r.ok ? data.items : { error: data.error || "falha ao ler o card" };
     }),
-    ...["GC", "PSP"].map(async (emu) => {
+    ...["PSP"].map(async (emu) => {
       const r = await fetch(`/api/emu_saves/list/${emu}`);
       const data = await r.json();
       emuSaves[emu] = r.ok ? data : { error: data.error || "falha ao ler" };

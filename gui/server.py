@@ -1978,7 +1978,8 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "heavy", "systems"]:
             cfg = load_config()
             heavy = heavy_mod.load_heavy_systems(cfg)
-            return self._json([{"code": c, "nome": info.get("nome", c)} for c, info in heavy.items()])
+            return self._json([{"code": c, "nome": info.get("nome", c), "celular": info.get("celular", True)}
+                               for c, info in heavy.items()])
 
         if parts[:3] == ["api", "heavy", "roms"] and len(parts) == 4:
             code = parts[3]
@@ -2012,12 +2013,14 @@ class Handler(BaseHTTPRequestHandler):
 
             android_ok = False
             remote_names = set()
-            try:
-                serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
-                remote_names = heavy_mod.list_remote_names(code, cfg["android"]["jogos_root"], serial)
-                android_ok = True
-            except adb_mod.AdbError:
-                pass
+            usa_celular = sysinfo.get("celular", True)
+            if usa_celular:
+                try:
+                    serial = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)
+                    remote_names = heavy_mod.list_remote_names(code, cfg["android"]["jogos_root"], serial)
+                    android_ok = True
+                except adb_mod.AdbError:
+                    pass
 
             # Confere no disco em vez de deixar o <img> da GUI tentar e
             # falhar (404 poluindo o console pra quem não tem match
@@ -2913,6 +2916,8 @@ class Handler(BaseHTTPRequestHandler):
             overwrite = bool(body.get("overwrite"))
             if not code or not name:
                 return self._json({"error": "code e name obrigatorios"}, 400)
+            if heavy_mod.load_heavy_systems(load_config()).get(code, {}).get("celular", True) is False:
+                return self._json({"error": f"{code} não é usado no celular"}, 400)
 
             job_id = f"heavy-{code}-{threading.get_ident()}-{id(object())}"
             q: "queue.Queue" = _new_job_queue()
@@ -2995,11 +3000,6 @@ class Handler(BaseHTTPRequestHandler):
             )
             return self._json({"ok": True, "cascade": cascade})
 
-        if parts == ["api", "memcards", "add"]:
-            body = self._read_json_body()
-            console = (body.get("console") or "").lower()
-            label = (body.get("label") or "").strip()
-            raw_path = (body.get("path") or "").strip()
         if parts == ["api", "texturas", "instalar"]:
             body = self._read_json_body()
             try:
@@ -3027,6 +3027,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": str(e)}, 400)
             return self._json({"ok": True, "removidos": n})
 
+        if parts == ["api", "memcards", "add"]:
+            body = self._read_json_body()
+            console = (body.get("console") or "").lower()
+            label = (body.get("label") or "").strip()
+            raw_path = (body.get("path") or "").strip()
             mode = body.get("mode")  # "create" (card em branco novo) ou "open" (card já existente)
             if console not in ("ps1", "ps2"):
                 return self._json({"error": "console inválido"}, 400)

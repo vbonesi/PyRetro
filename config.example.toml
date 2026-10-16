@@ -211,6 +211,9 @@ repo  = "Sony_-_PlayStation_2"
 
 [heavy_systems.NGC]
 nome = "Nintendo - GameCube"
+# GameCube não roda mais no celular (decisão de 16/10/2026): sem "Enviar", sem
+# consulta por adb. A ROM continua no PC e no Drive.
+celular = false
 exts = ["iso", "rvz", "gcz"]
 capas = "Nintendo - GameCube"
 repo  = "Nintendo_-_GameCube"

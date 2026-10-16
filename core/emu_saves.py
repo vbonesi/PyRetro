@@ -4,9 +4,8 @@ RetroArch (não usam a convenção achatada saves_root/states_root) mas
 já guardam save individualizado por jogo nativamente - achado em
 05/08 explorando o aparelho real via adb:
 
-  - **Dolphin (GameCube)**: um arquivo `.gci` por jogo, em
-    `GC/<REGIÃO>/Card A|B/`. O nome do arquivo embute o código do jogo
-    (ex: "70-GBTE-bayblade2002.gci" -> "GBTE").
+  - (Dolphin GameCube saiu em 16/10/2026: o GameCube não roda mais no
+    celular. Era um `.gci` por jogo em `GC/<REGIÃO>/Card A|B/`.)
   - **PPSSPP**: uma pasta por jogo em `SAVEDATA/<serial>` (ex:
     "ULUS10437GameData00" -> serial "ULUS-10437"). Nesse setup em
     particular o "memstick" do PPSSPP está configurado pra dentro da
@@ -39,20 +38,11 @@ from pathlib import Path
 
 from core import adb as adb_mod
 
-_GC_GCI_RE = re.compile(r"^\d+-([A-Z0-9]{4})-")
 _PSP_DIR_RE = re.compile(r"^([A-Z]{4})(\d{5})")
 
 # android_root: pasta que espelha 1:1 com a local (dentro dela,
 # scan_subdir é onde os itens individualizados ficam).
 EMULATORS = {
-    "GC": {
-        "nome": "Dolphin - GameCube",
-        "android_root": "/storage/emulated/0/Android/data/org.dolphinemu.dolphinemu/files",
-        "local_root_name": "Dolphin",
-        "scan_subdir": "GC",
-        "kind": "file",
-        "glob": "*.gci",
-    },
     "PSP": {
         "nome": "PPSSPP",
         "android_root": "/storage/emulated/0/Jogos/PSP/PSP",
@@ -63,20 +53,12 @@ EMULATORS = {
 }
 
 
-def _gc_code(filename: str) -> str | None:
-    m = _GC_GCI_RE.match(filename)
-    return m.group(1) if m else None
-
-
 def _psp_serial(dirname: str) -> str | None:
     m = _PSP_DIR_RE.match(dirname)
     return f"{m.group(1)}-{m.group(2)}" if m else None
 
 
 def _resolve_name(emu: str, raw_name: str, serials_index: dict) -> str | None:
-    if emu == "GC":
-        code = _gc_code(raw_name)
-        return serials_index.get("GC", {}).get(code) if code else None
     serial = _psp_serial(raw_name)
     return serials_index.get("PSP", {}).get(serial) if serial else None
 
@@ -89,10 +71,10 @@ def _local_root(emu: str, cfg: dict) -> Path:
 
 
 def list_remote(emu: str, cfg: dict, serials_index: dict) -> list:
-    """Lista os itens no celular via adb - um arquivo .gci (GC) ou uma
+    """Lista os itens no celular via adb - uma
     pasta SAVEDATA/<serial> (PSP), cada um representando UM jogo.
     "rel_path" é o caminho relativo à raiz espelhada (ex:
-    "GC/USA/Card A/x.gci"), usado tanto pra achar o local
+    "SAVEDATA/ULUS10437GameData00"), usado tanto pra achar o local
     correspondente quanto pro pull preservar a mesma estrutura."""
     info = EMULATORS[emu]
     serial_dev = adb_mod.ensure_connected(cfg["android"].get("device_serial") or None)

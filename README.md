@@ -923,7 +923,7 @@ O que tem até agora:
   libretro-database). Por save: exportar (PSU/MCS pra uma pasta de
   staging), apagar, transferir pra outro card do mesmo console, e
   importar um arquivo PSU/MCS/PSV pro card. Mais duas seções na mesma
-  aba pra **Dolphin (GameCube)** e **PPSSPP** (`core/emu_saves.py`) -
+  aba pra **PPSSPP** (`core/emu_saves.py`; o Dolphin GameCube saiu em 16/10/2026, o GameCube não roda mais no celular) -
   esses já guardam save individualizado por jogo nativamente (sem
   memory card compartilhado), lista o que existe só no celular via adb
   e baixa pra pasta local sob demanda.
@@ -1044,7 +1044,7 @@ PyRetro/
 | `core/rom_rename.py` | Implementado e testado ponta a ponta via GUI - rename e apagar com cascata (ROM + capa + save/state) pra sistemas leves e pesados, incluindo grupos multi-disco no rename (PS1/PS2); `find_flat_matches`/`delete_flat_matches` reaproveitados pela gestão de save/state na galeria |
 | `core/memcard.py` | Implementado e testado contra cartões reais - listar/exportar/apagar/importar/transferir save de memory card PS1/PS2 via `ps1vmc-tool`/`ps2vmc-tool` |
 | `core/serials.py` | Implementado e testado - serial → nome do jogo via DAT de redump do libretro-database (PS1/PS2/GameCube/PSP), usado pelo `memcard.py` e `emu_saves.py` |
-| `core/emu_saves.py` | Implementado e testado no aparelho real - lista/baixa save individualizado do Dolphin(GameCube)/PPSSPP via adb, espelhando a estrutura de pastas que o usuário já mantém manualmente |
+| `core/emu_saves.py` | Implementado e testado no aparelho real - lista/baixa save individualizado do PPSSPP via adb, espelhando a estrutura de pastas que o usuário já mantém manualmente |
 | `core/playlist.py` | Implementado e testado ponta a ponta com o celular real (24/08) - monta `.lpl` a partir do que existe em `roms_root`/`jogos_root`, `core_path`/`core_name` "DETECT" por item, PC e Android tratados separado (sistemas pesados não sincronizam sozinhos, cada lado pode ter jogos diferentes) |
 | `core/config_backup.py` | Implementado e testado ponta a ponta (24/08) - snapshot datado de `retroarch.cfg`+`config/`+`playlists/` pro PC (cópia local) e Android (`adb pull`), pasta nova por data, nunca sobrescreve |
 | `core/sortear.py` | Implementado e testado ponta a ponta contra a coleção real (27/08) - pool único leve+pesado com peso por jogo, catálogo de pesados lido do cache (`heavy_catalog.json`, gerado por `heavy-catalog`) pra não depender de `rclone` ao vivo a cada sorteio |
