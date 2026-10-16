@@ -71,14 +71,23 @@ Observações:
 | PS2 | PCSX2 3x + widescreen | NetherSX2 (config não espelhada) |
 | GC / Wii | Dolphin 3x, MSAA 2x, aniso 16x | Dolphin **3x**, Vulkan, sem MSAA (GFX.ini de 15/08) |
 | PSP | PPSSPP 5x (Vulkan), sem upscale de textura | PPSSPP **5x**, Vulkan, aniso 16x, **upscale de textura xBRZ 2x** |
-| N64 | GLideN64 1920×1440, MSAA 4x, sem CRT, sem rewind | GLideN64 1920×1440, MSAA 4x, **CRT royale global por cima** |
-| Dreamcast | Flycast 1920×1440, aniso 16x, alpha por pixel | Flycast **1440×1080**, aniso 4x, alpha por triângulo |
+| N64 | GLideN64 1920×1440, MSAA 4x, sem CRT, sem rewind | GLideN64 1920×1440, MSAA 4x, **CRT royale global por cima**, sem rewind (override de 16/10, 60 fps medidos) |
+| Dreamcast | Flycast 1920×1440, aniso 16x, alpha por pixel | Flycast **1440×1080**, aniso 4x, alpha por triângulo, sem rewind (override de 16/10) |
 | NDS | núcleo melonDS **não instalado** no PC | melonDS (RetroArch) |
 | 2D | mesmos presets | mesmos presets (+ MAME, Gearboy, NeoPop, SwanStation, que o PC não tem) |
 
 O celular não estava conectado por `adb` nesta sessão; a coluna dele vem de
 `Backups/retroarch_android_2026-08-24/` e do espelho manual em `Saves/Dolphin/Config`
 e `Saves/PPSSPP/SYSTEM` (15/08). Pode estar desatualizada.
+
+**Rewind no celular (16/10, via `adb`).** O `retroarch.cfg` do celular
+(`Android/data/com.retroarch/files/`) tem `rewind_enable = "true"` com
+`rewind_granularity = "2"`, igual ao PC. Foram criadas as overrides de núcleo
+`RetroArch/config/Mupen64Plus-Next/Mupen64Plus-Next.cfg` e
+`RetroArch/config/Flycast/Flycast.cfg`, só com `rewind_enable = "false"` (nenhuma das duas
+existia). Super Mario 64 com a override: **60,1 fps** na tela de título (128 quadros
+contados pelo `dumpsys SurfaceFlinger --latency`, intervalo mediano de 16,6 ms, tela a
+60 Hz). A medição sem a override (para confirmar os ~40 fps) não foi feita; veja Pendências.
 
 ## Onde cada config mora
 
@@ -108,8 +117,12 @@ quebrar a HUD de algum jogo, desligue-o só nas propriedades daquele jogo.
 
 - **Gameplay pesado**: os testes pegaram abertura/menu. Se algum jogo cair abaixo de
   60 fps em cena pesada, descer a resolução só daquele jogo.
-- **Rewind no celular**: o backup de 24/08 do RetroArch Android não tem override de
-  rewind para o Mupen; se o N64 lá também estiver lento, é a mesma causa.
+- **Rewind no celular**: override sem rewind criada para Mupen e Flycast em 16/10; N64
+  medido a 60 fps com ela. Não foi medido sem a override, então não se sabe se o celular
+  estava mesmo a ~40 fps. Testar um N64 em gameplay (não só a tela de título) e um
+  Dreamcast. **Cuidado ao testar:** o celular usa `savestate_auto_save`/`auto_load`, então
+  abrir e fechar um jogo regrava `states/<jogo>.state.auto`. O teste de 16/10 regravou o
+  `Super Mario 64.state.auto` do celular (sem cópia anterior).
 - **60 Hz**: a tela fica fixa em 60 Hz (165 Hz sem VRR deixava a cadência irregular).
   O RetroArch está com `vrr_runloop_enable = "false"`, que é o certo para tela fixa.
   Se um dia o VRR for ligado, volte essa chave para `"true"`.

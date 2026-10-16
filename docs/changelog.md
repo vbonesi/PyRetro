@@ -6,6 +6,20 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 — Rewind desligado no N64 e no Dreamcast do celular
+
+- Confirmado pelo `adb` que o `retroarch.cfg` do celular tem `rewind_enable = "true"`
+  (granularidade 2), a mesma causa dos 40 fps do N64 no PC.
+- Criadas no celular `RetroArch/config/Mupen64Plus-Next/Mupen64Plus-Next.cfg` e
+  `RetroArch/config/Flycast/Flycast.cfg`, só com `rewind_enable = "false"`. Nenhuma
+  existia antes; nada mais foi alterado.
+- Super Mario 64 com a override: 60,1 fps na tela de título (`dumpsys SurfaceFlinger
+  --latency`, tela a 60 Hz). Faltou medir sem a override e testar em gameplay e no
+  Dreamcast.
+- O teste regravou o `states/Super Mario 64.state.auto` do celular, porque lá
+  `savestate_auto_save` está ligado. Não havia cópia anterior. Registrado em
+  [`emuladores-graficos.md`](emuladores-graficos.md) para os próximos testes.
+
 ## 16/10/2026 — Teste real dos emuladores (tela desbloqueada, 60 Hz)
 
 - **N64 rodava a 40 fps (2/3 da velocidade), já antes do ajuste gráfico.** Causa: rewind
