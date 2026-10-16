@@ -6,6 +6,21 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 16/10/2026 — Teste real dos emuladores (tela desbloqueada, 60 Hz)
+
+- **N64 rodava a 40 fps (2/3 da velocidade), já antes do ajuste gráfico.** Causa: rewind
+  global ligado; salvar o estado do N64 a cada 2 quadros atrasava o núcleo e o áudio
+  segurava o ritmo. Override `config/Mupen64Plus-Next/Mupen64Plus-Next.cfg` com
+  `rewind_enable = "false"` (mesmo padrão do Saturn) → 60 fps. Flycast recebeu o mesmo.
+  Hipóteses descartadas por teste: VSync, VRR, GPU, driver/latência de áudio,
+  ParaLLEl-RDP, CountPerOp, Framerate.
+- PPSSPP voltou para **Vulkan**: a trava anterior era só da tela bloqueada.
+- Medido com contador de fps temporário: SFC 60, PS1 (PAL) 50 VPS a 5x, PS2 59,94 a 3x,
+  GC 59,94 e Wii 60 a 3x, PSP Vulkan 5x. Prints conferidos.
+- O RetroArch grava `--appendconfig` no `retroarch.cfg` ao sair (`config_save_on_exit`):
+  os testes chegaram a deixar VSync e audio sync desligados, restaurados em seguida.
+- O celular também tem rewind global (backup de 24/08): provável mesma lentidão no N64 lá.
+
 ## 16/10/2026 — Gráficos dos emuladores no PC (Nitro V 15, RTX 4060 a 60–75 W)
 
 - Hardware medido: `nvidia-smi` dá 60 W padrão e 75 W máximo para a 4060 deste ANV15-52
