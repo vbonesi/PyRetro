@@ -54,6 +54,7 @@ from core import sanitize as sanitize_mod
 from core import screenscraper as screenscraper_mod
 from core import serials as serials_mod
 from core import sortear as sortear_mod
+from core import texturas as texturas_mod
 
 CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
@@ -665,6 +666,49 @@ def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
         emit({"type": "error", "message": str(e)})
     finally:
         emit({"type": "job_done"})
+
+
+
+# Pacotes de textura em instalação (id -> True) - impede dois cliques/abas
+# baixando o mesmo pacote de GB ao mesmo tempo.
+_texturas_em_andamento: set = set()
+_texturas_lock = threading.Lock()
+_TEXTURAS_PASTA_ROM = {"PS2": "PS2", "GC": "NGC", "WII": "WII", "PSP": "PSP"}
+
+
+def _texturas_lista() -> list:
+    cfg = load_config()
+    roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+    nomes = {}
+    out = []
+    for p in texturas_mod.carregar_catalogo():
+        sis = p["sistema"]
+        if sis not in nomes:
+            pasta = roms_root / _TEXTURAS_PASTA_ROM[sis]
+            nomes[sis] = [f.name for f in pasta.iterdir()] if pasta.is_dir() else []
+        with _texturas_lock:
+            andamento = p["id"] in _texturas_em_andamento
+        out.append({**{k: p[k] for k in ("id", "sistema", "id_jogo", "nome", "tamanho", "origem")},
+                    **texturas_mod.estado(p, cfg),
+                    "tem_rom": texturas_mod.tem_rom(p, nomes[sis]),
+                    "em_andamento": andamento})
+    return out
+
+
+def run_texturas_instalar_job(emit, pacote_id: str) -> None:
+    try:
+        cfg = load_config()
+        pacote = texturas_mod.achar_pacote(pacote_id)
+        n = texturas_mod.instalar(pacote, cfg, emit)
+        status = texturas_mod.set_loading(pacote["sistema"])
+        extra = {"ligado": " Opção de carregar texturas ligada.",
+                 "ja_ligado": ""}[status]
+        emit({"type": "system_done", "result": {"ok": True, "message": f"{n} arquivos instalados.{extra}"}})
+    except (texturas_mod.TexturaErro, OSError) as e:
+        emit({"type": "system_done", "result": {"ok": False, "message": str(e)}})
+    finally:
+        with _texturas_lock:
+            _texturas_em_andamento.discard(pacote_id)
 
 
 # A partir daqui: jobs que usam o helper genérico _start_job (evento
@@ -2025,7 +2069,10 @@ class Handler(BaseHTTPRequestHandler):
                     "label": stem,
                     "biblioteca": biblioteca_info(stem),
                 })
-            return self._json({"items": out, "android_ok": android_ok})
+            return self._json({"items": out, "android_ok": android_ok, "celular": usa_celular})
+
+        if parts == ["api", "texturas"]:
+            return self._json({"pacotes": _texturas_lista()})
 
         if parts == ["api", "memcards"]:
             cfg = load_config()
@@ -2953,6 +3000,33 @@ class Handler(BaseHTTPRequestHandler):
             console = (body.get("console") or "").lower()
             label = (body.get("label") or "").strip()
             raw_path = (body.get("path") or "").strip()
+        if parts == ["api", "texturas", "instalar"]:
+            body = self._read_json_body()
+            try:
+                pacote = texturas_mod.achar_pacote(str(body.get("id", "")))
+            except texturas_mod.TexturaErro as e:
+                return self._json({"error": str(e)}, 400)
+            with _texturas_lock:
+                if pacote["id"] in _texturas_em_andamento:
+                    return self._json({"error": "este pacote já está sendo instalado"}, 409)
+                _texturas_em_andamento.add(pacote["id"])
+            try:
+                job_id = _start_job(lambda emit: run_texturas_instalar_job(emit, pacote["id"]))
+            except Exception:
+                with _texturas_lock:
+                    _texturas_em_andamento.discard(pacote["id"])
+                raise
+            return self._json({"job": job_id})
+
+        if parts == ["api", "texturas", "remover"]:
+            body = self._read_json_body()
+            try:
+                pacote = texturas_mod.achar_pacote(str(body.get("id", "")))
+                n = texturas_mod.remover(pacote, load_config())
+            except texturas_mod.TexturaErro as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json({"ok": True, "removidos": n})
+
             mode = body.get("mode")  # "create" (card em branco novo) ou "open" (card já existente)
             if console not in ("ps1", "ps2"):
                 return self._json({"error": "console inválido"}, 400)

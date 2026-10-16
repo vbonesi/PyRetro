@@ -2728,3 +2728,139 @@ document.getElementById("btn-toggle-filters").addEventListener("click", () => {
 setFiltersCollapsed(localStorage.getItem("pyretro_filters_collapsed") === "true");
 
 loadSystems();
+
+
+// ---------- Texturas HD (substituição de textura nos emuladores) ----------
+// Catálogo em core/texturas_catalogo.json; instalar baixa (centenas de MB),
+// confere o SHA-1, extrai e copia para a pasta do emulador. Fechar o emulador
+// antes é necessário só para ligar a opção "carregar texturas" no .ini.
+let texturasPacotes = [];
+const TEXTURAS_LIMITE = 150;
+
+function fmtTamanhoTextura(b) {
+  return b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.round(b / 1e6)} MB`;
+}
+
+async function carregarTexturas() {
+  const lista = document.getElementById("texturas-lista");
+  lista.innerHTML = '<div class="empty-state">carregando...</div>';
+  const res = await fetch("/api/texturas");
+  const data = await res.json();
+  texturasPacotes = data.pacotes || [];
+  renderTexturas();
+}
+
+function renderTexturas() {
+  const lista = document.getElementById("texturas-lista");
+  const termo = document.getElementById("texturas-busca").value.trim().toLowerCase();
+  const sis = document.getElementById("texturas-sistema").value;
+  const soMeus = document.getElementById("texturas-so-meus").checked;
+  let itens = texturasPacotes.filter(p =>
+    (!sis || p.sistema === sis) && (!soMeus || p.tem_rom || p.instalado) &&
+    (!termo || p.nome.toLowerCase().includes(termo) || p.id_jogo.toLowerCase().includes(termo)));
+  itens.sort((a, b) => (b.instalado - a.instalado) || (b.tem_rom - a.tem_rom) || a.nome.localeCompare(b.nome));
+  const total = itens.length;
+  itens = itens.slice(0, TEXTURAS_LIMITE);
+  lista.innerHTML = "";
+  if (total === 0) {
+    lista.innerHTML = '<div class="empty-state">Nenhum pacote. Desmarque "só jogos que tenho" para ver o catálogo todo.</div>';
+    return;
+  }
+  for (const p of itens) {
+    const row = document.createElement("div");
+    row.className = "heavy-item";
+    const nome = document.createElement("div");
+    nome.className = "heavy-item-name";
+    nome.textContent = `${p.nome} [${p.id_jogo}]`;
+    nome.title = nome.textContent;
+    const tam = document.createElement("div");
+    tam.className = "heavy-item-size";
+    tam.textContent = `${p.sistema} · ${fmtTamanhoTextura(p.tamanho)}`;
+    const st = document.createElement("div");
+    st.className = "heavy-item-status" + (p.instalado ? " ok" : "");
+    st.textContent = p.instalado ? `instalado (${p.arquivos} arquivos)` : (p.tem_rom ? "você tem a ROM" : "");
+    const btn = document.createElement("button");
+    btn.className = "tiny " + (p.instalado ? "secondary" : "");
+    btn.type = "button";
+    btn.textContent = p.instalado ? "🗑 Remover" : "⬇ Instalar";
+    btn.disabled = p.em_andamento;
+    btn.addEventListener("click", () => (p.instalado ? removerTextura(p) : instalarTextura(p, btn, st)));
+    row.append(nome, tam, st, btn);
+    lista.appendChild(row);
+  }
+  if (total > itens.length) {
+    const mais = document.createElement("div");
+    mais.className = "empty-state";
+    mais.textContent = `Mostrando ${itens.length} de ${total}. Use a busca para achar o resto.`;
+    lista.appendChild(mais);
+  }
+}
+
+function instalarTextura(p, btn, st) {
+  if (!confirm(`Baixar e instalar o pacote de ${p.nome} (${fmtTamanhoTextura(p.tamanho)})? Pode levar vários minutos.`)) return;
+  btn.disabled = true;
+  btn.textContent = "Baixando...";
+  fetch("/api/texturas/instalar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: p.id }),
+  })
+    .then(async r => {
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "falha");
+      return d;
+    })
+    .then(({ job }) => {
+      const evtSource = new EventSource(`/api/fetch/stream?job=${job}`);
+      evtSource.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === "progress") {
+          if (data.status === "baixando" && data.total) {
+            const pct = Math.floor(100 * data.feito / data.total);
+            btn.textContent = `Baixando ${pct}%`;
+            st.textContent = `${fmtTamanhoTextura(data.feito)} de ${fmtTamanhoTextura(data.total)}`;
+          } else {
+            btn.textContent = data.status === "extraindo" ? "Extraindo..." : "Instalando...";
+          }
+        } else if (data.type === "system_done") {
+          document.getElementById("texturas-status").textContent = data.result.message;
+        } else if (data.type === "error") {
+          document.getElementById("texturas-status").textContent = `erro: ${data.message}`;
+        } else if (data.type === "job_done") {
+          evtSource.close();
+          carregarTexturas();
+        }
+      };
+      evtSource.onerror = () => { evtSource.close(); carregarTexturas(); };
+    })
+    .catch(err => {
+      document.getElementById("texturas-status").textContent = `erro: ${err.message}`;
+      carregarTexturas();
+    });
+}
+
+async function removerTextura(p) {
+  if (!confirm(`Remover as texturas instaladas de ${p.nome}? Só os arquivos que o PyRetro instalou são apagados.`)) return;
+  const res = await fetch("/api/texturas/remover", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: p.id }),
+  });
+  const d = await res.json();
+  document.getElementById("texturas-status").textContent = res.ok ? `${d.removidos} arquivos removidos.` : `erro: ${d.error}`;
+  carregarTexturas();
+}
+
+document.getElementById("btn-texturas").addEventListener("click", () => {
+  document.getElementById("texturas-modal").classList.remove("hidden");
+  document.getElementById("texturas-status").textContent = "";
+  carregarTexturas();
+});
+const fecharTexturas = () => document.getElementById("texturas-modal").classList.add("hidden");
+document.getElementById("btn-texturas-close").addEventListener("click", fecharTexturas);
+document.getElementById("texturas-modal").addEventListener("click", (e) => {
+  if (e.target.id === "texturas-modal") fecharTexturas();
+});
+for (const id of ["texturas-busca", "texturas-sistema", "texturas-so-meus"]) {
+  document.getElementById(id).addEventListener("input", renderTexturas);
+}

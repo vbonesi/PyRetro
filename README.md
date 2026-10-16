@@ -1007,7 +1007,8 @@ PyRetro/
 │   ├── rom_rename.py       # rename e apagar com cascata (ROM+capa+save/state) - implementado e testado
 │   ├── memcard.py          # editor de memory card PS1/PS2 (ps1vmc-tool/ps2vmc-tool) - implementado e testado
 │   ├── serials.py          # serial -> nome do jogo (DAT de redump), usado por memcard.py/emu_saves.py - implementado e testado
-│   ├── emu_saves.py         # backup de save individualizado Dolphin(GC)/PPSSPP via adb - implementado e testado
+│   ├── emu_saves.py         # backup de save individualizado PPSSPP via adb - implementado e testado
+│   ├── texturas.py          # pacotes de textura HD (PCSX2 testado; Dolphin/PPSSPP não) - aba 🎨 Texturas
 │   ├── sortear.py           # sorteio aleatorio (leve local + pesado via catalogo cacheado) - implementado
 │   ├── library.py           # biblioteca de jogos fora de ROM (lojas + planilha importada) - implementado
 │   └── adb.py              # wrapper de adb com retry - implementado
