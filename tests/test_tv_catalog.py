@@ -4,6 +4,7 @@ from unittest.mock import patch
 from test_api import BaseAPI
 from core import pc_games, tv_apps
 from core import tv
+from core import library
 
 
 class TestTVCatalog(BaseAPI):
@@ -54,3 +55,14 @@ class TestTVCatalog(BaseAPI):
                'systems': {'ARCADE': {'exts': ['zip'], 'capas': 'Arcade'}}}
         result = tv.local_roms(cfg, {'games': []}, {'outro': 'Outro'})
         self.assertEqual(result[0]['name'], 'unknown')
+
+    def test_catalog_does_not_promote_wishlist_to_owned(self):
+        wish = library._blank_game('Só desejo', 'Steam'); wish['fontes'] = ['wishlist:steam']
+        owned = library._blank_game('Possuído e desejado', 'Steam'); owned['fontes'] = ['steam', 'wishlist:xbox']
+        self.gravar_biblioteca([wish, owned])
+        with patch.object(pc_games, 'installed_indexes', return_value={k: {} for k in ('steam', 'legendary', 'gog', 'nile')}):
+            status, items = self.pedir('/api/tv/catalog')
+        self.assertEqual(status, 200)
+        names = [g['name'] for g in items]
+        self.assertNotIn('Só desejo', names)
+        self.assertIn('Possuído e desejado', names)

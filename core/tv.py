@@ -95,7 +95,8 @@ def catalog(cfg, lib, cached, arcade_names=None):
     out = list(by_key.values())
     represented = {g['id'] for x in out if (g := library.find_for_rom(index, x['name'], x['code']))}
     for g in lib['games']:
-        if g.get('oculto'):
+        sources = g.get('fontes', [])
+        if g.get('oculto') or (sources and all(f.startswith('wishlist:') for f in sources)):
             continue
         if g['id'] in represented:
             continue

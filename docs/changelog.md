@@ -12,6 +12,8 @@ plano.
   instalações Steam/Epic/GOG/Amazon. O catálogo é montado por metadados locais e cache,
   sem refresh de posse/nuvem nem gravação na biblioteca. CUE/GDI/M3U incompletos, arquivos
   vazios, `.part`, capas e pastas fora do acervo não comprovam presença local.
+  O catálogo segue o filtro de posse da Biblioteca: registros só de wishlist ficam fora;
+  posse com desejo em outra loja continua visível.
 - Y abre pesquisa com teclado virtual; X apaga, Menu pesquisa e B cancela. LB/RB pulam
   páginas, LT/RT trocam coleções. Plataforma/gênero e filtro de presença local funcionam
   no controle. Atualizar preserva os filtros da seleção.
@@ -32,7 +34,7 @@ plano.
   save/load, slots, pausa, captura, aceleração, menu e saída; Guide fica para o Bigscreen.
   Nenhum save/load real foi acionado. Wii pode exigir perfis por jogo. NDS/3DS sem lançador
   instalado continuam disponíveis para consulta/progresso.
-- Validação: 230 testes Python e 38 testes da interface com dados sintéticos; teste adicional
+- Validação: 231 testes Python e 38 testes da interface com dados sintéticos; teste adicional
   cobre Arcade sem nome no DAT. Acesso ao Xbox conferido nos quatro Flatpaks; aplicações,
   acervo, ROMs, saves e configurações privadas ficam fora do Git.
 
