@@ -272,7 +272,10 @@ function renderApps() {
 }
 async function launchApp(app) {
   if (state.busy) return; state.busy = true;
-  try { await api("/api/tv/apps/launch", {id: app.id}); report(app.id === "sysdvr" ? "Switch Lite: abrindo transmissão. Ative TCP Bridge no SysDVR do console e use os controles do Switch para jogar." : `${app.name}: abertura solicitada.`, false, "play-status"); }
+  try {
+    const result = await api("/api/tv/apps/launch", {id: app.id});
+    report(result.already_running ? `${app.name} já está aberto. Volte à janela existente para continuar.` : app.id === "sysdvr" ? "Switch Lite: abrindo transmissão. Ative TCP Bridge no SysDVR do console e use os controles do Switch para jogar." : `${app.name}: abertura solicitada.`, false, "play-status");
+  }
   catch (e) { report(e.message, true, "play-status"); }
   finally { state.busy = false; }
 }

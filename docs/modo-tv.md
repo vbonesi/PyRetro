@@ -107,6 +107,10 @@ Apps oferece os aplicativos de jogos instalados (Steam abre em Big Picture).
 Início também oferece atalhos para Xbox remoto (Greenlight), PS4 remoto (Chiaki),
 Steam, Heroic e os emuladores. Abrir o cliente usa sua autenticação/pareamento já
 configurados; a integração não afirma que os consoles estão online ou pareados.
+Xbox, PS4 e Switch reutilizam o cliente remoto já aberto, sem criar outra instância.
+A conferência inclui processos Flatpak anteriores ao serviço e pedidos simultâneos;
+a TV avisa para continuar na janela existente. Steam continua recebendo o pedido
+de abrir Big Picture mesmo quando já está em execução.
 Entradas adicionais podem ser definidas como `[apps.identificador]`, com `nome`,
 `icone` e `comando = ["executável", "argumento"]`. Só a configuração local fornece
 comandos: a API recebe apenas o ID e revalida a lista a cada abertura, sem shell.
@@ -133,9 +137,11 @@ Wi-Fi. Consulte o [guia oficial](https://github.com/exelix11/SysDVR/wiki) e as
 [limitações](https://github.com/exelix11/SysDVR#limitations).
 
 Neste notebook o cliente 6.3 foi instalado da release oficial e o IP informado foi
-guardado apenas no cache privado. Na conferência de 20/10, as portas TCP 9911/9922
-recusaram conexão. Transmissão real aguarda ativação/verificação do SysDVR no console;
-nenhuma mudança foi feita no Atmosphère ou no cartão SD.
+guardado apenas no cache privado. A primeira conferência recusou as portas TCP
+9911/9922; depois de ativar o console, Victor confirmou a transmissão funcionando
+e foram verificadas as duas conexões ativas. Três players extras sem conexão foram
+fechados, preservando a instância conectada. Nenhuma mudança foi feita pelo PyRetro
+no Atmosphère ou no cartão SD.
 
 ## Xbox e atalhos dos emuladores
 

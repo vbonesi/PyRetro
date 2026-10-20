@@ -23,7 +23,8 @@ Implementado no modo TV (`/tv`):
 - Acessos rápidos no Início para Xbox remoto, PS4 remoto, Steam, Heroic e emuladores.
   Cliente SysDVR oficial instalado e Switch Lite preparado para TCP Bridge por Wi-Fi,
   com IP apenas no cache privado. Transmite jogos; não encaminha automaticamente o
-  controle Xbox nem captura HOME. Conexão real depende do SysDVR ativo no console.
+  controle Xbox nem captura HOME. Transmissão confirmada por Victor, com vídeo/áudio
+  conectados. Pedidos repetidos reutilizam o cliente remoto já aberto.
 - Alternativa por jogo quando há core compatível instalado (PicoDrive nos sistemas Sega;
   SwanStation em PS1 quando instalado). A escolha fica no perfil do navegador e é revalidada
   pelo backend. O padrão permanece o bridge do setup.
@@ -47,8 +48,8 @@ estiver em foco, para evitar teclado/mouse duplicados com Gamepad/SDL.
 - Homologação física do Xbox nos jogos, foco, Steam Input e Steam Link.
 - Ajustes por jogo no Wii (ponteiro/movimento e controle clássico).
 - Sistemas sem bridge/core instalado, como NDS/3DS, continuam sem lançamento pela TV.
-- Pareamento/uso real de Xbox e PS4 e transmissão do Switch Lite. Na conferência atual,
-  o Switch recusou as portas do TCP Bridge; não declarar transmissão homologada.
+- Pareamento/uso real de Xbox e PS4. Switch Lite teve transmissão confirmada;
+  controle Xbox no PC não é encaminhado ao Switch por essa integração.
 - Logos oficiais, vídeo/marquee/screenshot e tempo de sessão são melhorias futuras.
 - ES-DE permanece instalado até a homologação do fluxo completo.
 

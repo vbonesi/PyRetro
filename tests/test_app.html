@@ -742,7 +742,7 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
         if (failFavorite) return {ok: false, json: async () => ({error: "disco indisponível"})};
         preferences.favorites = body.favorite ? [body.key] : []; data = {...preferences, key: body.key};
       } else if (url === "/api/tv/preferences") { preferences.theme = body.theme; data = preferences; }
-      else if (url === "/api/tv/apps/launch") data = {ok: true};
+      else if (url === "/api/tv/apps/launch") data = {ok: true, already_running: body.id === "sysdvr"};
       else throw new Error(`escrita indevida: ${url}`);
     } else throw new Error(`requisição inesperada: ${url}`);
     return {ok: true, json: async () => JSON.parse(JSON.stringify(data))};
@@ -758,6 +758,8 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
     doc.querySelector('[data-app="greenlight"]').click();
     await esperar(() => posts.length === 1, "Xbox remoto não abriu");
     igual(posts[0], {url: "/api/tv/apps/launch", body: {id: "greenlight"}});
+    doc.querySelector('[data-app="sysdvr"]').click();
+    await esperar(() => doc.getElementById("play-status").textContent.includes("já está aberto"), "cliente remoto já aberto ficou sem aviso");
     doc.querySelector("#home .game").focus(); pad.buttons[2].pressed = true;
     await esperar(() => doc.querySelector('[data-shelf="favorites"] .game'), "X não favoritou");
     await new Promise(resolve => setTimeout(resolve, 450));

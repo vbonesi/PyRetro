@@ -6,6 +6,18 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 20/10/2026 — Switch transmitindo e proteção contra janelas duplicadas
+
+- Victor confirmou a transmissão do Switch Lite por Wi-Fi. Quatro clientes estavam
+  abertos, mas somente um mantinha vídeo e áudio conectados. As três cópias sem
+  conexão foram fechadas, preservando a transmissão e os jogos do console.
+- Pedidos para Xbox/PS4/Switch agora verificam o cliente já aberto antes de iniciar
+  outro. Lock cobre pedidos simultâneos; detecção Flatpak preserva instâncias
+  anteriores a um reinício do PyRetro. Um cliente encerrado pode ser aberto novamente.
+  A TV mostra quando a janela já existe; Steam mantém o pedido de Big Picture.
+- Validação: 242 testes Python e 39 da interface. Regressões cobrem concorrência,
+  cliente externo, reabertura, falha de detecção sem duplicação e aviso na TV.
+
 ## 20/10/2026 — Tela inicial de console, favoritos e acessos remotos
 
 - Início passa a abrir por padrão: destaque do jogo, recentes, continuar jogando,

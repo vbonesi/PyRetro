@@ -2353,10 +2353,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts == ["api", "tv", "apps", "launch"]:
             try:
-                tv_apps_mod.launch(load_config(), self._read_json_body().get('id'))
+                result = tv_apps_mod.launch(load_config(), self._read_json_body().get('id'))
             except (OSError, ValueError) as e:
                 return self._json({"error": str(e)}, 400)
-            return self._json({"ok": True})
+            return self._json({"ok": True, **result})
 
         if parts == ["api", "play", "start"]:
             body = self._read_json_body()
