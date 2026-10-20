@@ -35,7 +35,8 @@ não são só estilo:
 ## Modo TV
 
 Acesse `http://127.0.0.1:8000/tv` para navegar pelo acervo com controle,
-registrar progresso/notas, baixar ROMs pesadas do seu Drive e abrir os
+pesquisar pelo Y, pular páginas com LB/RB, ver jogos neste PC,
+abrir lojas/apps, registrar progresso/notas, baixar ROMs pesadas do seu Drive e abrir os
 emuladores pelo lançador do setup. Instalação do atalho e limitações:
 [`docs/modo-tv.md`](docs/modo-tv.md).
 

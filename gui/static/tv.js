@@ -14,7 +14,8 @@ async function api(url, body) {
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
   return data;
 }
-const state = {draw: {group: "", genre: ""}, sortear: null, kind: "library", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null};
+const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "systems", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null};
+const collections = [["systems", "Sistemas"], ["local", "Neste PC"], ["library", "Biblioteca"], ["playing", "Jogando"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["apps", "Apps"]];
 function button(text, action, pressed) {
   const b = document.createElement("button"); b.textContent = text; b.type = "button";
   if (pressed !== undefined) b.setAttribute("aria-pressed", String(pressed));
@@ -34,18 +35,26 @@ function drawTabs() {
 function platformTabs() {
   drawTabs();
   const nav = $("platforms"); if (state.kind === "draw") return; nav.replaceChildren();
-  if (state.kind === "library" || state.kind === "playing") {
+  const genres = $("genres");
+  const names = [...new Set(state.items.map(g => g.tracking?.genero).filter(Boolean))].sort();
+  if (!["systems", "apps"].includes(state.kind) && names.length) {
+    genres.hidden = false;
+    for (const name of ["", ...names]) genres.append(button(name || "Qualquer gênero", () => {
+      state.genre = name; platformTabs(); render(); genres.querySelector('[aria-pressed="true"]')?.focus();
+    }, (state.genre || "") === name));
+  }
+  if (["library", "playing", "local", "search"].includes(state.kind)) {
     const platforms = [...new Set(state.items.map(g => g.platform))].sort();
     for (const p of ["", ...platforms]) nav.append(button(p || "Todas as plataformas", () => {
       state.filter = p; platformTabs(); render(); nav.querySelector(`[aria-pressed="true"]`)?.focus();
     }, state.filter === p));
-  } else {
+  } else if (["heavy", "light"].includes(state.kind)) {
     const systems = state.kind === "heavy" ? state.systems : state.light;
     for (const s of systems) nav.append(button(s.nome || s.code, () => load(state.kind, s.code), state.code === s.code));
   }
 }
 function collectionTabs() {
-  $("collections").replaceChildren(...[["library", "Biblioteca"], ["playing", "Jogando"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"]].map(([kind, title]) => button(title, () => load(kind), state.kind === kind)));
+  $("collections").replaceChildren(...collections.map(([kind, title]) => button(title, () => load(kind), state.kind === kind)));
 }
 function libraryItem(g) {
   const item = {id: g.id, name: g.nome, platform: g.plataforma || "Biblioteca", cover: g.capa_url, tracking: g};
@@ -63,16 +72,28 @@ function romItem(kind, c, sys, g) {
 }
 async function load(kind = state.kind, code = "") {
   const request = ++state.request;
-  state.kind = kind; state.filter = "";
+  if (kind !== state.kind && kind !== "search") state.query = "";
+  state.kind = kind; state.filter = ""; state.genre = "";
   const systems = kind === "heavy" ? state.systems : state.light;
   state.code = code || systems[0]?.code || "";
   state.items = []; collectionTabs(); platformTabs(); render();
-  $("title").textContent = ({library: "Biblioteca", playing: "Jogando", heavy: "ROMs pesadas", light: "ROMs leves", draw: "Sortear"})[kind];
+  $("title").textContent = collections.find(x => x[0] === kind)?.[1] || "Pesquisa";
+  $("installed-only").hidden = ["systems", "apps", "draw", "local"].includes(kind);
   report("Carregando catálogo…");
   try {
     let items;
-    if (kind === "library" || kind === "playing") {
+    if (["systems", "search"].includes(kind)) {
+      items = await api("/api/tv/catalog");
+    } else if (kind === "local") {
+      items = await api("/api/tv/local");
+    } else if (kind === "apps") {
+      items = await api("/api/tv/apps");
+    } else if (kind === "library" || kind === "playing") {
       items = (await api(kind === "library" ? "/api/library" : "/api/iniciados")).filter(g => !g.oculto).map(libraryItem);
+      if (state.installedOnly) {
+        const local = await api("/api/tv/local");
+        for (const g of items) g.local = local.some(x => x.id && x.id === g.id || x.code && x.code === g.code && x.romName === g.romName);
+      }
     } else if (kind === "draw") {
       if (!state.sortear) state.sortear = await api("/api/sortear/systems");
       items = [];
@@ -83,13 +104,22 @@ async function load(kind = state.kind, code = "") {
       const sys = systems.find(s => s.code === c);
       items = (kind === "heavy" ? data.items : data).map(g => romItem(kind, c, sys, g));
     }
+    if (state.installedOnly && ["heavy", "light"].includes(kind)) {
+      const local = await api("/api/tv/local");
+      for (const g of items) g.local = local.some(x => x.code === g.code && (x.romName === g.romName || x.romName === g.romName.replace(/\.[^.]+$/, "")));
+    }
     if (request !== state.request) return;
     state.items = items; platformTabs(); render();
     (code ? $("platforms") : $("collections")).querySelector('[aria-pressed="true"]')?.focus();
   } catch (error) { if (request === state.request) report(`Não foi possível carregar: ${error.message}. Selecione a coleção para tentar novamente.`, true); }
 }
 function render() {
-  const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
+  $("search-summary").textContent = state.query ? `Busca: ${state.query}` : "";
+  $("installed-only").setAttribute("aria-pressed", String(state.installedOnly));
+  if (state.kind === "systems") return renderSystems();
+  if (state.kind === "apps") return renderApps();
+  const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre) && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || state.kind === "local" || g.local) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
   const gallery = $("gallery"); gallery.replaceChildren();
   if (state.kind === "draw") gallery.append(Object.assign(button("🎲 Sortear", drawGame), {className: "game draw"}));
   for (const g of items) {
@@ -104,6 +134,69 @@ function render() {
   if (state.kind === "draw") return report(items.length ? "Sorteado! Abra a capa para jogar ou registrar progresso." : "Escolha grupo e gênero, depois sorteie.");
   report(items.length ? `${items.length} jogos · escolha uma capa` : "Nenhum jogo nesta seleção.");
 }
+function renderSystems() {
+  const groups = new Map();
+  for (const g of state.items) {
+    const key = g.code || g.platform;
+    if (!groups.has(key)) groups.set(key, {name: g.platform, code: g.code, total: 0, local: 0});
+    const group = groups.get(key); group.total++; if (g.local) group.local++;
+  }
+  const gallery = $("gallery"); gallery.replaceChildren();
+  for (const [key, g] of [...groups].sort((a, b) => a[1].name.localeCompare(b[1].name, "pt-BR"))) {
+    const card = button("", async () => {
+      state.query = "";
+      if (g.code) await load(state.systems.some(s => s.code === g.code) ? "heavy" : "light", g.code);
+      else { await load("library"); state.filter = key; platformTabs(); render(); }
+      $("gallery").querySelector("button")?.focus();
+    });
+    card.className = "game system-card";
+    const symbol = document.createElement("span"); symbol.className = "system-symbol";
+    symbol.textContent = g.code || ({Steam: "STEAM", GOG: "GOG", "Epic Games Store": "EPIC", "Amazon Games": "AMAZON", Switch: "NSW"})[g.name] || "🎮";
+    const name = document.createElement("strong"); name.textContent = g.name;
+    const count = document.createElement("small"); count.textContent = `${g.total} jogos · ${g.local} neste PC`;
+    card.append(symbol, name, count); gallery.append(card);
+  }
+  report(`${groups.size} sistemas e plataformas · escolha por onde jogar`);
+}
+function renderApps() {
+  $("gallery").replaceChildren(...state.items.map(g => {
+    const card = button(`${g.icon} ${g.name}`, async () => {
+      if (state.busy) return; state.busy = true;
+      try { await api("/api/tv/apps/launch", {id: g.id}); report(`${g.name}: abertura solicitada.`); }
+      catch (e) { report(e.message, true); }
+      finally { state.busy = false; }
+    }); card.className = "game system-card"; return card;
+  }));
+  report("Escolha um aplicativo para abrir.");
+}
+let searchReturnFocus;
+function openSearch() {
+  if ($("details").open || $("search-dialog").open) return;
+  searchReturnFocus = document.activeElement; $("search-input").value = state.query;
+  $("search-dialog").showModal(); $("keyboard").querySelector("button")?.focus();
+}
+function closeSearch() { $("search-dialog").close(); (searchReturnFocus?.isConnected ? searchReturnFocus : $("search-open"))?.focus(); }
+async function applySearch() {
+  state.query = $("search-input").value.trim(); closeSearch();
+  if (["systems", "apps", "draw"].includes(state.kind)) await load("search"); else render();
+  $("gallery").querySelector("button")?.focus();
+}
+for (const character of "1234567890QWERTYUIOPASDFGHJKLÇZXCVBNM -'") $("keyboard").append(button(character === " " ? "␣" : character, () => { const input = $("search-input"); input.value = (input.value + character).slice(0, 120); }));
+$("keyboard").append(button("⌫", () => { $("search-input").value = $("search-input").value.slice(0, -1); }));
+$("search-open").onclick = openSearch; $("search-close").onclick = closeSearch;
+$("search-apply").onclick = applySearch;
+$("search-clear").onclick = () => { $("search-input").value = ""; applySearch(); };
+$("search-dialog").addEventListener("cancel", e => { e.preventDefault(); closeSearch(); });
+$("search-input").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); applySearch(); } });
+async function reloadSelection(origin) {
+  const {kind, code, filter, genre} = state;
+  await load(kind, code);
+  if (state.kind !== kind || state.code !== code) return;
+  state.filter = filter; state.genre = genre; platformTabs(); render();
+  origin?.focus();
+}
+$("installed-only").onclick = () => { state.installedOnly = !state.installedOnly; reloadSelection($("installed-only")); };
+$("refresh").onclick = () => reloadSelection($("refresh"));
 async function drawGame() {
   if (state.busy || state.drawing) return;
   state.drawing = true; report("Sorteando…");
@@ -201,7 +294,7 @@ async function downloadGame(playAfter) {
     if (state.selected === g) report("Download em andamento. Você pode voltar e navegar pelo acervo.", false, "detail-status");
   } catch (e) { state.download = null; b.disabled = false; b.dataset.confirm = ""; b.textContent = "Baixar para o PC"; report(e.message, true, "download-status"); }
 }
-let playRequest = 0, sessionTimer, sessionGame;
+let playRequest = 0, sessionTimer, sessionGame, emulatorRunning = false;
 async function refreshPlayOptions(g) {
   const request = ++playRequest;
   const box = $("play-actions"); box.replaceChildren();
@@ -212,6 +305,15 @@ async function refreshPlayOptions(g) {
     if (request !== playRequest || state.selected !== g) return;
     if (!data.launcher) throw new Error("O lançador bonisarch-emulator precisa estar instalado.");
     const options = data.options || [];
+    try { g.emulator = localStorage.getItem(`pyretro-emulator:${g.code}:${g.romName}`) || ""; } catch (_) { g.emulator = g.emulator || ""; }
+    if (!data.emulators?.some(e => e.id === g.emulator)) g.emulator = "";
+    if (data.emulators?.length > 1) {
+      for (const emulator of data.emulators) box.append(button(emulator.name, () => {
+        g.emulator = emulator.id;
+        try { localStorage.setItem(`pyretro-emulator:${g.code}:${g.romName}`, emulator.id); } catch (_) {}
+        refreshPlayOptions(g);
+      }, g.emulator === emulator.id));
+    }
     for (const option of options) {
       const b = button(options.length === 1 ? "Jogar" : `Jogar: ${option.name}`, () => startGame(g, option.name));
       b.disabled = !!option.error; b.dataset.unavailable = String(!!option.error); box.append(b);
@@ -253,7 +355,7 @@ async function startGame(g, name) {
   if (state.busy) return;
   state.busy = true;
   try {
-    const session = await api("/api/play/start", {code: g.code, name});
+    const session = await api("/api/play/start", {code: g.code, name, ...(g.emulator ? {emulator: g.emulator} : {})});
     sessionGame = g; report(`Em jogo: ${g.name}. Ao sair, volte aqui para registrar progresso e nota.`, false, "play-status");
     if (state.selected === g) report("Emulador iniciado. Sair dele encerra a sessão; finalizar o jogo é uma escolha sua.", false, "detail-status");
     watchSession(session);
@@ -273,6 +375,7 @@ async function playDownloaded(g) {
 }
 function watchSession(session) {
   clearTimeout(sessionTimer);
+  emulatorRunning = session.status === "running";
   if (session.status === "running") {
     if (!sessionGame) report(`Em jogo: ${session.name}`, false, "play-status");
     sessionTimer = setTimeout(async () => {
@@ -291,7 +394,8 @@ function watchSession(session) {
 }
 
 function focusable() {
-  return [...($("details").open ? $("details") : document).querySelectorAll("button:not(:disabled),a[href]")].filter(e => !e.hidden && e.getClientRects().length);
+  const root = $("search-dialog").open ? $("search-dialog") : $("details").open ? $("details") : document;
+  return [...root.querySelectorAll("button:not(:disabled),a[href],input")].filter(e => !e.hidden && e.getClientRects().length);
 }
 function move(direction) {
   const nodes = focusable(); const current = document.activeElement;
@@ -313,15 +417,37 @@ function action(key) {
   if (state.busy) return;
   if (["left", "right", "up", "down"].includes(key)) move(key);
   else if (key === "accept") { if (!focusable().includes(document.activeElement)) focusable()[0]?.focus(); else document.activeElement.click(); }
-  else if (key === "back") { if ($("details").open) closeGame(); else { $("collections").querySelector("button")?.focus(); } }
+  else if (key === "back") { if ($("search-dialog").open) closeSearch(); else if ($("details").open) closeGame(); else { $("collections").querySelector("button")?.focus(); } }
+  else if (key === "search") openSearch();
+  else if (key === "erase" && $("search-dialog").open) $("search-input").value = $("search-input").value.slice(0, -1);
+  else if (key === "submit" && $("search-dialog").open) applySearch();
+  else if (["page-up", "page-down"].includes(key) && !document.querySelector("dialog[open]")) page(key === "page-up" ? -1 : 1);
+  else if (["previous", "next"].includes(key) && !document.querySelector("dialog[open]")) {
+    const index = Math.max(0, collections.findIndex(x => x[0] === state.kind));
+    load(collections[(index + (key === "previous" ? -1 : 1) + collections.length) % collections.length][0]);
+  }
+}
+function page(direction) {
+  const cards = [...$("gallery").querySelectorAll("button")]; if (!cards.length) return;
+  const current = Math.max(0, cards.indexOf(document.activeElement));
+  const first = cards[0].getBoundingClientRect();
+  const columns = cards.filter(e => Math.abs(e.getBoundingClientRect().top - first.top) < 5).length;
+  const height = innerHeight - document.querySelector("footer").getBoundingClientRect().height;
+  const rows = Math.max(1, Math.floor(height / (first.height + 24)));
+  const target = cards[Math.max(0, Math.min(cards.length - 1, current + direction * columns * rows))];
+  target.focus({preventScroll: true}); target.scrollIntoView({block: "center"});
 }
 document.addEventListener("keydown", e => {
-  const key = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back"}[e.key];
+  if (e.target instanceof HTMLInputElement && e.key !== "Escape") return;
+  const key = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
   if (key) { e.preventDefault(); action(key); }
 });
-let held = new Set(), repeatAt = 0;
+let held = new Set(), repeatAt = new Map(), foreground = true, awaitNeutral = false;
+window.addEventListener("blur", () => { foreground = false; held.clear(); awaitNeutral = true; });
+window.addEventListener("focus", () => { foreground = true; });
 function pollGamepad(now) {
-  const pad = Array.from(navigator.getGamepads?.() || []).find(Boolean);
+  const pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false && p.buttons.length >= 10);
+  const pad = pads.find(p => p.mapping === "standard") || pads[0];
   if (pad) {
     $("controller").textContent = `Controle conectado: ${pad.id}`;
     const pressed = i => pad.buttons[i]?.pressed;
@@ -331,9 +457,15 @@ function pollGamepad(now) {
     if (pressed(12) || pad.axes[1] < -0.55) keys.add("up");
     if (pressed(13) || pad.axes[1] > 0.55) keys.add("down");
     if (pressed(0)) keys.add("accept"); if (pressed(1)) keys.add("back");
+    if (pressed(2)) keys.add("erase"); if (pressed(3)) keys.add("search");
+    if (pressed(4)) keys.add("page-up"); if (pressed(5)) keys.add("page-down");
+    if (pressed(6)) keys.add("previous"); if (pressed(7)) keys.add("next");
+    if (pressed(9)) keys.add("submit");
+    if (!foreground || document.hidden || emulatorRunning) { held.clear(); awaitNeutral = true; requestAnimationFrame(pollGamepad); return; }
+    if (awaitNeutral) { if (!keys.size) awaitNeutral = false; requestAnimationFrame(pollGamepad); return; }
     for (const k of keys) {
-      if (!held.has(k)) { action(k); repeatAt = now + 380; }
-      else if (!["accept", "back"].includes(k) && now >= repeatAt) { action(k); repeatAt = now + 140; }
+      if (!held.has(k)) { action(k); repeatAt.set(k, now + 380); }
+      else if (["left", "right", "up", "down", "page-up", "page-down", "erase"].includes(k) && now >= repeatAt.get(k)) { action(k); repeatAt.set(k, now + 110); }
     }
     held = keys;
   } else { held.clear(); $("controller").textContent = "Controle: pressione um botão para conectar"; }

@@ -18,6 +18,26 @@ SYSTEMS = {
     'PS': 'psx', 'PS2': 'ps2', 'PSP': 'psp', 'NGC': 'gc', 'WII': 'wii',
 }
 LAUNCHER = Path.home() / '.local/bin/bonisarch-emulator'
+CORE_ROOT = Path.home() / '.var/app/org.libretro.RetroArch/config/retroarch/cores'
+# Somente alternativas compatíveis conhecidas, se o core já estiver instalado.
+ALTERNATIVES = {'MD': {'picodrive': 'PicoDrive'}, 'SMS': {'picodrive': 'PicoDrive'},
+                'GG': {'picodrive': 'PicoDrive'}, 'PS': {'swanstation': 'SwanStation'}}
+
+
+def emulators(code):
+    return [{'id': '', 'name': 'Padrão do sistema'}, *[
+        {'id': key, 'name': name} for key, name in ALTERNATIVES.get(code, {}).items()
+        if (CORE_ROOT / (key + '_libretro.so')).is_file()]]
+
+
+def restore_tv_focus():
+    helper = Path(__file__).resolve().parent.parent / 'tools/raise-window.sh'
+    if os.environ.get('DBUS_SESSION_BUS_ADDRESS') and helper.is_file():
+        try:
+            subprocess.Popen([str(helper), 'chrome-127.0.0.1__tv', '2'], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            pass
 
 
 def safe_relative(value):
@@ -134,7 +154,7 @@ def candidates(cfg, code, name):
     return out
 
 
-def prepare(cfg, code, name):
+def prepare(cfg, code, name, emulator=''):
     info = system_info(cfg, code)
     root = Path(cfg['pc']['roms_root']).expanduser() / code
     if not root.resolve().is_relative_to(root.parent.resolve()):
@@ -142,6 +162,11 @@ def prepare(cfg, code, name):
     if Path(safe_relative(name)).suffix.lower().lstrip('.') not in {e.lower().lstrip('.') for e in info.get('exts', [])}:
         raise ValueError('extensão não configurada para este sistema')
     rom = validate_bundle(root, name)
+    if emulator:
+        if not isinstance(emulator, str) or emulator not in {g['id'] for g in emulators(code)}:
+            raise ValueError('emulador alternativo não disponível neste sistema')
+        return ['flatpak', 'run', 'org.libretro.RetroArch', '-f', '-L',
+                str(CORE_ROOT / (emulator + '_libretro.so')), str(rom.resolve())]
     if not LAUNCHER.is_file() or not os.access(LAUNCHER, os.X_OK):
         raise ValueError('lançador bonisarch-emulator não instalado')
     return [str(LAUNCHER), SYSTEMS[code], str(rom.resolve())]
@@ -160,17 +185,18 @@ class Sessions:
             if code is not None:
                 self.state.update(status='finished' if code == 0 else 'error', returncode=code)
                 self.process = None
+                restore_tv_focus()
         return dict(self.state)
 
     def status(self):
         with self.lock:
             return self._poll()
 
-    def start(self, cfg, code, name):
+    def start(self, cfg, code, name, emulator=''):
         with self.lock:
             if self._poll()['status'] == 'running':
                 raise ValueError('já existe um jogo aberto pelo PyRetro')
-            cmd = prepare(cfg, code, name)
+            cmd = prepare(cfg, code, name, emulator)
             # Sem shell e sem herdar stdin; os erros do lançador vão para o journal.
             process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, close_fds=True)
             self.process = process

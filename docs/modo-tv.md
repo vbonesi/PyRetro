@@ -17,6 +17,14 @@ A rota usa os mesmos cabeçalhos de segurança e as mutações exigem o token CS
 Direcional ou analógico esquerdo navegam entre os botões e as capas. A confirma e
 B volta. O mapeamento segue o padrão Gamepad do navegador; teclado também funciona
 com setas, Enter, Tab e Esc. Pressione um botão para o navegador reconhecer o controle.
+Y abre a busca com teclado na tela (X apaga, Menu confirma e B cancela).
+LB/RB pulam páginas da grade; LT/RT trocam coleções. Page Up/Page Down também
+funcionam pelo teclado. A tela inicial Sistemas mostra totais e presença local;
+Neste PC reúne instalações Steam/Epic/GOG/Amazon e ROMs locais completas.
+Os filtros de plataforma, gênero e Só neste PC são botões navegáveis.
+A busca na tela inicial usa todo o catálogo; nas coleções, filtra a seleção atual.
+Atualizar relê o disco/cache, sem sincronizar posse ou atualizar o Drive.
+
 O controle precisa chegar ao navegador como gamepad; o perfil Steam Input deve ser
 conferido na instalação final para evitar ações duplicadas de mouse/teclado.
 
@@ -48,7 +56,7 @@ Nos sistemas com lançador configurado, o card oferece **Jogar** quando há uma
 ROM local completa. Quando há vários discos ou formatos, cada opção aparece
 separadamente para você escolher, sem adivinhar qual abrir. Pastas de jogos são
 examinadas para encontrar os arquivos executáveis pelo emulador. Jogos de PC
-instalados na Steam, Epic ou GOG (Heroic) mostram **Jogar (Steam/Heroic)**: o PyRetro pede à
+instalados na Steam, Epic, GOG ou Amazon (Heroic) mostram **Jogar (Steam/Heroic)**: o PyRetro pede à
 loja já aberta que inicie o jogo, sem acompanhar a sessão, e o progresso é registrado
 manualmente. Jogo não instalado avisa isso no card. A aba Jogando lista primeiro o que foi aberto
 por último pela TV (data guardada em `cache/last_played.json`).
@@ -76,8 +84,50 @@ O servidor acompanha uma sessão de emulador por vez. Ao sair, a TV oferece
 registrar progresso e nota; não marca iniciado/finalizado automaticamente. Erros
 de abertura ou saída são visíveis na TV; detalhes do processo vão para o journal
 de `pyretro-gui`. Recarregar a página retoma o acompanhamento da sessão do servidor.
-O retorno do foco da janela e a captura pelo Steam Link dependem da sessão gráfica
-e precisam ser conferidos com os emuladores reais.
+Ao terminar, o helper KWin tenta devolver o foco à janela PyRetro. A leitura do
+controle fica suspensa com a janela em segundo plano ou o emulador em execução;
+ao retornar, solte os botões antes de continuar. Foco real e captura pelo Steam Link
+ainda precisam ser conferidos com os emuladores reais.
+
+## Apps e emulador por jogo
+
+Apps oferece os aplicativos de jogos instalados (Steam abre em Big Picture).
+Entradas adicionais podem ser definidas como `[apps.identificador]`, com `nome`,
+`icone` e `comando = ["executável", "argumento"]`. Só a configuração local fornece
+comandos: a API recebe apenas o ID e revalida a lista a cada abertura, sem shell.
+
+Nos cards de ROM, a escolha de emulador só aparece quando há uma alternativa
+conhecida instalada. PicoDrive é oferecido para Mega Drive/Master System/Game Gear;
+SwanStation para PS1, caso seu core exista. A escolha por jogo fica no perfil do
+navegador, e arquivos/core são revalidados antes de abrir. O padrão continua usando
+o lançador do setup.
+
+## Xbox e atalhos dos emuladores
+
+Perfil aplicado em 20/10/2026: Xbox Wireless Controller por Bluetooth, reconhecido
+pelo SDL como Xbox One S Controller. `tools/configure_xbox.py` simula o plano;
+`--apply` exige emuladores fechados e guarda cópias anteriores na auditoria privada.
+Altera somente entrada/hotkeys e a confirmação de parada do Dolphin. Preserva
+bindings de teclado do PCSX2/PPSSPP e opções gráficas/saves. Usa o perfil SDL oficial
+do Dolphin para GameCube; Wii fica com Nunchuk no analógico esquerdo, ponteiro no
+direito e sacudir no RB. Wii pode exigir ajuste específico de movimento/Classic Controller.
+
+| Combinação Xbox | Ação |
+|---|---|
+| Back + LB | Salvar estado no slot selecionado |
+| Back + RB | Carregar estado do slot selecionado |
+| Back + ↑ / ↓ | Slot seguinte / anterior |
+| Back + B | Pausar/retomar |
+| Back + X | Captura de tela |
+| Back + → | Acelerar (segurar no Dolphin; alternar nos demais) |
+| Back + Start | Encerrar o jogo/emulador |
+| Back + Y | Menu de pausa no RetroArch, PCSX2, DuckStation e PPSSPP |
+
+Guide fica livre para o Bigscreen. O script não aciona save/load; a validação
+inicial conferiu sintaxe oficial e acesso ao dispositivo nos quatro Flatpaks.
+DuckStation é AppImage e acessa o dispositivo diretamente. Confirmação física
+nos jogos e Steam Link continua com o usuário. Não foram criados/carregados estados
+reais durante essa configuração.
 
 ## Atalho Steam e integração com setup-linux-bonesi
 
@@ -92,10 +142,13 @@ existentes do Chrome; não há relaxamento do sandbox do navegador.
 
 Instalação: `python3 tools/install_tv.py` simula;
 `python3 tools/install_tv.py --apply` instala com a Steam fechada. O instalador
-adiciona **PyRetro — Acervo**, preserva os atalhos existentes e guarda uma cópia
+adiciona **PyRetro**, preserva os atalhos existentes e guarda uma cópia
 anterior do VDF em `~/.local/share/pyretro/steam-shortcuts/`. Havendo mais de uma
 conta, exige `--config CAMINHO`. Não grava com a Steam aberta nem troca um atalho
-que já exista com outro comando. Na máquina atual o atalho já foi instalado.
+que já exista com outro comando. Na máquina atual o atalho já foi instalado e renomeado de PyRetro — Acervo,
+preservando appid e artes. O atalho web antigo fica oculto no menu; `/` continua acessível
+pelo navegador. A entrada no Bigscreen é responsabilidade do botão Modo TV do setup,
+sem alteração de boot/autostart pelo PyRetro.
 
 A Steam Flatpak chama o script no host por `flatpak-spawn --host`, seguindo o
 padrão do ES-DE instalado pelo setup. O lançamento de ROMs pelo backend usa o

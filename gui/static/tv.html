@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PyRetro — Modo TV</title>
+<title>PyRetro</title>
 <link rel="stylesheet" href="/static/tv.css">
 <script src="/static/tv.js" defer></script>
 </head>
@@ -13,13 +13,16 @@
   <nav id="collections" aria-label="Coleções"></nav>
   <nav id="platforms" aria-label="Plataformas"></nav>
   <nav id="genres" aria-label="Gêneros" hidden></nav>
+  <div id="tools" class="actions"><button id="search-open">Y · Pesquisar</button><button id="installed-only" aria-pressed="false">Só neste PC</button><button id="refresh">Atualizar</button><span id="search-summary"></span></div>
 </header>
 <main><h2 id="title">Biblioteca</h2><p id="message" role="status" aria-live="polite">Carregando…</p><div id="gallery" aria-label="Jogos"></div></main>
-<footer><span>Direcional / analógico: navegar · A / Enter: escolher · B / Esc: voltar</span><span id="controller">Controle: pressione um botão para conectar</span><p id="play-status" role="status" aria-live="polite"></p><p id="download-status" role="status" aria-live="polite"></p></footer>
+<footer><span>✚ Navegar · A Escolher · B Voltar · LB/RB Página · LT/RT Coleção · Y Pesquisar · X Apagar na busca</span><span id="controller">Controle: pressione um botão para conectar</span><p id="play-status" role="status" aria-live="polite"></p><p id="download-status" role="status" aria-live="polite"></p></footer>
+<dialog id="search-dialog" aria-labelledby="search-title"><h2 id="search-title">Pesquisar jogos</h2><label for="search-input">Nome do jogo</label><input id="search-input" type="search" autocomplete="off" maxlength="120"><p class="hint">Use o direcional e A no teclado abaixo. X apaga; Menu pesquisa; B cancela.</p><div id="keyboard"></div><div class="actions"><button id="search-apply" class="primary">Pesquisar</button><button id="search-clear">Limpar busca</button><button id="search-close">Voltar</button></div></dialog>
 <dialog id="details" aria-labelledby="game-title">
   <h2 id="game-title"></h2><p id="game-platform"></p>
   <div id="play-actions" class="actions"></div>
   <p id="play-hint" class="hint" role="status"></p>
+  <p class="hint">Xbox: Back + LB salva estado · Back + RB carrega · Back + ↑/↓ troca slot · Back + B pausa · Back + X captura · Back + Start sai. Back + Y abre o menu nos emuladores que oferecem essa opção.</p>
   <div id="tracking"></div>
   <div class="rating"><button id="rating-down" aria-label="Diminuir nota">−</button><output id="rating" aria-live="polite"></output><button id="rating-up" aria-label="Aumentar nota">+</button><button id="rating-fine-down" aria-label="Diminuir nota em um décimo">−0,1</button><button id="rating-fine-up" aria-label="Aumentar nota em um décimo">+0,1</button><button id="rating-clear">Sem nota</button></div>
   <p class="hint">Nota de 0 a 11 · +/− ajustam 1 ponto; +0,1/−0,1 refinam a nota</p>

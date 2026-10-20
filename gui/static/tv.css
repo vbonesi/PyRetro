@@ -53,6 +53,16 @@ button{
   padding:.7rem 1rem;
   cursor:pointer
 }
+[hidden]{display:none!important}
+input{font:inherit;width:100%;padding:.8rem;border:1px solid #54708a;border-radius:.6rem;background:#0b1220;color:inherit}
+#keyboard{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:.4rem;margin-top:1rem}
+#keyboard button{padding:.6rem .15rem}
+#tools{margin:.7rem 0;align-items:center}
+#search-summary{color:var(--accent);font-size:.8rem}
+.system-symbol{display:grid;place-items:center;min-height:120px;font-size:2.8rem;color:var(--accent)}
+.system-card{background:linear-gradient(135deg,#21394e,#122238);min-height:180px;justify-content:center}
+.system-card:not(:has(.system-symbol)){padding:1rem}
+.system-symbol{font-size:1.7rem}
 button:hover{
   background:#2b435e
 }

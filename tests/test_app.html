@@ -427,11 +427,14 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
   frame.srcdoc = html;
   await loaded;
   const app = frame.contentWindow, doc = app.document;
+  // Iframes fora da tela não recebem rAF em alguns navegadores.
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
   const writes = []; let fail = false, events;
   const g = jogo({id: "tv-test", nome: "Teste TV", plataforma: "Steam"});
   app.fetch = async (url, init) => {
     let data;
-    if (url === "/api/csrf") data = {token: "tv-token"};
+    if (url === "/api/tv/catalog") data = [];
+    else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
     else if (url === "/api/systems") data = [];
     else if (url === "/api/library" || url === "/api/iniciados") data = [g];
@@ -448,6 +451,8 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
   let pad = null;
   Object.defineProperty(app.navigator, "getGamepads", {value: () => [pad], configurable: true});
   const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  await app.load("library");
   try {
     await esperar(() => doc.querySelector("#gallery .game"), "modo TV não carregou");
     doc.querySelector("#gallery .game").click();
@@ -503,11 +508,14 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
   const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document;
+  // Iframes fora da tela não recebem rAF em alguns navegadores.
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
   let downloaded = false, events, starts = 0, failure = false;
   const mutations = [];
   app.fetch = async (url, init) => {
     let data;
-    if (url === "/api/csrf") data = {token: "tv-token"};
+    if (url === "/api/tv/catalog") data = [];
+    else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
     else if (url === "/api/systems" || url === "/api/library") data = [];
@@ -524,6 +532,8 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
   };
   app.EventSource = class { constructor() { events = this; } close() {} };
   const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  await app.load("library");
   try {
     await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
     await esperar(() => doc.getElementById("message").textContent.includes("Nenhum jogo"), "catálogo não terminou");
@@ -552,10 +562,13 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
   const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document;
+  // Iframes fora da tela não recebem rAF em alguns navegadores.
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
   const consultas = []; let falha = false;
   app.fetch = async (url) => {
     let data;
-    if (url === "/api/csrf") data = {token: "tv-token"};
+    if (url === "/api/tv/catalog") data = [];
+    else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
     else if (url === "/api/systems") data = [];
@@ -569,6 +582,8 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
     return {ok: true, json: async () => data};
   };
   const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  await app.load("library");
   try {
     await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
     await app.load("draw");
@@ -593,10 +608,13 @@ teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", asy
   const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document;
+  // Iframes fora da tela não recebem rAF em alguns navegadores.
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
   const posts = []; let instalado = true;
   app.fetch = async (url, init) => {
     let data;
-    if (url === "/api/csrf") data = {token: "tv-token"};
+    if (url === "/api/tv/catalog") data = [];
+    else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/heavy/systems") data = [];
     else if (url === "/api/systems") data = [];
@@ -607,6 +625,8 @@ teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", asy
     return {ok: true, json: async () => data};
   };
   const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  await app.load("library");
   try {
     await esperar(() => doc.querySelector("#gallery .game"), "TV não carregou");
     doc.querySelector("#gallery .game").click();
@@ -619,6 +639,72 @@ teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", asy
     doc.querySelector("#gallery .game").click();
     await esperar(() => doc.getElementById("play-hint").textContent.includes("Não instalado"), "não avisou que não está instalado");
     igual(doc.getElementById("play-actions").children.length, 0);
+  } finally { frame.remove(); }
+});
+
+teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", async () => {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
+  document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
+  const app = frame.contentWindow, doc = app.document;
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
+  const games = Array.from({length: 80}, (_, i) => ({id: `j${i}`, name: `Jogo ${i}`, platform: "Steam", tracking: {}, local: i === 0}));
+  const posts = [];
+  let pad = {id: "Xbox de teste", mapping: "standard", axes: [0, 0], buttons: Array.from({length: 17}, () => ({pressed: false}))};
+  Object.defineProperty(app.navigator, "getGamepads", {value: () => [{id: "Mouse virtual", buttons: []}, pad], configurable: true});
+  app.fetch = async (url, init) => {
+    let data;
+    if (url === "/api/tv/catalog") data = games;
+    else if (url === "/api/tv/local") data = [games[0]];
+    else if (url === "/api/systems" || url === "/api/heavy/systems") data = [];
+    else if (url === "/api/play/status") data = {status: "idle"};
+    else if (url === "/api/csrf") data = {token: "tv-token"};
+    else if (url === "/api/tv/apps") data = [{id: "steam", name: "Steam", icon: "🎮"}];
+    else if (url === "/api/tv/apps/launch") { igual(init.headers["X-PyRetro-CSRF"], "tv-token"); posts.push(JSON.parse(init.body)); data = {ok: true}; }
+    else throw new Error(`requisição inesperada: ${url}`);
+    return {ok: true, json: async () => data};
+  };
+  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  try {
+    await esperar(() => doc.querySelector(".system-card"), "tela inicial por sistema ausente");
+    verdade(doc.querySelector(".system-card").textContent.includes("80 jogos · 1 neste PC"));
+    pad.buttons[3].pressed = true;
+    await esperar(() => doc.getElementById("search-dialog").open, "Y não abriu busca");
+    pad.buttons[3].pressed = false;
+    [...doc.querySelectorAll("#keyboard button")].find(b => b.textContent === "J").click();
+    igual(doc.getElementById("search-input").value, "J");
+    pad.buttons[2].pressed = true;
+    await esperar(() => !doc.getElementById("search-input").value, "X não apagou busca");
+    pad.buttons[2].pressed = false;
+    doc.getElementById("search-input").value = "jogo 79";
+    doc.getElementById("search-apply").click();
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 1 && doc.getElementById("gallery").textContent.includes("Jogo 79"), "busca não filtrou");
+    await app.load("search");
+    doc.getElementById("search-open").click(); doc.getElementById("search-clear").click();
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 80, "limpar busca não restaurou catálogo");
+    doc.querySelector("#gallery .game").focus();
+    pad.buttons[5].pressed = true;
+    await esperar(() => [...doc.querySelectorAll("#gallery .game")].indexOf(doc.activeElement) > 1, "RB não pulou página");
+    pad.buttons[5].pressed = false;
+    const original = doc.activeElement;
+    app.dispatchEvent(new app.Event("blur")); pad.buttons[4].pressed = true;
+    await new Promise(resolve => setTimeout(resolve, 60));
+    igual(doc.activeElement, original, "controle atuou em segundo plano");
+    app.dispatchEvent(new app.Event("focus")); pad.buttons[4].pressed = false;
+    await new Promise(resolve => setTimeout(resolve, 60));
+    doc.getElementById("installed-only").click();
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 1, "filtro local incluiu jogo não instalado");
+    await app.load("local");
+    igual(doc.querySelectorAll("#gallery .game").length, 1);
+    await app.load("apps"); doc.querySelector("#gallery button").click();
+    await esperar(() => posts.length, "app não foi aberto");
+    igual(posts, [{id: "steam"}], "Apps deve enviar apenas ID");
+    frame.style.width = "390px"; doc.getElementById("search-open").click();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    verdade(doc.documentElement.scrollWidth <= 390, "busca transbordou no celular");
   } finally { frame.remove(); }
 });
 

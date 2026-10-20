@@ -4,11 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from test_api import BaseAPI
 
 from core import library as lm
 from core import pc_games, recent
 import server as srv
-from test_api import BaseAPI
 
 
 class TestPcGames(unittest.TestCase):
@@ -38,6 +38,7 @@ class TestPcGames(unittest.TestCase):
         game = {'nome': 'Hollow Knight', 'nomes_alt': [], 'fontes': ['steam']}
         self.assertEqual(pc_games.find(self.cfg, game), {'store': 'steam', 'id': '10'})
         self.assertIsNone(pc_games.find(self.cfg, {**game, 'fontes': ['heroic:gog']}))
+        self.assertIsNone(pc_games.find(self.cfg, {**game, 'plataforma': 'Super Nintendo'}))
         self.assertEqual(pc_games.find(self.cfg, {'nome': 'The Sims 4', 'nomes_alt': [], 'fontes': ['steam']}), {'store': 'steam', 'id': '12'})
         self.assertEqual(pc_games.find(self.cfg, {'nome': 'Alien: Isolation', 'nomes_alt': [], 'fontes': ['heroic:epic']}),
                          {'store': 'legendary', 'id': 'abc123'})
@@ -47,6 +48,25 @@ class TestPcGames(unittest.TestCase):
         self.assertEqual(pc_games.command({'store': 'legendary', 'id': 'abc'})[-1], 'heroic://launch/legendary/abc')
         for bad in ({'store': 'steam', 'id': '1 2'}, {'store': 'legendary', 'id': 'a/b'}):
             with self.assertRaises(ValueError): pc_games.command(bad)
+
+    def test_amazon_nile_uses_installed_ids_and_cached_titles(self):
+        base = self.root / 'heroic'
+        (base / 'nile_config/nile').mkdir(parents=True)
+        (base / 'store_cache').mkdir(exist_ok=True)
+        app = 'amzn1.adg.product.abc-123'
+        installed = self.root / 'Games/amazon'; installed.mkdir(parents=True)
+        (base / 'nile_config/nile/installed.json').write_text(json.dumps([{'id': app, 'path': str(installed)}]))
+        (base / 'store_cache/nile_library.json').write_text(json.dumps({'library': [
+            {'app_name': app, 'title': 'Amazon instalado'},
+            {'app_name': 'nao-instalado', 'title': 'Só possuído'}]}))
+        self.assertEqual(pc_games.heroic_installed(self.cfg['heroic'], 'nile'), {'amazoninstalado': app})
+        found = pc_games.find(self.cfg, {'nome': 'Amazon instalado', 'fontes': ['heroic:amazon']})
+        self.assertEqual(pc_games.command(found)[-1], 'heroic://launch/nile/' + app)
+
+    def test_steam_download_incomplete_is_not_installed(self):
+        p = self.root / 'steam/steamapps/appmanifest_20.acf'
+        p.write_text('\"appid\" \"20\"\n\"name\" \"Incompleto\"\n\"StateFlags\" \"1026\"')
+        self.assertNotIn('incompleto', pc_games.steam_installed())
 
     def test_recent_keys_and_touch(self):
         self.assertEqual(recent.rom_key('PS2', 'Jogo X.iso'), recent.rom_key('PS2', 'Jogo X.iso'))

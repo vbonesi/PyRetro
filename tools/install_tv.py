@@ -13,7 +13,8 @@ import subprocess
 import tempfile
 import zlib
 
-NAME = 'PyRetro — Acervo'
+NAME = 'PyRetro'
+LEGACY_NAME = 'PyRetro — Acervo'
 
 
 def decode(data):
@@ -66,10 +67,14 @@ def add_shortcut(data, launcher, home):
     launch_options = '--host "' + str(launcher) + '"'
     for kind, key, fields in shortcuts:
         if kind != 0 or not key.isdigit(): raise ValueError('estrutura de atalho inesperada')
-        if any(t == 1 and k.lower() == 'appname' and v == NAME for t, k, v in fields):
+        if any(t == 1 and k.lower() == 'appname' and v in (NAME, LEGACY_NAME) for t, k, v in fields):
             values = {k.lower(): v for t, k, v in fields if t == 1}
             if values.get('exe') != exe or values.get('launchoptions') != launch_options:
                 raise ValueError('atalho com mesmo nome e comando diferente; arquivo preservado')
+            if values['appname'] == LEGACY_NAME:
+                # Mantém appid, artes, tags e perfil Steam Input existentes.
+                fields[:] = [(t, k, NAME if t == 1 and k.lower() == 'appname' else v) for t, k, v in fields]
+                return encode(nodes), True
             return data, False
     appid = zlib.crc32((exe + NAME).encode()) | 0x80000000
     fields = [(2, 'appid', struct.pack('<I', appid))]
@@ -100,8 +105,18 @@ def install(apply=False, config=None):
     if launcher.is_symlink():
         if launcher.resolve() != source: raise ValueError('lançador existente aponta para outro arquivo')
     elif launcher.exists(): raise ValueError('lançador existente preservado; revise-o antes de instalar')
-    if desktop.exists() and desktop.read_text() != content:
-        raise ValueError('atalho desktop existente preservado; revise-o antes de instalar')
+    if desktop.exists():
+        previous = desktop.read_text()
+        if ('Exec="' + str(launcher) + '"') not in previous.splitlines() or not any(
+                'Name=' + name in previous.splitlines() for name in (NAME, LEGACY_NAME)):
+            raise ValueError('atalho desktop existente preservado; revise-o antes de instalar')
+        content = previous.replace('Name=' + LEGACY_NAME + '\n', 'Name=' + NAME + '\n')
+    legacy_desktop = home / '.local/share/applications/bonisarch-8000.desktop'
+    legacy_content = None
+    if legacy_desktop.is_file():
+        previous = legacy_desktop.read_text()
+        if 'Exec=xdg-open http://127.0.0.1:8000/' in previous.splitlines():
+            legacy_content = '\n'.join(line for line in previous.splitlines() if not line.startswith(('Hidden=', 'NoDisplay='))) + '\nHidden=true\nNoDisplay=true\n'
     print('Lançador:', launcher)
     print('Atalho desktop:', desktop)
     print('Steam:', vdf, '(adicionar)' if changed else '(já existe)')
@@ -116,6 +131,8 @@ def install(apply=False, config=None):
     desktop.parent.mkdir(parents=True, exist_ok=True)
     if not launcher.is_symlink(): launcher.symlink_to(source)
     desktop.write_text(content)
+    if legacy_content is not None:
+        legacy_desktop.write_text(legacy_content)
     if changed:
         backup_dir = home / '.local/share/pyretro/steam-shortcuts'
         backup_dir.mkdir(parents=True, exist_ok=True)

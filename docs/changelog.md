@@ -6,6 +6,36 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 20/10/2026 — Frontend TV, Xbox e atalhos unificados
+
+- Tela inicial Sistemas com contagens do catálogo/local; Neste PC reúne ROMs completas e
+  instalações Steam/Epic/GOG/Amazon. O catálogo é montado por metadados locais e cache,
+  sem refresh de posse/nuvem nem gravação na biblioteca. CUE/GDI/M3U incompletos, arquivos
+  vazios, `.part`, capas e pastas fora do acervo não comprovam presença local.
+- Y abre pesquisa com teclado virtual; X apaga, Menu pesquisa e B cancela. LB/RB pulam
+  páginas, LT/RT trocam coleções. Plataforma/gênero e filtro de presença local funcionam
+  no controle. Atualizar preserva os filtros da seleção.
+- Apps oferece os aplicativos de jogos instalados, com Steam em Big Picture. ID fixo é
+  revalidado pelo backend; o navegador não fornece comandos. Alternativa de emulador por
+  jogo aparece apenas para cores compatíveis já instalados e fica no perfil do navegador.
+- A leitura do controle ignora dispositivos virtuais sem botões suficientes e fica suspensa
+  em segundo plano/durante o emulador. Retorno exige soltar os botões. Helper KWin tenta
+  restaurar o foco ao encerrar a sessão; homologação física/Steam Link continua pendente.
+- Detecção PC valida a presença do diretório informado pelo manifesto, recusa Steam ainda
+  não instalada e distingue homônimo de plataforma de console. Amazon/Nile passou a abrir
+  pelo Heroic, com IDs validados por loja e índices construídos uma vez por catálogo.
+- Instalador migra PyRetro — Acervo para PyRetro preservando appid, artes e demais campos
+  Steam. Atalho web antigo oculto no menu; interface completa continua disponível no navegador.
+- `tools/configure_xbox.py`: simulação por padrão, exige apps fechados, preserva cópias
+  anteriores na auditoria privada e altera apenas entrada/hotkeys/confirmação de parada.
+  Xbox configurado em RetroArch, PCSX2, DuckStation, Dolphin (GC/Wii) e PPSSPP. Back modifica
+  save/load, slots, pausa, captura, aceleração, menu e saída; Guide fica para o Bigscreen.
+  Nenhum save/load real foi acionado. Wii pode exigir perfis por jogo. NDS/3DS sem lançador
+  instalado continuam disponíveis para consulta/progresso.
+- Validação: 230 testes Python e 38 testes da interface com dados sintéticos; teste adicional
+  cobre Arcade sem nome no DAT. Acesso ao Xbox conferido nos quatro Flatpaks; aplicações,
+  acervo, ROMs, saves e configurações privadas ficam fora do Git.
+
 ## 20/10/2026 — Wishlist Steam só com jogos e marcas registradas entre lojas
 
 - A leitura da wishlist Steam confirma o tipo de cada produto e importa

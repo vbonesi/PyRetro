@@ -47,6 +47,8 @@ from core import organize as organize_mod
 from core import pc_backup as pc_backup_mod
 from core import play as play_mod
 from core import pc_games as pc_games_mod
+from core import tv as tv_mod
+from core import tv_apps as tv_apps_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -1498,13 +1500,27 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "play", "status"]:
             return self._json(PLAY_SESSIONS.status())
 
+        if parts == ["api", "tv", "local"]:
+            cfg = load_config()
+            lib = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
+            items = tv_mod.local_pc(cfg, lib) + tv_mod.local_roms(cfg, lib, arcade_romname_dat('ARCADE'))
+            return self._json(sorted(items, key=lambda g: g['name'].lower()))
+
+        if parts == ["api", "tv", "catalog"]:
+            cfg = load_config()
+            lib = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
+            return self._json(tv_mod.catalog(cfg, lib, sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH), arcade_romname_dat('ARCADE')))
+
+        if parts == ["api", "tv", "apps"]:
+            return self._json(tv_apps_mod.catalog(load_config()))
+
         if parts == ["api", "play", "options"]:
             try:
                 code = query.get("code", [""])[0]
                 name = query.get("name", [""])[0]
                 options = play_mod.candidates(load_config(), code, name)
                 launcher = play_mod.LAUNCHER
-                return self._json({"options": options, "launcher": launcher.is_file()})
+                return self._json({"options": options, "launcher": launcher.is_file(), "emulators": play_mod.emulators(code)})
             except (OSError, ValueError) as e:
                 return self._json({"error": str(e)}, 400)
 
@@ -2289,10 +2305,18 @@ class Handler(BaseHTTPRequestHandler):
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
 
+        if parts == ["api", "tv", "apps", "launch"]:
+            try:
+                tv_apps_mod.launch(load_config(), self._read_json_body().get('id'))
+            except (OSError, ValueError) as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json({"ok": True})
+
         if parts == ["api", "play", "start"]:
             body = self._read_json_body()
             try:
-                session = PLAY_SESSIONS.start(load_config(), body.get("code"), body.get("name"))
+                args = (body.get('emulator'),) if body.get('emulator') else ()
+                session = PLAY_SESSIONS.start(load_config(), body.get("code"), body.get("name"), *args)
             except (OSError, ValueError) as e:
                 return self._json({"error": str(e)}, 400)
             try:

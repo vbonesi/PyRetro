@@ -51,6 +51,17 @@ class TestPlay(unittest.TestCase):
             with self.assertRaises(OSError): sessions.start(self.cfg, 'PS2', 'Jogo.iso')
         self.assertEqual(sessions.status()['status'], 'idle')
 
+    def test_alternative_requires_known_core_for_system_and_validated_rom(self):
+        self.file('MD/Jogo.md')
+        self.cfg['systems'] = {'MD': {'exts': ['md']}}
+        core = self.file('cores/picodrive_libretro.so')
+        with patch.object(play, 'CORE_ROOT', core.parent):
+            self.assertEqual(play.prepare(self.cfg, 'MD', 'Jogo.md', 'picodrive')[-2:],
+                             [str(core), str(self.root / 'MD/Jogo.md')])
+            with self.assertRaises(ValueError): play.prepare(self.cfg, 'MD', 'Jogo.md', '../evil')
+            core.unlink()
+            with self.assertRaises(ValueError): play.prepare(self.cfg, 'MD', 'Jogo.md', 'picodrive')
+
     def test_emulator_failure_is_visible(self):
         self.file('PS2/Jogo.iso')
         process = Mock(); process.poll.return_value = 2

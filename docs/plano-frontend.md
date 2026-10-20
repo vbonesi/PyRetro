@@ -1,44 +1,47 @@
-# Plano: PyRetro como frontend no lugar do ES-DE (PC e celular)
+# Plano: PyRetro como frontend no PC e celular
 
-Levantado em 16/10/2026. Nada abaixo foi implementado; o que foi **verificado** está marcado.
+Levantado em 16/10/2026; situação do PC atualizada em 20/10/2026.
 
 ## PC
 
-### O que já existe (verificado no código e em `docs/modo-tv.md`)
-- Modo TV (`/tv`, `gui/static/tv.js`): navegação por controle/teclado, capas, coleções, plataformas,
-  gêneros, Sortear, Jogando (últimos abertos), progresso/nota, baixar ROM do Drive sob demanda.
-- Lançar jogo: `core/play.py` chama `~/.local/bin/bonisarch-emulator` (o mesmo que o ES-DE usa) só
-  com ROM validada dentro da pasta do sistema, sem shell; uma sessão por vez; no fim oferece
-  registrar progresso. Jogos de PC (Steam/Heroic) abrem pela loja.
-- Atalho Steam que abre o Chrome em tela cheia no `/tv` (`tools/pyretro-tv.sh`), com `raise-window.sh`.
-- Capas do PyRetro já aparecem no ES-DE, DuckStation e PCSX2 (`core/capas_emuladores.py`).
+Implementado no modo TV (`/tv`):
 
-### O que falta para dispensar o ES-DE
-1. **Tela inicial por sistema**, com logo e contagem, como a do ES-DE (hoje são abas).
-2. **Busca e filtros no controle** (teclado na tela).
-3. **Seção "Apps"**: lista no `config.toml` (`[apps.<id>]` com nome, comando fixo, ícone). O navegador só
-   manda o id; nunca um comando. Cobre "qualquer coisa do PC" sem abrir uma porta para execução livre.
-4. **Alternar emulador por jogo** (o ES-DE tem; hoje o lançador escolhe por sistema).
-5. **Integração de boot**: trocar `bonisarch-esde` por `pyretro-tv.sh` no atalho/autostart, mantendo o ES-DE
-   instalado até a homologação.
-6. **Foco ao sair do emulador** e controle (Steam Input × API Gamepad do Chrome): o próprio `modo-tv.md`
-   lista como "precisa ser conferido com os emuladores reais".
-7. Opcional: vídeo/marquee/screenshot (hoje só capa), tempo de jogo, favoritos.
+- Tela inicial **Sistemas**, com identificador, total do catálogo e quantidade local.
+- **Neste PC** reúne ROMs completas e instalações Steam/Epic/GOG/Amazon; plataforma e gênero
+  são filtros navegáveis pelo controle. Capas, `.part`, ROMs vazias e descritores incompletos
+  não comprovam instalação. Sistemas sem lançador continuam mostrando a presença local.
+- **Y** abre busca com teclado virtual; A digita, X apaga, Menu confirma e B cancela.
+  Na tela inicial a busca alcança todo o catálogo; nas coleções ela filtra a seleção atual.
+- **LB/RB** pulam uma página da grade; **LT/RT** trocam de coleção. Direcional/analógico
+  continuam navegando item a item; A confirma e B volta.
+- **Apps** abre a lista fixa dos programas instalados: Steam em Big Picture, Heroic,
+  emuladores, ES-DE e Remote Play Xbox/PlayStation. Entradas adicionais usam `[apps.<id>]`
+  no arquivo de configuração; o navegador envia somente ID, nunca argv/comando.
+- Alternativa por jogo quando há core compatível instalado (PicoDrive nos sistemas Sega;
+  SwanStation em PS1 quando instalado). A escolha fica no perfil do navegador e é revalidada
+  pelo backend. O padrão permanece o bridge do setup.
+- Retorno do foco à janela da TV ao encerrar uma sessão de emulador, usando o helper KWin
+  existente. Leitura do controle suspensa em segundo plano e durante a sessão; ao voltar,
+  exige soltar os botões antes de aceitar novo comando.
+- Nome do atalho de TV unificado em **PyRetro** no menu e na Steam. Migração preserva
+  appid/artes/tags/perfil Steam Input. Atalho web antigo oculto; interface completa continua
+  em `/`, pelo navegador.
+- Perfil Xbox e hotkeys comuns nos cinco emuladores instalados, com simulação/cópia anterior
+  por `tools/configure_xbox.py`. Detalhes em [`modo-tv.md`](modo-tv.md).
 
-### Riscos
-- Controle disputado entre Chrome e emulador (ações duplicadas); depende de Steam Input.
-- O Chrome fica aberto durante o jogo (RAM). Dá para minimizar/fechar a janela ao lançar e reabrir ao sair.
-- Homologação exige você na TV; eu não consigo conferir controle físico daqui.
+A integração de entrada/saída da sessão Plasma Bigscreen é mantida no setup do notebook,
+fora do PyRetro. O fluxo escolhido é **botão Modo TV → Bigscreen → PyRetro/Steam/apps**,
+sem substituir o desktop no boot. Guide pertence ao Bigscreen; Back modifica os hotkeys
+nos emuladores. O remapeamento do Bigscreen deve ficar suspenso quando a TV ou um jogo
+estiver em foco, para evitar teclado/mouse duplicados com Gamepad/SDL.
 
-### Etapas e esforço (estimativa; cada "sessão" = um bloco de trabalho como os de hoje)
-| Etapa | Conteúdo | Esforço |
-|---|---|---|
-| 1 | Tela de sistemas + busca por controle | 1 sessão |
-| 2 | Seção Apps com lista fixa no `config.toml` + testes | 1 sessão |
-| 3 | Emulador alternativo por jogo | 1 sessão |
-| 4 | Boot/foco/Steam Input, com você testando na TV | 1 sessão + testes seus |
-| 5 | Vídeos/marquees (opcional) | 1–2 sessões |
-Total: **4 sessões** para o essencial; ES-DE continua instalado até a etapa 4 passar.
+### Ainda depende de uso real
+
+- Homologação física do Xbox nos jogos, foco, Steam Input e Steam Link.
+- Ajustes por jogo no Wii (ponteiro/movimento e controle clássico).
+- Sistemas sem bridge/core instalado, como NDS/3DS, continuam sem lançamento pela TV.
+- Logos oficiais, vídeo/marquee/screenshot, tempo de sessão e favoritos são melhorias futuras.
+- ES-DE permanece instalado até a homologação do fluxo completo.
 
 ## Celular
 
