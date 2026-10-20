@@ -380,7 +380,10 @@ def read_steam_wishlist(steam_cfg: dict) -> list:
     que devolve só appid, então resolve nome/gênero/capa um por um via
     `appdetails` (mesmo endpoint de `steam_genero`) e o CDN oficial
     (`find_cover_steam_cdn`) - appid dá casamento exato, melhor que
-    adivinhar nome depois no SteamGridDB."""
+    adivinhar nome depois no SteamGridDB. Só importa o tipo `game`:
+    DLC, software, demos e outros produtos não contam como jogos.
+    Tipo ausente cancela a coleta, para uma resposta parcial não
+    autorizar retiradas."""
     steamid64 = steam_cfg.get("steamid64")
     if not steamid64:
         raise ValueError("faltando steamid64 em [steam] no config.toml")
@@ -419,6 +422,11 @@ def read_steam_wishlist(steam_cfg: dict) -> list:
         nome = info.get("name")
         if not nome:
             raise RuntimeError(f"appid {appid} da wishlist veio sem nome; sincronização cancelada")
+        tipo = info.get("type")
+        if not isinstance(tipo, str) or not tipo:
+            raise RuntimeError(f"appid {appid} da wishlist veio sem tipo válido; sincronização cancelada")
+        if tipo != "game":
+            continue
         generos = info.get("genres") or []
         resultado.append({
             "nome": nome, "appid": appid,
@@ -751,6 +759,12 @@ WISHLIST_PLATAFORMA_POSSE = {
 }
 
 
+def _wishlist_key(nome: str) -> str:
+    # NFKD transforma ™ em "TM"; retirar os símbolos antes evita
+    # duplicar um desejo entre lojas. Edições e números são mantidos.
+    return _normalize(nome.replace("™", "").replace("®", ""))
+
+
 def add_to_wishlist(library: dict, fonte: str, plataforma: str, nomes: list) -> dict:
     """Acrescenta nomes a uma lista de desejos (`fonte` tipo
     "wishlist:steam"/"wishlist:psn"/"wishlist:xbox") sem NUNCA tirar
@@ -769,13 +783,13 @@ def add_to_wishlist(library: dict, fonte: str, plataforma: str, nomes: list) -> 
     adicionar."""
     by_norm = {}
     for g in library["games"]:
-        by_norm.setdefault(_normalize(g["nome"]), []).append(g)
+        by_norm.setdefault(_wishlist_key(g["nome"]), []).append(g)
 
     resultado = {"adicionados": 0, "ja_tinha": 0, "removidos": 0, "apagados": 0,
                  "novos_ids": []}
 
     for nome in nomes:
-        norm = _normalize(nome)
+        norm = _wishlist_key(nome)
         existentes = by_norm.get(norm)
         if existentes:
             alvo = existentes[0]
@@ -808,10 +822,10 @@ def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list
     lista é digitada à mão, usam `add_to_wishlist` desde 21/09 - ver o
     porquê lá."""
     resultado = add_to_wishlist(library, fonte, plataforma, nomes_atuais)
-    atuais_norm = {_normalize(n) for n in nomes_atuais}
+    atuais_norm = {_wishlist_key(n) for n in nomes_atuais}
 
     for g in list(library["games"]):
-        if fonte in g["fontes"] and _normalize(g["nome"]) not in atuais_norm:
+        if fonte in g["fontes"] and _wishlist_key(g["nome"]) not in atuais_norm:
             g["fontes"].remove(fonte)
             resultado["removidos"] += 1
             if not g["fontes"]:

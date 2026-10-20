@@ -6,6 +6,20 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 20/10/2026 — Wishlist Steam só com jogos e marcas registradas entre lojas
+
+- A leitura da wishlist Steam confirma o tipo de cada produto e importa
+  somente `game`, deixando DLC, software e demo fora da lista do PyRetro.
+  Tipo ausente cancela a coleta inteira, preservando a proteção contra
+  remoções causadas por respostas incompletas.
+- Adição e sincronização de desejos ignoram `™` e `®` antes da normalização
+  Unicode, evitando duplicatas entre lojas sem mudar IDs ou histórico.
+  Base e Deluxe, subtítulos e sequências continuam distintos. A regra fica
+  restrita às wishlists; o casamento de ROMs e a importação de posse não mudam.
+- Quatro regressões novas cobrem tipos de produto, detalhes incompletos,
+  preservação de histórico entre grafias e distinção entre edições.
+  Validação: 220 testes Python e 37 de interface passaram com dados sintéticos.
+
 ## 16/10/2026 (fim, 2) — Texturas: importação por link
 
 - **Importar por link** (aba Texturas > "Importar um pacote de arquivo" > link direto): para os sistemas sem fonte confiável no

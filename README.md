@@ -766,7 +766,8 @@ Uma plataforma específica já registrada (como PlayStation 3) é preservada.
 
 Steam/PSN/Xbox juntos, cada fonte na própria sub-aba. Steam sincroniza
 sozinha (endpoint público `IWishlistService/GetWishlist` + `appdetails`
-pra nome/gênero/capa). PSN e Xbox não têm API de wishlist confiável -
+pra nome/gênero/capa), importando somente jogos: DLCs, demos e software
+ficam fora. PSN e Xbox não têm API de wishlist confiável -
 o usuário cola a lista direto na textarea da tela.
 
 Na Steam, `sync_wishlist()` (`core/library.py`) faz **diff de verdade** com a
@@ -775,6 +776,10 @@ outra fonte é apagado. Se qualquer appid vier sem detalhes válidos, a leitura
 falha e a sincronização inteira é cancelada; uma resposta parcial nunca
 autoriza remoção. PSN e Xbox só acrescentam os nomes colados; a retirada é
 individual pelo editor do jogo.
+
+Nas wishlists, `™` e `®` não diferenciam títulos entre lojas. Essa regra
+preserva o registro e seu histórico; números, subtítulos e edições
+(como base e Deluxe) continuam distinguindo produtos.
 
 O campo de PSN/Xbox aceita só os nomes novos; os desejos anteriores permanecem.
 O incidente causado pela regra antiga está registrado em `docs/changelog.md`.

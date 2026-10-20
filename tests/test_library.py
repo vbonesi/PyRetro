@@ -26,7 +26,7 @@ class TestSteamWishlistCompleta(unittest.TestCase):
     def test_falha_em_um_detalhe_cancela_lista_inteira(self):
         respostas = [
             io.BytesIO(json.dumps({"response": {"items": [{"appid": 1}, {"appid": 2}]}}).encode()),
-            io.BytesIO(json.dumps({"1": {"success": True, "data": {"name": "Jogo 1"}}}).encode()),
+            io.BytesIO(json.dumps({"1": {"success": True, "data": {"name": "Jogo 1", "type": "game"}}}).encode()),
             OSError("falha temporária"),
         ]
         with patch.object(lm.urllib.request, "urlopen", side_effect=respostas):
@@ -37,6 +37,28 @@ class TestSteamWishlistCompleta(unittest.TestCase):
     def test_resposta_incompleta_nao_vira_lista_vazia(self):
         with patch.object(lm.urllib.request, "urlopen", return_value=io.BytesIO(b'{"response": {}}')):
             with self.assertRaisesRegex(RuntimeError, "sem lista de itens válida"):
+                lm.read_steam_wishlist({"steamid64": "123"})
+
+    def test_nao_importa_dlc_software_ou_demo_como_jogo(self):
+        tipos = ("game", "dlc", "software", "demo")
+        respostas = [io.BytesIO(json.dumps({"response": {"items": [
+            {"appid": i} for i in range(1, 5)]}}).encode())]
+        respostas += [io.BytesIO(json.dumps({str(i): {"success": True, "data": {
+            "name": f"Produto {i}", "type": tipo}}}).encode())
+            for i, tipo in enumerate(tipos, 1)]
+        with patch.object(lm.urllib.request, "urlopen", side_effect=respostas), \
+                patch.object(lm, "find_cover_steam_cdn", return_value=None) as capas:
+            jogos = lm.read_steam_wishlist({"steamid64": "123"})
+        self.assertEqual([g["appid"] for g in jogos], [1])
+        capas.assert_called_once_with(1)
+
+    def test_tipo_ausente_cancela_coleta_em_vez_de_excluir_jogo(self):
+        respostas = [
+            io.BytesIO(b'{"response": {"items": [{"appid": 1}]}}'),
+            io.BytesIO(b'{"1": {"success": true, "data": {"name": "Jogo"}}}'),
+        ]
+        with patch.object(lm.urllib.request, "urlopen", side_effect=respostas):
+            with self.assertRaisesRegex(RuntimeError, "sem tipo válido.*sincronização cancelada"):
                 lm.read_steam_wishlist({"steamid64": "123"})
 
 
@@ -713,6 +735,28 @@ class TestSyncWishlist(unittest.TestCase):
         lib = {"games": [g]}
         lm.sync_wishlist(lib, "wishlist:steam", "Steam", [])
         self.assertEqual(lib["games"], [g])
+
+
+class TestWishlistMarcasRegistradas(unittest.TestCase):
+    def test_fontes_com_marcas_diferentes_preservam_id_e_historico(self):
+        existente = jogo("Street Fighter 6", "Xbox", fontes=["wishlist:steam"],
+                         nota=9, observacoes="preservar")
+        gid = existente["id"]
+        lib = {"games": [existente]}
+        lm.add_to_wishlist(lib, "wishlist:xbox", "Xbox", ["Street Fighter® 6"])
+        resultado = lm.sync_wishlist(lib, "wishlist:steam", "Steam", ["Street Fighter™ 6"])
+        self.assertEqual(lib["games"], [existente])
+        self.assertEqual(resultado["removidos"], 0)
+        self.assertEqual(existente["id"], gid)
+        self.assertEqual(existente["fontes"], ["wishlist:steam", "wishlist:xbox"])
+        self.assertEqual((existente["nota"], existente["observacoes"]), (9, "preservar"))
+
+    def test_edicao_deluxe_nao_vira_o_jogo_base(self):
+        deluxe = jogo("Jogo™ Deluxe Edition", "Xbox", fontes=["wishlist:xbox"])
+        lib = {"games": [deluxe]}
+        lm.add_to_wishlist(lib, "wishlist:steam", "Steam", ["Jogo®"])
+        self.assertEqual(len(lib["games"]), 2)
+        self.assertEqual(deluxe["fontes"], ["wishlist:xbox"])
 
 
 if __name__ == "__main__":
