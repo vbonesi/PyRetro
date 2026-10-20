@@ -34,10 +34,12 @@ não são só estilo:
 
 ## Modo TV
 
-Acesse `http://127.0.0.1:8000/tv` para navegar pelo acervo com controle,
-pesquisar pelo Y, pular páginas com LB/RB, ver jogos neste PC,
-abrir lojas/apps, registrar progresso/notas, baixar ROMs pesadas do seu Drive e abrir os
-emuladores pelo lançador do setup. Instalação do atalho e limitações:
+Acesse `http://127.0.0.1:8000/tv` para uma tela inicial com recentes, continuar jogando,
+favoritos e jogos instalados. Navegue pelo controle: Y pesquisa, X favorita,
+LB/RB pulam páginas e Menu abre opções de tema/tela cheia. Os acessos rápidos abrem
+Xbox remoto, PS4 remoto, Switch Lite via SysDVR, Steam, Heroic e emuladores quando
+os clientes estão instalados. Também oferece progresso/notas, download de ROMs do seu
+Drive e lançamento pelo setup. Instalação do atalho e limitações:
 [`docs/modo-tv.md`](docs/modo-tv.md).
 
 ## Gráficos dos emuladores

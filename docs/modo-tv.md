@@ -18,18 +18,30 @@ Direcional ou analógico esquerdo navegam entre os botões e as capas. A confirm
 B volta. O mapeamento segue o padrão Gamepad do navegador; teclado também funciona
 com setas, Enter, Tab e Esc. Pressione um botão para o navegador reconhecer o controle.
 Y abre a busca com teclado na tela (X apaga, Menu confirma e B cancela).
-LB/RB pulam páginas da grade; LT/RT trocam coleções. Page Up/Page Down também
-funcionam pelo teclado. A tela inicial Sistemas mostra totais e presença local;
+LB/RB pulam páginas da grade ou da fileira de capas; LT/RT trocam coleções. Page Up/Page Down também
+funcionam pelo teclado. **Início** reúne recentes, continuar jogando, favoritos,
+instalações Steam/Heroic e ROMs locais em fileiras, com destaque do jogo selecionado.
+O foco inicial fica no botão de abrir o destaque, sem rolar a tela para fora do cabeçalho.
+Sistemas mostra totais e presença local;
 Neste PC reúne instalações Steam/Epic/GOG/Amazon e ROMs locais completas.
 Os filtros de plataforma, gênero e Só neste PC são botões navegáveis.
 A busca na tela inicial usa todo o catálogo; nas coleções, filtra a seleção atual.
 Atualizar relê o disco/cache, sem sincronizar posse ou atualizar o Drive.
 
+**X** guarda/remove o jogo em foco nos favoritos; dentro da busca, continua apagando
+uma letra. **Menu** abre opções: tema escuro/claro, tela cheia e volta ao início ou à
+interface completa. O relógio usa o fuso do navegador e a bateria aparece quando
+o navegador oferece essa informação. Favoritos e tema ficam em
+`cache/tv_preferences.json`, com lock e gravação atômica, sem mudar a Biblioteca.
+Recentes usam o histórico local de lançamentos; não exigem marcar o jogo como iniciado.
+Continuar jogando usa iniciado sem finalizado, priorizando presença local e último uso.
+
 O controle precisa chegar ao navegador como gamepad; o perfil Steam Input deve ser
 conferido na instalação final para evitar ações duplicadas de mouse/teclado.
 
 Biblioteca e Jogando oferecem filtros por plataforma. ROMs leves e pesadas oferecem
-seleção por sistema. Cada capa abre o progresso: iniciado, finalizado, platinado e
+seleção por sistema. Cada capa abre os detalhes, priorizando **Jogar** quando disponível.
+**Progresso e nota** expande a edição de iniciado, finalizado, platinado e
 nota entre 0 e 11, com ajustes de 1 ou 0,1. **Salvar progresso** aplica todas as
 mudanças juntas; Voltar descarta alterações não salvas. A cascata mantém platinado
 como finalizado e iniciado; desmarcar iniciado desmarca os dois seguintes.
@@ -92,6 +104,9 @@ ainda precisam ser conferidos com os emuladores reais.
 ## Apps e emulador por jogo
 
 Apps oferece os aplicativos de jogos instalados (Steam abre em Big Picture).
+Início também oferece atalhos para Xbox remoto (Greenlight), PS4 remoto (Chiaki),
+Steam, Heroic e os emuladores. Abrir o cliente usa sua autenticação/pareamento já
+configurados; a integração não afirma que os consoles estão online ou pareados.
 Entradas adicionais podem ser definidas como `[apps.identificador]`, com `nome`,
 `icone` e `comando = ["executável", "argumento"]`. Só a configuração local fornece
 comandos: a API recebe apenas o ID e revalida a lista a cada abertura, sem shell.
@@ -101,6 +116,26 @@ conhecida instalada. PicoDrive é oferecido para Mega Drive/Master System/Game G
 SwanStation para PS1, caso seu core exista. A escolha por jogo fica no perfil do
 navegador, e arquivos/core são revalidados antes de abrir. O padrão continua usando
 o lançador do setup.
+
+### Switch Lite por Wi-Fi
+
+O acesso **Switch Lite** aparece quando o cliente oficial SysDVR está instalado
+(`com.github.exelix11.sysdvr`). O console precisa de SysDVR no Atmosphère e modo
+**TCP Bridge** ativo no SysDVR Settings. O endereço pode ficar em
+`cache/tv_remotes.json` como `{"switch_ip":"IP_DO_CONSOLE"}` (arquivo local ignorado
+pelo Git). Apenas IP válido é aceito; sem endereço, usa descoberta automática.
+O backend abre `bridge IP --fullscreen` com argumentos fixos, sem shell.
+
+O SysDVR transmite áudio/vídeo dos jogos compatíveis; não captura o menu HOME e
+não encaminha automaticamente o controle Xbox do PC. Use os controles do próprio
+Switch para jogar. A versão padrão transmite 720p/30 fps; qualidade depende do
+Wi-Fi. Consulte o [guia oficial](https://github.com/exelix11/SysDVR/wiki) e as
+[limitações](https://github.com/exelix11/SysDVR#limitations).
+
+Neste notebook o cliente 6.3 foi instalado da release oficial e o IP informado foi
+guardado apenas no cache privado. Na conferência de 20/10, as portas TCP 9911/9922
+recusaram conexão. Transmissão real aguarda ativação/verificação do SysDVR no console;
+nenhuma mudança foi feita no Atmosphère ou no cartão SD.
 
 ## Xbox e atalhos dos emuladores
 
@@ -168,3 +203,8 @@ traversal/symlinks, download em staging, preservação de arquivos, pastas e ata
 VDF. O ciclo baixar → abrir → encerrar também foi conferido em navegador com ROM
 e lançador fictícios. Controle físico, Steam Input, download real e Steam Link
 precisam de homologação na máquina.
+
+A tela inicial também é testada com APIs falsas: atalhos remotos por ID, favoritos
+sem repetição ao segurar X, falhas visíveis, persistência de tema, foco em Jogar e
+ausência de escrita de progresso ao navegar/favoritar. A API verifica favoritos
+concorrentes, rejeição de entradas inválidas e preservação integral da Biblioteca.

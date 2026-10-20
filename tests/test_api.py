@@ -92,7 +92,8 @@ class BaseAPI(unittest.TestCase):
         cfg_path.write_text(CONFIG_MODELO.format(raiz=cls.raiz))
 
         # Aponta o módulo pro acervo falso (são constantes de módulo).
-        cls._orig = (srv.CONFIG_PATH, srv.REGISTRY_PATH, srv.HEAVY_CATALOG_PATH, srv.LAST_PLAYED_PATH)
+        cls._orig = (srv.CONFIG_PATH, srv.REGISTRY_PATH, srv.HEAVY_CATALOG_PATH, srv.LAST_PLAYED_PATH, srv.TV_PREFS_PATH)
+        srv.TV_PREFS_PATH = cls.raiz / 'cache/tv_preferences.json'
         srv.LAST_PLAYED_PATH = cls.raiz / "cache" / "last_played.json"
         srv.CONFIG_PATH = cfg_path
         srv.REGISTRY_PATH = cls.raiz / "cache" / "covers_registry.json"
@@ -111,7 +112,7 @@ class BaseAPI(unittest.TestCase):
     def tearDownClass(cls):
         cls.servidor.shutdown()
         cls.servidor.server_close()
-        srv.CONFIG_PATH, srv.REGISTRY_PATH, srv.HEAVY_CATALOG_PATH, srv.LAST_PLAYED_PATH = cls._orig
+        srv.CONFIG_PATH, srv.REGISTRY_PATH, srv.HEAVY_CATALOG_PATH, srv.LAST_PLAYED_PATH, srv.TV_PREFS_PATH = cls._orig
         cls._tmp.cleanup()
 
     def gravar_biblioteca(self, jogos):

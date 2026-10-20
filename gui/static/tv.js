@@ -14,8 +14,10 @@ async function api(url, body) {
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
   return data;
 }
-const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "systems", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null};
-const collections = [["systems", "Sistemas"], ["local", "Neste PC"], ["library", "Biblioteca"], ["playing", "Jogando"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["apps", "Apps"]];
+const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "home", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null, preferences: {favorites: [], theme: "dark"}, home: null};
+const collections = [["home", "Início"], ["local", "Neste PC"], ["favorites", "Favoritos"], ["systems", "Sistemas"], ["library", "Biblioteca"], ["playing", "Jogando"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["apps", "Apps"]];
+const cardGames = new WeakMap();
+let spotlightGame, settingsReturnFocus;
 function button(text, action, pressed) {
   const b = document.createElement("button"); b.textContent = text; b.type = "button";
   if (pressed !== undefined) b.setAttribute("aria-pressed", String(pressed));
@@ -37,13 +39,13 @@ function platformTabs() {
   const nav = $("platforms"); if (state.kind === "draw") return; nav.replaceChildren();
   const genres = $("genres");
   const names = [...new Set(state.items.map(g => g.tracking?.genero).filter(Boolean))].sort();
-  if (!["systems", "apps"].includes(state.kind) && names.length) {
+  if (!["home", "systems", "apps"].includes(state.kind) && names.length) {
     genres.hidden = false;
     for (const name of ["", ...names]) genres.append(button(name || "Qualquer gênero", () => {
       state.genre = name; platformTabs(); render(); genres.querySelector('[aria-pressed="true"]')?.focus();
     }, (state.genre || "") === name));
   }
-  if (["library", "playing", "local", "search"].includes(state.kind)) {
+  if (["library", "playing", "local", "search", "favorites"].includes(state.kind)) {
     const platforms = [...new Set(state.items.map(g => g.platform))].sort();
     for (const p of ["", ...platforms]) nav.append(button(p || "Todas as plataformas", () => {
       state.filter = p; platformTabs(); render(); nav.querySelector(`[aria-pressed="true"]`)?.focus();
@@ -78,12 +80,17 @@ async function load(kind = state.kind, code = "") {
   state.code = code || systems[0]?.code || "";
   state.items = []; collectionTabs(); platformTabs(); render();
   $("title").textContent = collections.find(x => x[0] === kind)?.[1] || "Pesquisa";
-  $("installed-only").hidden = ["systems", "apps", "draw", "local"].includes(kind);
+  $("installed-only").hidden = ["home", "systems", "apps", "draw", "local"].includes(kind);
   report("Carregando catálogo…");
   try {
     let items;
-    if (["systems", "search"].includes(kind)) {
+    if (kind === "home") {
+      const home = await api("/api/tv/home");
+      if (request !== state.request) return;
+      state.home = home; applyPreferences(home.preferences || state.preferences); items = [];
+    } else if (["systems", "search", "favorites"].includes(kind)) {
       items = await api("/api/tv/catalog");
+      if (kind === "favorites") items = items.filter(g => g.favorite);
     } else if (kind === "local") {
       items = await api("/api/tv/local");
     } else if (kind === "apps") {
@@ -104,36 +111,135 @@ async function load(kind = state.kind, code = "") {
       const sys = systems.find(s => s.code === c);
       items = (kind === "heavy" ? data.items : data).map(g => romItem(kind, c, sys, g));
     }
+    if (["library", "playing", "heavy", "light"].includes(kind)) {
+      const metadata = await api("/api/tv/catalog");
+      const byId = new Map(metadata.filter(g => g.id).map(g => [`${g.code || ""}:${g.id}`, g]));
+      const byRom = new Map(metadata.filter(g => g.code).flatMap(g => [[`${g.code}:${g.romName}`, g], [`${g.code}:${g.name}`, g]]));
+      for (const g of items) {
+        const matched = (g.id && byId.get(`${g.code || ""}:${g.id}`)) || byRom.get(`${g.code}:${g.romName}`) || byRom.get(`${g.code}:${g.name}`);
+        if (matched) Object.assign(g, {key: matched.key, favorite: matched.favorite, lastPlayed: matched.lastPlayed, local: matched.local});
+      }
+    }
     if (state.installedOnly && ["heavy", "light"].includes(kind)) {
       const local = await api("/api/tv/local");
       for (const g of items) g.local = local.some(x => x.code === g.code && (x.romName === g.romName || x.romName === g.romName.replace(/\.[^.]+$/, "")));
     }
     if (request !== state.request) return;
     state.items = items; platformTabs(); render();
-    (code ? $("platforms") : $("collections")).querySelector('[aria-pressed="true"]')?.focus();
+    if (kind === "home") { ($("spotlight").hidden ? $("home").querySelector("button") : $("spotlight-open"))?.focus({preventScroll: true}); window.scrollTo(0, 0); }
+    else (code ? $("platforms") : $("collections")).querySelector('[aria-pressed="true"]')?.focus();
   } catch (error) { if (request === state.request) report(`Não foi possível carregar: ${error.message}. Selecione a coleção para tentar novamente.`, true); }
 }
 function render() {
+  const home = state.kind === "home";
+  document.body.classList.toggle("home-screen", home);
+  $("home").hidden = !home; $("gallery").hidden = home; $("spotlight").hidden = !home;
   $("search-summary").textContent = state.query ? `Busca: ${state.query}` : "";
   $("installed-only").setAttribute("aria-pressed", String(state.installedOnly));
+  if (home) return renderHome();
   if (state.kind === "systems") return renderSystems();
   if (state.kind === "apps") return renderApps();
   const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre) && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || state.kind === "local" || g.local) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
   const gallery = $("gallery"); gallery.replaceChildren();
   if (state.kind === "draw") gallery.append(Object.assign(button("🎲 Sortear", drawGame), {className: "game draw"}));
-  for (const g of items) {
+  for (const g of items) gallery.append(gameCard(g));
+  if (state.kind === "draw") return report(items.length ? "Sorteado! Abra a capa para jogar ou registrar progresso." : "Escolha grupo e gênero, depois sorteie.");
+  report(items.length ? `${items.length} jogos · escolha uma capa` : state.kind === "favorites" ? "Escolha um jogo e pressione X para guardar nos favoritos." : "Nenhum jogo nesta seleção.");
+}
+function gameCard(g) {
     const card = button("", () => openGame(g, card)); card.className = "game";
+    cardGames.set(card, g); card.dataset.key = g.key || (g.id ? `pc:${g.id}` : `${g.code}:${g.romName}`);
+    card.addEventListener("focus", () => { if (state.kind === "home") showSpotlight(g); });
     if (g.cover) { const img = document.createElement("img"); img.src = g.cover; img.alt = ""; img.loading = "lazy"; img.className = "art"; card.append(img); }
     else { const art = document.createElement("div"); art.className = "art placeholder"; art.textContent = "✦"; card.append(art); }
-    const title = document.createElement("strong"); title.textContent = g.name;
+    const title = document.createElement("strong"); title.textContent = (g.favorite ? "★ " : "") + g.name;
     const meta = document.createElement("small"); const t = g.tracking;
     meta.textContent = [g.platform, g.downloadName && !g.local ? "Só no Drive" : g.local ? "No PC" : "", t.platinado ? "🏆 Platinado" : t.finalizado ? "✓ Finalizado" : t.iniciado ? "▶ Iniciado" : "", t.nota != null ? `★ ${t.nota}` : ""].filter(Boolean).join(" · ");
-    card.append(title, meta); gallery.append(card);
-  }
-  if (state.kind === "draw") return report(items.length ? "Sorteado! Abra a capa para jogar ou registrar progresso." : "Escolha grupo e gênero, depois sorteie.");
-  report(items.length ? `${items.length} jogos · escolha uma capa` : "Nenhum jogo nesta seleção.");
+    card.append(title, meta); return card;
 }
+function showSpotlight(g) {
+  spotlightGame = g;
+  $("spotlight-title").textContent = g.name;
+  $("spotlight-meta").textContent = [g.platform, g.local ? "Pronto neste PC" : g.downloadName ? "Disponível no Drive" : "Na sua biblioteca", g.tracking.genero, g.favorite ? "★ Favorito" : ""].filter(Boolean).join(" · ");
+  $("spotlight-art").style.backgroundImage = g.cover ? `url(${JSON.stringify(g.cover)})` : "none";
+  $("spotlight-open").textContent = g.local ? "Abrir jogo" : "Ver jogo";
+}
+$("spotlight-open").onclick = () => { if (spotlightGame) openGame(spotlightGame); };
+function renderHome() {
+  const box = $("home"); box.replaceChildren();
+  const home = state.home; $("spotlight").hidden = !home;
+  if (!home) return;
+  const quick = document.createElement("section"); quick.className = "quick-access"; quick.setAttribute("aria-label", "Acesso rápido");
+  for (const appId of ["greenlight", "chiaki", "sysdvr", "steam", "heroic"]) {
+    const app = home.apps?.find(g => g.id === appId);
+    if (app) { const b = button(`${app.icon} ${app.name}`, () => launchApp(app)); b.dataset.app = appId; quick.append(b); }
+  }
+  quick.append(button("🕹 Emuladores", () => load("systems")), button("▦ Todos neste PC", () => load("local")));
+  box.append(quick);
+  for (const [key, title] of [["recent", "Jogados recentemente"], ["continue", "Continuar jogando"], ["favorites", "Seus favoritos"], ["installed", "Steam e Heroic · prontos para jogar"], ["ready", "Explore seu acervo local"]]) {
+    const games = home[key] || []; if (!games.length) continue;
+    const section = document.createElement("section"); section.className = "home-section"; section.dataset.shelf = key;
+    const heading = document.createElement("h3"); heading.textContent = title;
+    const row = document.createElement("div"); row.className = "shelf"; row.setAttribute("aria-label", title);
+    for (const game of games) row.append(gameCard(game));
+    section.append(heading, row); box.append(section);
+  }
+  const all = [home.recent, home.continue, home.favorites, home.installed, home.ready].flatMap(g => g || []);
+  const featured = all.find(g => spotlightGame?.key && g.key === spotlightGame.key) || all[0];
+  $("spotlight").hidden = !featured; if (featured) showSpotlight(featured);
+  if (!all.length) { const empty = document.createElement("p"); empty.className = "hint"; empty.textContent = "Sua próxima partida começa aqui. Abra Neste PC ou explore os sistemas. Os jogos que você abrir aparecerão em Recentes; X guarda seus favoritos."; box.append(empty); }
+  report(home.counts ? `${home.counts.local || 0} jogos neste PC · ${home.counts.pc || 0} da Steam e Heroic` : "Escolha sua próxima partida.");
+}
+function applyPreferences(preferences) {
+  state.preferences = preferences;
+  document.documentElement.dataset.theme = preferences.theme || "dark";
+  $("theme-dark").setAttribute("aria-pressed", String(preferences.theme !== "light"));
+  $("theme-light").setAttribute("aria-pressed", String(preferences.theme === "light"));
+}
+function focusedGame() { return $("details").open ? state.selected : cardGames.get(document.activeElement) || (document.activeElement === $("spotlight-open") ? spotlightGame : null); }
+function updateFavoriteButton(g) { $("favorite").textContent = g.favorite ? "★ Favorito" : "☆ Favoritar"; $("favorite").setAttribute("aria-pressed", String(!!g.favorite)); }
+async function toggleFavorite(g = focusedGame()) {
+  if (!g || state.busy) return;
+  state.busy = true; const active = document.activeElement; const identity = active.dataset?.key; const shelf = active.closest?.("[data-shelf]")?.dataset.shelf;
+  try {
+    const preferences = await api("/api/tv/favorite", {key: g.key, id: g.id, code: g.code, name: g.romName, favorite: !g.favorite});
+    g.key = preferences.key; g.favorite = !g.favorite; applyPreferences(preferences);
+    for (const item of [...state.items, ...["recent", "continue", "favorites", "installed", "ready"].flatMap(k => state.home?.[k] || [])]) if (item.key) item.favorite = preferences.favorites.includes(item.key);
+    if (state.home) state.home.favorites = [...state.home.favorites.filter(x => x.key !== g.key), ...(g.favorite ? [g] : [])];
+    if (state.kind === "favorites") state.items = state.items.filter(x => x.favorite);
+    render(); updateFavoriteButton(g);
+    if (!$("details").open) {
+      const cards = [...document.querySelectorAll("#home .game,#gallery .game")];
+      (cards.find(c => c.dataset.key === (identity || g.key) && c.closest("[data-shelf]")?.dataset.shelf === shelf) || cards.find(c => c.dataset.key === g.key) || cards[0])?.focus();
+    }
+    report(g.favorite ? "Guardado nos favoritos." : "Removido dos favoritos.", false, $("details").open ? "detail-status" : "message");
+  } catch (e) { report(`Não foi possível atualizar favorito: ${e.message}`, true, $("details").open ? "detail-status" : "message"); }
+  finally { state.busy = false; }
+}
+$("favorite").onclick = () => toggleFavorite(state.selected);
+function openSettings() {
+  if (document.querySelector("dialog[open]")) return;
+  settingsReturnFocus = document.activeElement; report("", false, "settings-status");
+  $("settings-dialog").showModal(); $(state.preferences.theme === "light" ? "theme-light" : "theme-dark").focus();
+}
+function closeSettings() { $("settings-dialog").close(); (settingsReturnFocus?.isConnected ? settingsReturnFocus : $("settings-open")).focus(); }
+$("settings-open").onclick = openSettings; $("settings-close").onclick = closeSettings;
+$("settings-dialog").addEventListener("cancel", e => { e.preventDefault(); closeSettings(); });
+$("settings-home").onclick = () => { closeSettings(); load("home"); };
+for (const theme of ["dark", "light"]) $(`theme-${theme}`).onclick = async () => {
+  if (state.busy) return; state.busy = true;
+  try { applyPreferences(await api("/api/tv/preferences", {theme})); report("Tema salvo.", false, "settings-status"); }
+  catch (e) { report(e.message, true, "settings-status"); }
+  finally { state.busy = false; }
+};
+$("fullscreen").onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch (_) { report("Use o atalho PyRetro do menu para abrir em tela cheia.", false, "settings-status"); } };
+function updateClock() { $("clock").textContent = new Date().toLocaleTimeString("pt-BR", {hour: "2-digit", minute: "2-digit"}); }
+updateClock(); setInterval(updateClock, 30000);
+if (navigator.getBattery) navigator.getBattery().then(battery => {
+  const update = () => { $("battery").hidden = false; $("battery").textContent = `${battery.charging ? "⚡" : "▰"} ${Math.round(battery.level * 100)}%`; };
+  battery.addEventListener("levelchange", update); battery.addEventListener("chargingchange", update); update();
+}).catch(() => {});
 function renderSystems() {
   const groups = new Map();
   for (const g of state.items) {
@@ -160,25 +266,26 @@ function renderSystems() {
 }
 function renderApps() {
   $("gallery").replaceChildren(...state.items.map(g => {
-    const card = button(`${g.icon} ${g.name}`, async () => {
-      if (state.busy) return; state.busy = true;
-      try { await api("/api/tv/apps/launch", {id: g.id}); report(`${g.name}: abertura solicitada.`); }
-      catch (e) { report(e.message, true); }
-      finally { state.busy = false; }
-    }); card.className = "game system-card"; return card;
+    const card = button(`${g.icon} ${g.name}`, () => launchApp(g)); card.className = "game system-card"; return card;
   }));
   report("Escolha um aplicativo para abrir.");
 }
+async function launchApp(app) {
+  if (state.busy) return; state.busy = true;
+  try { await api("/api/tv/apps/launch", {id: app.id}); report(app.id === "sysdvr" ? "Switch Lite: abrindo transmissão. Ative TCP Bridge no SysDVR do console e use os controles do Switch para jogar." : `${app.name}: abertura solicitada.`, false, "play-status"); }
+  catch (e) { report(e.message, true, "play-status"); }
+  finally { state.busy = false; }
+}
 let searchReturnFocus;
 function openSearch() {
-  if ($("details").open || $("search-dialog").open) return;
+  if (document.querySelector("dialog[open]")) return;
   searchReturnFocus = document.activeElement; $("search-input").value = state.query;
   $("search-dialog").showModal(); $("keyboard").querySelector("button")?.focus();
 }
 function closeSearch() { $("search-dialog").close(); (searchReturnFocus?.isConnected ? searchReturnFocus : $("search-open"))?.focus(); }
 async function applySearch() {
   state.query = $("search-input").value.trim(); closeSearch();
-  if (["systems", "apps", "draw"].includes(state.kind)) await load("search"); else render();
+  if (["home", "systems", "apps", "draw"].includes(state.kind)) await load("search"); else render();
   $("gallery").querySelector("button")?.focus();
 }
 for (const character of "1234567890QWERTYUIOPASDFGHJKLÇZXCVBNM -'") $("keyboard").append(button(character === " " ? "␣" : character, () => { const input = $("search-input"); input.value = (input.value + character).slice(0, 120); }));
@@ -223,17 +330,25 @@ async function drawGame() {
   } catch (e) { report(`Não foi possível sortear: ${e.message}`, true); }
   finally { state.drawing = false; }
 }
-let returnFocus, returnIndex;
+let returnFocus, returnIndex, returnGameKey;
 function openGame(g, origin = document.activeElement) {
   returnFocus = origin; returnIndex = [...$("gallery").children].indexOf(returnFocus); state.selected = g;
+  returnGameKey = origin?.dataset?.key;
   state.draft = {iniciado: !!g.tracking.iniciado, finalizado: !!g.tracking.finalizado, platinado: !!g.tracking.platinado, nota: g.tracking.nota ?? null};
   $("game-title").textContent = g.name; $("game-platform").textContent = g.platform;
+  $("detail-cover").hidden = !g.cover; if (g.cover) $("detail-cover").src = g.cover;
+  updateFavoriteButton(g); $("progress-fields").hidden = true; $("progress-toggle").setAttribute("aria-expanded", "false");
   report("", false, "detail-status"); renderTracking();
   $("download").hidden = !g.downloadName; $("download").textContent = "Baixar para o PC"; $("download").dataset.confirm = "";
   $("download").disabled = !!state.download;
-  $("details").showModal(); $("tracking").querySelector("button").focus();
+  $("details").showModal(); $("close").focus();
   refreshPlayOptions(g);
 }
+$("progress-toggle").onclick = () => {
+  $("progress-fields").hidden = !$("progress-fields").hidden;
+  $("progress-toggle").setAttribute("aria-expanded", String(!$("progress-fields").hidden));
+  if (!$("progress-fields").hidden) $("tracking").querySelector("button")?.focus();
+};
 function renderTracking() {
   const fields = [["iniciado", "Iniciado"], ["finalizado", "Finalizado"], ["platinado", "Platinado"]];
   $("tracking").replaceChildren(...fields.map(([key, label], index) => button(label, () => {
@@ -252,7 +367,11 @@ $("rating-up").onclick = () => adjustRating(1);
 $("rating-fine-down").onclick = () => adjustRating(-0.1);
 $("rating-fine-up").onclick = () => adjustRating(0.1);
 $("rating-clear").onclick = () => { state.draft.nota = null; renderTracking(); };
-function closeGame() { if (!state.busy) { $("details").close(); (returnFocus?.isConnected ? returnFocus : $("gallery").children[Math.max(0, returnIndex)] || $("collections").querySelector("button"))?.focus(); } }
+function closeGame() { if (!state.busy) {
+  $("details").close();
+  const matching = [...document.querySelectorAll("#home .game,#gallery .game")].find(c => c.dataset.key === returnGameKey);
+  (returnFocus?.isConnected ? returnFocus : matching || $("gallery").children[Math.max(0, returnIndex)] || $("home").querySelector("button") || $("collections").querySelector("button"))?.focus();
+} }
 $("close").onclick = closeGame;
 $("details").addEventListener("cancel", e => { e.preventDefault(); closeGame(); });
 $("save").onclick = async () => {
@@ -326,7 +445,10 @@ async function refreshPlayOptions(g) {
       $("download").textContent = g.local ? "Completar download" : "Baixar para o PC";
       box.append(button("Baixar e jogar", () => { $("download").dataset.confirm = ""; downloadGame(true); $("download").focus(); }));
     }
-    if ($("details").open && document.activeElement === document.body) box.querySelector("button:not(:disabled)")?.focus();
+    if ($("details").open && [document.body, $("close")].includes(document.activeElement)) {
+      const play = [...box.querySelectorAll("button:not(:disabled)")].find(b => !b.hasAttribute("aria-pressed"));
+      play?.classList.add("primary"); play?.focus();
+    }
   } catch (e) { if (request === playRequest && state.selected === g) $("play-hint").textContent = e.message; }
 }
 async function refreshPcOption(g, request) {
@@ -337,7 +459,8 @@ async function refreshPcOption(g, request) {
     if (data.available) {
       box.append(button(`Jogar (${data.store === "steam" ? "Steam" : "Heroic"})`, () => startPcGame(g)));
       $("play-hint").textContent = "Abre pela loja instalada neste PC; depois registre o progresso aqui.";
-      if ($("details").open && document.activeElement === document.body) box.querySelector("button")?.focus();
+      box.querySelector("button")?.classList.add("primary");
+      if ($("details").open && [document.body, $("close")].includes(document.activeElement)) box.querySelector("button")?.focus();
     } else $("play-hint").textContent = "Não instalado na Steam/Heroic deste PC; abra pela loja para jogar.";
   } catch (e) { if (request === playRequest && state.selected === g) $("play-hint").textContent = e.message; }
 }
@@ -346,6 +469,7 @@ async function startPcGame(g) {
   state.busy = true;
   try {
     await api("/api/pc/launch", {id: g.id});
+    await refreshHomeAfterPlay();
     report(`${g.name} foi aberto pela loja. Ao terminar, volte aqui para registrar progresso e nota.`, false, "play-status");
     report("Pedido enviado à loja. A janela do jogo pode demorar a aparecer.", false, "detail-status");
   } catch (e) { report(`Não foi possível abrir: ${e.message}`, true, "play-status"); report(e.message, true, "detail-status"); }
@@ -359,8 +483,16 @@ async function startGame(g, name) {
     sessionGame = g; report(`Em jogo: ${g.name}. Ao sair, volte aqui para registrar progresso e nota.`, false, "play-status");
     if (state.selected === g) report("Emulador iniciado. Sair dele encerra a sessão; finalizar o jogo é uma escolha sua.", false, "detail-status");
     watchSession(session);
+    refreshHomeAfterPlay();
   } catch (e) { report(`Não foi possível jogar: ${e.message}`, true, "play-status"); }
   finally { state.busy = false; }
+}
+async function refreshHomeAfterPlay() {
+  if (!state.home) return;
+  try {
+    state.home = await api("/api/tv/home");
+    if (state.kind === "home") render();
+  } catch (_) { /* O próximo Atualizar relê os recentes, sem afetar o lançamento. */ }
 }
 async function playDownloaded(g) {
   try {
@@ -387,6 +519,7 @@ function watchSession(session) {
     report(error ? `O emulador encerrou com erro (${session.returncode}). Consulte o log do serviço.` : "Sessão encerrada. Você pode marcar o progresso e dar uma nota.", error, "play-status");
     if (sessionGame && state.selected === sessionGame && $("details").open) {
       report(error ? "O emulador encerrou com erro." : "Como foi a sessão? Registre o progresso e a nota.", error, "detail-status");
+      $("progress-fields").hidden = false; $("progress-toggle").setAttribute("aria-expanded", "true");
       $("tracking").querySelector("button")?.focus();
     }
     sessionGame = null;
@@ -394,7 +527,7 @@ function watchSession(session) {
 }
 
 function focusable() {
-  const root = $("search-dialog").open ? $("search-dialog") : $("details").open ? $("details") : document;
+  const root = document.querySelector("dialog[open]") || document;
   return [...root.querySelectorAll("button:not(:disabled),a[href],input")].filter(e => !e.hidden && e.getClientRects().length);
 }
 function move(direction) {
@@ -417,10 +550,10 @@ function action(key) {
   if (state.busy) return;
   if (["left", "right", "up", "down"].includes(key)) move(key);
   else if (key === "accept") { if (!focusable().includes(document.activeElement)) focusable()[0]?.focus(); else document.activeElement.click(); }
-  else if (key === "back") { if ($("search-dialog").open) closeSearch(); else if ($("details").open) closeGame(); else { $("collections").querySelector("button")?.focus(); } }
+  else if (key === "back") { if ($("search-dialog").open) closeSearch(); else if ($("settings-dialog").open) closeSettings(); else if ($("details").open) closeGame(); else if (state.kind !== "home") load("home"); else $("collections").querySelector("button")?.focus(); }
   else if (key === "search") openSearch();
-  else if (key === "erase" && $("search-dialog").open) $("search-input").value = $("search-input").value.slice(0, -1);
-  else if (key === "submit" && $("search-dialog").open) applySearch();
+  else if (key === "erase") { if ($("search-dialog").open) $("search-input").value = $("search-input").value.slice(0, -1); else if (!$("settings-dialog").open) toggleFavorite(); }
+  else if (key === "submit") { if ($("search-dialog").open) applySearch(); else openSettings(); }
   else if (["page-up", "page-down"].includes(key) && !document.querySelector("dialog[open]")) page(key === "page-up" ? -1 : 1);
   else if (["previous", "next"].includes(key) && !document.querySelector("dialog[open]")) {
     const index = Math.max(0, collections.findIndex(x => x[0] === state.kind));
@@ -428,13 +561,15 @@ function action(key) {
   }
 }
 function page(direction) {
-  const cards = [...$("gallery").querySelectorAll("button")]; if (!cards.length) return;
+  const row = document.activeElement.closest?.(".shelf");
+  const cards = [...(row || (state.kind === "home" ? $("home").querySelector(".shelf") : $("gallery")) || $("gallery")).querySelectorAll("button")]; if (!cards.length) return;
   const current = Math.max(0, cards.indexOf(document.activeElement));
   const first = cards[0].getBoundingClientRect();
   const columns = cards.filter(e => Math.abs(e.getBoundingClientRect().top - first.top) < 5).length;
   const height = innerHeight - document.querySelector("footer").getBoundingClientRect().height;
   const rows = Math.max(1, Math.floor(height / (first.height + 24)));
-  const target = cards[Math.max(0, Math.min(cards.length - 1, current + direction * columns * rows))];
+  const jump = state.kind === "home" ? Math.max(1, Math.floor((row?.clientWidth || innerWidth) / (first.width + 24))) : columns * rows;
+  const target = cards[Math.max(0, Math.min(cards.length - 1, current + direction * jump))];
   target.focus({preventScroll: true}); target.scrollIntoView({block: "center"});
 }
 document.addEventListener("keydown", e => {
@@ -465,7 +600,7 @@ function pollGamepad(now) {
     if (awaitNeutral) { if (!keys.size) awaitNeutral = false; requestAnimationFrame(pollGamepad); return; }
     for (const k of keys) {
       if (!held.has(k)) { action(k); repeatAt.set(k, now + 380); }
-      else if (["left", "right", "up", "down", "page-up", "page-down", "erase"].includes(k) && now >= repeatAt.get(k)) { action(k); repeatAt.set(k, now + 110); }
+      else if (["left", "right", "up", "down", "page-up", "page-down", ...($("search-dialog").open ? ["erase"] : [])].includes(k) && now >= repeatAt.get(k)) { action(k); repeatAt.set(k, now + 110); }
     }
     held = keys;
   } else { held.clear(); $("controller").textContent = "Controle: pressione um botão para conectar"; }
@@ -475,7 +610,7 @@ async function init() {
   collectionTabs();
   try { [state.systems, state.light] = await Promise.all([api("/api/heavy/systems"), api("/api/systems")]); await load(); }
   catch (e) { report(`Não foi possível iniciar: ${e.message}. Recarregue para tentar novamente.`, true); }
-  $("collections").querySelector("button")?.focus();
+  if (state.kind !== "home") $("collections").querySelector("button")?.focus();
 }
 requestAnimationFrame(pollGamepad); init();
 api("/api/play/status").then(watchSession).catch(() => {});

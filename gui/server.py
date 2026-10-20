@@ -49,6 +49,7 @@ from core import play as play_mod
 from core import pc_games as pc_games_mod
 from core import tv as tv_mod
 from core import tv_apps as tv_apps_mod
+from core import tv_home as tv_home_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -63,6 +64,7 @@ CONFIG_PATH = ROOT / "config.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
 HEAVY_CATALOG_PATH = ROOT / "cache" / "heavy_catalog.json"
 LAST_PLAYED_PATH = ROOT / "cache" / "last_played.json"
+TV_PREFS_PATH = ROOT / "cache" / "tv_preferences.json"
 # {nome limpo: nome real da pasta} do Switch - listar a NSW inteira via
 # rclone leva minutos, inviável num clique da tela, então o mapa fica
 # cacheado e é atualizado junto com "🔄 Switch"/library-refresh switch.
@@ -1406,6 +1408,11 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("jogo não encontrado na Biblioteca")
         return pc_games_mod.find(cfg, game)
 
+    def _tv_catalog(self):
+        cfg = load_config()
+        lib = library_mod.load_library(Path(cfg['pc']['library_root']).expanduser() / 'library.json')
+        return tv_mod.catalog(cfg, lib, sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH), arcade_romname_dat('ARCADE'))
+
     def _read_json_body(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))
         return json.loads(self.rfile.read(length)) if length else {}
@@ -1504,12 +1511,18 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             lib = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
             items = tv_mod.local_pc(cfg, lib) + tv_mod.local_roms(cfg, lib, arcade_romname_dat('ARCADE'))
-            return self._json(sorted(items, key=lambda g: g['name'].lower()))
+            return self._json(tv_home_mod.annotate(sorted(items, key=lambda g: g['name'].lower()),
+                                                    tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH)))
 
         if parts == ["api", "tv", "catalog"]:
-            cfg = load_config()
-            lib = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
-            return self._json(tv_mod.catalog(cfg, lib, sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH), arcade_romname_dat('ARCADE')))
+            return self._json(tv_home_mod.annotate(self._tv_catalog(), tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH)))
+
+        if parts == ["api", "tv", "home"]:
+            return self._json(tv_home_mod.home(self._tv_catalog(), tv_apps_mod.catalog(load_config()),
+                                               tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH)))
+
+        if parts == ["api", "tv", "preferences"]:
+            return self._json(tv_home_mod.load(TV_PREFS_PATH))
 
         if parts == ["api", "tv", "apps"]:
             return self._json(tv_apps_mod.catalog(load_config()))
@@ -2304,6 +2317,39 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
+
+        if parts == ["api", "tv", "favorite"]:
+            body = self._read_json_body()
+            try:
+                if not (isinstance(body.get('key'), str) and body['key'] or
+                        isinstance(body.get('id'), str) and body['id'] or
+                        isinstance(body.get('code'), str) and body['code'] and isinstance(body.get('name'), str) and body['name']):
+                    raise ValueError('jogo não informado')
+                def matches(game):
+                    if body.get('key'):
+                        return body['key'] == tv_home_mod.item_key(game)
+                    if body.get('id'):
+                        return game.get('id') == body['id'] and game.get('code') == body.get('code')
+                    return game.get('code') == body['code'] and game.get('romName') == body['name']
+
+                selected = next((game for game in self._tv_catalog() if matches(game)), None)
+                if selected is None:
+                    raise ValueError('jogo não encontrado no catálogo')
+                key = tv_home_mod.item_key(selected)
+                data = tv_home_mod.update(TV_PREFS_PATH, key=key, favorite=body.get('favorite'))
+            except ValueError as e:
+                return self._json({'error': str(e)}, 400)
+            return self._json({**data, 'key': key})
+
+        if parts == ["api", "tv", "preferences"]:
+            body = self._read_json_body()
+            try:
+                if 'theme' not in body:
+                    raise ValueError('tema não informado')
+                data = tv_home_mod.update(TV_PREFS_PATH, theme=body['theme'])
+            except ValueError as e:
+                return self._json({'error': str(e)}, 400)
+            return self._json(data)
 
         if parts == ["api", "tv", "apps", "launch"]:
             try:

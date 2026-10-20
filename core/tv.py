@@ -87,10 +87,12 @@ def catalog(cfg, lib, cached, arcade_names=None):
             if key in by_key:
                 continue
             shown = (covers.arcade_display_name(label, arcade_names) or label) if code == 'ARCADE' and arcade_names else label
+            registered = library.find_for_rom(index, shown, code)
             by_key[key] = {'name': shown, 'platform': info.get('nome') or info.get('capas') or code,
                            'code': code, 'romName': name, 'cover': f'/images/{quote(code)}/{quote(names[label])}' if label in names else None,
                            'tracking': library.rom_tracking_info(index, shown, code) or {}, 'local': False,
-                           'downloadName': name if name in drive else None, 'driveName': name if name in drive else None}
+                           'downloadName': name if name in drive else None, 'driveName': name if name in drive else None,
+                           **({'id': registered['id']} if registered else {})}
     pc_local = {g['id'] for g in local_pc(cfg, lib)}
     out = list(by_key.values())
     represented = {g['id'] for x in out if (g := library.find_for_rom(index, x['name'], x['code']))}

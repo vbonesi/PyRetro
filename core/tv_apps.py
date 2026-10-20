@@ -2,6 +2,10 @@
 from pathlib import Path
 import subprocess
 import shutil
+import ipaddress
+import json
+
+REMOTES_PATH = Path(__file__).resolve().parent.parent / 'cache/tv_remotes.json'
 
 DEFAULTS = {
     'steam': ('Steam', 'com.valvesoftware.Steam', '🎮'),
@@ -10,8 +14,9 @@ DEFAULTS = {
     'pcsx2': ('PCSX2', 'net.pcsx2.PCSX2', '🎮'),
     'dolphin': ('Dolphin', 'org.DolphinEmu.dolphin-emu', '🐬'),
     'ppsspp': ('PPSSPP', 'org.ppsspp.PPSSPP', '🎮'),
-    'chiaki': ('PlayStation Remote Play', 'io.github.streetpea.Chiaki4deck', '🎮'),
-    'greenlight': ('Xbox Remote Play', 'io.github.unknownskl.greenlight', '🎮'),
+    'chiaki': ('PS4 remoto', 'io.github.streetpea.Chiaki4deck', '◈'),
+    'greenlight': ('Xbox remoto', 'io.github.unknownskl.greenlight', '⊗'),
+    'sysdvr': ('Switch Lite', 'com.github.exelix11.sysdvr', '◧'),
 }
 
 
@@ -24,6 +29,13 @@ def entries(cfg):
     for key, (name, app, icon) in DEFAULTS.items():
         if app in installed:
             result[key] = {'nome': name, 'icone': icon, 'comando': ['flatpak', 'run', app] + (['-gamepadui'] if key == 'steam' else [])}
+    if 'sysdvr' in result:
+        try:
+            data = json.loads(REMOTES_PATH.read_text())
+            address = str(ipaddress.ip_address(data['switch_ip']))
+        except (OSError, ValueError, KeyError, TypeError):
+            address = None
+        result['sysdvr']['comando'] += ['bridge', *([address] if address else []), '--fullscreen']
     duck = Path.home() / 'AppImages/DuckStation-x64.AppImage'
     if duck.is_file():
         result['duckstation'] = {'nome': 'DuckStation', 'icone': '🎮', 'comando': [str(duck)]}

@@ -6,7 +6,10 @@ Levantado em 16/10/2026; situação do PC atualizada em 20/10/2026.
 
 Implementado no modo TV (`/tv`):
 
-- Tela inicial **Sistemas**, com identificador, total do catálogo e quantidade local.
+- Tela inicial **Início** com destaque, recentes, continuar jogando, favoritos e fileiras
+  dos jogos instalados. **Sistemas** mantém identificador, total do catálogo e quantidade local.
+- **X** favorita o jogo; **Menu** abre opções de tema claro/escuro e tela cheia.
+  Preferências ficam no cache do PC, sem alterar o acervo; recentes usam o histórico local.
 - **Neste PC** reúne ROMs completas e instalações Steam/Epic/GOG/Amazon; plataforma e gênero
   são filtros navegáveis pelo controle. Capas, `.part`, ROMs vazias e descritores incompletos
   não comprovam instalação. Sistemas sem lançador continuam mostrando a presença local.
@@ -17,6 +20,10 @@ Implementado no modo TV (`/tv`):
 - **Apps** abre a lista fixa dos programas instalados: Steam em Big Picture, Heroic,
   emuladores, ES-DE e Remote Play Xbox/PlayStation. Entradas adicionais usam `[apps.<id>]`
   no arquivo de configuração; o navegador envia somente ID, nunca argv/comando.
+- Acessos rápidos no Início para Xbox remoto, PS4 remoto, Steam, Heroic e emuladores.
+  Cliente SysDVR oficial instalado e Switch Lite preparado para TCP Bridge por Wi-Fi,
+  com IP apenas no cache privado. Transmite jogos; não encaminha automaticamente o
+  controle Xbox nem captura HOME. Conexão real depende do SysDVR ativo no console.
 - Alternativa por jogo quando há core compatível instalado (PicoDrive nos sistemas Sega;
   SwanStation em PS1 quando instalado). A escolha fica no perfil do navegador e é revalidada
   pelo backend. O padrão permanece o bridge do setup.
@@ -40,7 +47,9 @@ estiver em foco, para evitar teclado/mouse duplicados com Gamepad/SDL.
 - Homologação física do Xbox nos jogos, foco, Steam Input e Steam Link.
 - Ajustes por jogo no Wii (ponteiro/movimento e controle clássico).
 - Sistemas sem bridge/core instalado, como NDS/3DS, continuam sem lançamento pela TV.
-- Logos oficiais, vídeo/marquee/screenshot, tempo de sessão e favoritos são melhorias futuras.
+- Pareamento/uso real de Xbox e PS4 e transmissão do Switch Lite. Na conferência atual,
+  o Switch recusou as portas do TCP Bridge; não declarar transmissão homologada.
+- Logos oficiais, vídeo/marquee/screenshot e tempo de sessão são melhorias futuras.
 - ES-DE permanece instalado até a homologação do fluxo completo.
 
 ## Celular

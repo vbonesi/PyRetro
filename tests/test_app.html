@@ -433,7 +433,8 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
   const g = jogo({id: "tv-test", nome: "Teste TV", plataforma: "Steam"});
   app.fetch = async (url, init) => {
     let data;
-    if (url === "/api/tv/catalog") data = [];
+    if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
+    else if (url === "/api/tv/catalog") data = [];
     else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
     else if (url === "/api/systems") data = [];
@@ -456,6 +457,7 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
   try {
     await esperar(() => doc.querySelector("#gallery .game"), "modo TV não carregou");
     doc.querySelector("#gallery .game").click();
+    doc.getElementById("progress-toggle").click();
     doc.querySelectorAll("#tracking button")[2].click();
     doc.getElementById("rating-fine-up").click();
     doc.getElementById("save").click();
@@ -464,7 +466,7 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
     igual(writes[0].body.campos, {iniciado: true, finalizado: true, platinado: true, nota: 0.1});
     doc.getElementById("close").click();
     verdade(doc.activeElement.classList.contains("game"), "perdeu foco depois de salvar");
-    doc.querySelector("#gallery .game").click(); fail = true;
+    doc.querySelector("#gallery .game").click(); doc.getElementById("progress-toggle").click(); fail = true;
     doc.querySelectorAll("#tracking button")[0].click(); doc.getElementById("save").click();
     await esperar(() => doc.getElementById("detail-status").textContent.includes("Não foi salvo"), "falha ficou invisível");
     doc.getElementById("close").click();
@@ -514,7 +516,8 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
   const mutations = [];
   app.fetch = async (url, init) => {
     let data;
-    if (url === "/api/tv/catalog") data = [];
+    if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
+    else if (url === "/api/tv/catalog") data = [];
     else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
@@ -567,7 +570,8 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
   const consultas = []; let falha = false;
   app.fetch = async (url) => {
     let data;
-    if (url === "/api/tv/catalog") data = [];
+    if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
+    else if (url === "/api/tv/catalog") data = [];
     else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
@@ -613,7 +617,8 @@ teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", asy
   const posts = []; let instalado = true;
   app.fetch = async (url, init) => {
     let data;
-    if (url === "/api/tv/catalog") data = [];
+    if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
+    else if (url === "/api/tv/catalog") data = [];
     else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/heavy/systems") data = [];
@@ -656,7 +661,8 @@ teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", asyn
   Object.defineProperty(app.navigator, "getGamepads", {value: () => [{id: "Mouse virtual", buttons: []}, pad], configurable: true});
   app.fetch = async (url, init) => {
     let data;
-    if (url === "/api/tv/catalog") data = games;
+    if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
+    else if (url === "/api/tv/catalog") data = games;
     else if (url === "/api/tv/local") data = [games[0]];
     else if (url === "/api/systems" || url === "/api/heavy/systems") data = [];
     else if (url === "/api/play/status") data = {status: "idle"};
@@ -668,6 +674,7 @@ teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", asyn
   };
   const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
+  await app.load("systems");
   try {
     await esperar(() => doc.querySelector(".system-card"), "tela inicial por sistema ausente");
     verdade(doc.querySelector(".system-card").textContent.includes("80 jogos · 1 neste PC"));
@@ -705,6 +712,73 @@ teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", asyn
     frame.style.width = "390px"; doc.getElementById("search-open").click();
     await new Promise(resolve => setTimeout(resolve, 20));
     verdade(doc.documentElement.scrollWidth <= 390, "busca transbordou no celular");
+  } finally { frame.remove(); }
+});
+
+teste("console: início, remotos, X favorito sem repetição, foco em Jogar e tema persistente", async () => {
+  const frame = document.createElement("iframe"); frame.style.cssText = "width:1280px;height:800px;position:absolute;left:-9999px";
+  document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
+  const app = frame.contentWindow, doc = app.document;
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
+  const preferences = {favorites: [], theme: "dark"}; const posts = []; let failFavorite = false;
+  const games = [{id: "one", key: "pc:one", name: "Meu recente", platform: "Steam", tracking: {}, local: true},
+    {id: "two", key: "pc:two", name: "Minha campanha", platform: "GOG", tracking: {iniciado: true}, local: true}];
+  const apps = [{id: "greenlight", name: "Xbox remoto", icon: "X"}, {id: "chiaki", name: "PS4 remoto", icon: "PS"}, {id: "sysdvr", name: "Switch Lite", icon: "S"}];
+  const pad = {id: "Xbox", mapping: "standard", axes: [0, 0], buttons: Array.from({length: 17}, () => ({pressed: false}))};
+  Object.defineProperty(app.navigator, "getGamepads", {value: () => [pad], configurable: true});
+  app.fetch = async (url, init) => {
+    let data; const catalog = games.map(g => ({...g, favorite: preferences.favorites.includes(g.key)}));
+    if (url === "/api/tv/home") data = {recent: [catalog[0]], continue: [catalog[1]], favorites: catalog.filter(g => g.favorite), installed: catalog, ready: catalog, apps, preferences, counts: {local: 2, pc: 2}};
+    else if (url === "/api/tv/catalog") data = catalog;
+    else if (url === "/api/systems" || url === "/api/heavy/systems") data = [];
+    else if (url === "/api/play/status") data = {status: "idle"};
+    else if (url === "/api/csrf") data = {token: "tv-token"};
+    else if (url.startsWith("/api/pc/options?")) data = {available: true, store: "steam"};
+    else if (init?.method === "POST") {
+      igual(init.headers["X-PyRetro-CSRF"], "tv-token"); const body = JSON.parse(init.body); posts.push({url, body});
+      if (url === "/api/tv/favorite") {
+        if (failFavorite) return {ok: false, json: async () => ({error: "disco indisponível"})};
+        preferences.favorites = body.favorite ? [body.key] : []; data = {...preferences, key: body.key};
+      } else if (url === "/api/tv/preferences") { preferences.theme = body.theme; data = preferences; }
+      else if (url === "/api/tv/apps/launch") data = {ok: true};
+      else throw new Error(`escrita indevida: ${url}`);
+    } else throw new Error(`requisição inesperada: ${url}`);
+    return {ok: true, json: async () => JSON.parse(JSON.stringify(data))};
+  };
+  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  try {
+    await esperar(() => doc.querySelector("#home .game"), "início não carregou");
+    igual(doc.activeElement.id, "spotlight-open", "o foco inicial deve ficar em uma ação visível");
+    igual(doc.getElementById("spotlight-title").textContent, "Meu recente");
+    verdade(/^\d{2}:\d{2}$/.test(doc.getElementById("clock").textContent));
+    for (const id of ["greenlight", "chiaki", "sysdvr"]) verdade(doc.querySelector(`[data-app="${id}"]`), `atalho remoto ausente: ${id}`);
+    doc.querySelector('[data-app="greenlight"]').click();
+    await esperar(() => posts.length === 1, "Xbox remoto não abriu");
+    igual(posts[0], {url: "/api/tv/apps/launch", body: {id: "greenlight"}});
+    doc.querySelector("#home .game").focus(); pad.buttons[2].pressed = true;
+    await esperar(() => doc.querySelector('[data-shelf="favorites"] .game'), "X não favoritou");
+    await new Promise(resolve => setTimeout(resolve, 450));
+    igual(posts.filter(p => p.url === "/api/tv/favorite").length, 1, "segurar X repetiu favorito");
+    pad.buttons[2].pressed = false;
+    await app.load("favorites"); doc.querySelector("#gallery .game").click();
+    await esperar(() => doc.activeElement.textContent.includes("Jogar (Steam)"), "card não priorizou Jogar");
+    verdade(doc.getElementById("progress-fields").hidden, "edição de progresso deveria ser uma escolha separada");
+    doc.getElementById("close").click(); verdade(doc.activeElement.classList.contains("game"));
+    pad.buttons[9].pressed = true;
+    await esperar(() => doc.getElementById("settings-dialog").open, "Menu não abriu opções");
+    pad.buttons[9].pressed = false; doc.getElementById("theme-light").click();
+    await esperar(() => doc.documentElement.dataset.theme === "light", "tema não foi aplicado");
+    doc.getElementById("settings-close").click(); await app.load("home");
+    igual(doc.documentElement.dataset.theme, "light"); verdade(doc.querySelector('[data-shelf="favorites"] .game'));
+    failFavorite = true; doc.querySelector("#home .game").focus(); app.action("erase");
+    await esperar(() => doc.getElementById("message").textContent.includes("disco indisponível"), "falha do favorito ficou invisível");
+    igual(preferences.favorites, ["pc:one"], "falha alterou favorito");
+    verdade(posts.every(p => !p.url.includes("/library/")), "navegar/favoritar/tema alteraram progresso");
+    frame.style.width = "390px"; await new Promise(resolve => setTimeout(resolve, 30));
+    verdade(doc.documentElement.scrollWidth <= 390, "início do console transbordou no celular");
   } finally { frame.remove(); }
 });
 

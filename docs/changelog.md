@@ -6,6 +6,27 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 20/10/2026 — Tela inicial de console, favoritos e acessos remotos
+
+- Início passa a abrir por padrão: destaque do jogo, recentes, continuar jogando,
+  favoritos, jogos Steam/Heroic e acervo local em fileiras de capas. Recentes não
+  dependem do marcador iniciado; continuar prioriza jogos locais e último uso.
+- X favorita sem repetir ao segurar; Menu abre tema escuro/claro, tela cheia e volta
+  ao início/interface completa. Relógio local e bateria quando disponível. Favoritos
+  e tema persistem em cache privado com lock/gravação atômica; a Biblioteca não muda.
+- Detalhes priorizam Jogar e recolhem edição de progresso/notas até o usuário abrir.
+  Retorno de foco preservado após fechar detalhes e atualizar favoritos.
+- Acessos rápidos para Xbox remoto/Greenlight, PS4 remoto/Chiaki, Steam, Heroic e
+  emuladores. Cliente SysDVR 6.3 instalado da release oficial; Switch Lite abre TCP
+  Bridge em tela cheia com IP validado e armazenado apenas no cache ignorado pelo Git.
+  As portas do console recusaram conexão; ativação do módulo e teste real pendentes.
+  SysDVR captura jogos compatíveis, sem HOME ou encaminhamento automático do Xbox.
+- Confirmadas as entradas de menu: apenas PyRetro visível, antigo acesso web oculto.
+  Caches KDE reconstruídos nos locales pt_BR/C; Steam/Bigscreen não reiniciados.
+- Validação: 238 testes Python e 39 da interface com dados sintéticos, incluindo
+  concorrência de favoritos, validação de entrada, preservação da Biblioteca,
+  navegação, foco inicial visível e layout em 390 px. Nenhuma ROM/save alterada.
+
 ## 20/10/2026 — Frontend TV, Xbox e atalhos unificados
 
 - Tela inicial Sistemas com contagens do catálogo/local; Neste PC reúne ROMs completas e
