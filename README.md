@@ -401,7 +401,15 @@ relatório - nunca são mescladas sozinhas, mesmo cuidado que o
   erro nenhum.
 - **`switch`** (27/08) - lê `roms_root/NSW/` (cada jogo é uma pasta,
   ex: `Nine Sols [NSZ]`), removendo qualquer tag entre colchetes do
-  nome (formato do dump, não é parte do nome do jogo). Sem gestão de
+  nome (formato do dump, não é parte do nome do jogo). Na organização
+  manual, cada título ou volume instalável fica diretamente em `NSW/`,
+  com sua base, updates e DLCs juntos. Lotes de download com vários
+  títulos/volumes devem ser separados nesse nível, sem uma pasta geral
+  intermediária. Uma coletânea distribuída como um único título mantém
+  sua própria pasta; seus jogos internos podem ser decompostos somente
+  na Biblioteca, preservando o vínculo por `nomes_alt`. Ao reorganizar,
+  conferir esses aliases e atualizar o mapa privado `cache/switch_pastas.json`,
+  preservando as entradas dos jogos que estão somente na nuvem. Sem gestão de
   arquivo (send/download/rename/apagar não fazem sentido pra Switch -
   não roda via RetroArch) - só confirma posse e cruza pelo nome com o
   que a planilha já tem (nota/comentário preservados). Jogo que faz
@@ -713,8 +721,8 @@ Decompor (⧉ no card, `POST /api/library/decompor`, 29/08): separa uma
 coletânea em N jogos - pedido do usuário ("muitos jogos são
 collections, eventualmente vou decompondo eles"), primeiro caso real
 Portal Companion Collection -> Portal + Portal 2. O ponto crítico é o
-VÍNCULO: a pasta/fonte de origem continua existindo com o nome antigo
-pra sempre, e a varredura casa por nome - sem preservar isso como
+VÍNCULO: enquanto a pasta/fonte de origem existir com o nome da coletânea,
+a varredura casa por esse nome - sem preservar isso como
 `nomes_alt` de um dos jogos resultantes, o próximo `library-refresh`
 recria a coletânea do zero (aconteceu de verdade uma vez). Jogo que já
 existia é REAPROVEITADO, não duplicado (nota/progresso preservados),

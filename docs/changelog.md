@@ -6,6 +6,17 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 20/10/2026 — Convenção de pastas do Nintendo Switch
+
+- Organização manual do NSW usa uma pasta por título ou volume instalável,
+  diretamente na raiz do sistema, reunindo sua base, updates e DLCs. Pastas
+  gerais de lotes de download não devem agrupar títulos independentes.
+- Decomposição de jogos internos de uma coletânea continua na Biblioteca,
+  mantendo o alias do título instalável. Reorganizações devem conferir os
+  aliases e atualizar o mapa privado sem perder os itens somente na nuvem.
+- Correção do lote privado aplicada com backup, hashes e preservação de IDs,
+  capas e acompanhamento; nenhuma alteração de código ou configuração.
+
 ## 20/10/2026 — Sorteio com próxima ação e consolidação das interfaces
 
 - Sorteio da interface completa oferece Jogar (PC/ROM/disco), Transmitir do console,
