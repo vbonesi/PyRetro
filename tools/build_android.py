@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -28,7 +29,8 @@ def main():
     gradle = str(Path(args.gradle).resolve()) if args.gradle else str(ROOT/'android/gradlew')
     subprocess.run([gradle, '--no-daemon', ':app:assembleDebug', ':app:testDebugUnitTest', ':app:lintDebug'],
                    cwd=ROOT/'android', check=True)
-    dest = ROOT/'cache/artifacts/PyRetro-0.1.0-debug.apk'; dest.parent.mkdir(parents=True, exist_ok=True)
+    version = re.search(r'versionName\s*=\s*"([0-9.]+)"', (ROOT/'android/app/build.gradle.kts').read_text()).group(1)
+    dest = ROOT/f'cache/artifacts/PyRetro-{version}-debug.apk'; dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT/'android/app/build/outputs/apk/debug/app-debug.apk',dest)
     digest = hashlib.sha256(dest.read_bytes()).hexdigest()
     dest.with_suffix('.apk.sha256').write_text(f'{digest}  {dest.name}\n')

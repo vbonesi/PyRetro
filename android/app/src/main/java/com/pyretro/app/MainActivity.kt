@@ -54,6 +54,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private var pageCount=1
     private var dialog:AlertDialog?=null
     private var pickingCode="NDS"
+    private var syncPicking="retroarch"
     private var pickingGame:Game?=null
     private var pickingCloud=false
     private var textureCode="PSP"
@@ -288,11 +289,54 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("Salvar endereço") { runCatching { store.setBase(server.text.toString());message("Endereço salvo. O modo offline continua disponível.") }.onFailure(::failure) })
         add(box,button("Carregar catálogo do notebook") { runCatching { store.setBase(server.text.toString()) }.onFailure { failure(it);return@button };dialog?.dismiss();message("Consultando notebook…");work.execute { runCatching { store.refresh() }.onSuccess { catalog=it;runOnUiThread { message("Catálogo atualizado. As capas são guardadas conforme você navega.");reloadLocal() } }.onFailure { store.online=false;runOnUiThread { failure(it) } } } })
         add(box,button("Sincronizar progresso e tempo (${store.pending()})") { dialog?.dismiss();message("Sincronizando alterações escolhidas…");work.execute { runCatching { store.synchronize() }.onSuccess { result -> catalog=store.cached();runOnUiThread { message(result);reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } } })
+        add(box,button("Saves, estados e runtime") { syncFiles() })
         add(box,button("Pasta Jogos · reconhecer todos os sistemas") { dialog?.dismiss();pickFolder("ROOT") })
         for((code,label) in store.folders)add(box,button("Pasta · $label") { dialog?.dismiss();pickFolder(code) })
         box.addView(text("Drive: use o seletor Android para vincular arquivos. ROMs baixadas ficam na pasta escolhida e funcionam offline. PS1 sob demanda aceita CHD/PBP, que contêm o jogo num arquivo.",13f))
         add(box,button("Cores do RetroArch por sistema") { chooseCore() })
         box.addView(text("Galileo G8: A escolhe, B volta, X favorita, Y busca, LB/RB mudam de página; LT/RT trocam a coleção. Os mesmos botões também respondem ao touch.",13f))
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+    }
+    private fun pickSyncFolder(group:String) {
+        syncPicking=group;dialog?.dismiss()
+        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            .putExtra(DocumentsContract.EXTRA_INITIAL_URI,DocumentsContract.buildDocumentUri("com.android.externalstorage.documents","primary:RetroArch")),13)
+    }
+    private fun syncFiles() {
+        val sync=FileSync(store);val box=column();box.addView(text("Saves, estados e runtime",22f))
+        box.addView(text("Feche os emuladores nas duas pontas. Analise antes de copiar. Arquivos diferentes na primeira sincronização ou alterados nos dois lados exigem sua escolha. Nenhum save é apagado automaticamente.",14f))
+        box.addView(text("Estados exigem core/versão compatíveis. Runtime é sincronizado como arquivo: os tempos acumulados não são somados. 3DS inclui apenas saves/extdata da SDMC, sem jogos instalados, NAND ou firmware.",13f))
+        add(box,button("Escolher pasta RetroArch") { pickSyncFolder("retroarch") })
+        for((group,label) in sync.groups)add(box,button(label) {
+            val item=column();item.addView(text(label,22f));item.addView(text(if(sync.tree(group)==null)"Escolha a pasta local para continuar." else "Pasta local definida. Notebook via HTTPS/Tailscale; jogar continua disponível offline.",14f))
+            add(item,button("Escolher pasta deste grupo") { pickSyncFolder(group) })
+            add(item,button("Analisar sem copiar") {
+                dialog?.dismiss();message("Comparando arquivos de $label…")
+                work.execute { runCatching { sync.analyze(group) }.onSuccess { plan -> runOnUiThread { reviewSync(plan) } }.onFailure { runOnUiThread { failure(it) } } }
+            });show(AlertDialog.Builder(this).setView(item).setNegativeButton("Voltar",null))
+        })
+        add(box,button("Último resultado") { show(AlertDialog.Builder(this).setTitle("Sincronização de arquivos").setMessage(sync.lastResult()).setPositiveButton("Voltar") { _,_ -> syncFiles() }) })
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+    }
+    private fun reviewSync(plan:SyncPlan) {
+        val box=column();box.addView(text(FileSync(store).groups[plan.group] ?: plan.group,22f))
+        val actions=plan.rows.count { it.choice in setOf("upload","download") };val conflicts=plan.rows.count { it.kind=="conflict" && it.choice=="conflict" }
+        box.addView(text("$actions transferência(s) escolhida(s) · $conflicts conflito(s) adiado(s) · ${plan.rows.count { it.kind=="same" }} arquivo(s) iguais. Versões anteriores são preservadas. Feche os emuladores antes de aplicar.",14f))
+        for(row in plan.rows.filter { it.kind!="same" }) {
+            val direction=when(row.choice) { "upload" -> "Celular → notebook";"download" -> "Notebook → celular";else -> "Conferir conflito" }
+            if(row.kind=="conflict")add(box,button("$direction · ${row.path}") {
+                val options=mutableListOf("Adiar" to "conflict")
+                if(row.local!=null)options.add("Usar versão do celular (${row.local.size} B)" to "upload")
+                if(row.remote!=null)options.add("Usar versão do notebook (${row.remote.getLong("size")} B)" to "download")
+                show(AlertDialog.Builder(this).setTitle(row.path).setItems(options.map { it.first }.toTypedArray()) { _,which -> row.choice=options[which].second;reviewSync(plan) }.setNegativeButton("Voltar") { _,_ -> reviewSync(plan) })
+            }) else box.addView(text("$direction · ${row.path}",13f))
+        }
+        add(box,button("Aplicar escolhas e registrar comparação") {
+            show(AlertDialog.Builder(this).setTitle("Aplicar sincronização?").setMessage("$actions transferência(s). Feche os emuladores no celular e no notebook. Cada arquivo será conferido novamente; conflitos adiados ficam preservados. Versões diferentes substituídas ficam no histórico da pasta.").setNegativeButton("Voltar") { _,_ -> reviewSync(plan) }.setPositiveButton("Aplicar") { _,_ ->
+                message("Sincronizando arquivos…")
+                work.execute { runCatching { FileSync(store).apply(plan) { status -> runOnUiThread { message(status) } } }.onSuccess { result -> runOnUiThread { message(result.lineSequence().first());show(AlertDialog.Builder(this).setTitle("Resultado").setMessage(result).setPositiveButton("Fechar",null)) } }.onFailure { runOnUiThread { failure(it) } } }
+            })
+        })
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun coreId(code:String)=CoreProfiles.id(code,store.prefs.getString("core:$code",if(code=="NDS")store.prefs.getString("nds-core",null) else null))
@@ -311,6 +355,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     @Deprecated("Compatibilidade com Activity sem dependências extras")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
         super.onActivityResult(requestCode,resultCode,data);if(resultCode!=RESULT_OK)return;val uri=data?.data ?: return
+        if(requestCode==13) {
+            runCatching {
+                require(data.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION!=0) { "A pasta precisa permitir leitura e escrita." }
+                contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                FileSync(store).setTree(syncPicking,uri);message("Pasta de sincronização definida. Analise antes de copiar.");syncFiles()
+            }.onFailure(::failure);return
+        }
         if(requestCode==12) {
             val name=store.displayName(uri)
             if(name.substringAfterLast('.').lowercase() !in setOf("zip","7z","rar")) { message("Escolha ZIP, 7z ou RAR.");return }

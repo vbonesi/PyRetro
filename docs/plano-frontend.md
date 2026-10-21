@@ -110,9 +110,10 @@ do PyRetro e abre cada emulador por intent.
   manter ou remover somente a ROM local. CUE/M3U dependentes exigem gerenciador.
 - ZIP de texturas PSP/3DS pode ser importado offline; RAR/7z e fontes do catálogo
   são preparados pelo notebook e recebidos como ZIP. Não substitui textura diferente.
-  Sync de saves/states/runtime, BIOS e configurações permanece pendente; exige
-  mapear permissões/exportações e resolver conflitos por emulador.
-- JDK/SDK/Gradle preparados em diretório temporário, sem instalação global/root.
+  Sync de saves/states/runtime disponível desde 21/10 na versão 0.2: grupos,
+  SHA-256, conflitos e versões anteriores preservadas. BIOS/configurações ficam
+  fora desses planos; runtime não é somado automaticamente. Uso real aguarda Victor.
+- JDK/SDK/Gradle preparados em cache local persistente, sem instalação global/root.
   Projeto, wrapper e `tools/build_android.py` versionados. Build, lint e testes JVM
   executados; APK pessoal em `cache/artifacts/`, fora do Git.
 - Depois da preparação inicial, aparelho conectado e APK instalado: catálogo por

@@ -6,6 +6,32 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Android 0.2: sincronização de saves, estados e runtime
+
+- **Opções → Saves, estados e runtime** compara arquivos locais com o notebook por
+  grupo: RetroArch (saves, estados e runtime), PPSSPP (SAVEDATA/PPSSPP_STATE) e 3DS
+  (saves/extdata da SDMC). Usa pastas SAF concedidas, sem permissão geral de arquivos.
+  Pastas padrão ausentes são vazias na análise e criadas somente ao aplicar cópias.
+- Análise sem gravação, SHA-256 e último estado comum distinguem mudanças de um lado
+  de conflitos. Primeira sincronização divergente, alterações nas duas pontas e
+  arquivo removido após sincronizar exigem escolher celular, notebook ou adiar.
+  Não há sincronização automática nem propagação de exclusões.
+- Aplicação explícita revalida origem, destino e identidade das pastas. Downloads
+  são recebidos em temporário e conferidos; uploads têm comparação do destino sob
+  lock e repetição idempotente. Publicação preserva a versão anterior em histórico
+  oculto, excluído das análises seguintes; conflitos não escolhem pela data do arquivo.
+- Estados exigem emulador/core compatível. Runtime `.lrtl` é copiado como arquivo,
+  sem somar acumulados nem importá-los no tempo do PyRetro. SDMC restringe os caminhos
+  a dados/extdata dos jogos, sem conteúdo instalado, NAND, firmware, BIOS ou configuração.
+- APK 0.2.0 mantém a assinatura local e instalação no usuário Android principal;
+  script de build deriva o nome do artefato da versão. Documentação de uso e roadmap
+  atualizados. Saves reais e catálogo não foram alterados pelos testes desta etapa.
+- Validação: 272 testes Python, 43 de interface e 10 JVM; compilação e lint sem erros.
+  Instrumentação no aparelho verifica publicação SAF real com arquivos sintéticos:
+  criação, substituição/histórico, conflito, checksum e pasta padrão ainda inexistente.
+  Teste completo dos emuladores, controle físico, Drive real e transferências dos
+  saves do usuário permanece para homologação no uso.
+
 ## 20/10/2026 — Cliente Android offline, tempo, mídia e texturas
 
 - Primeiro cliente Android nativo em Kotlin: banco permanece no PC, catálogo

@@ -55,6 +55,7 @@ from core import game_actions as game_actions_mod
 from core import playtime as playtime_mod
 from core import tv_media as tv_media_mod
 from core import mobile_textures as mobile_textures_mod
+from core import mobile_sync as mobile_sync_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -1564,6 +1565,24 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "csrf"]:
             return self._json({"token": CSRF_TOKEN})
 
+        if parts[:3] == ['api','mobile','sync']:
+            try:
+                cfg = load_config(); group = query.get('group',[''])[0]
+                if parts == ['api','mobile','sync','groups']:
+                    return self._json(mobile_sync_mod.groups(cfg))
+                if parts == ['api','mobile','sync','manifest']:
+                    return self._json(mobile_sync_mod.manifest(cfg,group))
+                if parts == ['api','mobile','sync','file']:
+                    mobile_sync_mod.check_tag(cfg,group,query.get('rootTag',[''])[0])
+                    with mobile_sync_mod.snapshot(cfg,group,query.get('path',[''])[0],query.get('hash',[''])[0]) as (source,info):
+                        self.send_response(200);self.send_header('Content-Type','application/octet-stream')
+                        self.send_header('Content-Length',str(info['size']));self.send_header('X-PyRetro-SHA256',info['sha256'])
+                        self.send_header('Cache-Control','no-store');self._security_headers();self.end_headers()
+                        shutil.copyfileobj(source,self.wfile,1024*1024)
+                    return
+            except mobile_sync_mod.Conflict as error:return self._json({'error':str(error)},409)
+            except (ValueError,OSError) as error:return self._json({'error':str(error)},400)
+
         if parts == ["api", "play", "status"]:
             return self._json(PLAY_SESSIONS.status())
 
@@ -2387,7 +2406,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "Content-Length inválido"}, 400)
             if content_length < 0:
                 return self._json({"error": "Content-Length inválido"}, 400)
-            limit = mobile_textures_mod.MAX_BYTES if rota == ('api','texturas','upload') else tv_media_mod.MAX_BYTES if rota == ('api','tv','media') else MAX_JSON_BODY
+            limit = mobile_sync_mod.MAX_BYTES if rota == ('api','mobile','sync','file') else mobile_textures_mod.MAX_BYTES if rota == ('api','texturas','upload') else tv_media_mod.MAX_BYTES if rota == ('api','tv','media') else MAX_JSON_BODY
             if content_length > limit:
                 return self._json({"error": "requisição grande demais"}, 413)
             recebido = self.headers.get("X-PyRetro-CSRF", "")
@@ -2414,6 +2433,16 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
+
+        if parts == ['api','mobile','sync','file']:
+            try:
+                with file_lock_mod.exclusive(TRANSFER_LOCK_KEY):
+                    cfg=load_config();mobile_sync_mod.check_tag(cfg,query.get('group',[''])[0],query.get('rootTag',[''])[0])
+                    result=mobile_sync_mod.receive(cfg,query.get('group',[''])[0],query.get('path',[''])[0],
+                        query.get('expected',[''])[0],query.get('sha256',[''])[0],self.rfile,int(self.headers.get('Content-Length',0)))
+                return self._json(result)
+            except mobile_sync_mod.Conflict as error:return self._json({'error':str(error)},409)
+            except (ValueError,OSError) as error:return self._json({'error':str(error)},400)
 
         if parts == ['api','texturas','upload']:
             try:

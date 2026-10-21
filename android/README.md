@@ -1,11 +1,11 @@
-# PyRetro Android — primeiro APK
+# PyRetro Android
 
 App nativo em Kotlin, com Android 8 ou superior. O banco principal continua no
 notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.1.0-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.2.0-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções**, escolha **Pasta Jogos · reconhecer todos os sistemas**, ou cada
    pasta separadamente. Arquivos que eram sincronizados pelo FolderSync são reaproveitados.
@@ -92,14 +92,36 @@ usuário confirma ou descarta, pois esse intervalo pode incluir pausas/outros ap
 Eventos têm identificador para que uma repetição da sincronização não duplique
 a sessão no servidor. Não lê nem soma automaticamente runtime logs antigos.
 
-A migração do FolderSync reaproveita as pastas existentes. Este APK reconhece
-ROMs e baixa sob demanda, mas **a sincronização de saves, states, runtime logs,
-BIOS e configurações ainda não está implementada no app nativo**. A importação
-de texturas descrita abaixo é uma operação escolhida pelo usuário, não uma
-sincronização automática.
-Próxima etapa: inventariar no aparelho, mapear pastas compartilhadas/exportações
-por emulador, comparar versões e apresentar conflitos antes de copiar. Não
-apagar sobras ou substituir saves com base apenas em nome/data mais recente.
+Desde a versão 0.2, **Opções → Saves, estados e runtime** oferece sincronização
+por grupos: saves/estados/runtime do RetroArch, SAVEDATA/PPSSPP_STATE do PPSSPP e
+saves/extdata do SDMC do 3DS. O notebook usa os diretórios de saves configurados;
+PPSSPP fica em `Saves/PPSSPP/` e 3DS em `Saves/Lime3DS/sdmc/`.
+
+1. Escolha **Pasta RetroArch** uma vez. Saves e estados usam `saves/` e `states/`;
+   runtime usa `playlists/logs/`, conforme o padrão encontrado no aparelho. Se
+   mudou esses caminhos no emulador, escolha a pasta de cada grupo separadamente.
+   PSP/3DS aproveitam a pasta Jogos já concedida, com opção de trocar o destino.
+   Uma subpasta padrão ainda inexistente fica vazia na análise; só é criada ao
+   aplicar a primeira cópia para ela.
+2. Feche os emuladores nas duas pontas e use **Analisar sem copiar**. O app compara
+   SHA-256 com o último estado comum; a análise não altera arquivos.
+3. Arquivos diferentes na primeira sincronização ou alterados nos dois lados são
+   conflitos. Escolha celular, notebook ou adiar individualmente. Ausência de um
+   arquivo já sincronizado também exige decisão; não propaga exclusões.
+4. **Aplicar escolhas** confirma o plano. Origem/destino e checksum são conferidos
+   novamente. Transferência incompleta não substitui o save; falhas ficam no resultado.
+
+No PC, versões anteriores ficam em `.pyretro-history/<caminho original>/` na
+pasta do grupo. No celular, ficam ao lado do save com prefixo
+`.pyretro-previous-`. Ative mostrar arquivos ocultos no gerenciador para recuperá-las.
+Não são apagadas automaticamente. Históricos não entram na próxima sincronização.
+
+Estados precisam de core/versão compatíveis. Runtime é copiado como arquivo, sem
+somar tempos acumulados nem importá-los automaticamente no tempo do PyRetro.
+3DS inclui somente `title/.../data` e `extdata`; não copia jogos instalados,
+NAND, firmware ou configurações. BIOS/texturas/configurações não fazem parte desses
+planos. Playlists externas e retomada de downloads continuam nas próximas etapas.
+Não use FolderSync em paralelo nas mesmas pastas.
 
 Ao marcar um jogo baixado como **Finalizado** (inclusive pela cascata de
 Platinado), o app pergunta **Manter ROM** ou **Excluir ROM local**. A remoção
@@ -143,10 +165,10 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.1.0-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.2.0-debug.apk
 ```
 
-Compilação, lint e seis testes JVM passaram. APK instalado no aparelho:
+Compilação, lint e dez testes JVM passaram. APK instalado no aparelho:
 catálogo via HTTPS/Tailscale, cache offline, pastas existentes, sorteio, ZIP
 de textura mínimo, confirmação de remoção e lançamento NES/Nestopia conferidos. Instalação limitada ao perfil principal evita
 cópias no perfil Dual App da Samsung; novas aberturas reutilizam a mesma tela.
@@ -156,3 +178,10 @@ homologação; eventos de botões padrão são apenas uma verificação de softw
 Contrato de lançamento: [documentação oficial do RetroArch](https://docs.libretro.com/guides/cli-intro/#on-android).
 Core ausente pode deixar a atividade externa na tela preta: [issue 19357](https://github.com/libretro/RetroArch/issues/19357).
 O APK não pode inspecionar a pasta privada de cores de outro app; escolha um core instalado.
+
+Teste técnico de armazenamento no aparelho (usa somente pasta sintética própria):
+`./gradlew :app:assembleDebugAndroidTest`, instale o APK de teste no usuário 0 e
+execute `adb shell am instrument -w com.pyretro.app.test/com.pyretro.app.StorageSmoke`.
+O teste exige a concessão Pasta Jogos e remove seus arquivos ao terminar.
+Desinstale somente `com.pyretro.app.test` depois da execução; o aplicativo principal
+e suas permissões permanecem instalados.

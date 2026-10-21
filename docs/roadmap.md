@@ -3,7 +3,7 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 20/10/2026.
+pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
 
 ## Status atual
 
@@ -15,7 +15,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 20/10/2026.
 | Tempo de emuladores, duração manual e logos/prévias locais no modo TV | ✅ Implementado; registro separado do tempo histórico da Biblioteca |
 | App Android com offline, G8/touch e ROMs do Drive sob demanda | APK instalado; touch, cache e pastas conferidos. G8 físico e provedor Drive pendentes |
 | Texturas PSP/3DS e remoção confirmada da ROM ao finalizar no Android | ✅ Implementado; ZIP offline e preparação pelo PC, sem substituir saves/texturas existentes |
-| Saves/states/runtime pelo app Android | Pendente: inventário e comparação das pastas existentes; FolderSync retirado preservando arquivos |
+| Saves/states/runtime pelo app Android | ✅ Versão 0.2: grupos, SHA-256, conflitos e histórico; sincronização real aguarda uso do usuário |
 | Xbox/PS4 remotos e Switch Lite Wi-Fi | Clientes integrados e sem duplicação; Switch confirmado, sessão PS4/Xbox ainda depende de uso real |
 | GUI de capas (galeria, busca, flag/duplicada/renomear/apagar) | ✅ Pronto |
 | Sync de capas PC↔celular via adb (`core/sync.py`) | ✅ Pronto, despriorizado (Drive cobre sistemas leves) |
@@ -43,7 +43,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 20/10/2026.
 | Backup datado das configs do RetroArch (`retrosync backup-config`) | ✅ Pronto, testado no aparelho real (24/08) - `retroarch.cfg`+`config/`+`playlists/`, PC e Android |
 | Busca de capa a partir do catálogo no Drive (`retrosync fetch-covers-cloud`) | ✅ Pronto, testado no acervo real (24/08) - Saturn 37/37, Dreamcast 9/9 (1 via fallback LaunchBox) |
 | PyRetro rodando no Android (Termux) | ❌ **Descontinuado (22/09/2026)** - saiu do plano: o PyRetro não roda mais no celular. O passo a passo ([`docs/termux_setup.md`](termux_setup.md)) fica como histórico, nunca chegou a ser testado no aparelho. O backend Python continua no PC; desde 20/10 há também cliente Android nativo, com offline (veja `android/README.md`). O `adb` permanece disponível para manutenção. |
-| `sync.py` pra saves/states/runtime-logs | Trilha antiga cancelada; retomada planejada no cliente Android, após inventário no aparelho |
+| `sync.py` pra saves/states/runtime-logs | Trilha antiga cancelada; cliente Android 0.2 implementa sincronização explícita por grupo |
 
 ## Próximos passos (em ordem)
 
@@ -51,26 +51,25 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 20/10/2026.
    conferir a sessão do PS4 já registrado com console ligado/IP atual e Xbox remoto.
    Wii por jogo e pendências estão em [`plano-frontend.md`](plano-frontend.md).
    Testar o APK com Galileo G8 físico e o download pelo provedor Drive; touch/cache
-   e pastas existentes já conferidos. Mapear saves/runtime compartilhados com
-   resolução de conflitos. NDS/3DS priorizados no celular.
-2. Evoluir o cliente Android depois da homologação: sincronização de saves,
-   states e runtime com comparação/conflitos, atualização de playlists externas,
+   e pastas existentes já conferidos. Conferir a sincronização 0.2 com os
+   emuladores fechados e estados compatíveis. NDS/3DS priorizados no celular.
+2. Evoluir o cliente Android depois da homologação: recuperação de versões pela
+   interface (hoje pelo gerenciador de arquivos ocultos), atualização de playlists externas,
    catálogo automático de ROMs do Drive (hoje o vínculo usa o seletor por jogo)
    e retomada de downloads interrompidos. CUE/M3U dependentes exigem tratar o
    conjunto de faixas/discos antes de permitir download/remoção nativos.
 3. Mídia: buscar logos/trailers por fontes verificadas; a importação local já
    funciona no PC. Runtime antigo não é somado automaticamente às sessões novas.
-4. Se algum dia fizer sentido voltar no backup de saves fora do
-   RetroArch - achados reais via adb em 05/08, ainda válidos (a parte
+4. Para ampliar o backup fora do RetroArch — achados via adb em 05/08 (a parte
    de Flycast/Dreamcast saiu daqui em 24/08 junto com a mudança pra
    RetroArch - ver docs/changelog.md, não é mais um caso "fora do
    RetroArch"):
-   - **Dolphin (Wii) e 3DS**: estrutura tipo NAND por title-ID em
-     hexadecimal (`Wii/title/<high>/<low>/data/`,
-     `Nintendo 3DS/.../title/<high>/<low>/data|extdata/`) - bem mais
-     complexo, título não vem legível (precisaria cruzar title-ID com
+   - **Dolphin (Wii)** ainda exige tratar a estrutura tipo NAND por title-ID em
+     hexadecimal (`Wii/title/<high>/<low>/data/`). O título não vem legível;
+     para exibir o nome seria preciso cruzar title-ID com
      alguma base externa, ou extrair do header do próprio arquivo de
-     ROM local).
+     ROM local). O cliente 0.2 já copia os dados/extdata do 3DS por grupo,
+     mas ainda não traduz esses IDs para nomes de jogos na análise.
    - Nota: o app de 3DS instalado no aparelho é **Lime3DS**
      (`io.github.lime3ds.android`), não "Azahar" como mencionado -
      mesma família (fork do Citra), mas nome/pacote diferentes.

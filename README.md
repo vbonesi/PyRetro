@@ -62,8 +62,11 @@ funcionam sem ele. XBXPlay, PS Remote Play oficial e Moonlight abrem pelos atalh
 
 ROMs podem ser vinculadas pelo seletor Android ao Google Drive e baixadas sob
 demanda, diretamente para uma pasta local escolhida. PS1 sob demanda usa CHD/PBP.
-Os arquivos existentes do FolderSync são reaproveitados; sincronização de saves,
-states e runtime pelo app ainda depende de implementação e conferência no aparelho.
+Os arquivos existentes do FolderSync são reaproveitados. A versão 0.2 oferece
+sincronização de saves, estados e runtime por grupo, com análise por SHA-256,
+conflitos explícitos e versões anteriores preservadas. Escolha a pasta RetroArch
+no app; PSP/3DS podem aproveitar a pasta Jogos já concedida. Runtime não é somado
+automaticamente ao tempo jogado. Detalhes no README Android.
 Texturas PSP/3DS aceitam ZIP local offline e pacotes preparados pelo notebook;
 a interface do PC também recebe arquivos locais. Ao finalizar um jogo baixado,
 o app pergunta se deseja remover somente a ROM local, preservando saves e histórico.
