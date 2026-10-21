@@ -141,16 +141,40 @@ def _rename_rom(roms_dir: Path, old_label: str, new_label: str, exts: list) -> d
     return {"status": "renomeado", "files": [str(dest)]}
 
 
+# O que vem depois do label precisa ser só extensão(ões) de save/state
+# (".srm", ".state1", ".state.auto", ".state.png"): sem isso, "Super Mario
+# Bros" pegava "Super Mario Bros. 3.srm", que é save de OUTRO jogo.
+_SAVE_SUFFIX = re.compile(r"(?:\.[A-Za-z0-9]{1,8})+")
+
+
+def _is_save_of(name: str, label: str) -> bool:
+    return name.startswith(label + ".") and _SAVE_SUFFIX.fullmatch(name[len(label):]) is not None
+
+
+def systems_with_label(roms_root: Path, codes, label: str) -> list:
+    """Sistemas cuja pasta de ROMs tem um item com esse label. Como
+    saves_root/states_root são achatados, um label em 2+ sistemas
+    (Aladdin no NES e no Mega Drive) divide o MESMO .srm/.state - mexer
+    nele em cascata a partir de um sistema estragaria o do outro."""
+    found = []
+    for code in codes:
+        folder = Path(roms_root) / code
+        if not folder.is_dir():
+            continue
+        if any((p.stem if p.is_file() else p.name) == label for p in folder.iterdir()):
+            found.append(code)
+    return found
+
+
 def _rename_flat_matches(folder: Path, old_label: str, new_label: str) -> list:
     """saves/states não têm subpasta por sistema - só troca o que
     começar exatamente com "<old_label>." (comparação de string, nunca
     glob - ver docstring do módulo)."""
     if not folder.is_dir():
         return []
-    prefix = old_label + "."
     renamed = []
     for p in sorted(folder.iterdir()):
-        if not p.is_file() or not p.name.startswith(prefix):
+        if not p.is_file() or not _is_save_of(p.name, old_label):
             continue
         rest = p.name[len(old_label):]  # ex: ".srm", ".state.auto"
         dest = p.with_name(new_label + rest)
@@ -162,14 +186,14 @@ def _rename_flat_matches(folder: Path, old_label: str, new_label: str) -> list:
 
 
 def rename_with_cascade(roms_dir: Path, saves_dir: Path, states_dir: Path,
-                         old_label: str, new_label: str, exts: list) -> dict:
+                         old_label: str, new_label: str, exts: list, skip_flat: bool = False) -> dict:
     """Retorna {"rom": {"status": ..., "files": [...]}, "saves": [...],
     "states": [...]}. Só mexe em save/state se a ROM foi renomeada com
     sucesso (senão ficaria com save/state apontando pra uma ROM que
     ainda tem o nome velho)."""
     rom_result = _rename_rom(roms_dir, old_label, new_label, exts)
-    if rom_result["status"] != "renomeado":
-        return {"rom": rom_result, "saves": [], "states": []}
+    if rom_result["status"] != "renomeado" or skip_flat:
+        return {"rom": rom_result, "saves": [], "states": [], "flat_skipped": skip_flat}
     saves = _rename_flat_matches(saves_dir, old_label, new_label)
     states = _rename_flat_matches(states_dir, old_label, new_label)
     return {"rom": rom_result, "saves": saves, "states": states}
@@ -218,8 +242,7 @@ def find_flat_matches(folder: Path, label: str) -> list:
     mostrar se o jogo tem save/state) quanto pelo delete abaixo."""
     if not folder.is_dir():
         return []
-    prefix = label + "."
-    return [p for p in sorted(folder.iterdir()) if p.is_file() and p.name.startswith(prefix)]
+    return [p for p in sorted(folder.iterdir()) if p.is_file() and _is_save_of(p.name, label)]
 
 
 def delete_flat_matches(folder: Path, label: str) -> list:
@@ -230,7 +253,7 @@ def delete_flat_matches(folder: Path, label: str) -> list:
 
 
 def delete_with_cascade(roms_dir: Path, capas_dir: Path | None, saves_dir: Path, states_dir: Path,
-                         label: str, exts: list) -> dict:
+                         label: str, exts: list, skip_flat: bool = False) -> dict:
     """Apaga ROM + capa (se capas_dir for passado - sistemas pesados não
     têm capa, passa None) + save/state de um item. Retorna {"rom":
     {...}, "capa": [...], "saves": [...], "states": [...]}. Sempre
@@ -245,6 +268,8 @@ def delete_with_cascade(roms_dir: Path, capas_dir: Path | None, saves_dir: Path,
             if p.exists():
                 p.unlink()
                 capa_deleted.append(str(p))
+    if skip_flat:  # save/state compartilhado com o mesmo label em outro sistema
+        return {"rom": rom_result, "capa": capa_deleted, "saves": [], "states": [], "flat_skipped": True}
     saves = delete_flat_matches(saves_dir, label)
     states = delete_flat_matches(states_dir, label)
     return {"rom": rom_result, "capa": capa_deleted, "saves": saves, "states": states}

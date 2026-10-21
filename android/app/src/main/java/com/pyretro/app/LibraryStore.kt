@@ -103,8 +103,22 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     fun cached():List<Game> = runCatching { parse(JSONArray(File(context.filesDir,"catalog.json").readText())) }.getOrDefault(emptyList())
     fun refresh():List<Game> {
         val games=parse(JSONArray(request("/api/tv/catalog")))
+        // ROMs renomeadas no PC: favoritos/fixados/tempo/pendências seguem a chave nova.
+        // Servidor antigo sem a rota responde 404; o catálogo segue normalmente.
+        runCatching { JSONObject(request("/api/tv/key_aliases")) }.getOrNull()?.let(::migrateAliases)
         saveCatalog(games)
         prefs.edit().putLong("updated",System.currentTimeMillis()).apply();online=true;return games
+    }
+    private fun migrateAliases(data:JSONObject) {
+        val aliases=data.keys().asSequence().associateWith { data.getString(it) }
+        if(aliases.isEmpty())return
+        synchronized(SpaceStore.mutationLock) {
+            val plan=KeyAliases.plan(prefs.all,aliases) { raw,key -> JSONObject(raw).put("key",key).toString() }
+            if(plan.puts.isEmpty() && plan.removes.isEmpty())return
+            val edit=prefs.edit();plan.removes.forEach { edit.remove(it) }
+            for((name,value) in plan.puts) when(value) { is Boolean -> edit.putBoolean(name,value);is Long -> edit.putLong(name,value);is Int -> edit.putInt(name,value);is String -> edit.putString(name,value) }
+            require(edit.commit()) { "Não foi possível migrar jogos renomeados." }
+        }
     }
     private fun saveCatalog(games:List<Game>) {
         val temporary=File(context.filesDir,"catalog.tmp");temporary.writeText(JSONArray(games.map { it.cache() }).toString())

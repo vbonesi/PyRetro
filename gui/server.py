@@ -63,6 +63,7 @@ from core import sanitize as sanitize_mod
 from core import screenscraper as screenscraper_mod
 from core import serials as serials_mod
 from core import sortear as sortear_mod
+from core import rename_links as rename_links_mod
 from core import texturas as texturas_mod
 from core import capas_emuladores as capas_emu_mod
 
@@ -73,6 +74,7 @@ LAST_PLAYED_PATH = ROOT / "cache" / "last_played.json"
 TV_PREFS_PATH = ROOT / "cache" / "tv_preferences.json"
 PLAYTIME_PATH = ROOT / 'cache' / 'playtime.json'
 TV_MEDIA_ROOT = ROOT / 'cache' / 'tv_media'
+KEY_ALIASES_PATH = ROOT / 'cache' / 'key_aliases.json'
 # {nome limpo: nome real da pasta} do Switch - listar a NSW inteira via
 # rclone leva minutos, inviável num clique da tela, então o mapa fica
 # cacheado e é atualizado junto com "🔄 Switch"/library-refresh switch.
@@ -255,6 +257,14 @@ def dentro_de(base: Path, alvo: Path) -> bool:
     except OSError:
         return False
     return base_r == alvo_r or base_r in alvo_r.parents
+
+
+def _flat_save_shared(cfg: dict, label: str) -> bool:
+    """saves_root/states_root são achatados: se o label existe em 2+
+    sistemas, o .srm/.state é do outro jogo também - cascata não toca."""
+    codes = list(cfg.get("systems", {})) + list(heavy_mod.load_heavy_systems(cfg))
+    roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+    return len(rom_rename_mod.systems_with_label(roms_root, codes, label)) > 1
 
 
 def com_versao(url: str, arquivo: Path) -> str:
@@ -1441,6 +1451,21 @@ class Handler(BaseHTTPRequestHandler):
         lib = library_mod.load_library(Path(cfg['pc']['library_root']).expanduser() / 'library.json')
         return tv_mod.catalog(cfg, lib, sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH), arcade_romname_dat('ARCADE'))
 
+    def _follow_rename(self, cfg, code, old_label, new_label):
+        """Depois da ROM renomeada: vínculo da Biblioteca e dados do modo TV/Android
+        seguem o nome novo. Roda dentro de _library_transaction (rota listada em
+        _ESCRITA_BIBLIOTECA)."""
+        library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+        library = library_mod.load_library(library_path)
+        linked = rename_links_mod.link_library(library, code, old_label, new_label)
+        if linked:
+            library_mod.save_library(library_path, library)
+        moved = rename_links_mod.move_tv_data(
+            rename_links_mod.rom_key(code, old_label), rename_links_mod.rom_key(code, new_label),
+            prefs_path=TV_PREFS_PATH, recent_path=LAST_PLAYED_PATH, playtime_path=PLAYTIME_PATH,
+            media_root=TV_MEDIA_ROOT, aliases_path=KEY_ALIASES_PATH)
+        return {"biblioteca": bool(linked), **moved}
+
     def _tv_annotate(self, games):
         return tv_home_mod.annotate(games, tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH),
                                     playtime_mod.load(PLAYTIME_PATH), TV_MEDIA_ROOT)
@@ -1591,6 +1616,10 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) == 3 and parts[0] == 'tv-media':
             try: return self._tv_media_file(tv_media_mod.resolve(TV_MEDIA_ROOT, parts[1], parts[2]))
             except ValueError as error: return self._json({'error':str(error)}, 400)
+
+        if parts == ['api', 'tv', 'key_aliases']:
+            # ROMs renomeadas no PC: o app Android migra favoritos/tempo/fixados.
+            return self._json(rename_links_mod.load_aliases(KEY_ALIASES_PATH))
 
         if parts == ['api', 'tv', 'playtime']:
             return self._json({key:playtime_mod.public(value) for key,value in playtime_mod.load(PLAYTIME_PATH).items()})
@@ -2388,6 +2417,8 @@ class Handler(BaseHTTPRequestHandler):
         ("api", "library", "decompor"),
         ("api", "cover", "apply_url"),
         ("api", "wishlist", "remove"), ("api", "wishlist", "comprado"),
+        # Renomear ROM grava o nome novo em nomes_alt (core/rename_links.py).
+        ("api", "cover", "rename"), ("api", "heavy", "rename"),
     }
     _ESCRITA_REGISTRY = {
         ("api", "cover", "apply_url"), ("api", "cover", "flag"),
@@ -2954,6 +2985,7 @@ class Handler(BaseHTTPRequestHandler):
             states_dir = Path(cfg["pc"]["states_root"]).expanduser()
             cascade = rom_rename_mod.rename_with_cascade(
                 roms_root / code, saves_dir, states_dir, label, new_label, info.get("exts", []),
+                skip_flat=_flat_save_shared(cfg, label),
             )
 
             registry = load_registry()
@@ -2965,9 +2997,10 @@ class Handler(BaseHTTPRequestHandler):
                     "rom_status": cascade["rom"]["status"],
                 }
             save_registry(registry)
+            links = self._follow_rename(cfg, code, label, new_label) if cascade["rom"]["status"] == "renomeado" else {}
             return self._json({
                 "ok": True, "new_label": new_label, "file": new_label + src.suffix,
-                "cascade": cascade,
+                "cascade": cascade, "links": links,
             })
 
         if parts == ["api", "cover", "delete"]:
@@ -2987,6 +3020,7 @@ class Handler(BaseHTTPRequestHandler):
             states_dir = Path(cfg["pc"]["states_root"]).expanduser()
             cascade = rom_rename_mod.delete_with_cascade(
                 roms_root / code, capas_dir, saves_dir, states_dir, label, info.get("exts", []),
+                skip_flat=_flat_save_shared(cfg, label),
             )
 
             registry = load_registry()
@@ -3003,7 +3037,11 @@ class Handler(BaseHTTPRequestHandler):
             label, kind = body.get("label"), body.get("kind")
             if kind not in ("save", "state"):
                 return self._json({"error": "kind precisa ser 'save' ou 'state'"}, 400)
+            if not isinstance(label, str) or not nome_de_arquivo_seguro(label):
+                return self._json({"error": "label inválido"}, 400)
             cfg = load_config()
+            if _flat_save_shared(cfg, label):
+                return self._json({"error": f"'{label}' existe em mais de um sistema e divide o mesmo {kind}; apague pelo gerenciador de arquivos depois de conferir"}, 409)
             folder = Path(cfg["pc"]["saves_root" if kind == "save" else "states_root"]).expanduser()
             deleted = rom_rename_mod.delete_flat_matches(folder, label)
             return self._json({"ok": True, "deleted": deleted})
@@ -3312,6 +3350,7 @@ class Handler(BaseHTTPRequestHandler):
             states_dir = Path(cfg["pc"]["states_root"]).expanduser()
             cascade = rom_rename_mod.rename_with_cascade(
                 roms_root / code, saves_dir, states_dir, old_label, new_label, sysinfo.get("exts", []),
+                skip_flat=_flat_save_shared(cfg, old_label),
             )
             rom_status = cascade["rom"]["status"]
             if rom_status != "renomeado":
@@ -3322,7 +3361,8 @@ class Handler(BaseHTTPRequestHandler):
                 }.get(rom_status, "falhou")
                 status_code = 409 if rom_status == "conflito" else 404
                 return self._json({"error": msg}, status_code)
-            return self._json({"ok": True, "new_label": new_label, "cascade": cascade})
+            links = self._follow_rename(cfg, code, old_label, new_label)
+            return self._json({"ok": True, "new_label": new_label, "cascade": cascade, "links": links})
 
         if parts == ["api", "heavy", "delete"]:
             body = self._read_json_body()
@@ -3342,6 +3382,7 @@ class Handler(BaseHTTPRequestHandler):
             states_dir = Path(cfg["pc"]["states_root"]).expanduser()
             cascade = rom_rename_mod.delete_with_cascade(
                 roms_root / code, None, saves_dir, states_dir, label, sysinfo.get("exts", []),
+                skip_flat=_flat_save_shared(cfg, label),
             )
             return self._json({"ok": True, "cascade": cascade})
 

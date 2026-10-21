@@ -6,6 +6,39 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Relacional jogo ↔ save/tempo/favoritos (PC, web, TV, Android 0.5.2)
+
+Validação no PC: 285 Python e 43 JS passam. Todas as rotas GET responderam
+sem 500 contra o servidor real (catálogo: 2751 itens, 0,3 s). Cruzamento real:
+10 saves/states, apenas 1 sem ROM (`Saves/saves/Backup/`, de propósito). Nenhum
+dado por jogo órfão hoje: o modo TV e o celular ainda não registraram
+favoritos, recentes ou tempo.
+
+Riscos de projeto achados e corrigidos (latentes, sem dano real até aqui):
+
+- **Save de outro jogo apagado/renomeado em cascata.** `saves_root` e
+  `states_root` são achatados e o vínculo é só o nome. O prefixo `"<nome>."`
+  pegava "Super Mario Bros. 3.srm" ao mexer em "Super Mario Bros". Agora só
+  vale sufixo de extensão (`.srm`, `.state1`, `.state.auto`, `.state.png`).
+- **Nome repetido entre sistemas divide o mesmo save.** 68 nomes de ROM
+  existem em 2+ sistemas (Aladdin em NES/MD/SFC/SMS, Breath of Fire em
+  SFC/GBA…). A cascata a partir de um sistema tocaria o save do outro. Agora
+  renomear/apagar preserva esses saves (`flat_skipped`, avisado na tela) e
+  "apagar save" recusa com 409. **Pendente, decisão do usuário:** o próprio
+  RetroArch grava esses jogos no mesmo `.srm`; separar exige
+  `sort_savefiles_by_content_enable`/`sort_savestates_by_content_enable` (PC e
+  celular, que se espelham pelo FolderSync) e mover os saves existentes.
+- **Renomear ROM perdia vínculos.** A cascata levava ROM, capa e save, mas não
+  o registro da Biblioteca (progresso/nota) nem favoritos/recentes/tempo/mídia
+  do modo TV (chave `rom:<code>:<normalizado>`). Agora `core/rename_links.py`
+  grava o nome novo em `nomes_alt`, migra os dados da TV somando/mesclando e
+  registra o apelido em `cache/key_aliases.json`. Só tag de região não muda a
+  chave. As rotas de renomear entraram em `_ESCRITA_BIBLIOTECA`.
+- **Android:** ao atualizar o catálogo, lê `/api/tv/key_aliases` e leva
+  favoritos, fixados, tempo, sessões e pendências não enviadas, ROM escolhida e
+  vínculo de nuvem para a chave nova (`KeyAliases`, 4 testes JVM). APK 0.5.2
+  compilado (33 JVM, lint ok). **Não instalado**: o celular estava desconectado.
+
 ## 21/10/2026 — Android 0.5.1: consistência offline / cache / online
 
 Revisão de código do app e do catálogo do PC (os STATUS em `auditoria/` eram

@@ -584,6 +584,7 @@ function describeDeleteCascade(cascade) {
   if (cascade.capa && cascade.capa.length) parts.push("capa apagada");
   if (cascade.saves.length) parts.push(`${cascade.saves.length} save(s) apagado(s)`);
   if (cascade.states.length) parts.push(`${cascade.states.length} state(s) apagado(s)`);
+  if (cascade.flat_skipped) parts.push("save/state mantidos: o mesmo nome existe em outro sistema e divide o arquivo");
   return parts.join(" · ");
 }
 
@@ -666,6 +667,7 @@ function describeCascade(cascade) {
   parts.push(romMsg);
   if (cascade.saves.length) parts.push(`${cascade.saves.length} save(s) renomeado(s)`);
   if (cascade.states.length) parts.push(`${cascade.states.length} state(s) renomeado(s)`);
+  if (cascade.flat_skipped) parts.push("save/state mantidos: o mesmo nome existe em outro sistema e divide o arquivo");
   return parts.join(" · ");
 }
 

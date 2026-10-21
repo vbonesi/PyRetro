@@ -5,7 +5,7 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.5.1-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.5.2-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções**, escolha **Pasta Jogos · reconhecer todos os sistemas**, ou cada
    pasta separadamente. Arquivos que eram sincronizados pelo FolderSync são reaproveitados.
@@ -325,7 +325,7 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.5.1-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.5.2-debug.apk
 ```
 
 A versão **0.5.1 está instalada** no usuário principal com a mesma assinatura.
