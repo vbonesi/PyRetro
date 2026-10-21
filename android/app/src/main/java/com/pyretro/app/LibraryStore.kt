@@ -24,6 +24,7 @@ data class Game(val id:String, val key:String, val name:String, val platform:Str
 data class RomFile(val code:String,val name:String,val uri:Uri)
 
 class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
+    companion object { const val COVER_CACHE_LIMIT=1500 }
     val prefs=context.getSharedPreferences(preferenceName,Context.MODE_PRIVATE)
     val folders=linkedMapOf("NDS" to "Nintendo DS", "3DS" to "Nintendo 3DS", "PS" to "PlayStation", "PSP" to "PSP",
         "FC" to "NES", "SFC" to "Super Nintendo", "GB" to "Game Boy", "GBC" to "Game Boy Color", "GBA" to "Game Boy Advance",
@@ -59,6 +60,14 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
             contact(server,true)
         }
         catch(error:Exception) { contact(server,false);throw error }
+    }
+    /** Sondagem silenciosa: só atualiza [online] em memória, sem gravar registros de contato
+     *  (esses ficam para o teste explícito da central). */
+    fun probe():Boolean {
+        val server=base();if(server.isBlank())return false
+        val ok=runCatching { JSONObject(request("/api/csrf",recordContact=false)).optString("token").isNotBlank() }.getOrDefault(false)
+        if(base()==server)online=ok
+        return ok
     }
     fun request(path:String,body:JSONObject?=null,recordContact:Boolean=true):String {
         require(base().isNotBlank()) { "Configure o endereço HTTPS do notebook. O modo offline continua disponível." }
@@ -183,19 +192,24 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     fun synchronize():String {
         val fresh=refresh().associateBy { it.key };var sent=0;var conflicts=0
         fun conflict(key:String,raw:String) { conflicts++;prefs.edit().putString("conflict:$key",raw).apply() }
-        for((key,raw) in prefs.all.filter { it.key.startsWith("pending:") || it.key.startsWith("time-event:") }) {
-            val payload=JSONObject(raw as String);val game=fresh[payload.getString("key")]
-            if(game==null) { conflict(key,raw);continue }
-            if(key.startsWith("pending:")) {
-                val fields=payload.getJSONObject("campos");val baseline=payload.getJSONObject("base")
-                if(fields.keys().asSequence().any { field -> game.tracking.optBoolean(field)!=baseline.optBoolean(field) && game.tracking.optBoolean(field)!=fields.optBoolean(field) }) { conflict(key,raw);continue }
-                if(game.id.isBlank()) { conflict(key,raw);continue }
-                request("/api/library/edit",JSONObject().put("id",game.id).put("campos",fields).put("expected",baseline))
-                fields.keys().forEach { field -> game.tracking.put(field,fields.get(field)) }
-            } else request("/api/tv/playtime",payload)
-            if(prefs.getString(key,null)==raw)prefs.edit().remove(key).remove("conflict:$key").apply();sent++
-        }
-        saveCatalog(fresh.values.toList())
+        // O catálogo é regravado mesmo se a rede cair no meio: o que já foi enviado sai das
+        // pendências e precisa aparecer no cache, senão o offline mostraria o estado antigo.
+        try {
+            for((key,raw) in prefs.all.filter { it.key.startsWith("pending:") || it.key.startsWith("time-event:") }) {
+                val payload=JSONObject(raw as String);val game=fresh[payload.getString("key")]
+                if(game==null) { conflict(key,raw);continue }
+                try {
+                    if(key.startsWith("pending:")) {
+                        val fields=payload.getJSONObject("campos");val baseline=payload.getJSONObject("base")
+                        if(fields.keys().asSequence().any { field -> game.tracking.optBoolean(field)!=baseline.optBoolean(field) && game.tracking.optBoolean(field)!=fields.optBoolean(field) }) { conflict(key,raw);continue }
+                        if(game.id.isBlank()) { conflict(key,raw);continue }
+                        request("/api/library/edit",JSONObject().put("id",game.id).put("campos",fields).put("expected",baseline))
+                        fields.keys().forEach { field -> game.tracking.put(field,fields.get(field)) }
+                    } else request("/api/tv/playtime",payload)
+                } catch(rejected:IllegalArgumentException) { conflict(key,raw);continue } // recusa HTTP (409/400): preserva e segue
+                if(prefs.getString(key,null)==raw)prefs.edit().remove(key).remove("conflict:$key").apply();sent++
+            }
+        } finally { saveCatalog(fresh.values.toList()) }
         val result="$sent atualização(ões) enviada(s). $conflicts pendência(s) preservada(s) para conferir no notebook."
         prefs.edit().putLong("tracking-sync-at",System.currentTimeMillis()).putString("tracking-sync-result",result).apply()
         return result
@@ -203,16 +217,18 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     fun cover(game:Game):File? {
         if(game.cover.isBlank() || !game.cover.startsWith('/'))return null
         val url=base()+game.cover
-        val name=MessageDigest.getInstance("SHA-256").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
+        // Chave só pelo caminho (com ?v=mtime): trocar LAN ↔ Tailscale não esvazia o cache offline.
+        val name=MessageDigest.getInstance("SHA-256").digest(game.cover.toByteArray()).joinToString("") { "%02x".format(it) }
         val directory=File(context.cacheDir,"covers").apply { mkdirs() };val file=File(directory,name)
-        if(file.exists())return file
+        if(file.exists()) { file.setLastModified(System.currentTimeMillis());return file }
         if(!online || base().isBlank())return null
         val connection=URL(url).openConnection() as HttpURLConnection;connection.connectTimeout=10000;connection.readTimeout=15000;connection.instanceFollowRedirects=false
         try {
             require(connection.responseCode==200)
             val bytes=connection.inputStream.use { bounded(it,8*1024*1024) }
-            val tmp=File.createTempFile("cover-",".tmp",directory);tmp.writeBytes(bytes);tmp.renameTo(file)
-            directory.listFiles()?.sortedBy { it.lastModified() }?.dropLast(128)?.forEach { it.delete() }
+            val tmp=File.createTempFile("cover-",".tmp",directory);tmp.writeBytes(bytes)
+            if(!tmp.renameTo(file)) { tmp.delete();return null }
+            directory.listFiles()?.sortedBy { it.lastModified() }?.dropLast(COVER_CACHE_LIMIT)?.forEach { it.delete() }
             return file
         } finally { connection.disconnect() }
     }

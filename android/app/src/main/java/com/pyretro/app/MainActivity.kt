@@ -102,6 +102,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private var scanOnResume=false
     private var lastMotion=0L
     private var lastCollectionAt=0L
+    private var lastProbeAt=0L
+    @Volatile private var probing=false
     private var leftTrigger=false
     private var rightTrigger=false
     private val appBackground=Color.rgb(11,18,32)
@@ -117,7 +119,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun horizontal(parent:LinearLayout,content:LinearLayout) { parent.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(content) },LinearLayout.LayoutParams(-1,-2)) }
     private fun message(value:String) {
         status.text=value
-        val notice=value.startsWith("Offline") || value.startsWith("Modo offline")
+        val notice=value.startsWith("Offline") || value.startsWith("Modo offline") || value.startsWith("Online ·")
         status.visibility=if(notice && !store.prefs.getBoolean("ui:show-notice",true))View.GONE else View.VISIBLE
     }
     private fun failure(error:Throwable) { message(error.message ?: "Não foi possível concluir.") }
@@ -183,7 +185,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         gridScroll=ScrollView(this).apply { isFillViewport=true;addView(grid) };pageRoot.addView(gridScroll,LinearLayout.LayoutParams(-1,0,1f))
         val paging=row();add(paging,button("LB · Anterior") { changePage(-1) });counter=text("",13f);add(paging,counter,1f);add(paging,button("Próxima · RB") { changePage(1) });pageRoot.addView(paging);pagingBar=paging
         controlHint=text("Galileo G8: direcional/analógico · A abrir · B voltar · X favorito · Y buscar · Menu opções",11f);pageRoot.addView(controlHint)
-        setContentView(pageRoot);adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal()
+        setContentView(pageRoot);adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal();probeNotebook()
         controllerManager=getSystemService(INPUT_SERVICE) as InputManager;controllerManager.registerInputDeviceListener(this,null);updateControllerOrientation()
     }
     private fun updateControllerOrientation() {
@@ -213,7 +215,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(streaming) { renderStream();return }
         val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
         val query=GameLogic.normalized(search.text.toString())
-        val visible=games.filter { game -> (collection!="cell" || game.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${game.key}",false)) && (collection!="kept" || SpaceStore(store).pinned(game)) && (query.isBlank() || GameLogic.normalized(game.name+game.platform+game.genre).contains(query)) }
+        val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
+        val visible=games.filter { game -> (collection!="cell" || game.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${game.key}",false)) && (collection!="kept" || pinned(game)) && (query.isBlank() || GameLogic.normalized(game.name+game.platform+game.genre).contains(query)) }
         val count=((visible.size+23)/24).coerceAtLeast(1);pageCount=count;page=page.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos"
         if(restorePosition && localScanAt>0 && restoredPage!=null) { page=restoredPage!!.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos" }
         val compact=resources.configuration.orientation==2
@@ -294,8 +297,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         status.maxLines=if(landscape)1 else 2;message(status.text.toString());search.layoutParams.height=dp(if(landscape)48 else 52)
     }
     private fun draw() {
-        val space=SpaceStore(store)
-        val current=games.filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) && (collection!="kept" || space.pinned(it)) }
+        val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
+        val current=games.filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) && (collection!="kept" || pinned(it)) }
         // Coleção vazia (Fixados/Favoritos sem jogos) não pode parecer botão morto: sorteia dos jogos do celular ou do catálogo.
         val local=games.filter { it.localUri!=null }
         val (pool,title)=when {
@@ -909,6 +912,28 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }.onSuccess { runOnUiThread { message("Pedido enviado ao notebook.");openPackage("com.limelight") } }.onFailure { runOnUiThread { failure(it) } } }
         })
     }
+    /** Confere o notebook em segundo plano (só /api/csrf, no máximo 1×/min) para que o
+     *  estado online, o aviso do topo e o download de capas reflitam a conexão real, em vez de
+     *  ficar "Offline" até o usuário atualizar o catálogo à mão. Não baixa catálogo nem sincroniza. */
+    private fun probeNotebook() {
+        val now=SystemClock.elapsedRealtime()
+        if(probing || store.base().isBlank() || (lastProbeAt>0 && now-lastProbeAt<60_000))return
+        probing=true;lastProbeAt=now
+        Thread {
+            val ok=store.probe()
+            runOnUiThread {
+                probing=false
+                if(isFinishing || isDestroyed)return@runOnUiThread
+                val updated=store.prefs.getLong("updated",0).takeIf { it>0 }?.let(::versionDate)
+                val text=status.text.toString()
+                val notice=text.startsWith("Offline") || text.startsWith("Modo offline") || text.startsWith("Online ·")
+                if(ok) {
+                    if(notice)message(if(catalog.isEmpty())"Online · notebook conectado. Carregue o catálogo em Opções." else "Online · notebook conectado. Catálogo em cache de ${updated ?: "data desconhecida"}; atualize em Opções quando quiser.")
+                    if(collection!="stream")render() // capas que faltavam no cache agora podem ser baixadas
+                } else if(notice && text.startsWith("Online ·"))message("Offline · notebook não respondeu. Catálogo em cache e jogos locais continuam disponíveis.")
+            }
+        }.apply { isDaemon=true }.start()
+    }
     override fun onPause() {
         queueHandler.removeCallbacks(queueTick);runCatching { queue().pause() }
         if(::gridScroll.isInitialized) {
@@ -920,7 +945,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         super.onPause();scanOnResume=true;if(activeGame!=null)leftForGame=true
     }
     override fun onResume() {
-        super.onResume();queueHandler.removeCallbacks(queueTick);queueHandler.post(queueTick);if(scanOnResume) { scanOnResume=false;reloadLocal() };val game=activeGame ?: return
+        super.onResume();queueHandler.removeCallbacks(queueTick);queueHandler.post(queueTick);if(scanOnResume) { scanOnResume=false;reloadLocal();probeNotebook() };val game=activeGame ?: return
         if(!leftForGame)return
         activeGame=null;leftForGame=false
         val elapsed=(SystemClock.elapsedRealtime()-launchedAt)/60000

@@ -48,13 +48,29 @@ def local_roms(cfg, lib, arcade_names=None):
             registered = library.find_for_rom(index, name, code)
             cover = None
             for ext in ('.png', '.jpg'):
-                if (cover_root / info.get('capas', '') / 'Named_Boxarts' / (label + ext)).is_file():
-                    cover = f'/images/{quote(code)}/{quote(label + ext)}'
+                found = cover_root / info.get('capas', '') / 'Named_Boxarts' / (label + ext)
+                if found.is_file():
+                    cover = _versioned(f'/images/{quote(code)}/{quote(label + ext)}', found)
                     break
             out.append({'name': name, 'platform': info.get('nome') or info.get('capas') or code,
                         'code': code, 'romName': label, 'cover': cover,
                         'tracking': tracking, 'local': True, **({'id': registered['id']} if registered else {})})
     return out
+
+
+def _versioned(url, path):
+    """Capa com ?v=<mtime>: o app Android guarda capas por URL; sem versão, uma capa
+    trocada no PC nunca era baixada de novo no celular (mesmo motivo do com_versao)."""
+    try:
+        return f'{url}?v={int(path.stat().st_mtime)}'
+    except OSError:
+        return url
+
+
+def _library_cover(cfg, game):
+    if not game.get('capa'):
+        return None
+    return _versioned('/library-images/' + quote(game['capa']), Path(cfg['pc']['library_root']).expanduser() / game['capa'])
 
 
 def local_pc(cfg, lib):
@@ -64,7 +80,7 @@ def local_pc(cfg, lib):
         if g.get('oculto') or not pc_games.find(cfg, g, indexes):
             continue
         out.append({'id': g['id'], 'name': g['nome'], 'platform': g['plataforma'],
-                    'cover': '/library-images/' + quote(g['capa']) if g.get('capa') else None,
+                    'cover': _library_cover(cfg, g),
                     'tracking': g, 'local': True})
     return out
 
@@ -89,7 +105,7 @@ def catalog(cfg, lib, cached, arcade_names=None):
             shown = (covers.arcade_display_name(label, arcade_names) or label) if code == 'ARCADE' and arcade_names else label
             registered = library.find_for_rom(index, shown, code)
             by_key[key] = {'name': shown, 'platform': info.get('nome') or info.get('capas') or code,
-                           'code': code, 'romName': name, 'cover': f'/images/{quote(code)}/{quote(names[label])}' if label in names else None,
+                           'code': code, 'romName': name, 'cover': _versioned(f'/images/{quote(code)}/{quote(names[label])}', cover_dir / names[label]) if label in names else None,
                            'tracking': library.rom_tracking_info(index, shown, code) or {}, 'local': False,
                            'downloadName': name if name in drive else None, 'driveName': name if name in drive else None,
                            **({'id': registered['id']} if registered else {})}
@@ -103,6 +119,6 @@ def catalog(cfg, lib, cached, arcade_names=None):
         if g['id'] in represented:
             continue
         out.append({'id': g['id'], 'name': g['nome'], 'platform': g['plataforma'],
-                    'cover': '/library-images/' + quote(g['capa']) if g.get('capa') else None,
+                    'cover': _library_cover(cfg, g),
                     'tracking': g, 'local': g['id'] in pc_local})
     return sorted(out, key=lambda g: g['name'].lower())

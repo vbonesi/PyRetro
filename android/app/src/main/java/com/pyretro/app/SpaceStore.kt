@@ -12,6 +12,11 @@ data class SpaceSnapshot(val roms:List<SpaceRom>,val errors:List<String>,val pri
 class SpaceStore(private val store:LibraryStore) {
     companion object { val mutationLock=Any() }
     fun documentKey(uri:Uri):String=uri.authority+"|"+store.documentId(uri)
+    /** Mesmo critério de [pinned], lendo as preferências uma vez só (listas com milhares de jogos). */
+    fun pinnedChecker():(Game)->Boolean {
+        val all=store.prefs.all;val identities=all.filterKeys { it.startsWith("keep:") }.values.toSet()
+        return { game -> all.containsKey("keep:${game.key}") || game.localUri?.let { documentKey(it) in identities } == true }
+    }
     fun pinned(game:Game):Boolean {
         if(store.prefs.contains("keep:${game.key}"))return true
         val uri=game.localUri ?: return false

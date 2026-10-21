@@ -6,6 +6,38 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Android 0.5.1: consistência offline / cache / online
+
+Revisão de código do app e do catálogo do PC (os STATUS em `auditoria/` eram
+relatórios de entrega, não revisão). Defeitos achados e corrigidos:
+
+- **Estado online falso na abertura.** `online` só virava verdadeiro depois de
+  "Carregar catálogo" à mão: com o notebook acessível, o topo dizia "Offline" e
+  nenhuma capa nova era baixada. Agora, ao abrir e ao voltar ao app, uma sondagem
+  silenciosa (`/api/csrf`, no máximo 1×/min) atualiza só o estado em memória e o
+  aviso ("Online · …" ou "Offline · …"). Não baixa catálogo nem sincroniza, e não
+  grava registros de contato: esses continuam vindo só do teste explícito da
+  central (a instrumentação exige que navegar não altere as preferências).
+- **Cache de capas offline.** A chave incluía o endereço do servidor, então trocar
+  LAN ↔ Tailscale esvaziava o cache. O limite era de 128 arquivos por ordem de
+  criação (um acesso não renovava a capa). Agora a chave é só o caminho, o acesso
+  renova a capa (LRU) e o limite é de 1500. Uma falha ao renomear não devolve
+  mais um arquivo inexistente.
+- **Capa trocada no PC nunca atualizava no celular.** O catálogo da TV
+  (`core/tv.py`) agora manda `?v=<mtime>`, como o `com_versao` da web.
+- **Sincronizar progresso/tempo.** Uma recusa HTTP (409/400) de um item abortava
+  o resto. Uma queda de rede no meio tirava itens das pendências sem regravar o
+  catálogo local, e o offline mostrava o estado antigo. Agora a recusa vira
+  pendência preservada e o lote segue; o catálogo é gravado em `finally`.
+- **Fixados lento.** `pinned()` copiava todas as preferências para cada um dos
+  ~2750 jogos em cada renderização. Agora `pinnedChecker()` lê uma vez só.
+
+Validação: 277 Python, 29 JVM, build e lint. No aparelho, as suítes
+StorageSmoke, status e status+conexão deram PASS; inventário real (281 arquivos)
+idêntico antes e depois; preferências reais iguais, salvo ui/contato; APK de
+teste desinstalado. Teste manual: Online detectado na abertura; capas baixadas
+ao navegar; com o serviço do PC parado, aviso Offline e capas do cache exibidas.
+
 ## 21/10/2026 — Android: Sortear em coleção vazia
 
 - Relato: "o app não está sorteando". O sorteio funcionava em Neste celular e no

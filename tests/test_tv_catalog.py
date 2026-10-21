@@ -37,6 +37,21 @@ class TestTVCatalog(BaseAPI):
         self.assertEqual(cloud['downloadName'], 'Bomba Patch.iso')
         self.assertFalse(next(g for g in items if g['name'] == 'Só capa')['local'])
 
+    def test_catalog_cover_url_changes_when_cover_file_changes(self):
+        import os
+        capa = self.capas_dir / 'Só capa.png'
+        capa.write_bytes(b'imagem')
+        os.utime(capa, (1_000_000, 1_000_000))
+        with patch.object(pc_games, 'installed_indexes', return_value={k: {} for k in ('steam', 'legendary', 'gog', 'nile')}):
+            first = next(g for g in self.pedir('/api/tv/catalog')[1] if g['name'] == 'Só capa')['cover']
+            os.utime(capa, (2_000_000, 2_000_000))
+            second = next(g for g in self.pedir('/api/tv/catalog')[1] if g['name'] == 'Só capa')['cover']
+        self.assertTrue(first.endswith('?v=1000000'))
+        self.assertNotEqual(first, second)
+        import urllib.request
+        with urllib.request.urlopen(self.url + second, timeout=30) as r:  # a query não atrapalha a rota /images
+            self.assertEqual(r.read(), b'imagem')
+
     def test_apps_launch_only_registered_id_and_fixed_argv(self):
         apps = {'exemplo': {'nome': 'Exemplo', 'comando': ['/usr/bin/exemplo', '--tv']}}
         with patch.object(tv_apps, 'entries', return_value=apps), patch.object(tv_apps.subprocess, 'Popen') as launch:

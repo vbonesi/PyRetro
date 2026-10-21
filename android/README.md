@@ -5,7 +5,7 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.5.0-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.5.1-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções**, escolha **Pasta Jogos · reconhecer todos os sistemas**, ou cada
    pasta separadamente. Arquivos que eram sincronizados pelo FolderSync são reaproveitados.
@@ -308,7 +308,8 @@ presença não comprova que todas as faixas/discos existem.
 
 ## Compilar e verificar
 
-Requer JDK 17, SDK Platform 35, Build Tools 35.0.0 e platform-tools. Com
+Requer JDK 17, SDK Platform 35, Build Tools 35.0.0 e platform-tools (toolchain
+local em `~/.cache/pyretro/android-toolchain/{jdk,sdk}`). Com
 `JAVA_HOME` e `ANDROID_HOME` configurados, na raiz do repositório:
 
 ```bash
@@ -324,10 +325,10 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.5.0-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.5.1-debug.apk
 ```
 
-A versão **0.5.0 está instalada** no usuário principal com a mesma assinatura.
+A versão **0.5.1 está instalada** no usuário principal com a mesma assinatura.
 Compilação/lint e 29 testes JVM aprovados. A instrumentação de interface verifica
 retrato/paisagem, central, menus de espaço/downloads, aba Stream e restauração de
 coleção/página após recriação. A suíte SAF usa arquivos próprios para conferir

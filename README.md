@@ -82,7 +82,7 @@ Detalhes no [README Android](android/README.md).
 Texturas PSP/3DS aceitam ZIP local offline e pacotes preparados pelo notebook;
 a interface do PC também recebe arquivos locais. Ao finalizar um jogo baixado,
 o app pergunta se deseja remover somente a ROM local, preservando saves e histórico.
-Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. Versão 0.5.0 instalada
+Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. Versão 0.5.1 instalada
 e navegação touch conferida no aparelho; testes físicos do G8 e do provedor Drive
 continuam pendentes. Instruções e limites no README Android.
 
