@@ -854,6 +854,66 @@ teste('TV: sorteio sugere PS4, preserva erros e abre link pela identidade', asyn
   }finally{frame.remove();}
 });
 
+teste('TV: tempo manual, mais jogados e mídia local em detalhes a 390 px', async () => {
+  const frame=document.createElement('iframe');frame.style.cssText='width:390px;height:800px;position:absolute;left:-9999px';document.body.append(frame);
+  const html=(await(await fetch('/tv')).text()).replace('<script src="/static/tv.js" defer></scr'+'ipt>','');
+  const loaded=new Promise(resolve=>frame.onload=resolve);frame.srcdoc=html;await loaded;
+  const app=frame.contentWindow,doc=app.document,posts=[];
+  const game={id:'time',key:'pc:time',name:'Meu jogo',platform:'Steam',tracking:{},local:false,playtime:{seconds:0,sessions:0},media:{}};
+  app.requestAnimationFrame=fn=>app.setTimeout(()=>fn(app.performance.now()),16);
+  app.fetch=async(url,init)=>{
+    let data;
+    if(url==='/api/tv/home')data={recent:[game],continue:[],favorites:[],installed:[],ready:[],mostPlayed:game.playtime.seconds?[game]:[],apps:[]};
+    else if(url==='/api/systems'||url==='/api/heavy/systems')data=[];
+    else if(url==='/api/play/status')data={status:'idle'};
+    else if(url==='/api/csrf')data={token:'media-token'};
+    else if(url.startsWith('/api/pc/options?'))data={available:false};
+    else if(url==='/api/tv/playtime') {
+      posts.push(JSON.parse(init.body));igual(init.headers['X-PyRetro-CSRF'],'media-token');
+      data=game.playtime={seconds:1800,sessions:1,manualSeconds:1800,automaticSeconds:0};
+    } else if(url.startsWith('/api/tv/media?')) {
+      igual(init.headers['X-PyRetro-CSRF'],'media-token');verdade(init.body instanceof app.File,'arquivo não enviado diretamente');
+      posts.push({media:true});data=game.media={logo:'/tv-media/test/logo.png'};
+    } else throw new Error('requisição inesperada: '+url);
+    return{ok:true,json:async()=>data};
+  };
+  const script=doc.createElement('script');script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
+  try {
+    await esperar(()=>doc.getElementById('spotlight-open').textContent==='Ver jogo','início não carregou');
+    doc.getElementById('spotlight-open').click();doc.getElementById('time-toggle').click();
+    doc.getElementById('time-minutes').value='30';doc.getElementById('time-save').click();
+    await esperar(()=>doc.getElementById('game-time').textContent.includes('30 min'),'tempo não atualizou');
+    igual(posts[0],{key:'pc:time',minutes:30});
+    doc.getElementById('media-toggle').click();
+    const transfer=new app.DataTransfer();transfer.items.add(new app.File(['fake'], 'logo.png',{type:'image/png'}));
+    doc.getElementById('media-logo').files=transfer.files;doc.getElementById('media-logo').dispatchEvent(new app.Event('change'));
+    await esperar(()=>doc.getElementById('detail-status').textContent.includes('Mídia salva'),'mídia não confirmou');
+    await esperar(()=>doc.getElementById('spotlight-logo').getAttribute('src')==='/tv-media/test/logo.png','logo não atualizou');
+    verdade(doc.getElementById('details').scrollWidth<=390,'detalhes ultrapassam tela mobile');
+    doc.getElementById('close').click();verdade(doc.getElementById('home').textContent.includes('Mais jogados'));
+  } finally {frame.remove();}
+});
+
+teste('texturas: arquivo escolhido no aparelho é enviado e instalado no alvo selecionado', async () => {
+  const app=document.getElementById('app-under-test').contentWindow,doc=app.document;
+  const original={fetch:app.fetch,confirm:app.confirm,EventSource:app.EventSource};const posts=[];
+  app.confirm=()=>true;app.EventSource=class { close(){} };
+  app.fetch=async(url,init)=>{
+    if(url.startsWith('/api/texturas/upload?')) { verdade(init.body instanceof app.File);posts.push({upload:true});return{ok:true,json:async()=>({upload:'token.zip'})}; }
+    if(url==='/api/texturas/instalar'){posts.push(JSON.parse(init.body));return{ok:true,json:async()=>({job:'fixture'})};}
+    throw new Error('requisição inesperada: '+url);
+  };
+  try {
+    doc.getElementById('texturas-alvo').value='celular';
+    doc.getElementById('texturas-imp-sistema').replaceChildren(new app.Option('PSP','PSP'));
+    doc.getElementById('texturas-imp-id').value='ULUS99999';doc.getElementById('texturas-imp-arquivo').value='não-usar.rar';
+    const data=new app.DataTransfer();data.items.add(new app.File(['fixture'],'pacote.zip'));
+    doc.getElementById('texturas-imp-upload').files=data.files;doc.getElementById('texturas-imp-enviar').click();
+    await esperar(()=>posts.length===2&&!doc.getElementById('texturas-imp-enviar').disabled,'envio não concluiu');
+    igual(posts,[{upload:true},{alvo:'celular',sistema:'PSP',id_jogo:'ULUS99999',upload:'token.zip'}]);
+  } finally {Object.assign(app,original);}
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];

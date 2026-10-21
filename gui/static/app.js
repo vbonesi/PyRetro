@@ -2895,14 +2895,17 @@ async function removerTextura(p) {
   carregarTexturas();
 }
 
-function importarTextura(remover, porLink) {
+function importarTextura(remover, porLink, uploaded = null) {
   const corpo = {
     alvo: textAlvo(), sistema: document.getElementById("texturas-imp-sistema").value,
     id_jogo: document.getElementById("texturas-imp-id").value.trim(),
     arquivo: document.getElementById("texturas-imp-arquivo").value.trim(),
   };
   const url = document.getElementById("texturas-imp-url").value.trim();
-  if (porLink) {
+  if (uploaded) {
+    if (!corpo.id_jogo) { textStatus('preencha o ID exato do jogo'); return; }
+    delete corpo.arquivo; corpo.upload = uploaded;
+  } else if (porLink) {
     if (!corpo.id_jogo || !url) { textStatus("preencha o ID do jogo e o link"); return; }
     if (!confirm(`Baixar e instalar este arquivo?\n\n${url}\n\nO PyRetro não tem como conferir a integridade de um link avulso: use só fontes em que você confia. Ao final, o SHA-1 do arquivo aparece aqui.`)) return;
     delete corpo.arquivo;
@@ -2911,7 +2914,7 @@ function importarTextura(remover, porLink) {
     textStatus("preencha o ID do jogo e o nome do arquivo"); return;
   }
   if (remover) delete corpo.arquivo;
-  fetch(remover ? "/api/texturas/remover" : "/api/texturas/instalar", {
+  return fetch(remover ? "/api/texturas/remover" : "/api/texturas/instalar", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo),
   })
     .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "falha"); return d; })
@@ -2934,6 +2937,19 @@ function importarTextura(remover, porLink) {
 document.getElementById("texturas-imp-ir").addEventListener("click", () => importarTextura(false, false));
 document.getElementById("texturas-imp-link").addEventListener("click", () => importarTextura(false, true));
 document.getElementById("texturas-imp-remover").addEventListener("click", () => importarTextura(true, false));
+document.getElementById('texturas-imp-enviar').addEventListener('click', async event => {
+  const file = document.getElementById('texturas-imp-upload').files[0];
+  if (!file || !document.getElementById('texturas-imp-id').value.trim()) { textStatus('escolha o arquivo e informe o ID exato do jogo'); return; }
+  if (!/\.(zip|7z|rar)$/i.test(file.name) || file.size > 12*1024**3) { textStatus('use ZIP/7z/RAR de até 12 GB'); return; }
+  if (!confirm(`Enviar e instalar ${file.name} no alvo ${textAlvo()}? Confira o ID/região e feche o emulador antes.`)) return;
+  event.target.disabled = true; textStatus('enviando arquivo deste aparelho…');
+  try {
+    const response = await fetch('/api/texturas/upload?'+new URLSearchParams({filename:file.name}), {method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || 'falha no envio');
+    await importarTextura(false,false,data.upload);
+  } catch(error) { textStatus(`erro: ${error.message}`); }
+  finally { event.target.disabled = false; }
+});
 document.getElementById("texturas-alvo").addEventListener("change", () => { textStatus(""); carregarTexturas(); });
 
 document.getElementById("btn-texturas").addEventListener("click", () => {
@@ -2949,3 +2965,13 @@ document.getElementById("texturas-modal").addEventListener("click", (e) => {
 for (const id of ["texturas-busca", "texturas-sistema", "texturas-so-meus"]) {
   document.getElementById(id).addEventListener("input", renderTexturas);
 }
+const textureParams = new URLSearchParams(location.search);
+if (textureParams.has('textures')) (async () => {
+  document.getElementById('texturas-modal').classList.remove('hidden');
+  const code = textureParams.get('textures');
+  document.getElementById('texturas-sistema').value = code;
+  document.getElementById('texturas-busca').value = textureParams.get('game') || '';
+  document.getElementById('texturas-so-meus').checked = false;
+  await carregarTexturas(); document.getElementById('texturas-imp-sistema').value = code;
+  document.getElementById('texturas-busca').focus();
+})().catch(error => textStatus(error.message));

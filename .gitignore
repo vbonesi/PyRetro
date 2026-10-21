@@ -13,6 +13,10 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+android/.gradle/
+android/**/build/
+android/local.properties
+*.keystore
 
 # Editor/OS
 .DS_Store

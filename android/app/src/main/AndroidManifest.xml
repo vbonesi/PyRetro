@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    <queries>
+        <package android:name="com.grill.xbxplay"/><package android:name="com.playstation.remoteplay"/><package android:name="com.limelight"/>
+        <package android:name="com.retroarch"/><package android:name="com.retroarch.aarch64"/>
+        <package android:name="com.github.stenzek.duckstation"/>
+        <package android:name="io.github.lime3ds.android"/><package android:name="io.github.azahar_emu.azahar"/>
+        <package android:name="org.ppsspp.ppssppgold"/><package android:name="org.ppsspp.ppsspp"/>
+    </queries>
+    <application android:theme="@android:style/Theme.Material.NoActionBar" android:label="PyRetro" android:icon="@drawable/ic_pyretro" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:configChanges="keyboard|keyboardHidden|orientation|screenSize">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity>
+    </application>
+</manifest>

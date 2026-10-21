@@ -18,9 +18,10 @@ Essas regras existem por causa de incidentes reais durante o desenvolvimento,
 não são só estilo:
 
 - **Nunca apaga nada sozinho.** Toda operação é aditiva (copia o que falta,
-  atualiza o que mudou). Remoção é sempre uma decisão manual, fora do script.
-- **Nunca transfere jogo novo.** O script corrige/organiza o que já existe
-  no acervo, não decide baixar ou copiar ROM pra lugar nenhum.
+  atualiza o que mudou). Remoção exige decisão manual e confirmação explícita;
+  no APK, a confirmação de finalizado remove somente a cópia local da ROM.
+- **Não escolhe jogos para transferir.** A manutenção corrige/organiza o que
+  já existe. Downloads no frontend dependem da escolha explícita do usuário.
 - **Fuzzy match nunca é aplicado sozinho.** Correspondência aproximada de
   nome (capas, principalmente) só entra num relatório pra revisão humana -
   mesmo com corte de similaridade alto (90%+), sequências como "Dragon Quest"
@@ -47,6 +48,28 @@ O sorteio nas duas interfaces oferece a próxima ação disponível: jogar no PC
 abrir a loja, transmitir do console ou continuar com o download no modo TV.
 O resultado nunca inicia o jogo ou a transmissão sozinho. Os links entre as
 interfaces preservam a identidade do jogo, inclusive quando há títulos homônimos.
+
+O modo TV registra a duração dos emuladores abertos por ele e oferece tempo manual
+para lojas/transmissões, além da fileira **Mais jogados**. Nos detalhes, **Personalizar
+mídia** importa logo e prévia MP4/WebM locais. Detalhes em [`docs/modo-tv.md`](docs/modo-tv.md).
+
+## App Android
+
+Primeiro APK nativo em [`android/`](android/README.md): interface para Galileo G8 e
+touch, ROMs locais (incluindo NDS/3DS), catálogo em cache e progresso/tempo offline.
+O banco continua no PC. Tailscale consulta/sincroniza o notebook; jogos locais
+funcionam sem ele. XBXPlay, PS Remote Play oficial e Moonlight abrem pelos atalhos.
+
+ROMs podem ser vinculadas pelo seletor Android ao Google Drive e baixadas sob
+demanda, diretamente para uma pasta local escolhida. PS1 sob demanda usa CHD/PBP.
+Os arquivos existentes do FolderSync são reaproveitados; sincronização de saves,
+states e runtime pelo app ainda depende de implementação e conferência no aparelho.
+Texturas PSP/3DS aceitam ZIP local offline e pacotes preparados pelo notebook;
+a interface do PC também recebe arquivos locais. Ao finalizar um jogo baixado,
+o app pergunta se deseja remover somente a ROM local, preservando saves e histórico.
+Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. APK instalado
+e navegação touch conferida no aparelho; testes físicos do G8 e do provedor Drive
+continuam pendentes. Instruções e limites no README Android.
 
 ## Gráficos dos emuladores
 

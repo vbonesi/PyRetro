@@ -234,3 +234,24 @@ A tela inicial também é testada com APIs falsas: atalhos remotos por ID, favor
 sem repetição ao segurar X, falhas visíveis, persistência de tema, foco em Jogar e
 ausência de escrita de progresso ao navegar/favoritar. A API verifica favoritos
 concorrentes, rejeição de entradas inválidas e preservação integral da Biblioteca.
+
+## Tempo jogado e mídia local
+
+O servidor mede a duração do processo dos emuladores abertos por **Jogar**,
+mesmo com a TV fechada, e registra uma única sessão ao encerrar. Esse intervalo
+inclui pausas; não mede atividade no controle. Reiniciar/parar o servidor durante
+uma sessão interrompe a medição. Steam, Heroic e clientes remotos podem manter
+processos residentes: nesses casos use **Registrar tempo** nos detalhes, em minutos.
+Isso não altera o campo histórico `tempo` da Biblioteca nem importa tempos das lojas.
+
+Totais e sessões ficam em `cache/playtime.json`, com lock, escrita atômica e deduplicação
+de eventos. A tela inicial oferece **Mais jogados** e os detalhes mostram o total.
+Erro ao salvar tempo aparece sem deixar o emulador marcado como aberto.
+
+**Personalizar mídia**, nos detalhes, aceita logo PNG/JPEG/WebP e prévia MP4/WebM,
+até 64 MB por arquivo. As mídias ficam separadas em `cache/tv_media/`, por chave de
+jogo; não substituem capas/ROMs do acervo. Imagens são validadas pelo ImageMagick e
+vídeos pelo `ffprobe`. Arquivo inválido preserva a mídia anterior. Não faz busca
+aproximada nem baixa trailers automaticamente. Vídeo em destaque é mudo e respeita
+redução de movimento; nos detalhes pode ser reproduzido com controles. As URLs são
+locais, com suporte a requisições Range, sem serviços de vídeo externos.

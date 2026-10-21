@@ -174,10 +174,12 @@ def prepare(cfg, code, name, emulator=''):
 
 class Sessions:
     """Uma sessão por servidor. O estado pode ser retomado após recarregar a TV."""
-    def __init__(self):
+    def __init__(self, record=None):
         self.lock = threading.Lock()
         self.process = None
         self.state = {'status': 'idle'}
+        self.record = record
+        self.started = None
 
     def _poll(self):
         if self.process is not None:
@@ -185,6 +187,11 @@ class Sessions:
             if code is not None:
                 self.state.update(status='finished' if code == 0 else 'error', returncode=code)
                 self.process = None
+                if self.record:
+                    try:
+                        self.record(self.state, max(0, time.monotonic() - self.started))
+                    except (OSError, ValueError) as error:
+                        self.state['timeError'] = str(error)
                 restore_tv_focus()
         return dict(self.state)
 
@@ -200,6 +207,17 @@ class Sessions:
             # Sem shell e sem herdar stdin; os erros do lançador vão para o journal.
             process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, close_fds=True)
             self.process = process
+            self.started = time.monotonic()
             self.state = {'status': 'running', 'code': code, 'name': name,
                           'session': time.time_ns()}
+            if self.record:
+                threading.Thread(target=self._watch, args=(process,), daemon=True).start()
             return dict(self.state)
+
+    def _watch(self, process):
+        while True:
+            time.sleep(.25)
+            with self.lock:
+                if self.process is not process:
+                    return
+                self._poll()

@@ -12,6 +12,10 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 20/10/2026.
 | Modo TV com controle, início, recentes, favoritos, busca Y e navegação por ombros/gatilhos | ✅ Implementado; detalhes em [`modo-tv.md`](modo-tv.md) |
 | Abrir ROMs e jogos instalados Steam/Heroic | ✅ Implementado, com validação de arquivos e download confirmado |
 | Sorteio com sugestão de jogar/transmitir/abrir loja nas duas interfaces | ✅ Implementado, com identidade por ID e link entre interfaces |
+| Tempo de emuladores, duração manual e logos/prévias locais no modo TV | ✅ Implementado; registro separado do tempo histórico da Biblioteca |
+| App Android com offline, G8/touch e ROMs do Drive sob demanda | APK instalado; touch, cache e pastas conferidos. G8 físico e provedor Drive pendentes |
+| Texturas PSP/3DS e remoção confirmada da ROM ao finalizar no Android | ✅ Implementado; ZIP offline e preparação pelo PC, sem substituir saves/texturas existentes |
+| Saves/states/runtime pelo app Android | Pendente: inventário e comparação das pastas existentes; FolderSync retirado preservando arquivos |
 | Xbox/PS4 remotos e Switch Lite Wi-Fi | Clientes integrados e sem duplicação; Switch confirmado, sessão PS4/Xbox ainda depende de uso real |
 | GUI de capas (galeria, busca, flag/duplicada/renomear/apagar) | ✅ Pronto |
 | Sync de capas PC↔celular via adb (`core/sync.py`) | ✅ Pronto, despriorizado (Drive cobre sistemas leves) |
@@ -38,15 +42,25 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 20/10/2026.
 | Montar playlist `.lpl` do RetroArch (`retrosync rebuild-playlist`) | ✅ Pronto, testado no aparelho real (24/08) - PC e Android tratados separado, `core_path`/`core_name` "DETECT" |
 | Backup datado das configs do RetroArch (`retrosync backup-config`) | ✅ Pronto, testado no aparelho real (24/08) - `retroarch.cfg`+`config/`+`playlists/`, PC e Android |
 | Busca de capa a partir do catálogo no Drive (`retrosync fetch-covers-cloud`) | ✅ Pronto, testado no acervo real (24/08) - Saturn 37/37, Dreamcast 9/9 (1 via fallback LaunchBox) |
-| PyRetro rodando no Android (Termux) | ❌ **Descontinuado (22/09/2026)** - saiu do plano: o PyRetro não roda mais no celular. O passo a passo ([`docs/termux_setup.md`](termux_setup.md)) fica como histórico, nunca chegou a ser testado no aparelho. O celular continua sendo **cliente** da GUI pelo Tailscale, e o `adb` continua sendo o caminho pra mexer no acervo dele. |
-| `sync.py` pra saves/states/runtime-logs | ❌ Cancelado (sempre vai usar Google Drive pra isso) |
+| PyRetro rodando no Android (Termux) | ❌ **Descontinuado (22/09/2026)** - saiu do plano: o PyRetro não roda mais no celular. O passo a passo ([`docs/termux_setup.md`](termux_setup.md)) fica como histórico, nunca chegou a ser testado no aparelho. O backend Python continua no PC; desde 20/10 há também cliente Android nativo, com offline (veja `android/README.md`). O `adb` permanece disponível para manutenção. |
+| `sync.py` pra saves/states/runtime-logs | Trilha antiga cancelada; retomada planejada no cliente Android, após inventário no aparelho |
 
 ## Próximos passos (em ordem)
 
 1. Homologar o fluxo de console com Xbox físico, retorno de foco e Steam Link;
    conferir a sessão do PS4 já registrado com console ligado/IP atual e Xbox remoto.
-   Sistemas sem lançador, Wii por jogo e evolução Android estão em [`plano-frontend.md`](plano-frontend.md).
-2. Se algum dia fizer sentido voltar no backup de saves fora do
+   Wii por jogo e pendências estão em [`plano-frontend.md`](plano-frontend.md).
+   Testar o APK com Galileo G8 físico e o download pelo provedor Drive; touch/cache
+   e pastas existentes já conferidos. Mapear saves/runtime compartilhados com
+   resolução de conflitos. NDS/3DS priorizados no celular.
+2. Evoluir o cliente Android depois da homologação: sincronização de saves,
+   states e runtime com comparação/conflitos, atualização de playlists externas,
+   catálogo automático de ROMs do Drive (hoje o vínculo usa o seletor por jogo)
+   e retomada de downloads interrompidos. CUE/M3U dependentes exigem tratar o
+   conjunto de faixas/discos antes de permitir download/remoção nativos.
+3. Mídia: buscar logos/trailers por fontes verificadas; a importação local já
+   funciona no PC. Runtime antigo não é somado automaticamente às sessões novas.
+4. Se algum dia fizer sentido voltar no backup de saves fora do
    RetroArch - achados reais via adb em 05/08, ainda válidos (a parte
    de Flycast/Dreamcast saiu daqui em 24/08 junto com a mudança pra
    RetroArch - ver docs/changelog.md, não é mais um caso "fora do
@@ -64,7 +78,8 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 20/10/2026.
 ## Arquitetura de dois modos
 
 > **Nota (22/09/2026):** o modo Android saiu do plano - o PyRetro não roda
-> mais no celular, ele é só cliente da GUI pelo Tailscale. O desenho abaixo
+> mais no celular como backend Python. O cliente nativo acrescentado em 20/10 usa
+> cache/ROMs locais e consulta o servidor quando solicitado. O desenho abaixo
 > continua valendo como descrição do código (`local_mode` existe e é
 > exercitado nos testes), mas não há intenção de usar.
 

@@ -6,6 +6,44 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 20/10/2026 — Cliente Android offline, tempo, mídia e texturas
+
+- Primeiro cliente Android nativo em Kotlin: banco permanece no PC, catálogo
+  projetado/capas em cache, pastas por SAF, favoritos, progresso e tempo offline.
+  Sincronização explícita revalida a base sob lock e preserva conflitos; eventos
+  de tempo têm IDs para não duplicar sessões em uma repetição do envio.
+- Navegação Galileo G8/controle padrão e touch: direcional/analógico, A/B,
+  favoritos X, teclado virtual Y, avanço LB/RB e coleções LT/RT. Layout horizontal
+  compacto e orientação do app acompanha a presença do controle. Sorteio com
+  filtros abre detalhes e sugere jogo local, cliente remoto ou download.
+- Intents para RetroArch, PPSSPP e Lime3DS/Azahar; NDS/3DS priorizados no telefone.
+  XBXPlay, PS Remote Play oficial e Moonlight permanecem responsáveis pelas contas
+  e transmissões. NES usa Nestopia e PC Engine usa Beetle PCE, conforme os cores
+  existentes; escolha de core por sistema evita depender de um único nome fixo.
+  ROM do Drive vinculada pelo seletor Android e copiada diretamente
+  para pasta local, sem depender do notebook/Tailscale. PS1 sob demanda usa CHD/PBP;
+  não baixa CUE/M3U isoladamente nem substitui arquivos existentes.
+- Ao finalizar uma ROM local, pergunta se deseja mantê-la ou excluir apenas o
+  arquivo local. Histórico, saves/states, BIOS e texturas são preservados.
+  CUE/M3U dependentes exigem conferir o conjunto pelo gerenciador do notebook.
+  Não há exclusão em lote automática nem alteração das playlists externas pelo APK.
+- Tempo de emuladores lançados na TV registrado ao encerrar o processo, mesmo com
+  a página fechada. Registro separado do tempo histórico da Biblioteca; duração
+  manual para lojas/transmissões e fileira Mais jogados. Logos PNG/JPEG/WebP e
+  prévias MP4/WebM locais, com validação e vídeo pausado fora do destaque/ao abrir modal.
+- Texturas recebem upload ZIP/7z/RAR na interface do PC. Cliente Android importa ZIP
+  local offline em PSP/3DS e recebe fontes PSP/pacotes preparados no notebook.
+  Validação antes da extração bloqueia travessia, links e limites excessivos;
+  instalação nativa preserva textura existente diferente. PS1 continua via USB.
+- Gradle wrapper e script de build: compilação pessoal, testes JVM, lint e APK com
+  SHA-256 em cache, sem versionar chave, banco ou artefatos pessoais. Instalação
+  no perfil Android principal; atividade única evita empilhar telas repetidas.
+- Validação: 265 testes Python, 43 de interface e 6 JVM passaram; build e lint sem
+  erros. Aparelho conectado: catálogo HTTPS/Tailscale, cache/pastas/sorteio e ZIP
+  de textura mínimo, confirmação de exclusão e NES/Nestopia conferidos. G8 físico
+  e provedor Drive real ainda precisam de homologação. Sync de saves/states/runtime e busca automática de logos/trailers
+  continuam nas próximas etapas.
+
 ## 20/10/2026 — Convenção de pastas do Nintendo Switch
 
 - Organização manual do NSW usa uma pasta por título ou volume instalável,

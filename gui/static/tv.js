@@ -117,7 +117,7 @@ async function load(kind = state.kind, code = "") {
       const byRom = new Map(metadata.filter(g => g.code).flatMap(g => [[`${g.code}:${g.romName}`, g], [`${g.code}:${g.name}`, g]]));
       for (const g of items) {
         const matched = (g.id && byId.get(`${g.code || ""}:${g.id}`)) || byRom.get(`${g.code}:${g.romName}`) || byRom.get(`${g.code}:${g.name}`);
-        if (matched) Object.assign(g, {key: matched.key, favorite: matched.favorite, lastPlayed: matched.lastPlayed, local: matched.local});
+        if (matched) Object.assign(g, {key: matched.key, favorite: matched.favorite, lastPlayed: matched.lastPlayed, local: matched.local, playtime:matched.playtime, media:matched.media});
       }
     }
     if (state.installedOnly && ["heavy", "light"].includes(kind)) {
@@ -134,6 +134,7 @@ function render() {
   const home = state.kind === "home";
   document.body.classList.toggle("home-screen", home);
   $("home").hidden = !home; $("gallery").hidden = home; $("spotlight").hidden = !home;
+  if (!home) $("spotlight-video").pause();
   $("search-summary").textContent = state.query ? `Busca: ${state.query}` : "";
   $("installed-only").setAttribute("aria-pressed", String(state.installedOnly));
   if (home) return renderHome();
@@ -155,7 +156,7 @@ function gameCard(g) {
     else { const art = document.createElement("div"); art.className = "art placeholder"; art.textContent = "✦"; card.append(art); }
     const title = document.createElement("strong"); title.textContent = (g.favorite ? "★ " : "") + g.name;
     const meta = document.createElement("small"); const t = g.tracking;
-    meta.textContent = [g.platform, g.downloadName && !g.local ? "Só no Drive" : g.local ? "No PC" : "", t.platinado ? "🏆 Platinado" : t.finalizado ? "✓ Finalizado" : t.iniciado ? "▶ Iniciado" : "", t.nota != null ? `★ ${t.nota}` : ""].filter(Boolean).join(" · ");
+    meta.textContent = [g.platform, g.downloadName && !g.local ? "Só no Drive" : g.local ? "No PC" : "", t.platinado ? "🏆 Platinado" : t.finalizado ? "✓ Finalizado" : t.iniciado ? "▶ Iniciado" : "", t.nota != null ? `★ ${t.nota}` : "", g.playtime?.seconds ? `◷ ${formatTime(g.playtime.seconds)}` : ""].filter(Boolean).join(" · ");
     card.append(title, meta); return card;
 }
 function showSpotlight(g) {
@@ -164,7 +165,14 @@ function showSpotlight(g) {
   $("spotlight-meta").textContent = [g.platform, g.local ? "Pronto neste PC" : g.downloadName ? "Disponível no Drive" : "Na sua biblioteca", g.tracking.genero, g.favorite ? "★ Favorito" : ""].filter(Boolean).join(" · ");
   $("spotlight-art").style.backgroundImage = g.cover ? `url(${JSON.stringify(g.cover)})` : "none";
   $("spotlight-open").textContent = g.local ? "Abrir jogo" : "Ver jogo";
+  const logo = $("spotlight-logo"), video = $("spotlight-video");
+  logo.hidden = !g.media?.logo; if (g.media?.logo) logo.src = g.media.logo;
+  const source = g.media?.video || "";
+  if (video.dataset.source !== source) { video.pause(); video.removeAttribute('src'); video.dataset.source = source; if (source) video.src = source; }
+  video.hidden = !source;
+  if (source && !document.hidden && !document.querySelector('dialog[open]') && !matchMedia('(prefers-reduced-motion: reduce)').matches) video.play().catch(() => {});
 }
+function formatTime(seconds) { const minutes = Math.floor(seconds / 60); return minutes >= 60 ? `${Math.floor(minutes/60)} h ${minutes%60} min` : minutes ? `${minutes} min` : `${Math.floor(seconds)} s`; }
 $("spotlight-open").onclick = () => { if (spotlightGame) openGame(spotlightGame); };
 function renderHome() {
   const box = $("home"); box.replaceChildren();
@@ -177,7 +185,7 @@ function renderHome() {
   }
   quick.append(button("🕹 Emuladores", () => load("systems")), button("▦ Todos neste PC", () => load("local")));
   box.append(quick);
-  for (const [key, title] of [["recent", "Jogados recentemente"], ["continue", "Continuar jogando"], ["favorites", "Seus favoritos"], ["installed", "Steam e Heroic · prontos para jogar"], ["ready", "Explore seu acervo local"]]) {
+  for (const [key, title] of [["recent", "Jogados recentemente"], ["continue", "Continuar jogando"], ["favorites", "Seus favoritos"], ["mostPlayed", "Mais jogados"], ["installed", "Steam e Heroic · prontos para jogar"], ["ready", "Explore seu acervo local"]]) {
     const games = home[key] || []; if (!games.length) continue;
     const section = document.createElement("section"); section.className = "home-section"; section.dataset.shelf = key;
     const heading = document.createElement("h3"); heading.textContent = title;
@@ -185,7 +193,7 @@ function renderHome() {
     for (const game of games) row.append(gameCard(game));
     section.append(heading, row); box.append(section);
   }
-  const all = [home.recent, home.continue, home.favorites, home.installed, home.ready].flatMap(g => g || []);
+  const all = [home.recent, home.continue, home.favorites, home.installed, home.ready, home.mostPlayed].flatMap(g => g || []);
   const featured = all.find(g => spotlightGame?.key && g.key === spotlightGame.key) || all[0];
   $("spotlight").hidden = !featured; if (featured) showSpotlight(featured);
   if (!all.length) { const empty = document.createElement("p"); empty.className = "hint"; empty.textContent = "Sua próxima partida começa aqui. Abra Neste PC ou explore os sistemas. Os jogos que você abrir aparecerão em Recentes; X guarda seus favoritos."; box.append(empty); }
@@ -205,7 +213,7 @@ async function toggleFavorite(g = focusedGame()) {
   try {
     const preferences = await api("/api/tv/favorite", {key: g.key, id: g.id, code: g.code, name: g.romName, favorite: !g.favorite});
     g.key = preferences.key; g.favorite = !g.favorite; applyPreferences(preferences);
-    for (const item of [...state.items, ...["recent", "continue", "favorites", "installed", "ready"].flatMap(k => state.home?.[k] || [])]) if (item.key) item.favorite = preferences.favorites.includes(item.key);
+    for (const item of [...state.items, ...["recent", "continue", "favorites", "installed", "ready", "mostPlayed"].flatMap(k => state.home?.[k] || [])]) if (item.key) item.favorite = preferences.favorites.includes(item.key);
     if (state.home) state.home.favorites = [...state.home.favorites.filter(x => x.key !== g.key), ...(g.favorite ? [g] : [])];
     if (state.kind === "favorites") state.items = state.items.filter(x => x.favorite);
     render(); updateFavoriteButton(g);
@@ -346,7 +354,14 @@ function openGame(g, origin = document.activeElement) {
   returnGameKey = origin?.dataset?.key;
   state.draft = {iniciado: !!g.tracking.iniciado, finalizado: !!g.tracking.finalizado, platinado: !!g.tracking.platinado, nota: g.tracking.nota ?? null};
   $("game-title").textContent = g.name; $("game-platform").textContent = g.platform;
+  const textureCode = {PS:'PS1',PS2:'PS2',NGC:'GC',WII:'WII',PSP:'PSP'}[g.code];
+  $("textures-link").hidden = !textureCode;
+  if (textureCode) $("textures-link").href = '/?'+new URLSearchParams({textures:textureCode,game:g.name});
   $("detail-cover").hidden = !g.cover; if (g.cover) $("detail-cover").src = g.cover;
+  $("spotlight-video").pause(); $("time-fields").hidden = true; $("media-fields").hidden = true;
+  $("game-time").textContent = g.playtime?.seconds ? `${formatTime(g.playtime.seconds)} em ${g.playtime.sessions} sessão(ões) registrada(s).` : 'Ainda sem tempo registrado neste PC.';
+  $("detail-video").pause(); $("detail-video").hidden = !g.media?.video;
+  $("detail-video").removeAttribute('src'); if (g.media?.video) $("detail-video").src = g.media.video;
   updateFavoriteButton(g); $("progress-fields").hidden = true; $("progress-toggle").setAttribute("aria-expanded", "false");
   report("", false, "detail-status"); renderTracking();
   $("download").hidden = !g.downloadName; $("download").textContent = "Baixar para o PC"; $("download").dataset.confirm = "";
@@ -378,10 +393,35 @@ $("rating-fine-down").onclick = () => adjustRating(-0.1);
 $("rating-fine-up").onclick = () => adjustRating(0.1);
 $("rating-clear").onclick = () => { state.draft.nota = null; renderTracking(); };
 function closeGame() { if (!state.busy) {
+  $("detail-video").pause();
   $("details").close();
+  if (state.kind === 'home' && spotlightGame) showSpotlight(spotlightGame);
   const matching = [...document.querySelectorAll("#home .game,#gallery .game")].find(c => c.dataset.key === returnGameKey);
   (returnFocus?.isConnected ? returnFocus : matching || $("gallery").children[Math.max(0, returnIndex)] || $("home").querySelector("button") || $("collections").querySelector("button"))?.focus();
 } }
+$("time-toggle").onclick = () => { $("time-fields").hidden = !$("time-fields").hidden; if (!$("time-fields").hidden) $("time-minutes").focus(); };
+$("media-toggle").onclick = () => { $("media-fields").hidden = !$("media-fields").hidden; };
+$("time-save").onclick = async () => {
+  const g = state.selected; if (state.busy || !g?.key) return;
+  state.busy = true;
+  try { g.playtime = await api('/api/tv/playtime', {key:g.key,minutes:Number($("time-minutes").value)}); $("game-time").textContent = `${formatTime(g.playtime.seconds)} em ${g.playtime.sessions} sessão(ões) registrada(s).`; report('Tempo registrado.',false,'detail-status'); await refreshHomeAfterPlay(); }
+  catch(error) { report(error.message,true,'detail-status'); }
+  finally { state.busy = false; }
+};
+for (const kind of ['logo','video']) $("media-"+kind).onchange = async event => {
+  const file = event.target.files[0], g = state.selected; if (!file || !g?.key || state.busy) return;
+  if (file.size > 64*1024*1024) { report('Escolha um arquivo de até 64 MB.',true,'detail-status'); return; }
+  state.busy = true; report('Importando mídia…',false,'detail-status');
+  try {
+    csrf = csrf || (await api('/api/csrf')).token;
+    const response = await fetch('/api/tv/media?'+new URLSearchParams({key:g.key,kind}),{method:'POST',headers:{'X-PyRetro-CSRF':csrf,'Content-Type':'application/octet-stream'},body:file});
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Falha na importação');
+    g.media = data; report('Mídia salva neste PC.',false,'detail-status');
+    if (data.video) { $("detail-video").src = data.video; $("detail-video").hidden = false; }
+    await refreshHomeAfterPlay();
+  } catch(error) { report(error.message,true,'detail-status'); }
+  finally { state.busy = false; event.target.value = ''; }
+};
 $("close").onclick = closeGame;
 $("details").addEventListener("cancel", e => { e.preventDefault(); closeGame(); });
 $("save").onclick = async () => {
@@ -507,6 +547,11 @@ async function refreshHomeAfterPlay() {
   if (!state.home) return;
   try {
     state.home = await api("/api/tv/home");
+    const selected = state.selected;
+    if (selected && $("details").open) {
+      const fresh = Object.values(state.home).filter(Array.isArray).flat().find(g => g.key === selected.key);
+      if (fresh?.playtime) { selected.playtime = fresh.playtime; $("game-time").textContent = `${formatTime(fresh.playtime.seconds)} em ${fresh.playtime.sessions} sessão(ões) registrada(s).`; }
+    }
     if (state.kind === "home") render();
   } catch (_) { /* O próximo Atualizar relê os recentes, sem afetar o lançamento. */ }
 }
@@ -539,6 +584,8 @@ function watchSession(session) {
       $("tracking").querySelector("button")?.focus();
     }
     sessionGame = null;
+    if (session.timeError) report(`Sessão encerrada, mas o tempo não foi salvo: ${session.timeError}`,true,'play-status');
+    refreshHomeAfterPlay();
   }
 }
 
@@ -594,7 +641,8 @@ document.addEventListener("keydown", e => {
   if (key) { e.preventDefault(); action(key); }
 });
 let held = new Set(), repeatAt = new Map(), foreground = true, awaitNeutral = false;
-window.addEventListener("blur", () => { foreground = false; held.clear(); awaitNeutral = true; });
+window.addEventListener("blur", () => { foreground = false; held.clear(); awaitNeutral = true; $("spotlight-video").pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { $("spotlight-video").pause(); $("detail-video").pause(); } else if (state.kind === 'home' && spotlightGame) showSpotlight(spotlightGame); });
 window.addEventListener("focus", () => { foreground = true; });
 function pollGamepad(now) {
   const pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false && p.buttons.length >= 10);

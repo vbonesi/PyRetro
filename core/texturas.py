@@ -240,9 +240,36 @@ def _sha1(path: Path) -> str:
     return h.hexdigest()
 
 
+def validar_arquivo(arquivo: Path) -> None:
+    """Valida caminhos, links e tamanho declarado antes de extrair uploads locais."""
+    import zipfile
+    import stat
+    entries=[]
+    if arquivo.suffix.lower()=='.zip':
+        with zipfile.ZipFile(arquivo) as archive:
+            for info in archive.infolist():
+                if stat.S_ISLNK(info.external_attr >> 16):raise TexturaErro('links não são aceitos no pacote')
+                entries.append((info.filename,info.file_size))
+    else:
+        if not shutil.which('7z'):raise TexturaErro('7z é necessário para validar RAR/7z antes de extrair')
+        listing=subprocess.run(['7z','l','-slt','-ba',str(arquivo)],capture_output=True,text=True,timeout=60,check=False)
+        if listing.returncode:raise TexturaErro('não foi possível conferir o arquivo compactado')
+        for block in listing.stdout.split('\n\n'):
+            fields=dict(line.split(' = ',1) for line in block.splitlines() if ' = ' in line)
+            if fields.get('Symbolic Link') or fields.get('Hard Link') or re.search(r'(?:^|\s)l\S{9}(?:\s|$)', fields.get('Attributes','')):
+                raise TexturaErro('links não são aceitos no pacote')
+            if fields.get('Path'):entries.append((fields['Path'],int(fields.get('Size','0'))))
+    if len(entries)>50000 or sum(size for _,size in entries)>LIMITE_URL:raise TexturaErro('pacote extraído grande demais')
+    for name,_ in entries:
+        normalized=name.replace('\\','/')
+        if normalized.startswith('/') or re.match(r'^[A-Za-z]:',normalized) or '..' in normalized.split('/'):
+            raise TexturaErro('o arquivo tenta escrever fora da pasta de extração')
+
+
 def extrair(arquivo: Path, destino: Path) -> None:
     """Extrai .zip/.7z/.rar em `destino` (pasta vazia criada por quem chama).
     zip usa a biblioteca padrão; os outros, 7z ou unrar."""
+    validar_arquivo(arquivo)
     ext = arquivo.suffix.lower()
     if ext == ".zip":
         import zipfile

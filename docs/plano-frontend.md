@@ -52,17 +52,18 @@ estiver em foco, para evitar teclado/mouse duplicados com Gamepad/SDL.
 
 - Homologação física do Xbox nos jogos, foco, Steam Input e Steam Link.
 - Ajustes por jogo no Wii (ponteiro/movimento e controle clássico).
-- Sistemas sem bridge/core instalado, como NDS/3DS, continuam sem lançamento pela TV.
+- NDS/3DS foram priorizados no celular; não instalar emuladores no PC só para preencher a TV.
 - Pareamento/uso real de Xbox e PS4. Switch Lite teve transmissão confirmada;
   controle Xbox no PC não é encaminhado ao Switch por essa integração.
-- Logos oficiais, vídeo/marquee/screenshot e tempo de sessão são melhorias futuras.
+- Tempo de sessão e importação de logos/prévias locais implementados; homologar no uso real.
+  Busca automática de trailers/logos e importação de runtime antigo continuam futuras.
 - ES-DE permanece instalado até a homologação do fluxo completo.
 
 ## Celular
 
-### Verificado hoje (adb, Samsung SM-S928B, Android 16, tela bloqueada)
+### Inventário inicial por adb (16/10; validação atual abaixo)
 - Instalados: RetroArch, PPSSPP Gold, DuckStation (Android), Lime3DS, FolderSync, Tailscale, Moonlight, Chrome.
-  **Não há** Termux, ES-DE, Daijishō nem NetherSX2/Dolphin.
+  **Não havia** Termux, ES-DE, Daijishō nem NetherSX2/Dolphin. FolderSync foi retirado depois, preservando os arquivos.
 - RetroArch abre por `am start -n com.retroarch/.browser.retroactivity.RetroActivityFuture` com extras
   `ROM`, `LIBRETRO`, `CONFIGFILE`: o comando foi aceito pelo adb (testado com uma ROM inexistente, para não
   tocar em estados salvos). Isso é o que frontends como ES-DE/Daijishō fazem.
@@ -84,16 +85,44 @@ do PyRetro e abre cada emulador por intent.
 | 3DS | Lime3DS | `VIEW` com `content://` e `application/octet-stream` em `EmulationActivity` | exige URI `content` (permissão SAF da pasta de ROMs) |
 | PS1 (DuckStation) | DuckStation Android | só `MAIN/LAUNCHER` | **sem intent de jogo conhecido**; usar RetroArch/SwanStation |
 
-**De onde o app lê o acervo:** `library.json` e as capas já chegam ao celular pelo FolderSync (as capas do
-RetroArch estão em `/sdcard/RetroArch/thumbnails`); o app lê esses arquivos locais e, quando houver rede
-(Tailscale), sincroniza progresso/nota com o servidor do PyRetro.
+### Decisões e implementação de 20/10
 
-**Pré-requisito no PC:** não há JDK nem Android SDK (verificado). Seria preciso baixar JDK 17 e as ferramentas de
-linha de comando do SDK (cerca de 1,5 GB, instaladas na sua pasta, sem root) e usar o Gradle. Eu só baixo com
-o seu OK; o app é instalado pelo adb.
+- Banco inteiro permanece no computador. APK consulta catálogo projetado via HTTPS/Tailscale
+  e guarda cache de metadados/capas; não lê a antiga cópia de `library.json` no telefone.
+- Interface nativa para Galileo G8 **e touch**, com busca Y, favoritos X, paginação
+  LB/RB, coleções LT/RT, foco visível, grade responsiva e botões de pelo menos 48 dp.
+- Sem notebook/Tailscale: ROMs locais, catálogo já carregado, capas consultadas,
+  favoritos, progresso e tempo continuam acessíveis. Progresso/tempo sincronizam por
+  escolha explícita, com comparação no servidor sob lock e preservação de conflitos.
+- NDS/3DS priorizados no celular; RetroArch (NDS e sistemas leves/PS1), PPSSPP Gold e
+  Lime3DS/Azahar abrem por intent. Core do RetroArch pode ser escolhido por sistema;
+  defaults NES/Nestopia e PC Engine/Beetle PCE seguem os cores existentes.
+  Cores/BIOS permanecem sob gestão dos emuladores.
+- Xbox chama **XBXPlay**, PS4 chama o **PS Remote Play oficial**, PC chama **Moonlight**.
+  Pareamento e seleção do console continuam nos próprios aplicativos.
+- ROMs sob demanda diretamente do Drive pelo provedor de arquivos do Android:
+  vínculo escolhido uma vez por jogo, cópia para pasta local, staging exclusivo,
+  conferência do tamanho informado, sem substituir arquivos existentes. PS1 sob
+  demanda aceita CHD/PBP; CUE/M3U dependentes aguardam suporte específico.
+- FolderSync retirado preservando arquivos; APK reaproveita as pastas existentes.
+  Limpeza de ROMs somente por decisão explícita, com conferência das cópias no PC;
+  saves/states/BIOS/texturas preservados. Ao finalizar no APK, confirmação oferece
+  manter ou remover somente a ROM local. CUE/M3U dependentes exigem gerenciador.
+- ZIP de texturas PSP/3DS pode ser importado offline; RAR/7z e fontes do catálogo
+  são preparados pelo notebook e recebidos como ZIP. Não substitui textura diferente.
+  Sync de saves/states/runtime, BIOS e configurações permanece pendente; exige
+  mapear permissões/exportações e resolver conflitos por emulador.
+- JDK/SDK/Gradle preparados em diretório temporário, sem instalação global/root.
+  Projeto, wrapper e `tools/build_android.py` versionados. Build, lint e testes JVM
+  executados; APK pessoal em `cache/artifacts/`, fora do Git.
+- Depois da preparação inicial, aparelho conectado e APK instalado: catálogo por
+  Tailscale, cache offline, pastas, sorteio e importação de ZIP mínimo conferidos.
+  Interface horizontal compacta, teclado virtual Y e reutilização da tela ao abrir
+  novamente. Instalação restrita ao perfil principal evita duplicação Dual App.
+  Galileo G8 físico, download real pelo Drive e os demais emuladores seguem em
+  homologação; não confundir eventos de botões injetados com teste do controle.
 
-**Esforço:** 4–6 sessões (toolchain e esqueleto; lista com capas e controle; lançamento RetroArch/PPSSPP;
-3DS e SAF; sincronização de progresso). Os testes precisam do celular **desbloqueado**.
+Uso, arquitetura, compilação e limites: [`../android/README.md`](../android/README.md).
 
 ### Texturas no celular (PSP e 3DS validados em jogo em 16/10; PS1 instalado, a validar)
 | Sistema | Pasta | Como liga | No código |
@@ -102,7 +131,7 @@ o seu OK; o app é instalado pelo adb.
 | PSP | `/sdcard/Jogos/PSP/PSP/TEXTURES/<ID>` (pasta já existe) | `ReplaceTextures` em `SYSTEM/ppsspp.ini` | idem |
 | 3DS | `/sdcard/Jogos/3DS/load/textures/<TITLE ID 16 hex>` | `custom_textures = true` em `config/config.ini` do Lime3DS | idem |
 
-O envio é por `adb push` (`instalar_celular` em `core/texturas.py`); a aba Texturas já tem o alvo celular e a importação de arquivo. PS1: o dump não
+Pelo PC, o envio é por `adb push` (`instalar_celular` em `core/texturas.py`); a aba Texturas tem o alvo celular e upload de arquivo local. O APK instala ZIP PSP/3DS por SAF, conforme o README Android. PS1: o dump não
 liga no app Android, então o pacote vem de um dump feito no PC com o mesmo jogo.
 
 ### Alternativas descartadas por ora

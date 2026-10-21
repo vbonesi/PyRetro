@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from core import file_lock, recent
+from core import file_lock, recent, playtime, tv_media, library
 
 
 def item_key(game):
@@ -57,7 +57,7 @@ def update(path, *, key=None, favorite=None, theme=None):
         return data
 
 
-def annotate(games, preferences, history):
+def annotate(games, preferences, history, times=None, media_root=None):
     favorites = set(preferences['favorites'])
     for game in games:
         key = item_key(game)
@@ -67,12 +67,16 @@ def annotate(games, preferences, history):
         if game.get('id'):
             dates.append(history.get(recent.pc_key(game['id'])))
         game.update(key=key, favorite=key in favorites,
-                    lastPlayed=max((d for d in dates if d), default=None))
+                    mobileCode=game.get('code') or library.rom_code_for_plataforma(game['platform']) or '',
+                    lastPlayed=max((d for d in dates if d), default=None),
+                    playtime=playtime.public((times or {}).get(key, {})))
+        if media_root is not None:
+            game['media'] = tv_media.describe(media_root, key)
     return games
 
 
-def home(games, apps, preferences, history):
-    games = annotate(games, preferences, history)
+def home(games, apps, preferences, history, times=None, media_root=None):
+    games = annotate(games, preferences, history, times, media_root)
     recent_games = sorted((g for g in games if g['lastPlayed']), key=lambda g: g['lastPlayed'], reverse=True)
     recent_rank = {g['key']: i for i, g in enumerate(recent_games)}
     continued = sorted((g for g in games if g['tracking'].get('iniciado') and not g['tracking'].get('finalizado')),
@@ -81,6 +85,7 @@ def home(games, apps, preferences, history):
             'favorites': [g for g in games if g['favorite']][:24],
             'installed': [g for g in games if g['local'] and not g.get('code')][:16],
             'ready': [g for g in games if g['local']][:16],
+            'mostPlayed': sorted((g for g in games if g['playtime']['seconds']), key=lambda g: -g['playtime']['seconds'])[:16],
             'apps': apps, 'preferences': preferences,
             'counts': {'catalog': len(games), 'local': sum(bool(g['local']) for g in games),
                        'pc': sum(bool(g['local']) and not g.get('code') for g in games)}}

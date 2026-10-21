@@ -309,3 +309,8 @@ header{padding:1rem 3vw .5rem}
 .shelf .game strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .shelf .game small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 @media(max-width:650px){.home-screen .spotlight-content{display:block}.home-screen #spotlight-open{margin-left:0}}
+#spotlight-video{position:absolute;inset:0 0 0 30%;width:70%;height:100%;object-fit:cover;opacity:.38;pointer-events:none}
+#spotlight-logo{grid-column:1;max-width:min(360px,65vw);max-height:80px;object-fit:contain;object-position:left center;margin-top:.4rem}
+#detail-video{width:100%;max-height:260px;border-radius:.5rem;background:#000;margin:.5rem 0}
+#media-fields label,#time-fields label{display:block;font-size:.8rem;margin:.8rem 0}
+#media-fields input{font-size:.75rem}#time-minutes{max-width:180px;margin:.5rem}

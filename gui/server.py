@@ -18,6 +18,7 @@ import json
 import queue
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import threading
@@ -51,6 +52,9 @@ from core import tv as tv_mod
 from core import tv_apps as tv_apps_mod
 from core import tv_home as tv_home_mod
 from core import game_actions as game_actions_mod
+from core import playtime as playtime_mod
+from core import tv_media as tv_media_mod
+from core import mobile_textures as mobile_textures_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -66,13 +70,21 @@ REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
 HEAVY_CATALOG_PATH = ROOT / "cache" / "heavy_catalog.json"
 LAST_PLAYED_PATH = ROOT / "cache" / "last_played.json"
 TV_PREFS_PATH = ROOT / "cache" / "tv_preferences.json"
+PLAYTIME_PATH = ROOT / 'cache' / 'playtime.json'
+TV_MEDIA_ROOT = ROOT / 'cache' / 'tv_media'
 # {nome limpo: nome real da pasta} do Switch - listar a NSW inteira via
 # rclone leva minutos, inviável num clique da tela, então o mapa fica
 # cacheado e é atualizado junto com "🔄 Switch"/library-refresh switch.
 SWITCH_PASTAS_PATH = ROOT / "cache" / "switch_pastas.json"
 STATIC_DIR = Path(__file__).parent / "static"
 TRANSFER_LOCK_KEY = ROOT / "cache" / "transferencias"
-PLAY_SESSIONS = play_mod.Sessions()
+def _record_emulator_time(session, seconds):
+    if seconds >= 1:
+        playtime_mod.record(PLAYTIME_PATH, recent_mod.rom_key(session['code'], session['name']), seconds,
+                            source='emulator', event=session['session'])
+
+
+PLAY_SESSIONS = play_mod.Sessions(record=_record_emulator_time)
 
 COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
 CSRF_TOKEN = secrets.token_urlsafe(32)
@@ -738,6 +750,9 @@ def _texturas_pacote(body: dict, cfg: dict) -> dict:
 
 
 def _texturas_arquivo_local(body: dict, cfg: dict):
+    if body.get('upload'):
+        try:return mobile_textures_mod.uploaded(body['upload'])
+        except ValueError as error:raise texturas_mod.TexturaErro(str(error)) from None
     nome = body.get("arquivo")
     if not nome:
         return None
@@ -1414,7 +1429,7 @@ class Handler(BaseHTTPRequestHandler):
         return cfg, game
 
     def _draw_response(self, response, game, cfg):
-        tv_home_mod.annotate([game], tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH))
+        self._tv_annotate([game])
         suggestion = game_actions_mod.suggest(cfg, game)
         if suggestion['kind'] == 'pc':
             game['local'] = True
@@ -1424,6 +1439,39 @@ class Handler(BaseHTTPRequestHandler):
         cfg = load_config()
         lib = library_mod.load_library(Path(cfg['pc']['library_root']).expanduser() / 'library.json')
         return tv_mod.catalog(cfg, lib, sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH), arcade_romname_dat('ARCADE'))
+
+    def _tv_annotate(self, games):
+        return tv_home_mod.annotate(games, tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH),
+                                    playtime_mod.load(PLAYTIME_PATH), TV_MEDIA_ROOT)
+
+    def _tv_key(self, key):
+        if not isinstance(key, str) or not key or len(key) > 512 or not any(tv_home_mod.item_key(game) == key for game in self._tv_catalog()):
+            raise ValueError('jogo não encontrado no catálogo')
+        return key
+
+    def _tv_media_file(self, path):
+        if not path.is_file():
+            return self._json({'error': 'mídia não encontrada'}, 404)
+        size = path.stat().st_size; start, end = 0, size - 1
+        requested = self.headers.get('Range')
+        if requested:
+            match = re.fullmatch(r'bytes=(\d+)-(\d*)', requested)
+            if not match or int(match[1]) >= size:
+                self.send_response(416); self.send_header('Content-Range', f'bytes */{size}'); self.end_headers(); return
+            start = int(match[1]); end = min(int(match[2]) if match[2] else end, end)
+            if end < start:
+                self.send_response(416); self.end_headers(); return
+        self.send_response(206 if requested else 200)
+        self.send_header('Content-Type', {'.png':'image/png','.mp4':'video/mp4','.webm':'video/webm'}[path.suffix])
+        self.send_header('Accept-Ranges', 'bytes'); self.send_header('Content-Length', str(end-start+1))
+        if requested: self.send_header('Content-Range', f'bytes {start}-{end}/{size}')
+        self._security_headers(); self.end_headers()
+        with path.open('rb') as source:
+            source.seek(start); remaining = end-start+1
+            while remaining:
+                data = source.read(min(65536, remaining))
+                if not data: break
+                self.wfile.write(data); remaining -= len(data)
 
     def _read_json_body(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))
@@ -1519,19 +1567,36 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "play", "status"]:
             return self._json(PLAY_SESSIONS.status())
 
+        if len(parts) == 3 and parts[0] == 'tv-media':
+            try: return self._tv_media_file(tv_media_mod.resolve(TV_MEDIA_ROOT, parts[1], parts[2]))
+            except ValueError as error: return self._json({'error':str(error)}, 400)
+
+        if parts == ['api', 'tv', 'playtime']:
+            return self._json({key:playtime_mod.public(value) for key,value in playtime_mod.load(PLAYTIME_PATH).items()})
+
+        if parts == ['api','mobile','textures']:
+            return self._json([p for p in texturas_mod.carregar_catalogo() if p['sistema']=='PSP'])
+
+        if len(parts)==5 and parts[:4]==['api','mobile','textures','bundle']:
+            try:path=mobile_textures_mod.bundle(parts[4])
+            except ValueError as error:return self._json({'error':str(error)},404)
+            self.send_response(200);self.send_header('Content-Type','application/zip');self.send_header('Content-Length',str(path.stat().st_size));self._security_headers();self.end_headers()
+            with path.open('rb') as source:shutil.copyfileobj(source,self.wfile,1024*1024)
+            return
+
         if parts == ["api", "tv", "local"]:
             cfg = load_config()
             lib = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
             items = tv_mod.local_pc(cfg, lib) + tv_mod.local_roms(cfg, lib, arcade_romname_dat('ARCADE'))
-            return self._json(tv_home_mod.annotate(sorted(items, key=lambda g: g['name'].lower()),
-                                                    tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH)))
+            return self._json(self._tv_annotate(sorted(items, key=lambda g: g['name'].lower())))
 
         if parts == ["api", "tv", "catalog"]:
-            return self._json(tv_home_mod.annotate(self._tv_catalog(), tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH)))
+            return self._json(self._tv_annotate(self._tv_catalog()))
 
         if parts == ["api", "tv", "home"]:
             return self._json(tv_home_mod.home(self._tv_catalog(), tv_apps_mod.catalog(load_config()),
-                                               tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH)))
+                                               tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH),
+                                               playtime_mod.load(PLAYTIME_PATH), TV_MEDIA_ROOT))
 
         if parts == ["api", "tv", "preferences"]:
             return self._json(tv_home_mod.load(TV_PREFS_PATH))
@@ -2322,7 +2387,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "Content-Length inválido"}, 400)
             if content_length < 0:
                 return self._json({"error": "Content-Length inválido"}, 400)
-            if content_length > MAX_JSON_BODY:
+            limit = mobile_textures_mod.MAX_BYTES if rota == ('api','texturas','upload') else tv_media_mod.MAX_BYTES if rota == ('api','tv','media') else MAX_JSON_BODY
+            if content_length > limit:
                 return self._json({"error": "requisição grande demais"}, 413)
             recebido = self.headers.get("X-PyRetro-CSRF", "")
             if not secrets.compare_digest(recebido, CSRF_TOKEN):
@@ -2348,6 +2414,36 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
+
+        if parts == ['api','texturas','upload']:
+            try:
+                token=mobile_textures_mod.upload(self.rfile,int(self.headers.get('Content-Length',0)),query.get('filename',[''])[0])
+                return self._json({'upload':token})
+            except (ValueError,OSError) as error:return self._json({'error':str(error)},400)
+
+        if parts == ['api','mobile','textures','prepare']:
+            body=self._read_json_body()
+            if not isinstance(body,dict):return self._json({'error':'pacote inválido'},400)
+            return self._json({'job':_start_job(lambda emit: mobile_textures_mod.prepare(body,emit))})
+
+        if parts == ['api', 'tv', 'playtime']:
+            body = self._read_json_body()
+            try:
+                key = self._tv_key(body.get('key'))
+                minutes = body.get('minutes')
+                if type(minutes) not in (int,float) or not 1 <= minutes <= 1440:
+                    raise ValueError('informe entre 1 e 1440 minutos')
+                result = playtime_mod.record(PLAYTIME_PATH, key, minutes * 60, source='manual', event=body.get('event'))
+                return self._json(playtime_mod.public(result))
+            except (ValueError, OSError) as error: return self._json({'error':str(error)}, 400)
+
+        if parts == ['api', 'tv', 'media']:
+            try:
+                key = self._tv_key(query.get('key',[''])[0])
+                kind = query.get('kind',[''])[0]
+                data = self.rfile.read(int(self.headers.get('Content-Length',0)))
+                return self._json(tv_media_mod.install(TV_MEDIA_ROOT, key, kind, data))
+            except (ValueError,OSError) as error: return self._json({'error':str(error)}, 400)
 
         if parts == ["api", "tv", "favorite"]:
             body = self._read_json_body()
@@ -2529,6 +2625,16 @@ class Handler(BaseHTTPRequestHandler):
             library = library_mod.load_library(library_path)
             if not any(g["id"] == game_id for g in library["games"]):
                 return self._json({"error": "jogo desconhecido"}, 404)
+
+            # O cliente offline envia o valor que viu antes de editar. A comparação
+            # ocorre dentro da mesma transação/lock da escrita, inclusive no retry.
+            expected = body.get('expected')
+            if expected is not None:
+                if not isinstance(expected, dict) or not isinstance(campos, dict) or set(expected) != set(campos) or any(c not in ('iniciado','finalizado','platinado') or type(v) is not bool for c,v in expected.items()):
+                    return self._json({'error':'comparação de progresso inválida'}, 400)
+                current = next(g for g in library['games'] if g['id'] == game_id)
+                if any(current.get(c, False) != old and current.get(c, False) != campos[c] for c,old in expected.items()):
+                    return self._json({'error':'progresso mudou no notebook; alteração do celular preservada para conferir'}, 409)
 
             desconhecidos = [c for c in campos if c not in library_mod.EDITABLE_FIELDS]
             if desconhecidos:
