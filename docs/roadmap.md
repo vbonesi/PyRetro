@@ -72,11 +72,40 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
      hexadecimal (`Wii/title/<high>/<low>/data/`). O título não vem legível;
      para exibir o nome seria preciso cruzar title-ID com
      alguma base externa, ou extrair do header do próprio arquivo de
-     ROM local). O cliente 0.2 já copia os dados/extdata do 3DS por grupo,
+     ROM local. O cliente 0.2 já copia os dados/extdata do 3DS por grupo,
      mas ainda não traduz esses IDs para nomes de jogos na análise.
    - Nota: o app de 3DS instalado no aparelho é **Lime3DS**
      (`io.github.lime3ds.android`), não "Azahar" como mencionado -
      mesma família (fork do Citra), mas nome/pacote diferentes.
+
+## Registro de encerramento — prioridades após a 0.3
+
+Registrado em 21/10/2026 para continuação em outra conversa. A 0.3 está instalada;
+testes sintéticos aprovados não substituem os testes de uso abaixo. As sugestões
+são propostas de evolução, sem implementação nem automação agendada.
+
+1. **Fechar a homologação de uso:** Galileo G8 físico e touch, provedor Google
+   Drive real, NDS/3DS e demais emuladores, pacote real de texturas e sincronização
+   de saves entre as duas pontas. No PC, PS4/Xbox remoto, foco e Steam Link.
+   Escolher a pasta RetroArch no app antes dos testes; as fixtures não a configuraram.
+2. **Central de situação e conexões:** mostrar o que está disponível offline,
+   última sincronização, alterações pendentes/conflitos e permissões de pastas
+   expiradas. Oferecer a ação para resolver cada caso na mesma tela. É a melhoria
+   recomendada primeiro, junto com a homologação, para explicar o estado do app.
+3. **Gerenciar espaço pelo app:** tamanho dos jogos baixados, checkpoints e
+   versões anteriores; filtros por sistema e progresso. Permitir fixar jogos para
+   manter baixados e propor remoção confirmada de ROMs finalizadas, preservando
+   saves. Qualquer política de retenção do histórico deve ser explícita e recuperável.
+4. **Evoluir downloads e índice da nuvem:** fila com progresso por jogo, pausa e
+   cancelamento acessíveis; avaliar serviço Android com notificação para continuar
+   em segundo plano. Deduplicar acessos ao mesmo documento por identidade do
+   provedor, além da URI. Hoje a retomada é explícita e pode reler o prefixo; índice
+   usa somente pastas/arquivos concedidos, sem varredura geral da conta Drive.
+5. **Conjuntos e identificação:** download/remoção segura de CUE/M3U com suas
+   faixas/discos; nomes legíveis para saves/texturas 3DS identificados por title ID.
+6. **Acabamento de console e histórico:** fontes automáticas verificadas de
+   logos/prévias, progresso de downloads na tela inicial e importação do runtime
+   antigo com prévia/conferência, evitando somar sessões já registradas.
 
 ## Arquitetura de dois modos
 

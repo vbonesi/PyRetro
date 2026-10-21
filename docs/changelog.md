@@ -6,6 +6,17 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Encerramento e prioridades para continuação
+
+- Consolidado no roadmap o que ainda exige uso real após a 0.3: G8, Drive,
+  emuladores/texturas/saves e clientes remotos/foco/Steam Link.
+- Registradas sugestões, sem implementá-las: central de situação/conexões,
+  gestão de espaço com jogos fixados, fila e execução de downloads em segundo
+  plano, identidade de documentos da nuvem, conjuntos CUE/M3U e nomes por title ID,
+  mídia automática e importação do runtime sem duplicar sessões.
+- Prioridade recomendada: homologar os fluxos atuais e tornar o estado do app
+  visível antes de ampliar funções. Código/APK permanecem na versão 0.3 instalada.
+
 ## 21/10/2026 — Android 0.3: recuperação, playlists, nuvem e retomada
 
 - Recuperação de versões nos grupos de saves/estados/runtime: histórico local
