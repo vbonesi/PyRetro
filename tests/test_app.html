@@ -577,6 +577,7 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
     else if (url === "/api/systems") data = [];
     else if (url === "/api/library") data = [{id: "sorteado", nome: "Sorteado", plataforma: "Steam"}];
+    else if (url.startsWith('/api/pc/options?')) data = {available: true, store: 'steam'};
     else if (url === "/api/sortear/systems") data = {grupos: [{code: "biblioteca", label: "📚 Biblioteca (toda)"}], sistemas: [], generos: ["RPG"]};
     else if (url.startsWith("/api/sortear?")) {
       consultas.push(url);
@@ -598,6 +599,8 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
     await esperar(() => doc.querySelectorAll("#gallery .game").length === 2, "sorteio não mostrou o jogo");
     igual(consultas, ["/api/sortear?system=biblioteca&genero=RPG"]);
     verdade(doc.querySelectorAll("#gallery .game")[1].textContent.includes("Sorteado"));
+    await esperar(() => doc.getElementById('details').open && doc.activeElement.textContent.includes('Jogar (Steam)'), 'sorteio não sugeriu jogar');
+    doc.getElementById('close').click();
     falha = true; doc.querySelector("#gallery .draw").click();
     await esperar(() => doc.getElementById("message").textContent.includes("Não foi possível sortear"), "falha do sorteio ficou invisível");
     await app.load("library");
@@ -782,6 +785,73 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
     frame.style.width = "390px"; await new Promise(resolve => setTimeout(resolve, 30));
     verdade(doc.documentElement.scrollWidth <= 390, "início do console transbordou no celular");
   } finally { frame.remove(); }
+});
+
+teste('sorteio completo: ação de transmissão, erro visível e nome seguro', async () => {
+  const app = document.getElementById('app-under-test').contentWindow, doc = app.document;
+  const frame=app.frameElement, originalWidth=frame.style.width, modal=doc.getElementById('sortear-modal'), wasHidden=modal.classList.contains('hidden');
+  const originalFetch = app.fetch; const posts = [];
+  const name = '<img src=x onerror=alert(1)>';
+  let fail = false;
+  app.fetch = async (url, init) => {
+    if (init?.method === 'POST') { posts.push({url, body:JSON.parse(init.body)}); return {ok: false, json: async () => ({error:'cliente indisponível'})}; }
+    if (fail) throw new Error('sem conexão');
+    return {ok:true, json:async () => ({nome:name, plataforma:'PlayStation 4', kind:'biblioteca', label:'Biblioteca', pool_size:1,
+      game:{key:'pc:test'}, suggestion:{kind:'remote',label:'Transmitir do PS4',app:{id:'chiaki'},hint:'Escolha este jogo no console.'}})};
+  };
+  try {
+    await app.runSortear();
+    igual(doc.querySelector('.sortear-nome').textContent,name); verdade(!doc.querySelector('.sortear-nome img'));
+    igual(doc.querySelector('.sortear-actions button').textContent,'Transmitir do PS4');
+    igual(posts.length,0,'sortear iniciou uma transmissão sem escolha');
+    doc.querySelector('.sortear-actions button').click();
+    await esperar(() => doc.querySelector('.sortear-status').textContent.includes('cliente indisponível'),'erro de abertura invisível');
+    igual(posts,[{url:'/api/tv/apps/launch',body:{id:'chiaki'}}]);
+    verdade(doc.querySelector('.sortear-actions a').href.includes('/tv?game=pc%3Atest'));
+    frame.style.width='390px';modal.classList.remove('hidden');await new Promise(resolve=>setTimeout(resolve,30));
+    const box=modal.querySelector('.modal-box').getBoundingClientRect(), filters=doc.getElementById('sortear-system').getBoundingClientRect();
+    verdade(filters.width>0 && filters.left>=box.left && filters.right<=box.right,'filtros do sorteio cortados no celular');
+    fail = true; await app.runSortear();
+    verdade(doc.getElementById('sortear-result').textContent.includes('sem conexão'));
+    verdade(!doc.getElementById('btn-sortear-go').disabled);
+  } finally { app.fetch = originalFetch;frame.style.width=originalWidth;modal.classList.toggle('hidden',wasHidden); }
+});
+
+teste('TV: sorteio sugere PS4, preserva erros e abre link pela identidade', async () => {
+  const frame = document.createElement('iframe'); frame.style.cssText='width:1000px;height:750px;position:absolute;left:-9999px'; document.body.append(frame);
+  const html=(await(await fetch('/tv')).text()).replace('<script src="/static/tv.js" defer></scr'+'ipt>','');
+  const loaded=new Promise(resolve=>frame.onload=resolve); frame.srcdoc=html; await loaded;
+  const app=frame.contentWindow,doc=app.document;
+  app.requestAnimationFrame=fn=>app.setTimeout(()=>fn(app.performance.now()),16);
+  const game={id:'ps4',key:'pc:ps4',name:'Mesmo nome',platform:'PlayStation 4',tracking:{},local:false};
+  const posts=[]; let releaseDraw, delayed=false;
+  app.fetch=async(url,init)=>{
+    let data;
+    if(url==='/api/tv/home') data={recent:[],continue:[],favorites:[],installed:[],ready:[],apps:[]};
+    else if(url==='/api/systems'||url==='/api/heavy/systems')data=[];
+    else if(url==='/api/play/status')data={status:'idle'};
+    else if(url==='/api/csrf')data={token:'test'};
+    else if(url==='/api/sortear/systems')data={grupos:[],generos:[]};
+    else if(url.startsWith('/api/sortear?')){ if(delayed)await new Promise(resolve=>releaseDraw=resolve);data={game}; }
+    else if(url==='/api/tv/catalog')data=[{...game,id:'pc',key:'pc:pc',platform:'Steam'},game];
+    else if(url.startsWith('/api/pc/options?'))data={available:false,remote:{label:'Transmitir do PS4',app:{id:'chiaki',name:'PS4 remoto'},hint:'Escolha o jogo no console.'}};
+    else if(url==='/api/tv/apps/launch'){posts.push(JSON.parse(init.body));return{ok:false,json:async()=>({error:'falha de abertura'})};}
+    else throw new Error('requisição inesperada: '+url);
+    return{ok:true,json:async()=>data};
+  };
+  const script=doc.createElement('script');script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
+  try{
+    await app.load('draw');await app.drawGame();
+    await esperar(()=>doc.activeElement.textContent==='Transmitir do PS4','ação remota não recebeu foco');
+    igual(posts.length,0,'sorteio abriu cliente automaticamente');doc.activeElement.click();
+    await esperar(()=>doc.getElementById('detail-status').textContent.includes('falha de abertura'),'erro foi sobrescrito pela dica');
+    igual(posts,[{id:'chiaki'}]);doc.getElementById('close').click();
+    await app.openLinkedGame('pc:ps4');igual(doc.getElementById('game-platform').textContent,'PlayStation 4');
+    doc.getElementById('close').click();
+    delayed=true;const drawing=app.drawGame();await esperar(()=>releaseDraw,'sorteio pendente não iniciou');
+    await app.load('home');releaseDraw();await drawing;
+    verdade(!doc.getElementById('details').open,'resposta antiga abriu modal fora do sorteio');
+  }finally{frame.remove();}
 });
 
 // --- execução --------------------------------------------------------

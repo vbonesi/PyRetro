@@ -1,15 +1,16 @@
 # PyRetro
 
-CLI de manutenção do meu acervo de RetroArch (PC + Android), pra manter as
-duas plataformas o mais parecidas possível sem precisar fazer tudo na mão.
+Manutenção do meu acervo de jogos no PC e Android, com CLI, interface web e modo
+TV para navegar pelo controle, abrir jogos e acessar transmissões dos consoles.
 
-Escopo intencional: o script só mexe em duas coisas — a pasta sincronizada
+Na manutenção, o script só mexe em duas coisas — a pasta sincronizada
 (`~/Drive/Jogos`, via Insync/Google Drive) e o celular Android via `adb`.
-Ele nunca precisa que RetroArch, DuckStation, PCSX2 etc. estejam instalados
-na máquina onde ele roda, porque todos esses emuladores já foram configurados
+Os comandos de manutenção não precisam que RetroArch, DuckStation, PCSX2 etc. estejam
+instalados na máquina onde rodam, porque esses emuladores já foram configurados
 pra ler/escrever direto na pasta sincronizada. Isso é proposital: dá pra
 rodar o PyRetro de qualquer computador que tenha acesso à pasta e ao celular,
-sem precisar reinstalar nada específico de emulador ali.
+sem precisar reinstalar nada específico de emulador ali. Para jogar pelo modo TV,
+o notebook usa os emuladores, lojas e clientes remotos instalados pelo setup.
 
 ## Princípios (não mudar sem revisitar o motivo)
 
@@ -41,6 +42,11 @@ Xbox remoto, PS4 remoto, Switch Lite via SysDVR, Steam, Heroic e emuladores quan
 os clientes estão instalados. Também oferece progresso/notas, download de ROMs do seu
 Drive e lançamento pelo setup. Instalação do atalho e limitações:
 [`docs/modo-tv.md`](docs/modo-tv.md).
+
+O sorteio nas duas interfaces oferece a próxima ação disponível: jogar no PC,
+abrir a loja, transmitir do console ou continuar com o download no modo TV.
+O resultado nunca inicia o jogo ou a transmissão sozinho. Os links entre as
+interfaces preservam a identidade do jogo, inclusive quando há títulos homônimos.
 
 ## Gráficos dos emuladores
 
@@ -739,9 +745,10 @@ sistema pra ROM, `library_root/capas/` pra Biblioteca).
 Traz o comando `sortear` pra tela - `<select>` de sistema (leve+pesado
 juntos, via `GET /api/sortear/systems`) + botão "Sortear!"
 (`GET /api/sortear?system=<código>`). Reaproveita `core/sortear.py`
-inteiro, sem duplicar a lógica de pool/peso no servidor da GUI. Se o
-sorteado for pesado e só existir no Drive, mostra a mesma dica do CLI
-("heavy-roms CODIGO --download"). Primeiro item de trazer o resto do
+inteiro, sem duplicar a lógica de pool/peso no servidor da GUI. O resultado
+oferece Jogar, Transmitir ou abrir a loja, conforme a plataforma/instalação.
+Se só existir no Drive, oferece continuar o download no modo TV, com confirmação.
+Primeiro item de trazer o resto do
 CLI (heavy-roms/organize/saves já tinham GUI; sortear era o que
 faltava mais visível). Mostra a capa do sorteado quando existe (mesma
 pasta que a galeria usa, incluindo pesado - `/images/<code>/<arquivo>`

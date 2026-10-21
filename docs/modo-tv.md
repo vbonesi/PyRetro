@@ -58,9 +58,21 @@ outras abas e clientes continuam sujeitos às regras já existentes do backend.
 
 A aba **🎲 Sortear** tem uma fileira de grupos (Tudo, ROMs leves/pesadas, Biblioteca e
 seus subgrupos) e outra de gêneros. **Sortear** escolhe um jogo com o mesmo critério da
-interface completa; o resultado aparece como card, com Jogar/Baixar/progresso. ROM pesada
-sorteada pode estar só no Drive: o card oferece Baixar e jogar. Use o botão de novo
-para outro sorteio.
+interface completa; o resultado abre os detalhes com foco em Jogar ou Transmitir,
+quando disponível. O card permanece na grade ao voltar. ROM pesada só no Drive
+oferece Baixar e jogar com confirmação. O sorteio apenas sugere; não inicia nada
+automaticamente. Feche os detalhes e use o botão novamente para outro sorteio.
+
+Na interface completa, o resultado também oferece Jogar (inclusive seleção de disco),
+Transmitir do PS4/Xbox/Switch Lite ou abrir a loja quando o jogo não está instalado.
+Baixar e jogar continua no modo TV, com o mesmo jogo aberto pelo link `?game=CHAVE`.
+Falhas ficam visíveis e respostas antigas são ignoradas após sair do sorteio.
+Jogos de Biblioteca são sorteados por ID; gênero/plataforma de homônimos não se misturam.
+
+As sugestões remotas exigem a geração conhecida: PlayStation 4, Switch e Xbox
+compatíveis com os clientes instalados. PS3, Xbox 360 e PSN sem geração definida
+não são tratados automaticamente como PS4/Xbox One. Transmitir abre o cliente;
+escolher o título no console continua sendo uma ação do usuário.
 
 ## Jogar e baixar sob demanda
 
@@ -111,6 +123,14 @@ Xbox, PS4 e Switch reutilizam o cliente remoto já aberto, sem criar outra inst�
 A conferência inclui processos Flatpak anteriores ao serviço e pedidos simultâneos;
 a TV avisa para continuar na janela existente. Steam continua recebendo o pedido
 de abrir Big Picture mesmo quando já está em execução.
+
+Para abrir diretamente um PS4 já registrado, `cache/tv_remotes.json` aceita
+`ps4_ip` (IP válido) e `ps4_nickname` (nome exato devolvido por `chiaki list`). O
+cliente recebe `--fullscreen --exit-app-on-stream-exit stream NOME IP`, sem levar
+chaves/tokens para o PyRetro. Sem esses campos, abre a interface normal do Chiaki.
+Neste notebook foi encontrado PS4 registrado e preparado o acesso direto; a
+descoberta no IP salvo não respondeu na conferência, então o teste da sessão
+continua dependendo do console ligado/endereço atual. [Automação oficial do Chiaki](https://chiaki-ng.github.io/chiaki-ng/setup/automation/).
 Entradas adicionais podem ser definidas como `[apps.identificador]`, com `nome`,
 `icone` e `comando = ["executável", "argumento"]`. Só a configuração local fornece
 comandos: a API recebe apenas o ID e revalida a lista a cada abertura, sem shell.

@@ -140,11 +140,11 @@ function render() {
   if (state.kind === "systems") return renderSystems();
   if (state.kind === "apps") return renderApps();
   const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre) && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || state.kind === "local" || g.local) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
+  const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre) && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || ["local", "draw"].includes(state.kind) || g.local) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
   const gallery = $("gallery"); gallery.replaceChildren();
   if (state.kind === "draw") gallery.append(Object.assign(button("🎲 Sortear", drawGame), {className: "game draw"}));
   for (const g of items) gallery.append(gameCard(g));
-  if (state.kind === "draw") return report(items.length ? "Sorteado! Abra a capa para jogar ou registrar progresso." : "Escolha grupo e gênero, depois sorteie.");
+  if (state.kind === "draw") return report(items.length ? "Sorteado! Escolha jogar, transmitir ou ver o progresso nos detalhes." : "Escolha grupo e gênero, depois sorteie.");
   report(items.length ? `${items.length} jogos · escolha uma capa` : state.kind === "favorites" ? "Escolha um jogo e pressione X para guardar nos favoritos." : "Nenhum jogo nesta seleção.");
 }
 function gameCard(g) {
@@ -270,13 +270,15 @@ function renderApps() {
   }));
   report("Escolha um aplicativo para abrir.");
 }
-async function launchApp(app) {
+async function launchApp(app, target = "play-status") {
   if (state.busy) return; state.busy = true;
   try {
     const result = await api("/api/tv/apps/launch", {id: app.id});
-    report(result.already_running ? `${app.name} já está aberto. Volte à janela existente para continuar.` : app.id === "sysdvr" ? "Switch Lite: abrindo transmissão. Ative TCP Bridge no SysDVR do console e use os controles do Switch para jogar." : `${app.name}: abertura solicitada.`, false, "play-status");
+    const message = result.already_running ? `${app.name} já está aberto. Volte à janela existente para continuar.` : app.id === "sysdvr" ? "Switch Lite: abrindo transmissão. Ative TCP Bridge no SysDVR do console e use os controles do Switch para jogar." : `${app.name}: abertura solicitada.`;
+    report(message, false, "play-status");
+    if (target !== "play-status") report(message, false, target);
   }
-  catch (e) { report(e.message, true, "play-status"); }
+  catch (e) { report(e.message, true, "play-status"); if (target !== "play-status") report(e.message, true, target); }
   finally { state.busy = false; }
 }
 let searchReturnFocus;
@@ -311,10 +313,13 @@ async function drawGame() {
   if (state.busy || state.drawing) return;
   state.drawing = true; report("Sorteando…");
   try {
+    const request = state.request;
     const query = new URLSearchParams(); if (state.draw.group) query.set("system", state.draw.group); if (state.draw.genre) query.set("genero", state.draw.genre);
     const r = await api(`/api/sortear?${query}`);
+    if (request !== state.request || state.kind !== "draw") return;
     let item;
-    if (r.kind === "biblioteca") {
+    if (r.game) item = r.game;
+    else if (r.kind === "biblioteca") {
       const g = (await api("/api/library")).find(x => x.nome === r.nome && (!r.plataforma || x.plataforma === r.plataforma));
       if (!g) throw new Error(`"${r.nome}" não foi encontrado na Biblioteca`);
       item = libraryItem(g);
@@ -327,9 +332,11 @@ async function drawGame() {
       if (!g) throw new Error(`"${r.nome}" não foi encontrado em ${r.label}`);
       item = romItem(kind, r.codigo, sys, g);
     }
-    if (state.kind !== "draw") return;
+    if (request !== state.request || state.kind !== "draw") return;
     state.items = [item]; render();
-    $("gallery").children[1]?.focus();
+    const card = $("gallery").querySelector(".game:not(.draw)");
+    card?.focus();
+    if (!document.querySelector('dialog[open]')) openGame(item, card);
   } catch (e) { report(`Não foi possível sortear: ${e.message}`, true); }
   finally { state.drawing = false; }
 }
@@ -459,7 +466,13 @@ async function refreshPcOption(g, request) {
     const data = await api(`/api/pc/options?id=${encodeURIComponent(g.id)}`);
     if (request !== playRequest || state.selected !== g) return;
     const box = $("play-actions");
-    if (data.available) {
+    if (data.remote || data.store_app) {
+      const remote = data.remote || data.store_app;
+      box.append(button(remote.label, () => launchApp(remote.app, "detail-status")));
+      $("play-hint").textContent = remote.hint;
+      box.querySelector("button")?.classList.add("primary");
+      if ($("details").open && [document.body, $("close")].includes(document.activeElement)) box.querySelector("button")?.focus();
+    } else if (data.available) {
       box.append(button(`Jogar (${data.store === "steam" ? "Steam" : "Heroic"})`, () => startPcGame(g)));
       $("play-hint").textContent = "Abre pela loja instalada neste PC; depois registre o progresso aqui.";
       box.querySelector("button")?.classList.add("primary");
@@ -609,9 +622,18 @@ function pollGamepad(now) {
   } else { held.clear(); $("controller").textContent = "Controle: pressione um botão para conectar"; }
   requestAnimationFrame(pollGamepad);
 }
+async function openLinkedGame(key) {
+  const game = (await api("/api/tv/catalog")).find(game => game.key === key);
+  if (game) openGame(game);
+  else report("O jogo desse link não está mais disponível no catálogo.", true);
+}
 async function init() {
   collectionTabs();
-  try { [state.systems, state.light] = await Promise.all([api("/api/heavy/systems"), api("/api/systems")]); await load(); }
+  try {
+    [state.systems, state.light] = await Promise.all([api("/api/heavy/systems"), api("/api/systems")]); await load();
+    const key = new URLSearchParams(location.search).get("game");
+    if (key) await openLinkedGame(key);
+  }
   catch (e) { report(`Não foi possível iniciar: ${e.message}. Recarregue para tentar novamente.`, true); }
   if (state.kind !== "home") $("collections").querySelector("button")?.focus();
 }

@@ -10,6 +10,9 @@ Implementado no modo TV (`/tv`):
   dos jogos instalados. **Sistemas** mantém identificador, total do catálogo e quantidade local.
 - **X** favorita o jogo; **Menu** abre opções de tema claro/escuro e tela cheia.
   Preferências ficam no cache do PC, sem alterar o acervo; recentes usam o histórico local.
+- Sorteio nas duas interfaces oferece Jogar/Transmitir/loja/download, sem executar
+  automaticamente. Na TV abre detalhes; a interface completa tem ações e link para o
+  mesmo jogo na TV. Identidade por ID preserva homônimos e filtro de gênero correto.
 - **Neste PC** reúne ROMs completas e instalações Steam/Epic/GOG/Amazon; plataforma e gênero
   são filtros navegáveis pelo controle. Capas, `.part`, ROMs vazias e descritores incompletos
   não comprovam instalação. Sistemas sem lançador continuam mostrando a presença local.
@@ -21,6 +24,8 @@ Implementado no modo TV (`/tv`):
   emuladores, ES-DE e Remote Play Xbox/PlayStation. Entradas adicionais usam `[apps.<id>]`
   no arquivo de configuração; o navegador envia somente ID, nunca argv/comando.
 - Acessos rápidos no Início para Xbox remoto, PS4 remoto, Steam, Heroic e emuladores.
+  PS4 já registrado no Chiaki, com acesso direto preparado em tela cheia; dados de
+  conexão no cache privado, sem copiar credenciais para o PyRetro.
   Cliente SysDVR oficial instalado e Switch Lite preparado para TCP Bridge por Wi-Fi,
   com IP apenas no cache privado. Transmite jogos; não encaminha automaticamente o
   controle Xbox nem captura HOME. Transmissão confirmada por Victor, com vídeo/áudio

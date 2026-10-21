@@ -6,6 +6,30 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 20/10/2026 — Sorteio com próxima ação e consolidação das interfaces
+
+- Sorteio da interface completa oferece Jogar (PC/ROM/disco), Transmitir do console,
+  abrir loja para instalar ou continuar um download confirmado no modo TV. Resultado
+  apenas sugere; nenhuma sessão/download é iniciado sem escolha. Na TV os detalhes
+  do sorteado abrem diretamente, com foco na ação disponível e retorno ao card.
+- `core/game_actions.py` concentra sugestões por instalação e plataforma. PS4, Switch
+  e Xbox compatíveis usam clientes instalados; PS3, Xbox 360 e PSN genérico não são
+  assumidos como consoles compatíveis. A transmissão abre o cliente e o usuário
+  escolhe o jogo no console. Detalhes da TV também oferecem a loja quando não instalado.
+- Biblioteca no pool mantém ID: homônimos de plataformas/gêneros distintos não
+  trocam de identidade. Resultado inclui o mesmo item usado no catálogo e link
+  `?game=CHAVE`, abrindo esse jogo na TV, sem cruzamento por nome apenas.
+- Erros de abertura/transmissão permanecem visíveis, sem serem sobrescritos por dica.
+  Respostas atrasadas do sorteio são ignoradas após sair; filtros podem ser carregados
+  novamente após erro. Resultado/filtros usam texto/DOM e o modal se adapta a 390 px.
+- Encontrado PS4 já registrado no Chiaki; acesso direto preparado em tela cheia,
+  usando apenas nickname/IP no cache privado e credenciais mantidas pelo Chiaki.
+  Descoberta no endereço salvo não respondeu; sessão real depende do console ligado
+  e confirmação do endereço atual. Nenhuma configuração do console/conta foi alterada.
+- README, modo TV, plano e roadmap consolidados com a experiência implementada e
+  pendências reais. Validação: 248 testes Python e 41 de interface; sorteio real de
+  Switch e link para os detalhes conferidos sem iniciar transmissão ou alterar acervo.
+
 ## 20/10/2026 — Switch transmitindo e proteção contra janelas duplicadas
 
 - Victor confirmou a transmissão do Switch Lite por Wi-Fi. Quatro clientes estavam

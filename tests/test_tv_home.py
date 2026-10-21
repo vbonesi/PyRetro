@@ -47,6 +47,14 @@ class TestTVPreferences(unittest.TestCase):
             self.path.write_text(json.dumps({'switch_ip': 'host;whoami'}))
             self.assertEqual(tv_apps.entries({})['sysdvr']['comando'][-2:], ['bridge', '--fullscreen'])
 
+    def test_chiaki_uses_registered_nickname_and_validated_ip(self):
+        self.path.write_text(json.dumps({'ps4_ip': '192.0.2.45', 'ps4_nickname': 'PS4 de teste'}))
+        with patch.object(tv_apps, 'REMOTES_PATH', self.path), patch.object(tv_apps.shutil, 'which', return_value='/bin/flatpak'), patch.object(tv_apps.subprocess, 'run') as run:
+            run.return_value.stdout = 'io.github.streetpea.Chiaki4deck\n'
+            self.assertEqual(tv_apps.entries({})['chiaki']['comando'], ['flatpak', 'run', 'io.github.streetpea.Chiaki4deck', '--fullscreen', '--exit-app-on-stream-exit', 'stream', 'PS4 de teste', '192.0.2.45'])
+            self.path.write_text(json.dumps({'ps4_ip': 'host;whoami', 'ps4_nickname': 'PS4 de teste'}))
+            self.assertEqual(tv_apps.entries({})['chiaki']['comando'], ['flatpak', 'run', 'io.github.streetpea.Chiaki4deck'])
+
 
 class TestTVHomeHTTP(BaseAPI):
     def setUp(self):

@@ -33,13 +33,28 @@ def entries(cfg):
     for key, (name, app, icon) in DEFAULTS.items():
         if app in installed:
             result[key] = {'nome': name, 'icone': icon, 'comando': ['flatpak', 'run', app] + (['-gamepadui'] if key == 'steam' else [])}
+    try:
+        data = json.loads(REMOTES_PATH.read_text())
+        if not isinstance(data, dict):
+            data = {}
+    except (OSError, ValueError):
+        data = {}
     if 'sysdvr' in result:
         try:
-            data = json.loads(REMOTES_PATH.read_text())
             address = str(ipaddress.ip_address(data['switch_ip']))
-        except (OSError, ValueError, KeyError, TypeError):
+        except (ValueError, KeyError, TypeError):
             address = None
         result['sysdvr']['comando'] += ['bridge', *([address] if address else []), '--fullscreen']
+    if 'chiaki' in result:
+        try:
+            address = str(ipaddress.ip_address(data['ps4_ip']))
+            nickname = data['ps4_nickname']
+            if not isinstance(nickname, str) or not nickname or len(nickname) > 128 or '\0' in nickname:
+                raise ValueError('nome de console inválido')
+        except (ValueError, KeyError, TypeError):
+            pass
+        else:
+            result['chiaki']['comando'] += ['--fullscreen', '--exit-app-on-stream-exit', 'stream', nickname, address]
     duck = Path.home() / 'AppImages/DuckStation-x64.AppImage'
     if duck.is_file():
         result['duckstation'] = {'nome': 'DuckStation', 'icone': '🎮', 'comando': [str(duck)]}

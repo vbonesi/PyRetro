@@ -3,12 +3,16 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 24/08/2026.
+pronto" (resumo) e "o que vem a seguir". Atualizado em 20/10/2026.
 
 ## Status atual
 
 | Área | Status |
 |---|---|
+| Modo TV com controle, início, recentes, favoritos, busca Y e navegação por ombros/gatilhos | ✅ Implementado; detalhes em [`modo-tv.md`](modo-tv.md) |
+| Abrir ROMs e jogos instalados Steam/Heroic | ✅ Implementado, com validação de arquivos e download confirmado |
+| Sorteio com sugestão de jogar/transmitir/abrir loja nas duas interfaces | ✅ Implementado, com identidade por ID e link entre interfaces |
+| Xbox/PS4 remotos e Switch Lite Wi-Fi | Clientes integrados e sem duplicação; Switch confirmado, sessão PS4/Xbox ainda depende de uso real |
 | GUI de capas (galeria, busca, flag/duplicada/renomear/apagar) | ✅ Pronto |
 | Sync de capas PC↔celular via adb (`core/sync.py`) | ✅ Pronto, despriorizado (Drive cobre sistemas leves) |
 | Sanitização de nomes / validação de PNG real | ✅ Pronto |
@@ -39,7 +43,10 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 24/08/2026.
 
 ## Próximos passos (em ordem)
 
-1. Se algum dia fizer sentido voltar no backup de saves fora do
+1. Homologar o fluxo de console com Xbox físico, retorno de foco e Steam Link;
+   conferir a sessão do PS4 já registrado com console ligado/IP atual e Xbox remoto.
+   Sistemas sem lançador, Wii por jogo e evolução Android estão em [`plano-frontend.md`](plano-frontend.md).
+2. Se algum dia fizer sentido voltar no backup de saves fora do
    RetroArch - achados reais via adb em 05/08, ainda válidos (a parte
    de Flycast/Dreamcast saiu daqui em 24/08 junto com a mudança pra
    RetroArch - ver docs/changelog.md, não é mais um caso "fora do
@@ -73,16 +80,13 @@ A maior parte do backend (`heavy_roms.py`, `organize.py`,
 ser operação de arquivo local. Só `core/sync.py` (capas) é desenhado
 100% em volta de `adb` hoje.
 
-## Visão de longo prazo (fora de escopo agora, só registrado)
+## Experiência de console
 
-Pergunta feita em 04/08: seria possível o PyRetro virar uma "Switch"
-completa e personalizada de ponta a ponta (interface + emulação em si),
-excluindo os consoles pesados? Registrado como norte de longo prazo,
-não como item de roadmap com desenho - envolveria decisões bem maiores
-(rodar/embutir núcleos libretro ou orquestrar o próprio RetroArch a
-partir do PyRetro, UI pensada pra uso com controle/tela cheia em vez de
-navegador) que merecem conversa própria quando o resto da base
-(organize/heavy-roms/memory card/modo Android) estiver mais madura.
+A ideia registrada em agosto passou a implementação em outubro. O PyRetro
+orquestra os emuladores/lojas/clientes remotos existentes pelo modo TV, com início,
+favoritos, pesquisa e sorteio pelo controle. O usuário escolheu experiência de console;
+transmissão do Switch Lite usa SysDVR. Situação e limitações atuais estão em
+[`modo-tv.md`](modo-tv.md) e [`plano-frontend.md`](plano-frontend.md).
 
 ## Outros documentos
 

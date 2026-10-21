@@ -76,7 +76,7 @@ def _grupo_biblioteca_da_plataforma(plataforma: str) -> str:
 
 
 def _pool_biblioteca(library: dict, rom_names_by_code: dict, subgrupo: str | None = None) -> list:
-    """[(None, nome, "biblioteca")] - só jogo que não "mora" numa ROM
+    """[(id, nome, "biblioteca")] - só jogo que não "mora" numa ROM
     (mesma exclusão de is_rom_backed do gui/server.py, reimplementada
     aqui pra não criar dependência circular com o servidor) e não
     oculto, senão sortear traria de volta um jogo que o usuário
@@ -96,7 +96,7 @@ def _pool_biblioteca(library: dict, rom_names_by_code: dict, subgrupo: str | Non
             continue
         if subgrupo and _grupo_biblioteca_da_plataforma(g["plataforma"]) != subgrupo:
             continue
-        pool.append((None, g["nome"], "biblioteca"))
+        pool.append((g['id'], g["nome"], "biblioteca"))
     return pool
 
 
@@ -169,11 +169,12 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
 def _filtrar_por_genero(pool: list, genero: str, library: dict | None, rom_index: dict | None) -> list:
     from core import library as library_mod
 
+    biblioteca_por_id = {g['id']: g for g in library['games']} if library else {}
     biblioteca_por_nome = {g["nome"]: g for g in library["games"]} if library else {}
     out = []
     for code, nome, kind in pool:
         if kind == "biblioteca":
-            g = biblioteca_por_nome.get(nome)
+            g = biblioteca_por_id.get(code) if code else biblioteca_por_nome.get(nome)
         else:
             # nome aqui é o de ARQUIVO (com extensão, ver
             # list_local_names/catalog) - find_for_rom casa pelo nome

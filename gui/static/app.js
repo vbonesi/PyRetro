@@ -1756,16 +1756,20 @@ async function updateLibraryField(gameId, field, value) {
 // pra tela: pool único leve (local) + pesado (catálogo cacheado), peso
 // por jogo. Carrega a lista de sistemas só na primeira abertura.
 let sortearSystemsLoaded = false;
+let sortearRequest = 0;
 
 function openSortear() {
   document.getElementById("sortear-modal").classList.remove("hidden");
   if (!sortearSystemsLoaded) {
-    loadSortearSystems();
-    sortearSystemsLoaded = true;
+    loadSortearSystems().catch(error => {
+      document.getElementById('sortear-result').textContent = `Não foi possível carregar os filtros: ${error.message}`;
+    });
   }
 }
 
 function closeSortear() {
+  sortearRequest++;
+  document.getElementById('btn-sortear-go').disabled = false;
   document.getElementById("sortear-modal").classList.add("hidden");
 }
 
@@ -1773,54 +1777,76 @@ async function loadSortearSystems() {
   const select = document.getElementById("sortear-system");
   const generoSelect = document.getElementById("sortear-genero");
   const res = await fetch("/api/sortear/systems");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const { grupos, sistemas, generos } = await res.json();
-  const opcaoGrupos = grupos.map(g => `<option value="${g.code}">${g.label}</option>`).join("");
-  const opcaoSistemas = sistemas.map(s => `<option value="${s.code}">${s.label}</option>`).join("");
-  select.innerHTML = '<option value="">🎲 Sortear de tudo (coleção inteira)</option>' +
-    `<optgroup label="Grupos">${opcaoGrupos}</optgroup>` +
-    `<optgroup label="Sistema específico">${opcaoSistemas}</optgroup>`;
+  select.replaceChildren(new Option('🎲 Sortear de tudo (coleção inteira)', ''));
+  for (const [label, entries] of [['Grupos', grupos], ['Sistema específico', sistemas]]) {
+    const group = document.createElement('optgroup'); group.label = label;
+    for (const entry of entries) group.append(new Option(entry.label, entry.code));
+    select.append(group);
+  }
   // Combo grupo/plataforma + gênero (11/09, pedido do usuário) - só
   // filtra quando o gênero vem preenchido; ROM leve/pesada sem registro
   // na Biblioteca (sem gênero) fica de fora do sorteio nesse caso (ver
   // core.sortear._filtrar_por_genero).
-  generoSelect.innerHTML = '<option value="">Todos os gêneros</option>' +
-    generos.map(g => `<option value="${g}">${g}</option>`).join("");
+  generoSelect.replaceChildren(new Option('Todos os gêneros', ''), ...generos.map(g => new Option(g, g)));
+  sortearSystemsLoaded = true;
 }
 
 async function runSortear() {
+  const request = ++sortearRequest;
   const result = document.getElementById("sortear-result");
+  const go = document.getElementById('btn-sortear-go'); go.disabled = true;
   const system = document.getElementById("sortear-system").value;
   const genero = document.getElementById("sortear-genero").value;
   result.innerHTML = '<div class="empty-state">sorteando...</div>';
 
   const params = new URLSearchParams({ system });
   if (genero) params.set("genero", genero);
-  const res = await fetch(`/api/sortear?${params}`);
-  const data = await res.json();
-  if (!res.ok) {
-    result.innerHTML = `<div class="empty-state">${data.error || "falha ao sortear"}</div>`;
-    return;
-  }
-
-  let extra = "";
-  if (data.kind === "pesado") {
-    extra = data.local
-      ? '<div class="sortear-note">já está no PC</div>'
-      : `<div class="sortear-note">só no Drive - baixe com "heavy-roms ${data.codigo} --download"</div>`;
-  }
-  const cover = data.capa
-    ? `<img class="sortear-cover" src="${data.capa}" alt="">`
-    : "";
-  result.innerHTML = `
-    <div class="sortear-body">
-      ${cover}
-      <div>
-        <div class="sortear-nome">${data.nome}</div>
-        <div class="sortear-meta">${data.plataforma || data.codigo || data.label} - ${data.label} (${data.kind}, ${data.pool_size} jogo(s) no pool)</div>
-        ${extra}
-      </div>
-    </div>
-  `;
+  try {
+    const res = await fetch(`/api/sortear?${params}`);
+    const data = await res.json();
+    if (request !== sortearRequest) return;
+    if (!res.ok) throw new Error(data.error || 'falha ao sortear');
+    const make = (tag, className, text) => { const element = document.createElement(tag); element.className = className; if (text) element.textContent = text; return element; };
+    const body = make('div', 'sortear-body'), info = make('div', '');
+    if (data.capa) { const cover = make('img', 'sortear-cover'); cover.src = data.capa; cover.alt = ''; body.append(cover); }
+    info.append(make('div', 'sortear-nome', data.nome), make('div', 'sortear-meta', `${data.plataforma || data.codigo || data.label} · ${data.label} · ${data.pool_size ?? 0} jogos na seleção`));
+    const suggestion = data.suggestion;
+    if (suggestion) {
+      info.append(make('p', 'sortear-note', suggestion.hint));
+      const actions = make('div', 'sortear-actions');
+      const status = make('p', 'sortear-status'); status.setAttribute('role', 'status');
+      function action(label, endpoint, payload) {
+        const b = make('button', '', label); b.type = 'button';
+        b.onclick = async () => {
+          if (actions.dataset.busy) return;
+          actions.dataset.busy = 'true'; actions.querySelectorAll('button').forEach(button => { button.disabled = true; });
+          status.textContent = 'Abrindo…';
+          try {
+            const response = await fetch(endpoint, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+            const outcome = await response.json();
+            if (!response.ok) throw new Error(outcome.error || 'Não foi possível abrir');
+            status.textContent = outcome.already_running ? 'O cliente já está aberto. Continue na janela existente.' : suggestion.kind === 'remote' ? suggestion.hint : 'Pedido enviado. Ao terminar, registre seu progresso no PyRetro.';
+          } catch (error) { status.textContent = error.message; }
+          finally { delete actions.dataset.busy; actions.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
+        };
+        actions.append(b);
+      }
+      if (suggestion.kind === 'pc') action(suggestion.label, '/api/pc/launch', {id: suggestion.id});
+      else if (suggestion.kind === 'rom') for (const option of suggestion.options) action(suggestion.options.length === 1 ? 'Jogar' : `Jogar: ${option.name}`, '/api/play/start', {code: suggestion.code, name: option.name});
+      else if (['remote', 'app'].includes(suggestion.kind)) action(suggestion.label, '/api/tv/apps/launch', {id: suggestion.app.id});
+      if (data.game?.key) {
+        const link = make('a', 'tiny secondary', suggestion.kind === 'download' ? suggestion.label : 'Detalhes no modo TV');
+        link.href = '/tv?' + new URLSearchParams({game: data.game.key}); actions.append(link);
+      }
+      info.append(actions, status);
+    }
+    body.append(info); result.replaceChildren(body);
+    result.querySelector('button,a')?.focus();
+  } catch (error) {
+    if (request === sortearRequest) result.textContent = `Não foi possível sortear: ${error.message}`;
+  } finally { if (request === sortearRequest) go.disabled = false; }
 }
 
 // Decompor coletânea nos jogos que ela contém (pedido do usuário

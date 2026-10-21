@@ -50,6 +50,7 @@ from core import pc_games as pc_games_mod
 from core import tv as tv_mod
 from core import tv_apps as tv_apps_mod
 from core import tv_home as tv_home_mod
+from core import game_actions as game_actions_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -1399,6 +1400,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _pc_found(self, game_id):
         """Como abrir o jogo de PC `game_id` da Biblioteca, ou None se não instalado."""
+        cfg, game = self._library_game(game_id)
+        return pc_games_mod.find(cfg, game)
+
+    def _library_game(self, game_id):
         if not isinstance(game_id, str) or not game_id:
             raise ValueError("id do jogo inválido")
         cfg = load_config()
@@ -1406,7 +1411,14 @@ class Handler(BaseHTTPRequestHandler):
         game = next((g for g in library["games"] if g["id"] == game_id), None)
         if not game:
             raise ValueError("jogo não encontrado na Biblioteca")
-        return pc_games_mod.find(cfg, game)
+        return cfg, game
+
+    def _draw_response(self, response, game, cfg):
+        tv_home_mod.annotate([game], tv_home_mod.load(TV_PREFS_PATH), recent_mod.load(LAST_PLAYED_PATH))
+        suggestion = game_actions_mod.suggest(cfg, game)
+        if suggestion['kind'] == 'pc':
+            game['local'] = True
+        return self._json({**response, 'game': game, 'suggestion': suggestion})
 
     def _tv_catalog(self):
         cfg = load_config()
@@ -1539,10 +1551,20 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts == ["api", "pc", "options"]:
             try:
-                found = self._pc_found(query.get("id", [""])[0])
+                cfg, game = self._library_game(query.get("id", [""])[0])
+                found = pc_games_mod.find(cfg, game)
             except ValueError as e:
                 return self._json({"error": str(e)}, 400)
-            return self._json({"available": bool(found), "store": found["store"] if found else None})
+            result = {"available": bool(found), "store": found["store"] if found else None}
+            if not found and game['plataforma'] in (game_actions_mod.REMOTE_PLATFORMS | game_actions_mod.STORE_PLATFORMS):
+                apps = tv_apps_mod.catalog(cfg)
+                remote = game_actions_mod.remote_option(game['plataforma'], apps)
+                if remote:
+                    result['remote'] = remote
+                store = game_actions_mod.store_option(game['plataforma'], apps)
+                if store:
+                    result['store_app'] = store
+            return self._json(result)
 
         if parts == ["tests", "test_app.html"]:
             # Página de teste do JS (ver tests/test_app.html) - servida
@@ -1815,17 +1837,19 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 sysinfo = cfg["systems"][code] if kind == "leve" else heavy[code]
                 label = sysinfo["capas"] if kind == "leve" else sysinfo.get("nome", code)
-            resp = {"nome": nome, "codigo": code, "label": label, "kind": kind, "pool_size": len(pool)}
+            resp = {"nome": nome, "codigo": code if kind != 'biblioteca' else None, "label": label, "kind": kind, "pool_size": len(pool)}
 
             if kind == "biblioteca":
                 # Capa/progresso do jogo de Biblioteca sorteado - mesma
                 # resolução que /api/ranking e /api/iniciados já fazem.
-                jogo = next((g for g in library["games"] if g["nome"] == nome), None)
+                jogo = next((g for g in library["games"] if g['id'] == code), None)
                 resp["plataforma"] = jogo.get("plataforma") if jogo else None
                 if jogo and jogo.get("capa"):
                     resp["capa"] = com_versao(f"/library-images/{urllib.parse.quote(jogo['capa'])}",
                                               Path(cfg["pc"]["library_root"]).expanduser() / jogo["capa"])
-                return self._json(resp)
+                game = {'id': jogo['id'], 'name': jogo['nome'], 'platform': jogo['plataforma'],
+                        'cover': resp.get('capa'), 'tracking': jogo, 'local': False}
+                return self._draw_response(resp, game, cfg)
 
             # Capa: mesmo nome (sem extensão de ROM) que o resto do
             # projeto já usa - só existe pra sistema com "capas"
@@ -1844,7 +1868,14 @@ class Handler(BaseHTTPRequestHandler):
                 local_names = {i["name"] for i in heavy_mod.list_local(code, roms_root, sysinfo.get("exts", []))}
                 resp["local"] = nome in local_names
 
-            return self._json(resp)
+            catalog_items = tv_mod.catalog(cfg, library, catalog, arcade_romname_dat('ARCADE'))
+            stem = Path(nome).stem
+            game = next((g for g in catalog_items if g.get('code') == code and g.get('romName') in (nome, stem)), None)
+            if game is None:
+                game = {'name': stem, 'platform': label, 'code': code, 'romName': nome,
+                        'cover': resp.get('capa'), 'tracking': {}, 'local': False,
+                        'downloadName': nome if kind == 'pesado' else None}
+            return self._draw_response(resp, game, cfg)
 
         if parts == ["api", "library"]:
             # library_root já é a mesma pasta sincronizada pelo Google
