@@ -6,6 +6,19 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Android: Sortear em coleção vazia
+
+- Relato: "o app não está sorteando". O sorteio funcionava em Neste celular e no
+  Catálogo, mas o app reabria na última coleção usada (Fixados, 0 jogos; Favoritos
+  também vazia). O botão só trocava a linha de status, então parecia não fazer
+  nada.
+- Agora, se a coleção atual está vazia, o sorteio usa os jogos do celular (ou o
+  catálogo em cache, se não houver nenhum) e avisa isso no título da janela. O
+  aviso "Nenhum jogo com esses filtros" virou Toast, porque antes ficava escondido
+  atrás da janela.
+- Build/JVM/lint passaram; APK 0.5.0 reinstalado e conferido no aparelho
+  (Fixados vazia → sorteou Super Darius, PCE-CD).
+
 ## 21/10/2026 — Encerramento após a 0.5 e critérios de robustez PC/Android
 
 - Registrada avaliação qualitativa: PC mais próximo de uma experiência

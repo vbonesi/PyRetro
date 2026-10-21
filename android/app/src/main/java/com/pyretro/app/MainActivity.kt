@@ -294,16 +294,24 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         status.maxLines=if(landscape)1 else 2;message(status.text.toString());search.layoutParams.height=dp(if(landscape)48 else 52)
     }
     private fun draw() {
-        val pool=games.filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) && (collection!="kept" || SpaceStore(store).pinned(it)) }
-        if(pool.isEmpty()) { message("Nenhum jogo nesta coleção para sortear.");return }
+        val space=SpaceStore(store)
+        val current=games.filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) && (collection!="kept" || space.pinned(it)) }
+        // Coleção vazia (Fixados/Favoritos sem jogos) não pode parecer botão morto: sorteia dos jogos do celular ou do catálogo.
+        val local=games.filter { it.localUri!=null }
+        val (pool,title)=when {
+            current.isNotEmpty() -> current to "Sortear desta coleção"
+            local.isNotEmpty() -> local to "Coleção vazia · sorteando entre os jogos neste celular"
+            games.isNotEmpty() -> games to "Coleção vazia · sorteando no catálogo em cache"
+            else -> { message("Nenhum jogo para sortear. Escolha as pastas ou carregue o catálogo.");Toast.makeText(this,"Nenhum jogo para sortear.",Toast.LENGTH_LONG).show();return }
+        }
         val platforms=listOf("Todos os sistemas")+pool.map { it.platform }.distinct().sorted()
         val genres=listOf("Qualquer gênero")+pool.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
         val system=Spinner(this);system.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,platforms)
         val genre=Spinner(this);genre.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,genres)
-        val box=column();box.addView(text("Sortear desta coleção",22f));box.addView(system);box.addView(genre)
+        val box=column();box.addView(text(title,if(pool===current)22f else 18f));box.addView(system);box.addView(genre)
         add(box,button("Sortear e sugerir como jogar") {
             val selected=pool.filter { (system.selectedItemPosition==0 || it.platform==system.selectedItem) && (genre.selectedItemPosition==0 || it.genre==genre.selectedItem) }.randomOrNull()
-            if(selected==null)message("Nenhum jogo com esses filtros.") else details(selected)
+            if(selected==null)Toast.makeText(this,"Nenhum jogo com esses filtros.",Toast.LENGTH_SHORT).show() else details(selected)
         });show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun textures(game:Game?=null) {
