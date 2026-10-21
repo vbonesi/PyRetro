@@ -5,7 +5,7 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.3.0-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.4.0-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções**, escolha **Pasta Jogos · reconhecer todos os sistemas**, ou cada
    pasta separadamente. Arquivos que eram sincronizados pelo FolderSync são reaproveitados.
@@ -19,6 +19,39 @@ Sem notebook/Tailscale, continuam funcionando as pastas locais, catálogo já
 carregado, últimas 128 capas consultadas, favoritos, progresso e tempo. O app
 não importa `library.json` antigo do celular. Capas ficam no cache privado e
 podem ser descartadas pelo Android; ROMs baixadas ficam na pasta compartilhada.
+
+## Situação e conexões (0.4)
+
+Abra **Situação** na tela principal, inclusive na barra horizontal em paisagem,
+ou **Opções → Situação e conexões**. A central reúne:
+
+- Jogos da última leitura local, falhas de leitura e data do catálogo em cache;
+  ações para abrir a coleção local, reler pastas e atualizar o catálogo.
+- Último contato bem-sucedido e última tentativa com o notebook. **Testar conexão**
+  faz uma consulta explícita ao PyRetro, sem sincronizar ou abrir jogos. Confira
+  endereço HTTPS, notebook e Tailscale em caso de falha. O registro não garante
+  conexão atual; trocar o endereço limpa os registros de contato anteriores.
+- Progresso e sessões de tempo pendentes por jogo, com indicação dos itens que
+  exigiram conferência na sincronização. Alterar a pendência invalida a indicação
+  antiga; ela só reaparece se a nova versão for comparada e continuar bloqueada.
+  Ações abrem os detalhes ou sincronizam explicitamente. Um jogo fora do catálogo
+  permanece pendente; o app não cria seu cadastro automaticamente no notebook.
+- Última análise/aplicação de cada grupo de saves, estados e runtime, com data,
+  conflitos adiados e falhas. Mudar a pasta ou o endereço invalida a exibição do
+  resultado correspondente. Analisar e aplicar continuam sendo ações distintas.
+- Concessões de pastas não escolhidas, sem leitura persistente, somente leitura
+  ou com leitura/escrita; tocar no item abre a escolha da pasta. São permissões
+  salvas pelo Android, não uma prova de que a pasta/arquivo ainda existe. Pastas
+  padrão de saves ausentes continuam sendo criadas só ao aplicar uma cópia.
+- Vínculos da nuvem, número/tamanho dos checkpoints locais e atalhos para índice,
+  downloads e playlists. **Emuladores, clientes e Tailscale** mostra os apps
+  encontrados e permite abri-los; não verifica VPN, login, pareamento ou cores.
+
+Abrir a central lê registros locais e permissões, sem consultar notebook/Drive
+ou iniciar cópias. Dados anteriores à 0.4 podem aparecer sem data/resultado até a
+próxima operação. O APK 0.4 foi preparado **sem celular**: compilação, lint e
+24 testes JVM passaram; instalação, layout/foco no aparelho e homologação dos
+fluxos continuam pendentes. A versão instalada no telefone permanece a 0.3.
 
 ## Controle e touch
 
@@ -218,10 +251,12 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.3.0-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.4.0-debug.apk
 ```
 
-Compilação, lint e 18 testes JVM passaram para a versão 0.3. O APK foi instalado
+Compilação, lint e 24 testes JVM passaram para a versão 0.4, sem instalação nem
+instrumentação nesta etapa. A instrumentação existente foi recompilada para a 0.4.
+A versão 0.3 passou em 18 testes JVM e foi instalada
 no usuário principal do aparelho. A instrumentação da 0.3 passou
 com arquivos sintéticos: recuperação de versões, índice em lote, download pausado/
 retomado e playlists preservando campos/itens externos. Inventário real de ROMs,

@@ -49,6 +49,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private val images=Executors.newFixedThreadPool(2)
     private var catalog=emptyList<Game>()
     private var games=emptyList<Game>()
+    private var localProblems=emptyList<String>()
+    private var localScanAt=0L
     private var collection="cell"
     private var page=0
     private var pageCount=1
@@ -114,11 +116,12 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             } else view.setPadding(dp(12)+insets.systemWindowInsetLeft,dp(8)+insets.systemWindowInsetTop,dp(12)+insets.systemWindowInsetRight,dp(8)+insets.systemWindowInsetBottom)
             insets
         }
-        val heading=row();add(heading,text("✦ PyRetro",25f).apply { setTypeface(null,Typeface.BOLD) },1f);add(heading,button("Opções") { settings() });pageRoot.addView(heading);headingBar=heading
+        val heading=row();add(heading,text("✦ PyRetro",25f).apply { setTypeface(null,Typeface.BOLD) },1f);add(heading,button("Situação") { statusCenter() });add(heading,button("Opções") { settings() });pageRoot.addView(heading);headingBar=heading
         val quick=row();add(quick,button("Xbox · XBXPlay") { openPackage("com.grill.xbxplay") });add(quick,button("PS4 · Remote Play") { openPackage("com.playstation.remoteplay") });add(quick,button("PC · Moonlight") { openPackage("com.limelight") });horizontal(pageRoot,quick);quickBar=pageRoot.getChildAt(pageRoot.childCount-1)
         val collections=row();for((id,label) in listOf("cell" to "Neste celular","catalog" to "Catálogo em cache","favorites" to "Favoritos"))add(collections,button(label) { collection=id;page=0;render() });horizontal(pageRoot,collections)
         add(collections,button("Sortear") { draw() });add(collections,button("Texturas") { textures() })
         compactOptions=button("Opções") { settings() };add(collections,compactOptions)
+        add(collections,button("Situação") { statusCenter() })
         search=EditText(this).apply { hint="Y · Pesquisar nome, plataforma ou gênero";setHintTextColor(Color.LTGRAY);setTextColor(appForeground);isSingleLine=true;minHeight=dp(48);background=shape();setPadding(dp(12),0,dp(12),0) }
         search.addTextChangedListener(object:TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){};override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){page=0;render()};override fun afterTextChanged(s:Editable?){} })
         pageRoot.addView(search,LinearLayout.LayoutParams(-1,dp(52)))
@@ -141,9 +144,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onDestroy() { if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
     private fun reloadLocal(after:(()->Unit)?=null) {
         work.execute {
-            val roms=store.folders.keys.flatMap { code -> runCatching { store.files(code) }.getOrDefault(emptyList()) }
+            val problems=mutableListOf<String>()
+            val roms=store.folders.keys.flatMap { code -> runCatching { store.files(code) }.getOrElse { problems.add(store.folders.getValue(code));emptyList() } }
             val all=store.bind(catalog,roms)
-            runOnUiThread { games=all;render();after?.invoke() }
+            runOnUiThread { games=all;localProblems=problems;localScanAt=System.currentTimeMillis();render();after?.invoke() }
         }
     }
     private fun render() {
@@ -283,12 +287,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun settings() {
         val box=column();box.addView(text("Seu PyRetro",23f));box.addView(text("O banco fica no PC. Pastas locais, cache, progresso e tempo funcionam offline. Tailscale é usado para consultar/sincronizar o notebook.",14f))
+        add(box,button("Situação e conexões") { statusCenter() })
         add(box,button("Xbox · XBXPlay") { openPackage("com.grill.xbxplay") });add(box,button("PS4 · Remote Play oficial") { openPackage("com.playstation.remoteplay") });add(box,button("PC · Moonlight") { openPackage("com.limelight") })
         add(box,button("3DS · abrir Lime3DS / Azahar") { val target=listOf("io.github.lime3ds.android","io.github.azahar_emu.azahar").firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null };if(target!=null)openPackage(target) else message("Emulador 3DS não encontrado.") })
         val server=EditText(this).apply { setSingleLine();setText(store.base());hint="https://endereço-do-pyretro";setTextColor(appForeground);setHintTextColor(Color.LTGRAY) };box.addView(server)
         add(box,button("Salvar endereço") { runCatching { store.setBase(server.text.toString());message("Endereço salvo. O modo offline continua disponível.") }.onFailure(::failure) })
-        add(box,button("Carregar catálogo do notebook") { runCatching { store.setBase(server.text.toString()) }.onFailure { failure(it);return@button };dialog?.dismiss();message("Consultando notebook…");work.execute { runCatching { store.refresh() }.onSuccess { catalog=it;runOnUiThread { message("Catálogo atualizado. As capas são guardadas conforme você navega.");reloadLocal() } }.onFailure { store.online=false;runOnUiThread { failure(it) } } } })
-        add(box,button("Sincronizar progresso e tempo (${store.pending()})") { dialog?.dismiss();message("Sincronizando alterações escolhidas…");work.execute { runCatching { store.synchronize() }.onSuccess { result -> catalog=store.cached();runOnUiThread { message(result);reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } } })
+        add(box,button("Carregar catálogo do notebook") { runCatching { store.setBase(server.text.toString()) }.onFailure { failure(it);return@button };refreshCatalog() })
+        add(box,button("Sincronizar progresso e tempo (${store.pending()})") { syncTracking() })
         add(box,button("Saves, estados e runtime") { syncFiles() })
         add(box,button("Playlists do RetroArch") { playlists() })
         add(box,button("Catálogo da nuvem / Drive") { cloudMenu() })
@@ -299,6 +304,113 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("Cores do RetroArch por sistema") { chooseCore() })
         box.addView(text("Galileo G8: A escolhe, B volta, X favorita, Y busca, LB/RB mudam de página; LT/RT trocam a coleção. Os mesmos botões também respondem ao touch.",13f))
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+    }
+    private fun refreshCatalog() {
+        dialog?.dismiss();message("Consultando notebook…")
+        work.execute { runCatching { store.refresh() }.onSuccess { fresh -> runOnUiThread {
+            catalog=fresh;message("Catálogo atualizado. As capas são guardadas conforme você navega.");reloadLocal()
+        } }.onFailure { store.online=false;runOnUiThread { failure(it) } } }
+    }
+    private fun syncTracking() {
+        dialog?.dismiss();message("Sincronizando alterações escolhidas…")
+        work.execute { runCatching { store.synchronize() }.onSuccess { result -> val fresh=store.cached();runOnUiThread {
+            catalog=fresh;message(result);reloadLocal()
+        } }.onFailure { runOnUiThread { failure(it) } } }
+    }
+    private fun statusCenter() {
+        val box=column();val helper=StatusStore(store);val pending=helper.pending();val prefs=store.prefs
+        fun section(title:String,value:String) { box.addView(text(title,19f).apply { setTypeface(null,Typeface.BOLD) });box.addView(text(value,14f)) }
+        fun date(key:String)=prefs.getLong(key,0).takeIf { it>0 }?.let(::versionDate) ?: "ainda não registrado"
+        box.addView(text("Situação e conexões",23f))
+        section("Disponível offline","${games.count { it.localUri!=null }} jogo(s) na última leitura local · ${catalog.size} entrada(s) no catálogo em cache.\nCatálogo atualizado: ${date("updated")}. Favoritos, progresso e tempo ficam neste app. Capas consultadas dependem do cache do Android.")
+        box.addView(text(if(localScanAt==0L)"Leitura local ainda em andamento." else "Leitura local em ${versionDate(localScanAt)}."+
+            if(localProblems.isEmpty())"" else " Lista parcial: falha ao ler ${localProblems.joinToString()}. Confira as pastas e permissões.",13f))
+        add(box,button("Ver jogos neste celular") { dialog?.dismiss();collection="cell";page=0;render() })
+        add(box,button("Reler pastas locais") { dialog?.dismiss();reloadLocal { statusCenter() } })
+        section("Notebook / Tailscale",if(store.base().isBlank())"Endereço ainda não configurado. Abra Opções para salvar o endereço HTTPS." else
+            "Último contato bem-sucedido: ${date("last-contact")}.\nÚltima tentativa: ${date("last-attempt")}"+
+                (if(prefs.contains("last-attempt-ok"))if(prefs.getBoolean("last-attempt-ok",false))" · respondeu." else " · falhou. Confira notebook, Tailscale e endereço." else ".")+
+                "\nÉ um registro de contato; a conexão pode mudar. Testar não sincroniza nem abre jogos.")
+        val connection=text("",14f);box.addView(connection)
+        val test=button("Testar conexão com notebook") {};box.addView(test)
+        add(box,button("Configurar endereço / abrir Opções") { settings() })
+        add(box,button("Atualizar catálogo do notebook") { refreshCatalog() })
+        add(box,button("Emuladores, clientes e Tailscale") { connectionApps() })
+        section("Progresso e tempo","${pending.count { !it.time }} alteração(ões) de progresso · ${pending.count { it.time }} sessão(ões) de tempo pendente(s).\n${pending.count { it.conflict }} pendência(s) exigiram conferência na última sincronização.\nÚltima sincronização concluída: ${date("tracking-sync-at")}.")
+        prefs.getString("tracking-sync-result",null)?.let { box.addView(text(it,13f)) }
+        add(box,button("Conferir alterações pendentes") { pendingChanges() })
+        add(box,button("Sincronizar progresso e tempo") { syncTracking() })
+        val sync=FileSync(store)
+        section("Saves, estados e runtime","Analisar compara arquivos; aplicar copia somente as escolhas confirmadas. Os registros abaixo descrevem a última operação, não verificam mudanças posteriores.")
+        for((group,label) in sync.groups) {
+            val observation=sync.observation(group)
+            box.addView(text(label+" · "+if(observation==null)"sem análise para estas pastas/endereço." else
+                "${if(observation.optBoolean("applied"))"Aplicação" else "Análise"} em ${versionDate(observation.getLong("at"))}: ${observation.getInt("conflicts")} conflito(s), ${observation.getInt("failures")} falha(s).",13f))
+        }
+        add(box,button("Analisar / resolver sincronização de arquivos") { syncFiles() })
+        section("Pastas e permissões","Confira as concessões persistentes de leitura e escrita. Uma concessão salva não comprova que a pasta ainda existe. Pastas padrão de saves ainda ausentes só são criadas ao aplicar uma cópia. Escolha Jogos ou pastas individuais.")
+        add(box,button("Conferir / escolher pastas") { folderStatuses() })
+        section("Nuvem / Drive","${prefs.all.keys.count { it.startsWith("cloud:") }} vínculo(s) de ROM salvo(s). O índice guarda nomes; baixar depende da internet e da permissão do provedor. Abrir esta central não acessa o Drive.")
+        add(box,button("Conferir índice e origens da nuvem") { cloudMenu() })
+        section("Downloads","Cópias parciais ficam no app até continuar ou descartar explicitamente.")
+        val partials=text("Consultando checkpoints locais…",14f);box.addView(partials)
+        add(box,button("Continuar / pausar downloads") { downloads() })
+        add(box,button("Playlists do RetroArch") { playlists() })
+        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Fechar",null))
+        test.isEnabled=store.base().isNotBlank()
+        test.setOnClickListener {
+            test.isEnabled=false;connection.text="Testando conexão…"
+            work.execute { val result=runCatching { store.checkConnection() };runOnUiThread {
+                if(dialog===opened && !isFinishing && !isDestroyed) {
+                    test.isEnabled=true;connection.text=if(result.isSuccess)"PyRetro respondeu em ${versionDate(System.currentTimeMillis())}." else "Não foi possível confirmar o PyRetro. Confira endereço, notebook e Tailscale. Seus dados offline continuam disponíveis."
+                }
+            } }
+        }
+        images.execute { val result=runCatching { DownloadStore(store).jobs() };runOnUiThread {
+            if(dialog===opened && !isFinishing && !isDestroyed)partials.text=result.fold(
+                { jobs -> "${jobs.size} cópia(s) parcial(is) · ${android.text.format.Formatter.formatFileSize(this,jobs.sumOf { it.getLong("bytes") })} no armazenamento privado." },
+                { "Não foi possível ler os checkpoints. Abra Downloads para conferir; nenhum parcial foi descartado." })
+        } }
+    }
+    private fun pendingChanges() {
+        val pending=StatusStore(store).pending().groupBy { it.key }
+        paged("Alterações pendentes",pending.map { (key,items) ->
+            val game=games.find { it.key==key }
+            ((game?.name ?: "Jogo fora do catálogo atual")+" · ${items.count { !it.time }} progresso / ${items.count { it.time }} tempo"+
+                if(items.any { it.conflict })" · conferir no notebook" else "") to {
+                if(game!=null)details(game) else show(AlertDialog.Builder(this).setTitle("Pendência preservada").setMessage("Este jogo não está no catálogo atual. Atualize o catálogo e confira o registro no notebook. Jogos exclusivamente locais não criam um cadastro no PC automaticamente.").setPositiveButton("Voltar") { _,_ -> pendingChanges() })
+                Unit
+            }
+        })
+    }
+    private fun folderStatuses() {
+        val sync=FileSync(store)
+        paged("Pastas e permissões",StatusStore(store).folders().map { folder ->
+            val state=when(folder.access) {
+                FolderAccess.UNSELECTED -> "não escolhida"
+                FolderAccess.RESELECT -> "sem leitura persistente · escolher novamente"
+                FolderAccess.READ_ONLY -> "leitura salva · conceder escrita para copiar"
+                FolderAccess.READ_WRITE -> "leitura e escrita salvas"
+            }
+            "${folder.label} · $state" to {
+                if(folder.code=="retroarch" || folder.code in sync.groups)pickSyncFolder(folder.code) else { dialog?.dismiss();pickFolder(folder.code) }
+                Unit
+            }
+        })
+    }
+    private fun connectionApps() {
+        val apps=listOf("Tailscale" to listOf("com.tailscale.ipn"),"RetroArch" to listOf("com.retroarch.aarch64","com.retroarch"),
+            "PPSSPP" to listOf("org.ppsspp.ppssppgold","org.ppsspp.ppsspp"),"3DS · Lime3DS / Azahar" to listOf("io.github.lime3ds.android","io.github.azahar_emu.azahar"),
+            "Xbox · XBXPlay" to listOf("com.grill.xbxplay"),"PS4 · Remote Play" to listOf("com.playstation.remoteplay"),"PC · Moonlight" to listOf("com.limelight"))
+        val box=column();box.addView(text("Emuladores e conexões",22f))
+        box.addView(text("Aplicativo encontrado significa apenas que pode ser aberto. Login, pareamento, VPN, cores e funcionamento em jogo precisam ser conferidos no próprio aplicativo.",14f))
+        for((label,packages) in apps) {
+            val installed=packages.firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null }
+            add(box,button("$label · ${if(installed==null)"não encontrado" else "abrir"}") {
+                if(installed!=null)openPackage(installed) else message("$label não encontrado. Instale ou confira o aplicativo antes de tentar novamente.")
+            })
+        }
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> statusCenter() })
     }
     private fun paged(title:String,items:List<Pair<String,()->Unit>>,page:Int=0) {
         val box=column();box.addView(text(title,22f))

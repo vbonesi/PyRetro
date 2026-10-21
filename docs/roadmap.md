@@ -17,6 +17,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
 | Texturas PSP/3DS e remoção confirmada da ROM ao finalizar no Android | ✅ Implementado; ZIP offline e preparação pelo PC, sem substituir saves/texturas existentes |
 | Recuperação de versões pelo app, playlists e downloads retomáveis | ✅ Implementado na 0.3; instalado e instrumentação sintética aprovada no celular |
 | Índice da nuvem por pasta concedida ou arquivos em lote | ✅ Implementado na 0.3; associação única, prévia e cache; provedor Drive real pendente |
+| Central Android de situação e conexões | ✅ Implementada na 0.4, preparada sem celular; build/lint e 24 testes JVM passaram. Instalação e uso real pendentes |
 | Saves/states/runtime pelo app Android | ✅ Versão 0.2: grupos, SHA-256, conflitos e histórico; sincronização real aguarda uso do usuário |
 | Xbox/PS4 remotos e Switch Lite Wi-Fi | Clientes integrados e sem duplicação; Switch confirmado, sessão PS4/Xbox ainda depende de uso real |
 | GUI de capas (galeria, busca, flag/duplicada/renomear/apagar) | ✅ Pronto |
@@ -82,7 +83,10 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
 
 Registrado em 21/10/2026 para continuação em outra conversa. A 0.3 está instalada;
 testes sintéticos aprovados não substituem os testes de uso abaixo. As sugestões
-são propostas de evolução, sem implementação nem automação agendada.
+são propostas de evolução, sem automação agendada. **Continuação em 21/10:** o
+usuário pediu novas melhorias sem celular; a central do item 2 foi implementada
+na 0.4, compilada e testada no notebook. A 0.3 continua instalada; os demais itens
+seguem como propostas/homologação pendente.
 
 1. **Fechar a homologação de uso:** Galileo G8 físico e touch, provedor Google
    Drive real, NDS/3DS e demais emuladores, pacote real de texturas e sincronização
@@ -92,6 +96,10 @@ são propostas de evolução, sem implementação nem automação agendada.
    última sincronização, alterações pendentes/conflitos e permissões de pastas
    expiradas. Oferecer a ação para resolver cada caso na mesma tela. É a melhoria
    recomendada primeiro, junto com a homologação, para explicar o estado do app.
+   **Implementada na 0.4:** leitura local/cache, registros de contato, pendências
+   por jogo, análises/aplicações de arquivos, concessões SAF, checkpoints e atalhos
+   de emuladores/clientes/Tailscale. Concessão persistente não comprova existência
+   do documento; abrir a central não consulta a rede. Conferir layout/foco no aparelho.
 3. **Gerenciar espaço pelo app:** tamanho dos jogos baixados, checkpoints e
    versões anteriores; filtros por sistema e progresso. Permitir fixar jogos para
    manter baixados e propor remoção confirmada de ROMs finalizadas, preservando

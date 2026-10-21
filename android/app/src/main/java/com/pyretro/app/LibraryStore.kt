@@ -38,12 +38,33 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     fun base():String=prefs.getString("server","")!!.trimEnd('/')
     fun setBase(value:String) {
         if(value.isNotBlank()) { val url=URL(value); require(url.protocol=="https" && url.host.isNotEmpty() && url.userInfo==null && url.ref==null) { "Use o endereço HTTPS do PyRetro, sem senha na URL." } }
-        prefs.edit().putString("server",value.trim().trimEnd('/')).apply();csrf="";online=false
+        val normalized=value.trim().trimEnd('/');val changed=normalized!=base()
+        val edit=prefs.edit().putString("server",normalized)
+        if(changed) {
+            listOf("last-contact","last-attempt","last-attempt-ok","tracking-sync-at","tracking-sync-result").forEach(edit::remove)
+            prefs.all.keys.filter { it.startsWith("conflict:") }.forEach(edit::remove)
+        }
+        edit.apply();csrf="";online=false
     }
-    fun request(path:String,body:JSONObject?=null):String {
+    private fun contact(server:String,success:Boolean) {
+        if(base()!=server)return
+        val now=System.currentTimeMillis();val edit=prefs.edit().putLong("last-attempt",now).putBoolean("last-attempt-ok",success)
+        if(success)edit.putLong("last-contact",now)
+        edit.apply();online=success
+    }
+    fun checkConnection() {
+        val server=base()
+        try {
+            require(JSONObject(request("/api/csrf",recordContact=false)).optString("token").isNotBlank()) { "O endereço não respondeu como servidor PyRetro." }
+            contact(server,true)
+        }
+        catch(error:Exception) { contact(server,false);throw error }
+    }
+    fun request(path:String,body:JSONObject?=null,recordContact:Boolean=true):String {
         require(base().isNotBlank()) { "Configure o endereço HTTPS do notebook. O modo offline continua disponível." }
+        val server=base()
         fun send(token:String):Pair<Int,String> {
-            val connection=URL(base()+path).openConnection() as HttpURLConnection
+            val connection=URL(server+path).openConnection() as HttpURLConnection
             connection.connectTimeout=15000;connection.readTimeout=60000;connection.instanceFollowRedirects=false
             try {
                 if(body!=null) { connection.requestMethod="POST";connection.doOutput=true;connection.setRequestProperty("Content-Type","application/json");connection.setRequestProperty("X-PyRetro-CSRF",token);connection.outputStream.use { it.write(body.toString().toByteArray()) } }
@@ -51,11 +72,12 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
                 val input=if(status in 200..299)connection.inputStream else connection.errorStream
                 val bytes=input?.use { bounded(it,20*1024*1024) } ?: byteArrayOf()
                 return status to bytes.toString(Charsets.UTF_8)
-            } finally { connection.disconnect() }
+            } catch(error:Exception) { if(recordContact)contact(server,false);throw error } finally { connection.disconnect() }
         }
         if(body!=null && csrf.isEmpty())csrf=JSONObject(request("/api/csrf")).getString("token")
         var result=send(csrf)
         if(body!=null && result.first==403) { csrf=JSONObject(request("/api/csrf")).getString("token");result=send(csrf) }
+        if(recordContact)contact(server,result.first in 200..299)
         require(result.first in 200..299) { runCatching { JSONObject(result.second).optString("error","Falha HTTP ${result.first}") }.getOrDefault("Falha HTTP ${result.first}") }
         return result.second
     }
@@ -155,20 +177,23 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     fun pending():Int=prefs.all.keys.count { it.startsWith("pending:") || it.startsWith("time-event:") }
     fun synchronize():String {
         val fresh=refresh().associateBy { it.key };var sent=0;var conflicts=0
+        fun conflict(key:String,raw:String) { conflicts++;prefs.edit().putString("conflict:$key",raw).apply() }
         for((key,raw) in prefs.all.filter { it.key.startsWith("pending:") || it.key.startsWith("time-event:") }) {
             val payload=JSONObject(raw as String);val game=fresh[payload.getString("key")]
-            if(game==null) { conflicts++;continue }
+            if(game==null) { conflict(key,raw);continue }
             if(key.startsWith("pending:")) {
                 val fields=payload.getJSONObject("campos");val baseline=payload.getJSONObject("base")
-                if(fields.keys().asSequence().any { field -> game.tracking.optBoolean(field)!=baseline.optBoolean(field) && game.tracking.optBoolean(field)!=fields.optBoolean(field) }) { conflicts++;continue }
-                if(game.id.isBlank()) { conflicts++;continue }
+                if(fields.keys().asSequence().any { field -> game.tracking.optBoolean(field)!=baseline.optBoolean(field) && game.tracking.optBoolean(field)!=fields.optBoolean(field) }) { conflict(key,raw);continue }
+                if(game.id.isBlank()) { conflict(key,raw);continue }
                 request("/api/library/edit",JSONObject().put("id",game.id).put("campos",fields).put("expected",baseline))
                 fields.keys().forEach { field -> game.tracking.put(field,fields.get(field)) }
             } else request("/api/tv/playtime",payload)
-            if(prefs.getString(key,null)==raw)prefs.edit().remove(key).apply();sent++
+            if(prefs.getString(key,null)==raw)prefs.edit().remove(key).remove("conflict:$key").apply();sent++
         }
         saveCatalog(fresh.values.toList())
-        return "$sent atualização(ões) enviada(s). $conflicts pendência(s) preservada(s) para conferir no notebook."
+        val result="$sent atualização(ões) enviada(s). $conflicts pendência(s) preservada(s) para conferir no notebook."
+        prefs.edit().putLong("tracking-sync-at",System.currentTimeMillis()).putString("tracking-sync-result",result).apply()
+        return result
     }
     fun cover(game:Game):File? {
         if(game.cover.isBlank() || !game.cover.startsWith('/'))return null

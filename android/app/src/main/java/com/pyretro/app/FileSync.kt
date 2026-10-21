@@ -65,6 +65,18 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
         } finally { temp.delete() }
     }
     fun lastResult()=prefs.getString("last-result","Ainda não sincronizado.")!!
+    fun observation(group:String):JSONObject? {
+        val value=runCatching { prefs.getString("observation:$group",null)?.let(::JSONObject) }.getOrNull() ?: return null
+        return value.takeIf { StatusRules.currentObservation(it.optString("server"),it.optString("tree"),store.base(),tree(group).toString()) }
+    }
+    private fun observe(plan:SyncPlan,applied:Boolean,failures:Int=0) {
+        if(sha(store.base()+"|"+plan.group+"|"+plan.rootTag+"|"+tree(plan.group))!=plan.identity)return
+        val value=JSONObject().put("server",store.base()).put("tree",tree(plan.group).toString())
+            .put("at",System.currentTimeMillis()).put("applied",applied).put("failures",failures)
+            .put("conflicts",plan.rows.count { it.choice=="conflict" })
+            .put("transfers",plan.rows.count { it.choice in setOf("upload","download") })
+        prefs.edit().putString("observation:${plan.group}",value.toString()).apply()
+    }
     private fun hex(bytes:ByteArray)=bytes.joinToString("") { "%02x".format(it) }
     private fun sha(value:String)=hex(MessageDigest.getInstance("SHA-256").digest(value.toByteArray()))
     private fun fingerprint(uri:Uri):SyncFile {
@@ -128,7 +140,7 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
             val left=local[path];val right=other[path];val previous=baseline.optString(path).takeIf { it.isNotBlank() }
             SyncRow(path,left,right,SyncRules.direction(left?.sha256,right?.getString("sha256"),previous))
         }
-        return SyncPlan(group,tag,identity,rows)
+        return SyncPlan(group,tag,identity,rows).also { observe(it,false) }
     }
     private fun connection(path:String)= (URL(store.base()+path).openConnection() as HttpURLConnection).apply { connectTimeout=15000;readTimeout=600000;instanceFollowRedirects=false }
     private fun parameters(group:String,path:String)= "group="+Uri.encode(group)+"&path="+Uri.encode(path)
@@ -194,6 +206,6 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
             } catch(error:Exception) { errors.add(row.path+": "+(error.message ?: "falha")) }
         }
         val result="$sent transferência(s) confirmada(s). $ignored conflito(s) adiado(s). ${errors.size} falha(s)."+if(errors.isEmpty())"" else "\n"+errors.take(30).joinToString("\n")
-        prefs.edit().putString("last-result",result).apply();return result
+        prefs.edit().putString("last-result",result).apply();observe(plan,true,errors.size);return result
     }
 }

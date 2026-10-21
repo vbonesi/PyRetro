@@ -2,6 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
     <queries>
+        <package android:name="com.tailscale.ipn"/>
         <package android:name="com.grill.xbxplay"/><package android:name="com.playstation.remoteplay"/><package android:name="com.limelight"/>
         <package android:name="com.retroarch"/><package android:name="com.retroarch.aarch64"/>
         <package android:name="com.github.stenzek.duckstation"/>

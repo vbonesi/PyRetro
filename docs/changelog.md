@@ -6,6 +6,31 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Android 0.4: situação e conexões, sem celular
+
+- Central **Situação**, acessível na tela principal/Opções e em paisagem, reúne
+  jogos da última leitura local, falhas de leitura, data do cache, registros de
+  contato e teste explícito do notebook. Abrir a central não consulta PC/Drive.
+- Progresso e sessões de tempo pendentes aparecem por jogo. Pendências bloqueadas
+  na sincronização ficam indicadas sem descartá-las; editar o payload invalida
+  a indicação antiga. Data/resultado da sincronização concluída ficam no app.
+  Resultados novos de contato e acompanhamento são invalidados ao trocar servidor.
+- Grupos de saves/estados/runtime guardam a última análise/aplicação com data,
+  conflitos adiados e falhas, vinculada às pastas e ao servidor. Resultado antigo
+  não é apresentado como análise atual nem como prova de sincronização contínua.
+- Pastas distinguem ausência de escolha, concessão sem leitura, somente leitura
+  e leitura/escrita persistentes. Document IDs SAF são tratados como opacos;
+  concessão salva não comprova existência/disponibilidade do documento. Atalhos
+  permitem escolher novamente pastas, conferir índice/downloads/playlists e abrir
+  emuladores/clientes/Tailscale encontrados, sem presumir login, VPN ou core.
+- Checkpoints mostram quantidade e espaço privado ocupado; falha ao lê-los não
+  descarta parciais nem impede conferir os demais estados. Resultados assíncronos
+  do teste de conexão/checkpoints só atualizam a central que iniciou a consulta.
+- APK 0.4.0 (code 4) compilado com a assinatura local preservada. 24 testes JVM e
+  build/lint passaram; instrumentação existente recompilada, sem execução nesta
+  etapa. Sem celular/adb, instalação ou alteração do acervo/configurações reais.
+  Telefone permanece com a 0.3; layout/foco/G8/Drive/emuladores/sync real pendentes.
+
 ## 21/10/2026 — Encerramento e prioridades para continuação
 
 - Consolidado no roadmap o que ainda exige uso real após a 0.3: G8, Drive,

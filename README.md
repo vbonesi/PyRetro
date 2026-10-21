@@ -69,11 +69,15 @@ no app; PSP/3DS podem aproveitar a pasta Jogos já concedida. Runtime não é so
 automaticamente ao tempo jogado. A 0.3 acrescenta recuperação de versões no app,
 playlists com prévia e atualização opcional, índice da nuvem por pasta/seleção em
 lote e checkpoints para continuar downloads. APK instalado e teste sintético no
-aparelho aprovado; homologação de uso continua. Detalhes no [README Android](android/README.md).
+aparelho aprovado; homologação de uso continua. A 0.4 reúne situação offline,
+conexão com o notebook, pendências/conflitos, permissões e checkpoints em uma
+central com ações de resolução. Preparada sem celular: build/lint e 24 testes JVM
+aprovados; o telefone permanece com a 0.3 até uma atualização posterior.
+Detalhes no [README Android](android/README.md).
 Texturas PSP/3DS aceitam ZIP local offline e pacotes preparados pelo notebook;
 a interface do PC também recebe arquivos locais. Ao finalizar um jogo baixado,
 o app pergunta se deseja remover somente a ROM local, preservando saves e histórico.
-Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. APK instalado
+Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. Versão 0.3 instalada
 e navegação touch conferida no aparelho; testes físicos do G8 e do provedor Drive
 continuam pendentes. Instruções e limites no README Android.
 
