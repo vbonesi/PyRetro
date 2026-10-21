@@ -1798,19 +1798,26 @@ class Handler(BaseHTTPRequestHandler):
             registry = load_registry()
             reg_sys = registry.get(code, {})
             files = sorted(p.name for p in capas_dir.iterdir() if p.suffix.lower() in (".png", ".jpg")) if capas_dir.is_dir() else []
-            # saves_root/states_root não têm subpasta por sistema (achatado,
-            # ver core/rom_rename.py) - lista cada pasta UMA vez e faz busca
-            # por prefixo via bisect, em vez de escanear a pasta inteira pra
-            # cada capa (isso escalaria mal com centenas de capas).
+            # saves_root/states_root: pasta do sistema (<root>/<code>/, RetroArch
+            # com sort por diretório de conteúdo) + raiz achatada legada
+            # (ver core/rom_rename.save_folders). Lista cada pasta UMA vez e
+            # faz busca por prefixo via bisect, em vez de escanear a pasta
+            # inteira pra cada capa (centenas de capas).
             saves_dir = Path(cfg["pc"]["saves_root"]).expanduser()
             states_dir = Path(cfg["pc"]["states_root"]).expanduser()
-            saves_names = sorted(p.name for p in saves_dir.iterdir() if p.is_file()) if saves_dir.is_dir() else []
-            states_names = sorted(p.name for p in states_dir.iterdir() if p.is_file()) if states_dir.is_dir() else []
+
+            def listed(root):
+                return sorted(p.name for d in rom_rename_mod.save_folders(root, code) if d.is_dir() for p in d.iterdir() if p.is_file())
+            saves_names, states_names = listed(saves_dir), listed(states_dir)
 
             def has_flat_match(sorted_names: list, label: str) -> bool:
                 prefix = label + "."
                 i = bisect.bisect_left(sorted_names, prefix)
-                return i < len(sorted_names) and sorted_names[i].startswith(prefix)
+                while i < len(sorted_names) and sorted_names[i].startswith(prefix):
+                    if rom_rename_mod.is_save_of(sorted_names[i], label):
+                        return True
+                    i += 1
+                return False
 
             # Arcade: o arquivo/label é o nome curto do romset (ex:
             # "mslug2") - display_name é só pra GUI mostrar "Metal Slug
@@ -3039,11 +3046,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "kind precisa ser 'save' ou 'state'"}, 400)
             if not isinstance(label, str) or not nome_de_arquivo_seguro(label):
                 return self._json({"error": "label inválido"}, 400)
+            code = body.get("code")
+            if code is not None and (not isinstance(code, str) or not nome_de_arquivo_seguro(code)):
+                return self._json({"error": "sistema inválido"}, 400)
             cfg = load_config()
-            if _flat_save_shared(cfg, label):
-                return self._json({"error": f"'{label}' existe em mais de um sistema e divide o mesmo {kind}; apague pelo gerenciador de arquivos depois de conferir"}, 409)
-            folder = Path(cfg["pc"]["saves_root" if kind == "save" else "states_root"]).expanduser()
-            deleted = rom_rename_mod.delete_flat_matches(folder, label)
+            root = Path(cfg["pc"]["saves_root" if kind == "save" else "states_root"]).expanduser()
+            # Pasta do sistema primeiro (não é compartilhada); a raiz achatada
+            # legada só se o label não existir em outro sistema.
+            deleted = rom_rename_mod.delete_flat_matches(root / code, label) if code else []
+            if not deleted:
+                legacy = rom_rename_mod.find_flat_matches(root, label)
+                if legacy and _flat_save_shared(cfg, label):
+                    return self._json({"error": f"'{label}' existe em mais de um sistema e divide o mesmo {kind}; apague pelo gerenciador de arquivos depois de conferir"}, 409)
+                deleted = rom_rename_mod.delete_flat_matches(root, label)
             return self._json({"ok": True, "deleted": deleted})
 
         if parts == ["api", "cover", "upload"]:

@@ -98,3 +98,17 @@ class TestRenameFollowsLinks(BaseAPI):
     def test_region_only_rename_needs_no_alias(self):
         from core import rename_links
         self.assertEqual(rename_links.rom_key("SFC", "Aladdin"), rename_links.rom_key("SFC", "Aladdin (USA)"))
+
+
+class TestDeleteSaveSystemFolder(BaseAPI):
+    def test_delete_save_with_code_uses_system_folder_even_if_shared(self):
+        ps2 = self.raiz / "ROMs" / "PS2"; ps2.mkdir(exist_ok=True)
+        (ps2 / "Final Fantasy VI.iso").write_bytes(b"rom")
+        pasta = self.raiz / "Saves" / "saves" / "SFC"; pasta.mkdir(exist_ok=True)
+        save = pasta / "Final Fantasy VI.srm"; save.write_bytes(b"save")
+        try:
+            status, body = self.pedir("/api/cover/delete_save", {"code": "SFC", "label": "Final Fantasy VI", "kind": "save"})
+            self.assertEqual(status, 200, body)
+            self.assertFalse(save.exists())
+        finally:
+            (ps2 / "Final Fantasy VI.iso").unlink(); save.unlink(missing_ok=True)

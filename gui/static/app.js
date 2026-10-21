@@ -532,9 +532,9 @@ function buildCoverCard(code, item, cacheBust) {
     div.querySelector('[data-action="delete"]').addEventListener("click", () => deleteCover(code, label));
   }
   const delSaveBtn = div.querySelector('[data-action="delete-save"]');
-  if (delSaveBtn) delSaveBtn.addEventListener("click", () => deleteSaveOrState(label, "save", delSaveBtn));
+  if (delSaveBtn) delSaveBtn.addEventListener("click", () => deleteSaveOrState(code, label, "save", delSaveBtn));
   const delStateBtn = div.querySelector('[data-action="delete-state"]');
-  if (delStateBtn) delStateBtn.addEventListener("click", () => deleteSaveOrState(label, "state", delStateBtn));
+  if (delStateBtn) delStateBtn.addEventListener("click", () => deleteSaveOrState(code, label, "state", delStateBtn));
 
   // Tracking universal (iniciado/finalizado/platinado/nota) - pedido do
   // usuário 27/08: mesma edição inline que a Biblioteca já tinha, agora
@@ -555,13 +555,13 @@ function buildCoverCard(code, item, cacheBust) {
   return div;
 }
 
-async function deleteSaveOrState(label, kind, btn) {
+async function deleteSaveOrState(code, label, kind, btn) {
   const kindLabel = kind === "save" ? "save" : "state";
   if (!confirm(`Apagar o ${kindLabel} de "${label}"? Isso não pode ser desfeito.`)) return;
   const res = await fetch("/api/cover/delete_save", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ label, kind }),
+    body: JSON.stringify({ code, label, kind }),
   });
   const data = await res.json();
   if (res.ok) {

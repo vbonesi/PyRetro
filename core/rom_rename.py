@@ -147,7 +147,7 @@ def _rename_rom(roms_dir: Path, old_label: str, new_label: str, exts: list) -> d
 _SAVE_SUFFIX = re.compile(r"(?:\.[A-Za-z0-9]{1,8})+")
 
 
-def _is_save_of(name: str, label: str) -> bool:
+def is_save_of(name: str, label: str) -> bool:
     return name.startswith(label + ".") and _SAVE_SUFFIX.fullmatch(name[len(label):]) is not None
 
 
@@ -174,7 +174,7 @@ def _rename_flat_matches(folder: Path, old_label: str, new_label: str) -> list:
         return []
     renamed = []
     for p in sorted(folder.iterdir()):
-        if not p.is_file() or not _is_save_of(p.name, old_label):
+        if not p.is_file() or not is_save_of(p.name, old_label):
             continue
         rest = p.name[len(old_label):]  # ex: ".srm", ".state.auto"
         dest = p.with_name(new_label + rest)
@@ -185,6 +185,17 @@ def _rename_flat_matches(folder: Path, old_label: str, new_label: str) -> list:
     return renamed
 
 
+def save_folders(root: Path, code: str, include_root: bool = True) -> list:
+    """Onde procurar save/state de um sistema: primeiro `root/<code>/` (RetroArch
+    com sort_save*_by_content_enable, pasta da ROM = código do sistema), depois a
+    raiz achatada legada - só se `include_root` (False quando o label é
+    compartilhado entre sistemas, ver systems_with_label)."""
+    folders = [Path(root) / code]
+    if include_root:
+        folders.append(Path(root))
+    return folders
+
+
 def rename_with_cascade(roms_dir: Path, saves_dir: Path, states_dir: Path,
                          old_label: str, new_label: str, exts: list, skip_flat: bool = False) -> dict:
     """Retorna {"rom": {"status": ..., "files": [...]}, "saves": [...],
@@ -192,11 +203,12 @@ def rename_with_cascade(roms_dir: Path, saves_dir: Path, states_dir: Path,
     sucesso (senão ficaria com save/state apontando pra uma ROM que
     ainda tem o nome velho)."""
     rom_result = _rename_rom(roms_dir, old_label, new_label, exts)
-    if rom_result["status"] != "renomeado" or skip_flat:
+    if rom_result["status"] != "renomeado":
         return {"rom": rom_result, "saves": [], "states": [], "flat_skipped": skip_flat}
-    saves = _rename_flat_matches(saves_dir, old_label, new_label)
-    states = _rename_flat_matches(states_dir, old_label, new_label)
-    return {"rom": rom_result, "saves": saves, "states": states}
+    code = Path(roms_dir).name
+    saves = [f for d in save_folders(saves_dir, code, not skip_flat) for f in _rename_flat_matches(d, old_label, new_label)]
+    states = [f for d in save_folders(states_dir, code, not skip_flat) for f in _rename_flat_matches(d, old_label, new_label)]
+    return {"rom": rom_result, "saves": saves, "states": states, "flat_skipped": skip_flat}
 
 
 def _delete_rom(roms_dir: Path, label: str, exts: list) -> dict:
@@ -242,7 +254,7 @@ def find_flat_matches(folder: Path, label: str) -> list:
     mostrar se o jogo tem save/state) quanto pelo delete abaixo."""
     if not folder.is_dir():
         return []
-    return [p for p in sorted(folder.iterdir()) if p.is_file() and _is_save_of(p.name, label)]
+    return [p for p in sorted(folder.iterdir()) if p.is_file() and is_save_of(p.name, label)]
 
 
 def delete_flat_matches(folder: Path, label: str) -> list:
@@ -268,8 +280,8 @@ def delete_with_cascade(roms_dir: Path, capas_dir: Path | None, saves_dir: Path,
             if p.exists():
                 p.unlink()
                 capa_deleted.append(str(p))
-    if skip_flat:  # save/state compartilhado com o mesmo label em outro sistema
-        return {"rom": rom_result, "capa": capa_deleted, "saves": [], "states": [], "flat_skipped": True}
-    saves = delete_flat_matches(saves_dir, label)
-    states = delete_flat_matches(states_dir, label)
-    return {"rom": rom_result, "capa": capa_deleted, "saves": saves, "states": states}
+    # Pasta do sistema sempre; raiz achatada só se o label não for compartilhado.
+    code = Path(roms_dir).name
+    saves = [f for d in save_folders(saves_dir, code, not skip_flat) for f in delete_flat_matches(d, label)]
+    states = [f for d in save_folders(states_dir, code, not skip_flat) for f in delete_flat_matches(d, label)]
+    return {"rom": rom_result, "capa": capa_deleted, "saves": saves, "states": states, "flat_skipped": skip_flat}
