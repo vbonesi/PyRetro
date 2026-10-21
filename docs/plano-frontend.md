@@ -129,6 +129,14 @@ do PyRetro e abre cada emulador por intent.
   reconectar Tailscale. G8 físico, Drive e sync de uso ainda pendentes.
   Projeto, wrapper e `tools/build_android.py` versionados. Build, lint e testes JVM
   executados; APK pessoal em `cache/artifacts/`, fora do Git.
+- Versão 0.5 instalada: gestão de espaço por ROM com filtros e fixação para manter
+  baixado, remoção individual revalidada e fila sequencial persistente com estados,
+  bytes, pausa/retomada/reordenação. Sair pausa; abrir não retoma sozinho e concluir
+  não abre jogos. Sem serviço em segundo plano. Interface com barras horizontais,
+  grupos de ações recolhidos, opções de ocultar dicas e retorno à coleção,
+  busca e posição anteriores por Recentes → PyRetro. Aba Stream concentra Xbox,
+  PS4 e PC/Switch por Moonlight, substituindo a fileira fixa do topo. 29 JVM, build/lint e suítes
+  nativas de interface/armazenamento aprovados; arquivos reais preservados.
 - Depois da preparação inicial, aparelho conectado e APK instalado: catálogo por
   Tailscale, cache offline, pastas, sorteio e importação de ZIP mínimo conferidos.
   Interface horizontal compacta, teclado virtual Y e reutilização da tela ao abrir

@@ -6,6 +6,42 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Android 0.5: espaço, jogos fixados, fila e interface compacta
+
+- Gestão de espaço lista ROMs por tamanho, com filtros de sistema/progresso/fixação
+  e indicação de tamanho desconhecido/leitura parcial. Mede ROMs concedidas e
+  espaço privado disponível; não soma saves/texturas/histórico ao total de ROMs.
+  Remoção individual confirmada revalida nome/tamanho/data antes de excluir.
+- Fixação para manter baixado é independente de favorito, acompanha downloads e
+  protege aliases do mesmo documento SAF em todas as rotas de remoção. Jogos
+  fixados não recebem proposta de remoção ao finalizar; fila e CUE/M3U também
+  bloqueiam remoção. Nenhuma limpeza em lote ou retenção de versões ativada.
+- Fila persistente de até 200 registros, um arquivo por vez, com bytes/estado,
+  reordenação, tentativa após falha e retirada que preserva checkpoints. Identidade
+  de documento/destino evita duplicar acessos equivalentes. Origem/pasta guardadas
+  no item são revalidadas; cópias e descarte de parcial compartilham exclusão mútua.
+  Capacidade privada e limite de 12 GB conferidos antes da cópia.
+- Sair do app solicita pausa, falhas interrompem a sequência e abrir novamente
+  não retoma sozinho. A publicação final já conferida pode terminar na pausa.
+  Nenhum jogo abre automaticamente após download; andamento aparece no início.
+  Sem serviço em segundo plano; prefixo retomado continua sendo comparado inteiro.
+- Barras horizontais, diálogos com rolagem e grupos recolhidos nos detalhes liberam
+  espaço. Aparência permite ocultar dicas/aviso offline/texturas, preservando
+  avisos operacionais. Jogar local permanece primeira ação; coleção, busca, página,
+  rolagem e seleção são guardadas ao sair. Ajuda explica Recentes → PyRetro e que
+  a saída do jogo depende do emulador, sem alterar seus atalhos.
+- Aba **Stream** concentra Xbox/XBXPlay, PS4/Remote Play e PC/Switch/Moonlight.
+  A antiga fileira fixa do topo foi removida. Busca/paginação de jogos ficam
+  ocultas na aba, clientes ausentes desativados; detalhes de cada título mantêm
+  suas ações. Abrir Stream não liga consoles nem inicia transmissão.
+- 0.5.0 (code6) instalada por atualização no usuário principal, assinatura
+  preservada. 29 JVM, build/lint e instrumentação retrato/paisagem passaram. Suíte
+  SAF ampliada verificou fila, recuperação de execução interrompida, pausa/retomada,
+  reordenação, deduplicação, fixação por alias e recusa de remoção após alteração.
+  Interface conferiu também restauração de coleção/página após recriar a Activity.
+  Somente fixtures próprias usadas nas operações de arquivos; sem sync de saves
+  reais ou lançamento de jogo. G8 físico, Drive real e sync de uso seguem pendentes.
+
 ## 21/10/2026 — Android 0.4.1 instalada: correções e validação no aparelho
 
 - Abrir Situação durante a leitura inicial podia deixar a contagem em zero até

@@ -93,7 +93,8 @@ class StorageSmoke:Instrumentation() {
             val playlistVersion=playlists.versions("FC").first();playlists.restore(playlistVersion,"FC")
             check(!fixture.prefs.getBoolean("playlist-auto:FC",true))
             fixture.removeLocal(game);check(fixture.files("FC",true).isEmpty())
-            result.putString("stream","PASS: publicação e recuperação SAF, conflitos, checksum, grupo vazio, índice em lote, download pausado/retomado e playlists; somente fixtures próprias.")
+            QueueSpaceSmoke.run(fixture,sourceFolder)
+            result.putString("stream","PASS: SAF/histórico/conflitos/checksum/playlists, fila sequencial com pausa/retomada/reordenação, deduplicação, espaço e fixação/revalidação de remoção; somente fixtures próprias.")
         } catch(error:Throwable) { result.putString("stream","FAIL: "+error.stackTraceToString()) }
         finally {
             temp?.delete();targetContext.getSharedPreferences("file-sync-smoke",0).edit().clear().commit()

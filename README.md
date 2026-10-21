@@ -58,7 +58,7 @@ mídia** importa logo e prévia MP4/WebM locais. Detalhes em [`docs/modo-tv.md`]
 Primeiro APK nativo em [`android/`](android/README.md): interface para Galileo G8 e
 touch, ROMs locais (incluindo NDS/3DS), catálogo em cache e progresso/tempo offline.
 O banco continua no PC. Tailscale consulta/sincroniza o notebook; jogos locais
-funcionam sem ele. XBXPlay, PS Remote Play oficial e Moonlight abrem pelos atalhos.
+funcionam sem ele. XBXPlay, PS Remote Play oficial e Moonlight ficam na aba Stream.
 
 ROMs podem ser vinculadas pelo seletor Android ao Google Drive e baixadas sob
 demanda, diretamente para uma pasta local escolhida. PS1 sob demanda usa CHD/PBP.
@@ -71,15 +71,18 @@ playlists com prévia e atualização opcional, índice da nuvem por pasta/sele�
 lote e checkpoints para continuar downloads. APK instalado e teste sintético no
 aparelho aprovado; homologação de uso continua. A 0.4 reúne situação offline,
 conexão com o notebook, pendências/conflitos, permissões e checkpoints em uma
-central com ações de resolução. A 0.4.1 está instalada, com resumos atualizados
-automaticamente, tratamento de pastas inválidas e foco inicial nos diálogos.
-Build/lint, 24 testes JVM e instrumentação da central no aparelho passaram;
-consulta ao notebook por Tailscale conferida.
+central com ações de resolução. A 0.4.1 corrigiu a atualização dos resumos, o
+tratamento de pastas inválidas e o foco inicial nos diálogos.
+Consulta ao notebook por Tailscale conferida. A **0.5** acrescenta espaço por ROM,
+filtros, jogos fixados para manter baixados e fila sequencial com pausa/retomada e
+reordenação. A aba Stream reúne os clientes; detalhes recolhidos e dicas
+ocultáveis liberam tela. Coleção, busca e posição são preservadas ao retornar de
+um emulador. Build/lint, 29 testes JVM e instrumentação de interface/armazenamento no aparelho passaram.
 Detalhes no [README Android](android/README.md).
 Texturas PSP/3DS aceitam ZIP local offline e pacotes preparados pelo notebook;
 a interface do PC também recebe arquivos locais. Ao finalizar um jogo baixado,
 o app pergunta se deseja remover somente a ROM local, preservando saves e histórico.
-Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. Versão 0.4.1 instalada
+Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. Versão 0.5.0 instalada
 e navegação touch conferida no aparelho; testes físicos do G8 e do provedor Drive
 continuam pendentes. Instruções e limites no README Android.
 

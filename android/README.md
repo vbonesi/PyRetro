@@ -5,7 +5,7 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.4.1-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.5.0-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções**, escolha **Pasta Jogos · reconhecer todos os sistemas**, ou cada
    pasta separadamente. Arquivos que eram sincronizados pelo FolderSync são reaproveitados.
@@ -81,7 +81,25 @@ touch. Não remapeia o controle dentro dos emuladores ou clientes de streaming.
 disponíveis: jogar localmente, abrir o cliente remoto ou vincular/baixar a ROM.
 Não inicia jogos, transmissões ou downloads automaticamente.
 
+As barras de coleções e ações têm rolagem horizontal. Em **Opções → Aparência**,
+você pode ocultar a dica de controle, o aviso de modo offline e o atalho de
+texturas para liberar espaço. Erros operacionais continuam
+visíveis. Nos detalhes, **ROM, emulador e texturas**, **Progresso e tempo** e a ajuda
+ficam recolhidos; **Jogar neste celular** permanece como primeira ação local.
+
+Para voltar de um jogo, use **Recentes do Android → PyRetro**. A coleção, busca,
+página, rolagem e seleção são guardadas ao sair, inclusive para recriação do app.
+Encerrar a partida depende do menu/atalho do emulador; o comportamento de Voltar
+varia entre eles. O PyRetro não altera seus atalhos.
+
 ## Abrir jogos e transmissões
+
+A aba **Stream**, na barra horizontal de coleções, reúne **Xbox · XBXPlay**,
+**PS4 · Remote Play** e **PC e Switch · Moonlight**. Ela substitui a antiga fileira
+de atalhos no topo. Busca e paginação de jogos ficam ocultas nessa aba; clientes
+não instalados ficam desativados. Abrir a aba não liga consoles nem inicia sessões.
+Para solicitar um título ao notebook, use a ação nos detalhes do jogo. Login,
+pareamento e escolha do computador/console continuam nos clientes.
 
 - RetroArch: intent explícito, ROM no armazenamento local, core instalado no
   próprio RetroArch; NDS oferece melonDS (padrão), melonDS DS ou DeSmuME. PS1 usa SwanStation.
@@ -104,8 +122,9 @@ externa; pode exigir ajuste conforme a instalação do usuário.
 
 Nos detalhes de um jogo, **Vincular ROM no Drive** abre o seletor de arquivos do
 Android. Escolha o arquivo no provedor Google Drive instalado e autenticado.
-Depois, **Baixar ROM vinculada e jogar** copia pelo provedor para a pasta local
-escolhida, sem passar pelo notebook/Tailscale. Precisa de internet para baixar;
+Depois, **Adicionar ROM à fila de downloads** permite só enfileirar ou também
+iniciar a fila. A cópia usa o provedor e a pasta local escolhida, sem passar pelo
+notebook/Tailscale. Precisa de internet para baixar;
 concluído o download, funciona offline. A versão 0.3 também oferece
 **Opções → Catálogo da nuvem / Drive**: escolha um sistema e adicione uma pasta
 (se o provedor permitir) ou arquivos em lote. O app lê nomes/tamanhos e apresenta
@@ -121,20 +140,22 @@ permitir selecionar pastas, use **Adicionar arquivos em lote**. Limpar um índic
 remove apenas seus metadados/vínculos automáticos; arquivos de origem e ROMs
 locais permanecem. A indexação não baixa o conteúdo dos jogos.
 
-**Opções → Downloads** permite pausar, continuar e descartar cópias parciais.
+**Opções → Downloads** permite controlar a fila e consultar/descartar cópias parciais.
 Checkpoints persistem no armazenamento privado do app mesmo após encerrar o
 processo. Ao continuar, URI/destino e metadados são conferidos; todo o prefixo
 já baixado é comparado à origem antes de acrescentar bytes. Por isso o provedor
 pode reler esse trecho: não há promessa de economia de tráfego nem suporte HTTP
 Range pelo provedor. Origem diferente bloqueia a continuação até descartar o
-checkpoint explicitamente. Depois de falha de rede, basta continuar a cópia.
+checkpoint explicitamente. Depois de falha, escolha **Tentar novamente** no item
+e inicie a fila; se a origem/pasta mudou, retire o registro e adicione-o novamente.
 
 O app confere tamanho quando informado, SHA-256 e cópia final antes de publicar
 na pasta local. Arquivo existente diferente nunca é substituído; uma cópia
 idêntica pode ser reaproveitada. O limite é 12 GB por arquivo. A fase final usa
 espaço para o checkpoint privado e a cópia na pasta local; reserve espaço para
-ambos. Não há serviço de download em segundo plano, fila automática ou retomada
-sem ação do usuário. Checkpoints antigos da 0.1 não são importados.
+ambos. A fila sequencial é iniciada pelo usuário; não há serviço de download em
+segundo plano nem retomada automática ao abrir o app. Checkpoints antigos da 0.1
+não são importados.
 
 PS1 sob demanda aceita CHD/PBP. CUE/M3U com faixas/discos dependentes não são
 baixados isoladamente. Os arquivos locais existentes nesses formatos podem ser
@@ -146,6 +167,45 @@ o usuário escolhe os arquivos/pastas e o Android guarda as permissões concedid
 Provedores podem exigir nova escolha se o arquivo for movido ou a permissão
 expirar. Pastas privadas `Android/data` de outros apps não são acessíveis pelo
 seletor em Android recente.
+
+## Fila de downloads (0.5)
+
+Em **Downloads**, inicie/continue, pause ou abra **Ver fila / reordenar itens**.
+Cada jogo mostra estado e bytes; o tamanho total aparece quando o provedor o
+informa. A fila processa um arquivo por vez, sem abrir o emulador ao concluir.
+O andamento também aparece na tela principal. Você pode mover itens aguardando,
+tentar novamente após falha e retirar registros concluídos. Há limite de 200
+registros, incluindo concluídos. O mesmo documento para a mesma pasta não entra
+duas vezes, mesmo com URIs SAF que representem a mesma identidade.
+
+Ao sair do PyRetro a pausa é solicitada e o próximo item não começa. Uma publicação
+final já conferida pode terminar durante a pausa. Falhas interrompem a sequência;
+itens seguintes aguardam uma nova ação. Encerrar o processo preserva a fila e os
+checkpoints; abrir novamente deixa downloads interrompidos pausados. **Retirar da
+fila** mantém o parcial; **Descartar parcial** é uma ação separada. O app não apaga
+ROMs automaticamente para abrir espaço. A origem e a pasta são guardadas no item
+e conferidas antes de copiar; alterações exigem retirar/adicionar novamente.
+
+## Espaço e jogos fixados (0.5)
+
+Abra **Opções → Espaço e jogos fixados**. A leitura mostra ROMs locais por tamanho,
+com filtros de sistema, finalizados, não finalizados, fixados e finalizados
+removíveis. Tamanhos desconhecidos e falhas aparecem explicitamente. O total cobre
+somente as ROMs encontradas nas pastas concedidas; saves, estados, BIOS, texturas
+e versões anteriores ficam fora desse total. Downloads informa checkpoints; o
+espaço livre apresentado é o disponível ao app/checkpoints, sem prometer a mesma
+capacidade em qualquer destino SAF.
+
+**Fixar ROM**, nos detalhes ou no gerenciador, significa manter baixado; é separado
+de favorito e pode ser escolhido antes do download. A proteção acompanha a ROM
+baixada e vale para aliases do mesmo documento. Para remover, desfixe primeiro.
+Não há remoção automática ao finalizar um jogo fixado.
+
+A remoção é individual e exige confirmação. Itens na fila e descritores CUE/M3U
+ficam protegidos. Nome, tamanho e data do arquivo são conferidos novamente antes
+de apagar; mudanças desde a leitura bloqueiam a operação. Saves, estados,
+texturas, histórico, progresso e origem continuam preservados. Nenhuma política
+de retenção de versões ou limpeza em lote foi ativada.
 
 ## Progresso, tempo e arquivos existentes
 
@@ -198,7 +258,8 @@ sincronização; analise o grupo antes de enviar a versão restaurada à outra p
 Não use FolderSync em paralelo nas mesmas pastas.
 
 Ao marcar um jogo baixado como **Finalizado** (inclusive pela cascata de
-Platinado), o app pergunta **Manter ROM** ou **Excluir ROM local**. A remoção
+Platinado), o app pergunta **Manter ROM** ou **Excluir ROM local**, salvo se o
+jogo estiver fixado para manter baixado. A remoção
 também está nos detalhes e só alcança o arquivo de ROM na pasta local escolhida.
 Progresso, favorito, tempo, saves, states, BIOS, capas, texturas e a origem no
 PC/Drive ficam preservados. CUE/M3U exigem conferir faixas/discos no gerenciador
@@ -263,8 +324,15 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.4.1-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.5.0-debug.apk
 ```
+
+A versão **0.5.0 está instalada** no usuário principal com a mesma assinatura.
+Compilação/lint e 29 testes JVM aprovados. A instrumentação de interface verifica
+retrato/paisagem, central, menus de espaço/downloads, aba Stream e restauração de
+coleção/página após recriação. A suíte SAF usa arquivos próprios para conferir
+fila, interrupção/retomada, reordenação, deduplicação, fixação por alias e recusa
+de remoção se o arquivo mudar. Nenhum jogo ou save real é usado nessas operações.
 
 Compilação, lint e 24 testes JVM passaram para a versão 0.4.1, instalada no
 usuário principal após reconexão. A central foi exercitada no aparelho em retrato
@@ -292,6 +360,8 @@ Na versão 0.3 ele também cobre restauração, índice em lote, download interr
 retomado e preservação dos campos de playlists, com preferências e pasta sintéticas
 isoladas. Foi executado com sucesso no aparelho reconectado. O teste exige que a
 raiz derivada permaneça dentro da pasta sintética antes de iniciar as cópias.
+Na 0.5, cobre também fila persistente, pausa/retomada/reordenação, deduplicação,
+espaço, fixação e revalidação de remoção. Não homologa o provedor Google Drive.
 Desinstale somente `com.pyretro.app.test` depois da execução; o aplicativo principal
 e suas permissões permanecem instalados.
 

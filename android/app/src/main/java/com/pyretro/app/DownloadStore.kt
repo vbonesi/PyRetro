@@ -7,12 +7,23 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
 
 class DownloadStore(private val store:LibraryStore) {
     private val resolver=store.context.contentResolver
     private val directory=File(store.context.filesDir,if(store.preferenceName=="pyretro")"downloads" else store.preferenceName+"-downloads").apply { mkdirs() }
     private val storage=SafStorage(store,12L*1024*1024*1024)
-    companion object { private val paused=AtomicBoolean(false);fun pause() { paused.set(true) } }
+    companion object {
+        private val paused=AtomicBoolean(false)
+        private val locks=ConcurrentHashMap<String,ReentrantLock>()
+        fun pause() { paused.set(true) }
+    }
+    private fun <T> exclusive(action:()->T):T {
+        val lock=locks.getOrPut(store.preferenceName) { ReentrantLock() }
+        require(lock.tryLock()) { "Há uma transferência em andamento. Pause e aguarde antes de descartar ou iniciar outra cópia." }
+        try { return action() } finally { lock.unlock() }
+    }
     private fun id(key:String)=MessageDigest.getInstance("SHA-256").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }
     private fun record(key:String)=File(directory,id(key)+".json")
     private fun part(key:String)=File(directory,id(key)+".part")
@@ -38,14 +49,18 @@ class DownloadStore(private val store:LibraryStore) {
         }
         job.remove("stage");save(job)
     }
-    fun discard(key:String) {
+    fun discard(key:String)=exclusive {
         val file=record(key);if(file.exists())cleanStage(JSONObject(file.readText()))
         require(!part(key).exists() || part(key).delete());require(!file.exists() || file.delete())
     }
-    fun download(game:Game,progress:(Long)->Unit):Uri {
+    fun download(game:Game,sourceOverride:Uri?=null,treeOverride:Uri?=null,cancelled:()->Boolean={false},onSize:(Long?)->Unit={},progress:(Long)->Unit):Uri=exclusive {
+        copy(game,sourceOverride,treeOverride,cancelled,onSize,progress)
+    }
+    private fun copy(game:Game,sourceOverride:Uri?,treeOverride:Uri?,cancelled:()->Boolean,onSize:(Long?)->Unit,progress:(Long)->Unit):Uri {
         paused.set(false)
-        val source=Uri.parse(store.prefs.getString("cloud:${game.key}",null) ?: error("Vincule a ROM ou indexe a nuvem primeiro."))
-        val tree=store.tree(game.code) ?: error("Escolha uma pasta local de ${game.code}.")
+        val source=sourceOverride ?: Uri.parse(store.prefs.getString("cloud:${game.key}",null) ?: error("Vincule a ROM ou indexe a nuvem primeiro."))
+        require(source.scheme=="content") { "Escolha um arquivo pelo seletor Android." }
+        val tree=treeOverride ?: store.tree(game.code) ?: error("Escolha uma pasta local de ${game.code}.")
         require(tree.authority=="com.android.externalstorage.documents")
         val meta=metadata(source);val name=meta.getString("name")
         require(store.accepts(game.code,name) && name.substringAfterLast('.').lowercase() !in setOf("cue","m3u")) { "Escolha um formato independente; PS1 sob demanda usa CHD/PBP." }
@@ -57,7 +72,11 @@ class DownloadStore(private val store:LibraryStore) {
         require(listOf("name","size","modified").all { before.get(it).toString()==meta.get(it).toString() }) { "Origem mudou. A cópia parcial está preservada; descarte-a para reiniciar." }
         save(job);cleanStage(job)
         val size=meta.getLong("size").takeIf { it>=0 }
-        val checksum=resolver.openInputStream(source).use { input -> requireNotNull(input);ResumableCopy.copy(input,part(game.key),size,cancelled={paused.get()},progress=progress) }
+        require(size==null || size<=12L*1024*1024*1024) { "ROM acima do limite de 12 GB." }
+        if(size!=null)require(android.os.StatFs(store.context.filesDir.path).availableBytes>=maxOf(0,size-part(game.key).length())) { "Espaço insuficiente para o checkpoint privado. Libere espaço e continue a fila." }
+        onSize(size)
+        val checksum=resolver.openInputStream(source).use { input -> requireNotNull(input);ResumableCopy.copy(input,part(game.key),size,cancelled={paused.get() || cancelled()},progress=progress) }
+        if(paused.get() || cancelled())throw ResumableCopy.Paused()
         val after=metadata(source)
         require(listOf("name","size","modified").all { before.get(it).toString()==after.get(it).toString() }) { "Origem mudou durante a cópia; parcial preservado." }
         job.put("sha256",checksum);save(job)

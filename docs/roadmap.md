@@ -18,6 +18,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
 | Recuperação de versões pelo app, playlists e downloads retomáveis | ✅ Implementado na 0.3; instalado e instrumentação sintética aprovada no celular |
 | Índice da nuvem por pasta concedida ou arquivos em lote | ✅ Implementado na 0.3; associação única, prévia e cache; provedor Drive real pendente |
 | Central Android de situação e conexões | ✅ 0.4.1 instalada; resumos automáticos, permissões e foco corrigidos. Build/lint, 24 JVM e instrumentação retrato/paisagem aprovados; notebook respondeu via Tailscale |
+| Espaço, jogos fixados e fila no Android | ✅ 0.5 instalada; filtros, proteção da ROM e fila sequencial com pausa/retomada/reordenação. Sem serviço em segundo plano |
 | Saves/states/runtime pelo app Android | ✅ Versão 0.2: grupos, SHA-256, conflitos e histórico; sincronização real aguarda uso do usuário |
 | Xbox/PS4 remotos e Switch Lite Wi-Fi | Clientes integrados e sem duplicação; Switch confirmado, sessão PS4/Xbox ainda depende de uso real |
 | GUI de capas (galeria, busca, flag/duplicada/renomear/apagar) | ✅ Pronto |
@@ -86,8 +87,10 @@ testes sintéticos aprovados não substituem os testes de uso abaixo. As sugest�
 são propostas de evolução, sem automação agendada. **Continuação em 21/10:** o
 usuário pediu novas melhorias sem celular; a central do item 2 foi implementada
 na 0.4, compilada e testada no notebook. Depois o celular foi reconectado: a 0.4.1
-foi corrigida, instalada e testada no aparelho. Os demais itens seguem como
-propostas/homologação pendente.
+foi corrigida, instalada e testada no aparelho. Em seguida, Victor autorizou os
+itens 3 e 4: espaço/fixação e fila sequencial foram instalados na 0.5, com
+instrumentação sintética no celular. Retenção de versões, serviço em segundo
+plano e homologação dos fluxos reais continuam pendentes.
 
 1. **Fechar a homologação de uso:** Galileo G8 físico e touch, provedor Google
    Drive real, NDS/3DS e demais emuladores, pacote real de texturas e sincronização
@@ -106,12 +109,19 @@ propostas/homologação pendente.
 3. **Gerenciar espaço pelo app:** tamanho dos jogos baixados, checkpoints e
    versões anteriores; filtros por sistema e progresso. Permitir fixar jogos para
    manter baixados e propor remoção confirmada de ROMs finalizadas, preservando
-   saves. Qualquer política de retenção do histórico deve ser explícita e recuperável.
+   saves. **0.5 implementada:** ROMs por tamanho, filtros, fixação e remoção
+   individual confirmada/revalidada. Checkpoints têm consulta e descarte separados.
+   Versões de saves não entram no total medido; retenção do histórico continua
+   futura e deve ser explícita e recuperável.
 4. **Evoluir downloads e índice da nuvem:** fila com progresso por jogo, pausa e
    cancelamento acessíveis; avaliar serviço Android com notificação para continuar
    em segundo plano. Deduplicar acessos ao mesmo documento por identidade do
    provedor, além da URI. Hoje a retomada é explícita e pode reler o prefixo; índice
    usa somente pastas/arquivos concedidos, sem varredura geral da conta Drive.
+   **0.5 implementada:** fila sequencial persistente, bytes/estados, reordenação,
+   pausa ao sair, retomada explícita e retirada sem descartar parcial. Não abre
+   jogos automaticamente. Deduplicação da fila por documento/destino SAF; serviço
+   com notificação e revisão ampla da identidade no índice continuam futuros.
 5. **Conjuntos e identificação:** download/remoção segura de CUE/M3U com suas
    faixas/discos; nomes legíveis para saves/texturas 3DS identificados por title ID.
 6. **Acabamento de console e histórico:** fontes automáticas verificadas de

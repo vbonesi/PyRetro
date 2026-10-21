@@ -17,6 +17,7 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
     fun run()=with(runner) {
         val result=Bundle();val name="status-smoke-"+UUID.randomUUID();val fixture=LibraryStore(targetContext,name)
         var activity:MainActivity?=null;var orientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        var realUI:Map<String,*>?=null
         fun nodes(view:View):List<View> = listOf(view)+if(view is ViewGroup)(0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
         fun invoke(method:String) { runOnMainSync { MainActivity::class.java.getDeclaredMethod(method).apply { isAccessible=true }.invoke(activity) };waitForIdleSync() }
         fun dialogViews():List<View> {
@@ -64,6 +65,7 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
             record.remove("at");syncPrefs.edit().putString("observation:retro-saves",record.toString()).commit();check(sync.observation("retro-saves")==null)
             // Dados do usuário só são lidos. Nenhum botão de sync/download/remoção é acionado.
             val realBefore=real.prefs.all.toMap()
+            realUI=realBefore.filterKeys { it.startsWith("ui:") }
             activity=startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
             orientation=activity!!.requestedOrientation
             invoke("statusCenter")
@@ -95,10 +97,48 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
                 invoke("connectionApps");check(contains("Emuladores e conexões") && contains("Tailscale"))
                 check(dialogViews().filterIsInstance<Button>().filter { it.text.toString().contains("não encontrado") }.all { !it.isEnabled })
                 invoke("pendingChanges");check(contains("Alterações pendentes"))
+                invoke("downloads");check(contains("Iniciar / continuar fila") && contains("Ver fila / reordenar itens"))
+                check(dialogViews().filterIsInstance<TextView>().first { it.text.toString().startsWith("Um arquivo por vez, na ordem") }.visibility==View.GONE)
+                invoke("appearance");check(contains("Mostrar dica do controle"))
+                runOnMainSync {
+                    (MainActivity::class.java.getDeclaredField("dialog").apply { isAccessible=true }.get(activity) as? android.app.AlertDialog)?.dismiss()
+                }
+                runOnMainSync {
+                    MainActivity::class.java.getDeclaredMethod("selectCollection",String::class.java).apply { isAccessible=true }.invoke(activity,"stream")
+                    val root=activity!!.window.decorView
+                    val labels=nodes(root).filterIsInstance<TextView>().map { it.text.toString() }
+                    check(listOf("Xbox · XBXPlay","PS4 · Remote Play","PC e Switch · Moonlight").all { label -> labels.any { it.startsWith(label) } })
+                    check(nodes(root).filterIsInstance<android.widget.EditText>().all { it.visibility==View.GONE })
+                    MainActivity::class.java.getDeclaredMethod("selectCollection",String::class.java).apply { isAccessible=true }.invoke(activity,"cell")
+                }
+                invoke("spaceManager")
+                var measured=false
+                for(attempt in 0 until 200) { if(contains("Atualizar leitura de espaço")) { measured=true;break };Thread.sleep(100) }
+                check(measured && contains("Livre para o app/checkpoints"))
+                check(dialogViews().any { it is android.widget.HorizontalScrollView })
+            }
+            // Recriação verifica a mesma persistência usada ao retornar depois de o Android liberar o processo.
+            runOnMainSync {
+                MainActivity::class.java.getDeclaredField("dialog").apply { isAccessible=true }.get(activity).let { (it as? android.app.AlertDialog)?.dismiss() }
+                MainActivity::class.java.getDeclaredField("collection").apply { isAccessible=true }.set(activity,"catalog")
+                MainActivity::class.java.getDeclaredField("page").apply { isAccessible=true }.setInt(activity,2)
+                MainActivity::class.java.getDeclaredMethod("render").apply { isAccessible=true }.invoke(activity)
+            }
+            val monitor=addMonitor(MainActivity::class.java.name,null,false)
+            runOnMainSync { activity!!.recreate() }
+            activity=waitForMonitorWithTimeout(monitor,15000) as? MainActivity ?: error("Activity não foi recriada.")
+            removeMonitor(monitor);waitForIdleSync()
+            for(attempt in 0 until 200) {
+                var ready=false;runOnMainSync { ready=MainActivity::class.java.getDeclaredField("localScanAt").apply { isAccessible=true }.getLong(activity)>0 }
+                if(ready)break;Thread.sleep(100)
+            }
+            runOnMainSync {
+                check(MainActivity::class.java.getDeclaredField("collection").apply { isAccessible=true }.get(activity)=="catalog")
+                check(MainActivity::class.java.getDeclaredField("page").apply { isAccessible=true }.getInt(activity)==2)
             }
             invoke("statusCenter")
             val pending=StatusStore(real).pending()
-            check(real.prefs.all==realBefore) { "Preferências reais mudaram durante a navegação de consulta." }
+            check(real.prefs.all.filterKeys { !it.startsWith("ui:") }==realBefore.filterKeys { !it.startsWith("ui:") }) { "Preferências reais de jogos/pastas mudaram durante a navegação de consulta." }
             var locals=0;var problems:List<*> = emptyList<Any>()
             runOnMainSync {
                 val gameField=MainActivity::class.java.getDeclaredField("games").apply { isAccessible=true }
@@ -121,13 +161,19 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
                 val expected=StatusStore(real).connectionSummary { java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(java.util.Date(it)) }
                 check(dialogViews().filterIsInstance<TextView>().any { it.text.toString()==expected }) { "Resumo de conexão permaneceu desatualizado após o teste." }
                 val contactKeys=setOf("last-contact","last-attempt","last-attempt-ok")
-                check(real.prefs.all.filterKeys { it !in contactKeys }==realBefore.filterKeys { it !in contactKeys })
+                check(real.prefs.all.filterKeys { it !in contactKeys && !it.startsWith("ui:") }==realBefore.filterKeys { it !in contactKeys && !it.startsWith("ui:") })
                 contact=if(real.prefs.getBoolean("last-attempt-ok",false))"respondeu" else "indisponível; falha registrada"
             }
-            result.putString("stream","PASS: estados/permissões/pendências isoladas e central/submenus em retrato/paisagem; ${pending.size} pendência(s) real(is), $locals jogo(s) local(is), ${real.cached().size} entrada(s) em cache, ${problems.size} falha(s) na leitura local, RetroArch=$retro, notebook=$contact. Preferências reais preservadas salvo registro de contato explícito. Nenhum jogo ou sync acionado.")
+            result.putString("stream","PASS: estados/permissões/pendências isoladas e central/submenus/aba Stream em retrato/paisagem; ${pending.size} pendência(s) real(is), $locals jogo(s) local(is), ${real.cached().size} entrada(s) em cache, ${problems.size} falha(s) na leitura local, RetroArch=$retro, notebook=$contact. Coleção/página restauradas após recriação; preferências visuais temporárias restauradas, dados de jogos/pastas preservados salvo registro de contato explícito. Nenhum jogo ou sync acionado.")
         } catch(error:Throwable) { result.putString("stream","FAIL: "+error.stackTraceToString()) }
         finally {
-            activity?.let { current -> runOnMainSync { current.requestedOrientation=orientation } }
+            activity?.let { current -> runOnMainSync { current.requestedOrientation=orientation;current.finish() };waitForIdleSync() }
+            realUI?.let { previous ->
+                val preferences=LibraryStore(targetContext).prefs;val edit=preferences.edit()
+                preferences.all.keys.filter { it.startsWith("ui:") }.forEach(edit::remove)
+                previous.forEach { (key,value) -> when(value) { is String -> edit.putString(key,value);is Int -> edit.putInt(key,value);is Long -> edit.putLong(key,value);is Boolean -> edit.putBoolean(key,value) } }
+                edit.commit()
+            }
             targetContext.deleteSharedPreferences(name);targetContext.deleteSharedPreferences(name+"-file-sync")
         }
         finish(if(result.getString("stream","").startsWith("PASS"))Activity.RESULT_OK else Activity.RESULT_CANCELED,result)

@@ -39,9 +39,11 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private lateinit var search:EditText
     private lateinit var status:TextView
     private lateinit var counter:TextView
-    private lateinit var quickBar:View
+    private lateinit var pagingBar:View
+    private lateinit var drawShortcut:Button
     private lateinit var headingBar:View
     private lateinit var compactOptions:Button
+    private lateinit var textureShortcut:Button
     private lateinit var gridScroll:ScrollView
     private lateinit var controlHint:TextView
     private lateinit var controllerManager:InputManager
@@ -52,6 +54,37 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private var localProblems=emptyList<String>()
     private var localScanAt=0L
     private var updateLocalStatus:(()->Unit)?=null
+    private var updateQueueStatus:(()->Unit)?=null
+    private lateinit var queueBanner:Button
+    private var seenQueueRevision=Long.MIN_VALUE
+    private var seenQueueCompletion=0L
+    private var restorePosition=true
+    private var restoredScroll=0
+    private var restoredPage:Int?=null
+    private var lastSelectedKey:String?=null
+    private var expandedTrackingKey:String?=null
+    private val queueHandler=android.os.Handler(android.os.Looper.getMainLooper())
+    private fun queue()=DownloadQueue.get(store)
+    private val queueTick=object:Runnable {
+        override fun run() {
+            if(isFinishing || isDestroyed)return
+            runCatching {
+                val helper=queue()
+                if(seenQueueRevision!=helper.revision) {
+                    seenQueueRevision=helper.revision
+                    val rows=helper.snapshot();val active=rows.firstOrNull { it.state==DownloadState.RUNNING }
+                    queueBanner.visibility=if(rows.any { it.state!=DownloadState.DONE })View.VISIBLE else View.GONE
+                    queueBanner.text=if(active!=null)"↓ ${active.game.name} · ${bytesLabel(active.bytes)}" else "Downloads · ${rows.count { it.state!=DownloadState.DONE }} pendente(s) · abrir fila"
+                    updateQueueStatus?.invoke()
+                }
+                if(helper.completedAt>seenQueueCompletion) {
+                    seenQueueCompletion=helper.completedAt;reloadLocal { message("Download concluído. Escolha Jogar quando quiser abrir o jogo.") }
+                }
+            }.onFailure { queueBanner.visibility=View.VISIBLE;queueBanner.text="Fila indisponível · abrir Downloads para conferir" }
+            queueHandler.postDelayed(this,500)
+        }
+    }
+    private fun bytesLabel(value:Long)=android.text.format.Formatter.formatFileSize(this,value)
     private var collection="cell"
     private var page=0
     private var pageCount=1
@@ -82,7 +115,11 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun column()=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(8),dp(12),dp(8)) }
     private fun add(parent:LinearLayout,view:View,weight:Float=0f) { parent.addView(view,LinearLayout.LayoutParams(if(weight>0)0 else ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT,weight).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) }) }
     private fun horizontal(parent:LinearLayout,content:LinearLayout) { parent.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(content) },LinearLayout.LayoutParams(-1,-2)) }
-    private fun message(value:String) { status.text=value }
+    private fun message(value:String) {
+        status.text=value
+        val notice=value.startsWith("Offline") || value.startsWith("Modo offline")
+        status.visibility=if(notice && !store.prefs.getBoolean("ui:show-notice",true))View.GONE else View.VISIBLE
+    }
     private fun failure(error:Throwable) { message(error.message ?: "Não foi possível concluir.") }
     private fun firstEnabledButton(view:View):Button? {
         if(view.visibility!=View.VISIBLE)return null
@@ -92,7 +129,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun show(builder:AlertDialog.Builder):AlertDialog {
         dialog?.dismiss();return builder.create().also { opened ->
-            dialog=opened;opened.setOnDismissListener { if(dialog===opened) { dialog=null;updateLocalStatus=null } }
+            dialog=opened;opened.setOnDismissListener { if(dialog===opened) { dialog=null;updateLocalStatus=null;updateQueueStatus=null } }
             opened.setOnKeyListener { _,code,event ->
                 when(code) {
                     KeyEvent.KEYCODE_BUTTON_A -> {
@@ -117,6 +154,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState);store=LibraryStore(this)
+        collection=store.prefs.getString("ui:collection","cell").takeIf { it in listOf("cell","catalog","stream","favorites","kept") } ?: "cell"
+        page=store.prefs.getInt("ui:page",0).coerceAtLeast(0);restoredScroll=store.prefs.getInt("ui:scroll",0).coerceAtLeast(0)
+        restoredPage=page
+        lastSelectedKey=store.prefs.getString("ui:selected",null)
         window.statusBarColor=appBackground;window.navigationBarColor=appBackground
         pageRoot=column().apply { setBackgroundColor(appBackground) }
         pageRoot.setOnApplyWindowInsetsListener { view,insets ->
@@ -127,18 +168,20 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             insets
         }
         val heading=row();add(heading,text("✦ PyRetro",25f).apply { setTypeface(null,Typeface.BOLD) },1f);add(heading,button("Situação") { statusCenter() });add(heading,button("Opções") { settings() });pageRoot.addView(heading);headingBar=heading
-        val quick=row();add(quick,button("Xbox · XBXPlay") { openPackage("com.grill.xbxplay") });add(quick,button("PS4 · Remote Play") { openPackage("com.playstation.remoteplay") });add(quick,button("PC · Moonlight") { openPackage("com.limelight") });horizontal(pageRoot,quick);quickBar=pageRoot.getChildAt(pageRoot.childCount-1)
-        val collections=row();for((id,label) in listOf("cell" to "Neste celular","catalog" to "Catálogo em cache","favorites" to "Favoritos"))add(collections,button(label) { collection=id;page=0;render() });horizontal(pageRoot,collections)
-        add(collections,button("Sortear") { draw() });add(collections,button("Texturas") { textures() })
+        val collections=row();for((id,label) in listOf("cell" to "Neste celular","catalog" to "Catálogo em cache","stream" to "Stream","favorites" to "Favoritos"))add(collections,button(label) { selectCollection(id) });horizontal(pageRoot,collections)
+        add(collections,button("Fixados") { selectCollection("kept") })
+        drawShortcut=button("Sortear") { draw() };add(collections,drawShortcut);textureShortcut=button("Texturas") { textures() };add(collections,textureShortcut)
         compactOptions=button("Opções") { settings() };add(collections,compactOptions)
         add(collections,button("Situação") { statusCenter() })
-        search=EditText(this).apply { hint="Y · Pesquisar nome, plataforma ou gênero";setHintTextColor(Color.LTGRAY);setTextColor(appForeground);isSingleLine=true;minHeight=dp(48);background=shape();setPadding(dp(12),0,dp(12),0) }
+        search=EditText(this).apply { hint="Y · Pesquisar nome, plataforma ou gênero";setHintTextColor(Color.LTGRAY);setTextColor(appForeground);isSingleLine=true;minHeight=dp(48);background=shape();setPadding(dp(12),0,dp(12),0);setText(store.prefs.getString("ui:query","")!!.take(256)) }
         search.addTextChangedListener(object:TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){};override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){page=0;render()};override fun afterTextChanged(s:Editable?){} })
         pageRoot.addView(search,LinearLayout.LayoutParams(-1,dp(52)))
         status=text("Modo offline · selecione suas pastas ou carregue o catálogo do notebook.",13f);pageRoot.addView(status)
+        queueBanner=button("Downloads") { downloads() }.apply { textSize=13f;maxLines=2;visibility=View.GONE };pageRoot.addView(queueBanner,LinearLayout.LayoutParams(-1,-2))
+        seenQueueCompletion=runCatching { queue().completedAt }.getOrDefault(0L)
         grid=GridLayout(this).apply { alignmentMode=GridLayout.ALIGN_BOUNDS }
         gridScroll=ScrollView(this).apply { isFillViewport=true;addView(grid) };pageRoot.addView(gridScroll,LinearLayout.LayoutParams(-1,0,1f))
-        val paging=row();add(paging,button("LB · Anterior") { changePage(-1) });counter=text("",13f);add(paging,counter,1f);add(paging,button("Próxima · RB") { changePage(1) });pageRoot.addView(paging)
+        val paging=row();add(paging,button("LB · Anterior") { changePage(-1) });counter=text("",13f);add(paging,counter,1f);add(paging,button("Próxima · RB") { changePage(1) });pageRoot.addView(paging);pagingBar=paging
         controlHint=text("Galileo G8: direcional/analógico · A abrir · B voltar · X favorito · Y buscar · Menu opções",11f);pageRoot.addView(controlHint)
         setContentView(pageRoot);adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal()
         controllerManager=getSystemService(INPUT_SERVICE) as InputManager;controllerManager.registerInputDeviceListener(this,null);updateControllerOrientation()
@@ -151,7 +194,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onInputDeviceAdded(deviceId:Int)=updateControllerOrientation()
     override fun onInputDeviceRemoved(deviceId:Int)=updateControllerOrientation()
     override fun onInputDeviceChanged(deviceId:Int)=updateControllerOrientation()
-    override fun onDestroy() { updateLocalStatus=null;if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
+    override fun onDestroy() { queueHandler.removeCallbacks(queueTick);updateQueueStatus=null;updateLocalStatus=null;if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
     private fun reloadLocal(after:(()->Unit)?=null) {
         work.execute {
             val problems=mutableListOf<String>()
@@ -162,10 +205,17 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun render() {
         if(!::grid.isInitialized)return
-        val focusedKey=(currentFocus?.tag as? Game)?.key
+        val streaming=collection=="stream"
+        search.visibility=if(streaming)View.GONE else View.VISIBLE
+        pagingBar.visibility=if(streaming)View.GONE else View.VISIBLE
+        drawShortcut.visibility=if(streaming)View.GONE else View.VISIBLE
+        controlHint.visibility=if(streaming || resources.configuration.orientation==2 || !store.prefs.getBoolean("ui:show-hint",true))View.GONE else View.VISIBLE
+        if(streaming) { renderStream();return }
+        val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
         val query=GameLogic.normalized(search.text.toString())
-        val visible=games.filter { game -> (collection!="cell" || game.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${game.key}",false)) && (query.isBlank() || GameLogic.normalized(game.name+game.platform+game.genre).contains(query)) }
+        val visible=games.filter { game -> (collection!="cell" || game.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${game.key}",false)) && (collection!="kept" || SpaceStore(store).pinned(game)) && (query.isBlank() || GameLogic.normalized(game.name+game.platform+game.genre).contains(query)) }
         val count=((visible.size+23)/24).coerceAtLeast(1);pageCount=count;page=page.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos"
+        if(restorePosition && localScanAt>0 && restoredPage!=null) { page=restoredPage!!.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos" }
         val compact=resources.configuration.orientation==2
         grid.removeAllViews();val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
         val columns=if(width>=900)4 else if(width>=600)3 else 2;grid.columnCount=columns
@@ -179,11 +229,32 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(card,params)
             images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
         }
-        if(visible.isEmpty())grid.addView(text(if(collection=="cell")"Selecione as pastas em Opções. Jogos locais funcionam sem Tailscale ou notebook." else "Carregue o catálogo uma vez ou marque seus favoritos. Sem conexão, o cache continua disponível.",17f))
+        if(visible.isEmpty())grid.addView(text(when(collection) { "cell" -> "Selecione as pastas em Opções. Jogos locais funcionam sem Tailscale ou notebook.";"kept" -> "Fixe jogos nos detalhes para encontrá-los aqui e proteger as ROMs contra remoção.";else -> "Carregue o catálogo uma vez ou marque seus favoritos. Sem conexão, o cache continua disponível." },17f))
         if(focusedKey!=null) {
             val next=(0 until grid.childCount).map { grid.getChildAt(it) }.firstOrNull { (it.tag as? Game)?.key==focusedKey } ?: grid.getChildAt(0)
             next?.requestFocus()
         }
+        if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
+    }
+    private fun selectCollection(id:String) {
+        collection=id;page=0;restorePosition=false;restoredPage=null;render();gridScroll.scrollTo(0,0)
+    }
+    private fun renderStream() {
+        page=0;pageCount=1;grid.removeAllViews();grid.columnCount=1
+        val box=column();box.addView(text("Stream",23f))
+        val clients=listOf(
+            Triple("Xbox · XBXPlay","com.grill.xbxplay","Conecte ao seu Xbox pelo XBXPlay."),
+            Triple("PS4 · Remote Play","com.playstation.remoteplay","Conecte ao seu PS4 pelo aplicativo oficial."),
+            Triple("PC e Switch · Moonlight","com.limelight","Escolha o notebook no Moonlight. O vídeo do Switch passa pelo notebook.")
+        )
+        for((label,target,description) in clients) {
+            val installed=packageManager.getLaunchIntentForPackage(target)!=null
+            box.addView(button(label+(if(installed)"" else " · não encontrado")) { openPackage(target) }.apply { isEnabled=installed;alpha=if(installed)1f else .55f },LinearLayout.LayoutParams(-1,-2).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) })
+            box.addView(text(description,14f))
+        }
+        help(box,"Conexões e jogos","Login, pareamento e escolha do console/computador ficam nos clientes. Para solicitar um jogo ou transmissão ao notebook, use a ação nos detalhes do título. Abrir esta aba não liga consoles nem inicia transmissão.")
+        grid.addView(box,GridLayout.LayoutParams().apply { width=ViewGroup.LayoutParams.MATCH_PARENT })
+        if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
     }
     private fun changePage(delta:Int) {
         val next=(page+delta).coerceIn(0,pageCount-1)
@@ -218,11 +289,12 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun adaptLayout() {
         val landscape=resources.configuration.orientation==2
         headingBar.visibility=if(landscape)View.GONE else View.VISIBLE;compactOptions.visibility=if(landscape)View.VISIBLE else View.GONE
-        quickBar.visibility=if(landscape)View.GONE else View.VISIBLE;controlHint.visibility=if(landscape)View.GONE else View.VISIBLE
-        status.maxLines=if(landscape)1 else 4;search.layoutParams.height=dp(if(landscape)48 else 52)
+        controlHint.visibility=if(landscape || !store.prefs.getBoolean("ui:show-hint",true))View.GONE else View.VISIBLE
+        textureShortcut.visibility=if(store.prefs.getBoolean("ui:show-textures",true))View.VISIBLE else View.GONE
+        status.maxLines=if(landscape)1 else 2;message(status.text.toString());search.layoutParams.height=dp(if(landscape)48 else 52)
     }
     private fun draw() {
-        val pool=games.filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) }
+        val pool=games.filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) && (collection!="kept" || SpaceStore(store).pinned(it)) }
         if(pool.isEmpty()) { message("Nenhum jogo nesta coleção para sortear.");return }
         val platforms=listOf("Todos os sistemas")+pool.map { it.platform }.distinct().sorted()
         val genres=listOf("Qualquer gênero")+pool.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
@@ -232,7 +304,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("Sortear e sugerir como jogar") {
             val selected=pool.filter { (system.selectedItemPosition==0 || it.platform==system.selectedItem) && (genre.selectedItemPosition==0 || it.genre==genre.selectedItem) }.randomOrNull()
             if(selected==null)message("Nenhum jogo com esses filtros.") else details(selected)
-        });show(AlertDialog.Builder(this).setView(box).setNegativeButton("Voltar",null))
+        });show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun textures(game:Game?=null) {
         val helper=TextureStore(store);val box=column();box.addView(text("Texturas HD",22f))
@@ -262,34 +334,45 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         message("Preparando texturas…");var last=0L
         work.execute { runCatching { action { status -> val now=SystemClock.elapsedRealtime();if(now-last>500){last=now;runOnUiThread { message(status) }} } }.onSuccess { count -> runOnUiThread { message("$count textura(s) adicionada(s). Arquivos existentes preservados; confira carregar texturas no emulador.") } }.onFailure { runOnUiThread { failure(it) } } }
     }
-    private fun changeCollection(step:Int) { val now=SystemClock.elapsedRealtime();if(dialog==null && now-lastCollectionAt>=180) { lastCollectionAt=now;val ids=listOf("cell","catalog","favorites");collection=ids[(ids.indexOf(collection)+step+3)%3];page=0;render();grid.getChildAt(0)?.requestFocus() } }
+    private fun changeCollection(step:Int) { val now=SystemClock.elapsedRealtime();if(dialog==null && now-lastCollectionAt>=180) { lastCollectionAt=now;val ids=listOf("cell","catalog","stream","favorites","kept");selectCollection(ids[(ids.indexOf(collection)+step+ids.size)%ids.size]);grid.getChildAt(0)?.let { (firstEnabledButton(it) ?: it).requestFocus() } } }
     private fun toggleFavorite(game:Game) { store.prefs.edit().putBoolean("favorite:${game.key}",!store.prefs.getBoolean("favorite:${game.key}",false)).apply();render() }
     private fun details(game:Game) {
+        lastSelectedKey=game.key
         val box=column();box.addView(text(game.name,22f).apply { setTypeface(null,Typeface.BOLD) });box.addView(text(game.platform+" · "+(if(game.localUri!=null)"Disponível neste celular" else "Escolha onde jogar"),14f))
         if(game.localUri!=null)add(box,button("Jogar neste celular") { dialog?.dismiss();launchLocal(game) })
-        if(game.code in CoreProfiles.choices)add(box,button("Escolher core do RetroArch") { chooseCore(game.code) })
-        if(game.code=="PS")add(box,button("Abrir DuckStation · escolher jogo") { dialog?.dismiss();openPackage("com.github.stenzek.duckstation") })
+        if(game.code in store.folders && store.prefs.contains("cloud:${game.key}"))add(box,button("Adicionar ROM à fila de downloads") { dialog?.dismiss();download(game) })
+        val files=expandable(box,"ROM, emulador e texturas")
+        if(game.code in CoreProfiles.choices)add(files,button("Escolher core do RetroArch") { chooseCore(game.code) })
+        if(game.code=="PS")add(files,button("Abrir DuckStation · escolher jogo") { dialog?.dismiss();openPackage("com.github.stenzek.duckstation") })
         GameLogic.remotePackage(game.platform)?.let { target -> add(box,button(if(target=="com.grill.xbxplay")"Abrir XBXPlay" else "Abrir Remote Play oficial") { dialog?.dismiss();openPackage(target) }) }
         if(game.code in store.folders) {
-            add(box,button("Selecionar ROM no celular") { dialog?.dismiss();pickRom(game,false) })
-            if(store.prefs.contains("cloud:${game.key}"))add(box,button("Baixar ROM vinculada e jogar") { dialog?.dismiss();download(game) })
-            add(box,button("Vincular ROM no Drive") { dialog?.dismiss();pickRom(game,true) })
+            add(files,button("Selecionar ROM no celular") { dialog?.dismiss();pickRom(game,false) })
+            add(files,button("Vincular ROM no Drive") { dialog?.dismiss();pickRom(game,true) })
         }
-        if(game.code in setOf("PS","PSP","3DS"))add(box,button("Texturas deste sistema") { textures(game) })
+        if(game.code in setOf("PS","PSP","3DS"))add(files,button("Texturas deste sistema") { textures(game) })
         if(!game.key.startsWith("local:") && game.code !in setOf("NDS","3DS"))add(box,button(if(game.platform in setOf("Nintendo Switch","Switch"))"Switch Lite pelo notebook · Moonlight" else "Abrir Moonlight / notebook") { dialog?.dismiss();notebook(game) })
-        add(box,button(if(store.prefs.getBoolean("favorite:${game.key}",false))"★ Remover favorito" else "☆ Favoritar") { toggleFavorite(game);details(game) })
-        val tracking=store.tracking(game)
-        for((field,label) in listOf("iniciado" to "Iniciado","finalizado" to "Finalizado","platinado" to "Platinado"))add(box,button((if(tracking.optBoolean(field))"✓ " else "○ ")+label) {
-            store.setProgress(game,field,!tracking.optBoolean(field))
-            if(GameLogic.offerRemoval(tracking.optBoolean("finalizado"),store.tracking(game).optBoolean("finalizado"),game.localUri!=null))offerRomRemoval(game) else details(game)
+        val quick=row();horizontal(box,quick)
+        add(quick,button(if(store.prefs.getBoolean("favorite:${game.key}",false))"★ Favorito" else "☆ Favoritar") { toggleFavorite(game);details(game) })
+        if(game.code in store.folders)add(quick,button(if(SpaceStore(store).pinned(game))"📌 Fixado · desfixar" else "Fixar ROM") {
+            runCatching { SpaceStore(store).setPinned(game,!SpaceStore(store).pinned(game));render();details(game) }.onFailure(::failure)
         })
-        if(game.localUri!=null)add(box,button("Remover ROM deste celular") { offerRomRemoval(game) })
+        val progress=expandable(box,"Progresso e tempo",expandedTrackingKey==game.key) { expandedTrackingKey=if(it)game.key else null }
+        val tracking=store.tracking(game)
+        for((field,label) in listOf("iniciado" to "Iniciado","finalizado" to "Finalizado","platinado" to "Platinado"))add(progress,button((if(tracking.optBoolean(field))"✓ " else "○ ")+label) {
+            store.setProgress(game,field,!tracking.optBoolean(field))
+            if(GameLogic.offerRemoval(tracking.optBoolean("finalizado"),store.tracking(game).optBoolean("finalizado"),game.localUri!=null) && !SpaceStore(store).pinned(game))offerRomRemoval(game) else details(game)
+        })
+        if(game.localUri!=null)add(files,button("Remover ROM deste celular") { offerRomRemoval(game) })
+        help(files,"Voltar ao PyRetro","Use Recentes → PyRetro para retornar ao catálogo; a coleção, busca e posição são preservadas. Para encerrar o jogo, use o menu/atalho de saída do emulador. O botão Voltar depende dele. O PyRetro não muda seus atalhos.")
         val minutes=store.prefs.getLong("time:${game.key}",0)/60
-        box.addView(text("$minutes min registrados neste celular. Alterações ficam aqui até você sincronizar com o notebook.",12f))
+        progress.addView(text("$minutes min registrados neste celular. Alterações ficam aqui até você sincronizar com o notebook.",12f))
         val scroll=ScrollView(this).apply { addView(box) }
         show(AlertDialog.Builder(this).setView(scroll).setNegativeButton("Voltar",null))
     }
     private fun offerRomRemoval(game:Game) {
+        if(SpaceStore(store).pinned(game)) {
+            show(AlertDialog.Builder(this).setTitle("Jogo fixado").setMessage("${game.name} está fixado para manter baixado. Desfixe nos detalhes antes de remover a ROM.").setPositiveButton("Voltar") { _,_ -> details(game) });return
+        }
         show(AlertDialog.Builder(this).setTitle("Remover ROM do celular?").setMessage("${game.name}\n\nExcluir apenas a ROM local para liberar espaço? Progresso, saves, states, BIOS, texturas e a origem no PC/Drive serão preservados. Você pode baixar o jogo novamente depois.").setNegativeButton("Manter ROM") { _,_ -> details(game) }.setPositiveButton("Excluir ROM local") { _,_ ->
             message("Removendo somente a ROM local…")
             work.execute { runCatching { store.removeLocal(game);PlaylistStore(store).afterChange(game.code) }.onSuccess { playlist -> runOnUiThread { message("ROM removida do celular. Histórico e saves preservados. $playlist");reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } }
@@ -298,7 +381,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun settings() {
         val box=column();box.addView(text("Seu PyRetro",23f));box.addView(text("O banco fica no PC. Pastas locais, cache, progresso e tempo funcionam offline. Tailscale é usado para consultar/sincronizar o notebook.",14f))
         add(box,button("Situação e conexões") { statusCenter() })
-        add(box,button("Xbox · XBXPlay") { openPackage("com.grill.xbxplay") });add(box,button("PS4 · Remote Play oficial") { openPackage("com.playstation.remoteplay") });add(box,button("PC · Moonlight") { openPackage("com.limelight") })
+        add(box,button("Espaço e jogos fixados") { spaceManager() })
+        add(box,button("Aparência · ocultar atalhos e dicas") { appearance() })
+        add(box,button("Stream · Xbox, PS4 e PC") { dialog?.dismiss();selectCollection("stream") })
         add(box,button("3DS · abrir Lime3DS / Azahar") { val target=listOf("io.github.lime3ds.android","io.github.azahar_emu.azahar").firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null };if(target!=null)openPackage(target) else message("Emulador 3DS não encontrado.") })
         val server=EditText(this).apply { setSingleLine();setText(store.base());hint="https://endereço-do-pyretro";setTextColor(appForeground);setHintTextColor(Color.LTGRAY) };box.addView(server)
         add(box,button("Salvar endereço") { runCatching { store.setBase(server.text.toString());message("Endereço salvo. O modo offline continua disponível.") }.onFailure(::failure) })
@@ -364,6 +449,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         section("Downloads","Cópias parciais ficam no app até continuar ou descartar explicitamente.")
         val partials=text("Consultando checkpoints locais…",14f);box.addView(partials)
         add(box,button("Continuar / pausar downloads") { downloads() })
+        add(box,button("Gerenciar espaço e jogos fixados") { spaceManager() })
         add(box,button("Playlists do RetroArch") { playlists() })
         val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Fechar",null))
         updateLocalStatus={ if(dialog===opened) { availability.text=localSummary();localRead.text=readSummary() } }
@@ -466,7 +552,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             add(box,button("Analisar atualização") { analyzePlaylist(code,label) })
             add(box,button("Recuperar versão anterior") { playlistVersions(code) })
             add(box,button("Desativar atualização automática") { store.prefs.edit().putBoolean("playlist-auto:$code",false).apply();message("Atualização automática desativada para $label.") })
-            show(AlertDialog.Builder(this).setView(box).setNegativeButton("Voltar",null));Unit
+            show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null));Unit
         } }+listOf("Último resultado" to { show(AlertDialog.Builder(this).setTitle("Playlists").setMessage(store.prefs.getString("playlist-last","Nenhuma atualização aplicada.")).setPositiveButton("Fechar",null));Unit }))
     }
     private fun analyzePlaylist(code:String,label:String) {
@@ -475,7 +561,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             val box=column();box.addView(text(plan.name,20f))
             box.addView(text("${plan.added} entrada(s) nova(s), ${plan.removed} ausente(s) da pasta local a retirar. Campos das entradas mantidas e itens de outras pastas serão preservados. O arquivo atual fica no histórico. Feche o RetroArch antes de aplicar.",14f))
             val auto=CheckBox(this).apply { text="Atualizar também após baixar/remover uma ROM pelo PyRetro";isChecked=store.prefs.getBoolean("playlist-auto:$code",false);minHeight=dp(48);setTextColor(appForeground) };box.addView(auto)
-            show(AlertDialog.Builder(this).setView(box).setNegativeButton("Cancelar",null).setPositiveButton("Aplicar") { _,_ ->
+            show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Cancelar",null).setPositiveButton("Aplicar") { _,_ ->
                 val automatic=auto.isChecked
                 work.execute { runCatching { PlaylistStore(store).apply(plan,automatic) }.onSuccess { runOnUiThread { message("Playlist atualizada. Versão anterior preservada.") } }.onFailure { runOnUiThread { failure(it) } } }
             })
@@ -520,22 +606,141 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             })
         } }.onFailure { runOnUiThread { failure(it) } } }
     }
+    private fun queueAction(action:()->Unit) {
+        runCatching(action).onSuccess { downloads() }.onFailure { error ->
+            show(AlertDialog.Builder(this).setTitle("Downloads").setMessage(error.message ?: "Não foi possível alterar a fila.").setPositiveButton("Voltar") { _,_ -> downloads() })
+        }
+    }
+    private fun queueLabel(row:QueuedDownload):String {
+        val state=when(row.state) { DownloadState.WAITING -> "Aguardando";DownloadState.RUNNING -> if(queue().pausing)"Pausa solicitada" else "Baixando";DownloadState.PAUSED -> "Pausado";DownloadState.FAILED -> "Falhou";DownloadState.DONE -> "Concluído" }
+        return "$state · ${bytesLabel(row.bytes)}"+(row.total?.let { " / ${bytesLabel(it)}" } ?: "")
+    }
+    private fun queueList() {
+        runCatching {
+            val rows=queue().snapshot()
+            paged("Fila de downloads",listOf("Atualizar lista" to { queueList();Unit })+rows.map { row ->
+                "${row.game.name}\n${queueLabel(row)}" to { queueItem(row.game.key);Unit }
+            })
+        }.onFailure(::failure)
+    }
+    private fun queueItem(key:String) {
+        val entry=queue().snapshot().firstOrNull { it.game.key==key } ?: return
+        val box=column();box.addView(text(entry.game.name,21f));val state=text(queueLabel(entry),14f);box.addView(state)
+        if(entry.error.isNotBlank())box.addView(text(entry.error,13f))
+        if(entry.state in setOf(DownloadState.PAUSED,DownloadState.FAILED))add(box,button("Tentar novamente · deixar aguardando") { queueAction { queue().retry(key) } })
+        if(entry.state!=DownloadState.RUNNING) {
+            val order=row();add(order,button("↑ Antes") { queueAction { queue().move(key,-1) } });add(order,button("↓ Depois") { queueAction { queue().move(key,1) } });horizontal(box,order)
+            add(box,button("Retirar da fila · manter parcial") {
+                show(AlertDialog.Builder(this).setTitle("Retirar da fila?").setMessage("${entry.game.name}\nA ROM local, a origem e qualquer cópia parcial serão preservadas. Descarte de parcial é separado.").setNegativeButton("Cancelar",null).setPositiveButton("Retirar") { _,_ -> queueAction { queue().remove(key) } })
+            })
+        } else add(box,button("Pausar fila") { queueAction { queue().pause() } })
+        if(entry.state==DownloadState.DONE)add(box,button("Ver jogo") { dialog?.dismiss();reloadLocal { games.find { it.key==key }?.let(::details) } })
+        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> queueList() })
+        updateQueueStatus={ if(dialog===opened)state.text=queue().snapshot().firstOrNull { it.game.key==key }?.let(::queueLabel) ?: "Retirado da fila." }
+    }
+    private fun help(box:LinearLayout,label:String,value:String) {
+        val explanation=text(value,13f).apply { visibility=View.GONE }
+        val toggle=button("▸ $label") {}
+        toggle.setOnClickListener { explanation.visibility=if(explanation.visibility==View.GONE)View.VISIBLE else View.GONE;toggle.text=(if(explanation.visibility==View.VISIBLE)"▾ " else "▸ ")+label }
+        add(box,toggle);box.addView(explanation)
+    }
+    private fun expandable(box:LinearLayout,label:String,expanded:Boolean=false,changed:(Boolean)->Unit={}):LinearLayout {
+        val panel=column().apply { visibility=if(expanded)View.VISIBLE else View.GONE }
+        val toggle=button((if(expanded)"▾ " else "▸ ")+label) {}
+        toggle.setOnClickListener { val open=panel.visibility==View.GONE;panel.visibility=if(open)View.VISIBLE else View.GONE;toggle.text=(if(open)"▾ " else "▸ ")+label;changed(open) }
+        add(box,toggle);box.addView(panel);return panel
+    }
+    private fun appearance() {
+        val box=column();box.addView(text("Aparência e espaço da tela",22f))
+        for((key,label) in listOf("hint" to "Mostrar dica do controle","notice" to "Mostrar aviso de modo offline","textures" to "Mostrar atalho Texturas na barra")) {
+            box.addView(CheckBox(this).apply { text=label;minHeight=dp(48);setTextColor(appForeground);isChecked=store.prefs.getBoolean("ui:show-$key",true)
+                setOnCheckedChangeListener { _,checked -> store.prefs.edit().putBoolean("ui:show-$key",checked).apply();adaptLayout();render() }
+            })
+        }
+        help(box,"Como navegar","As barras de coleções e ações rolam horizontalmente. Detalhes recolhem progresso e opções de arquivo. As telas longas rolam verticalmente; o controle move o foco e acompanha a rolagem. Xbox, PS4 e PC ficam na aba Stream. Ocultar dicas não remove jogos ou aplicativos.")
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> settings() })
+    }
+    private fun spaceManager() {
+        val loading=show(AlertDialog.Builder(this).setTitle("Espaço e jogos fixados").setMessage("Lendo nomes e tamanhos das ROMs locais…").setNegativeButton("Fechar",null))
+        val snapshot=catalog.toList()
+        work.execute { runCatching { SpaceStore(store).scan(snapshot) }.onSuccess { result -> runOnUiThread {
+            if(dialog===loading && !isFinishing && !isDestroyed)spaceOverview(result)
+        } }.onFailure { error -> runOnUiThread { if(dialog===loading)show(AlertDialog.Builder(this).setTitle("Espaço").setMessage(error.message).setPositiveButton("Fechar",null)) } } }
+    }
+    private fun spaceOverview(snapshot:SpaceSnapshot) {
+        val box=column();box.addView(text("Espaço e jogos fixados",22f))
+        box.addView(text("${snapshot.roms.size} ROM(s) · ${bytesLabel(snapshot.roms.sumOf { it.stamp.size ?: 0 })} medidos · ${snapshot.roms.count { it.stamp.size==null }} tamanho(s) desconhecido(s).\nLivre para o app/checkpoints: ${bytesLabel(snapshot.privateFree)}.",14f))
+        if(snapshot.errors.isNotEmpty())box.addView(text("Leitura parcial: ${snapshot.errors.joinToString()}. Atualize as permissões; os totais cobrem apenas o que pôde ser lido.",13f))
+        help(box,"O que esta tela inclui","Somente ROMs das pastas escolhidas, uma vez por documento. Tamanho desconhecido não significa zero. Saves, estados, texturas, BIOS e históricos ficam preservados e não entram nesse total. Fixar protege a ROM; desfixar não apaga. A remoção é individual, confirmada e confere novamente a ROM. Downloads precisam de espaço para checkpoint privado e cópia final.")
+        val systems=listOf("Todos os sistemas")+snapshot.roms.map { it.game.code }.distinct().sorted()
+        val filters=listOf("Todos","Finalizados","Não finalizados","Fixados","Finalizados removíveis")
+        val system=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,systems.map { store.folders[it] ?: it }) }
+        val filter=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,filters) }
+        val controls=row();add(controls,system);add(controls,filter);horizontal(box,controls)
+        val listing=column();box.addView(listing);var currentPage=0
+        fun refresh() {
+            val selected=snapshot.roms.filter { item ->
+                val pinned=SpaceStore(store).pinned(item.game)
+                (system.selectedItemPosition==0 || item.game.code==systems[system.selectedItemPosition]) && when(filter.selectedItemPosition) {
+                    1 -> item.finished;2 -> !item.finished;3 -> pinned
+                    4 -> item.finished && DownloadQueueRules.removable(pinned,queue().contains(item.game.key),item.stamp.name.substringAfterLast('.'))
+                    else -> true
+                }
+            }
+            val pages=((selected.size+11)/12).coerceAtLeast(1);currentPage=currentPage.coerceIn(0,pages-1);listing.removeAllViews()
+            listing.addView(text("${selected.size} ROM(s) · ${bytesLabel(selected.sumOf { it.stamp.size ?: 0 })} medidos · ${currentPage+1}/$pages",13f))
+            for(item in selected.drop(currentPage*12).take(12))add(listing,button((if(SpaceStore(store).pinned(item.game))"📌 " else "")+item.game.name+"\n"+(item.stamp.size?.let(::bytesLabel) ?: "Tamanho desconhecido")+" · ${store.folders[item.game.code]}") { spaceItem(item) })
+            val navigation=row();if(currentPage>0)add(navigation,button("Anterior") { currentPage--;refresh() });if(currentPage+1<pages)add(navigation,button("Próxima") { currentPage++;refresh() });horizontal(listing,navigation)
+        }
+        val listener=object:AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent:AdapterView<*>?,view:View?,position:Int,id:Long) { currentPage=0;refresh() }
+            override fun onNothingSelected(parent:AdapterView<*>?){}
+        }
+        system.onItemSelectedListener=listener;filter.onItemSelectedListener=listener
+        add(box,button("Atualizar leitura de espaço") { spaceManager() });add(box,button("Downloads e cópias parciais") { downloads() })
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Fechar",null));refresh()
+    }
+    private fun spaceItem(item:SpaceRom) {
+        val box=column();val pinned=SpaceStore(store).pinned(item.game)
+        box.addView(text(item.game.name,21f));box.addView(text((item.stamp.size?.let(::bytesLabel) ?: "Tamanho desconhecido")+" · ${store.folders[item.game.code]}"+(if(item.finished)" · finalizado" else ""),14f))
+        add(box,button(if(pinned)"Desfixar · permitir remoção" else "Fixar · manter baixado") {
+            runCatching { SpaceStore(store).setPinned(item.game,!pinned);render();spaceItem(item) }.onFailure { error -> show(AlertDialog.Builder(this).setTitle("Fixação").setMessage(error.message).setPositiveButton("Fechar",null)) }
+        })
+        val removable=DownloadQueueRules.removable(pinned,queue().contains(item.game.key),item.stamp.name.substringAfterLast('.'))
+        add(box,button("Remover somente esta ROM local") {
+            show(AlertDialog.Builder(this).setTitle("Excluir ROM local?").setMessage("${item.game.name}\n${item.stamp.name}\nApenas esta ROM será removida. Saves, estados, BIOS, texturas, progresso, histórico e origem permanecem. A ROM será conferida novamente.").setNegativeButton("Cancelar") { _,_ -> spaceItem(item) }.setPositiveButton("Excluir ROM") { _,_ ->
+                dialog?.dismiss();work.execute { runCatching { store.removeLocal(item.game,item.stamp);PlaylistStore(store).afterChange(item.game.code) }.onSuccess { result -> runOnUiThread { message("ROM removida. $result");reloadLocal();spaceManager() } }.onFailure { error -> runOnUiThread { failure(error) } } }
+            })
+        }.apply { isEnabled=removable;alpha=if(removable)1f else .55f })
+        if(!removable)box.addView(text("Para remover, desfixe/retire da fila. CUE/M3U exigem conferir o conjunto no notebook.",13f))
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> spaceManager() })
+    }
     private fun downloads() {
         val box=column();box.addView(text("Downloads",22f))
-        box.addView(text("Cópias parciais ficam no armazenamento privado do app. Continuar confere o trecho já baixado; o provedor pode reler esse trecho. Nada é publicado antes de concluir. Sem serviço de download em segundo plano.",14f))
-        add(box,button("Pausar download em andamento") { DownloadStore.pause();message("Pausa solicitada; a cópia parcial será preservada.") })
+        help(box,"Como funciona a fila","Um arquivo por vez, na ordem escolhida. Ao sair do app, a fila solicita pausa e não inicia o próximo. Abrir novamente não retoma sozinho. Retirar um item não descarta o parcial; descartá-lo exige uma ação separada. Na retomada, todo o prefixo é conferido e pode ser relido pelo provedor. A publicação final de um arquivo já conferido pode terminar durante a pausa. Não abre jogos automaticamente e não tem serviço em segundo plano.")
+        val progress=text("",14f);box.addView(progress)
+        val start=button("Iniciar / continuar fila") { queueAction { queue().start() } };add(box,start)
+        val pause=button("Pausar fila") { queueAction { queue().pause();DownloadStore.pause() } };add(box,pause)
+        add(box,button("Ver fila / reordenar itens") { queueList() })
         add(box,button("Ver cópias parciais") {
             dialog?.dismiss()
             work.execute { runCatching { DownloadStore(store).jobs() }.onSuccess { jobs -> runOnUiThread {
                 paged("Cópias parciais",jobs.map { job -> "${job.optString("title")} · ${job.getLong("bytes")/1024/1024} MB" to {
                     val game=games.find { it.key==job.getString("key") } ?: Game("",job.getString("key"),job.getString("title"),store.folders[job.getString("code")] ?: "",job.getString("code"))
                     show(AlertDialog.Builder(this).setTitle(game.name).setMessage("Continuar a cópia ou descartar somente o checkpoint deste download? O jogo existente e a origem não serão apagados.").setNegativeButton("Voltar",null).setNeutralButton("Descartar parcial") { _,_ ->
-                        work.execute { runCatching { DownloadStore(store).discard(game.key) }.onSuccess { runOnUiThread { message("Cópia parcial descartada.") } }.onFailure { runOnUiThread { failure(it) } } }
-                    }.setPositiveButton("Continuar e jogar") { _,_ -> download(game) });Unit
+                        work.execute { runCatching { queue().remove(game.key);DownloadStore(store).discard(game.key) }.onSuccess { runOnUiThread { message("Cópia parcial descartada.") } }.onFailure { runOnUiThread { failure(it) } } }
+                    }.setPositiveButton("Adicionar à fila") { _,_ -> download(game) });Unit
                 } })
             } }.onFailure { runOnUiThread { failure(it) } } }
         })
-        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+        fun update() { if(dialog===opened) {
+            runCatching { val helper=queue();val rows=helper.snapshot();val active=rows.firstOrNull { it.state==DownloadState.RUNNING }
+                progress.text="${rows.count { it.state==DownloadState.WAITING }} aguardando · ${rows.count { it.state==DownloadState.PAUSED }} pausado(s) · ${rows.count { it.state==DownloadState.FAILED }} falha(s) · ${rows.count { it.state==DownloadState.DONE }} concluído(s)"+(active?.let { "\n${it.game.name}: ${queueLabel(it)}" } ?: "")
+                start.isEnabled=!helper.running;pause.isEnabled=helper.running
+            }.onFailure { progress.text="Fila indisponível: ${it.message}";start.isEnabled=false;pause.isEnabled=false }
+        } }
+        updateQueueStatus={update()};update()
     }
     private fun pickSyncFolder(group:String) {
         syncPicking=group;dialog?.dismiss()
@@ -555,7 +760,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             add(item,button("Analisar sem copiar") {
                 dialog?.dismiss();message("Comparando arquivos de $label…")
                 work.execute { runCatching { sync.analyze(group) }.onSuccess { plan -> runOnUiThread { reviewSync(plan) } }.onFailure { runOnUiThread { failure(it) } } }
-            });show(AlertDialog.Builder(this).setView(item).setNegativeButton("Voltar",null))
+            });show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(item) }).setNegativeButton("Voltar",null))
         })
         add(box,button("Último resultado") { show(AlertDialog.Builder(this).setTitle("Sincronização de arquivos").setMessage(sync.lastResult()).setPositiveButton("Voltar") { _,_ -> syncFiles() }) })
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
@@ -644,8 +849,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onConfigurationChanged(newConfig:android.content.res.Configuration) { super.onConfigurationChanged(newConfig);adaptLayout();render() }
     private fun download(game:Game) {
         if(store.tree(game.code)==null) { downloadAfterFolder=game;pickFolder(game.code);return }
-        message("Baixando ${game.name} pelo provedor de arquivos…");var update=0L
-        work.execute { runCatching { store.download(game) { bytes -> val now=SystemClock.elapsedRealtime();if(now-update>500) { update=now;runOnUiThread { message("Baixando ${game.name}: ${bytes/1024/1024} MB") } } } }.onSuccess { uri -> game.localUri=uri;val playlist=PlaylistStore(store).afterChange(game.code);runOnUiThread { message("Download concluído. Disponível offline. $playlist");reloadLocal { launchLocal(game) } } }.onFailure { runOnUiThread { failure(it) } } }
+        show(AlertDialog.Builder(this).setTitle("Adicionar à fila?").setMessage("${game.name}\nUm arquivo por vez. A fila pausa ao sair do app e não abre o emulador ao terminar. Origem/destino são conferidos; cópia existente diferente é preservada.")
+            .setNegativeButton("Cancelar",null).setNeutralButton("Só adicionar") { _,_ -> queueAction { queue().enqueue(game) } }
+            .setPositiveButton("Adicionar e iniciar") { _,_ -> queueAction { queue().enqueue(game);if(!queue().running)queue().start() } })
     }
     private fun openPackage(name:String) {
         val intent=packageManager.getLaunchIntentForPackage(name)
@@ -695,9 +901,18 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }.onSuccess { runOnUiThread { message("Pedido enviado ao notebook.");openPackage("com.limelight") } }.onFailure { runOnUiThread { failure(it) } } }
         })
     }
-    override fun onPause() { super.onPause();scanOnResume=true;if(activeGame!=null)leftForGame=true }
+    override fun onPause() {
+        queueHandler.removeCallbacks(queueTick);runCatching { queue().pause() }
+        if(::gridScroll.isInitialized) {
+            restoredScroll=gridScroll.scrollY;restoredPage=page;restorePosition=true
+            val selected=(currentFocus?.tag as? Game)?.key ?: lastSelectedKey
+            store.prefs.edit().putString("ui:collection",collection).putInt("ui:page",page).putInt("ui:scroll",restoredScroll)
+                .putString("ui:query",search.text.toString().take(256)).putString("ui:selected",selected).apply()
+        }
+        super.onPause();scanOnResume=true;if(activeGame!=null)leftForGame=true
+    }
     override fun onResume() {
-        super.onResume();if(scanOnResume) { scanOnResume=false;reloadLocal() };val game=activeGame ?: return
+        super.onResume();queueHandler.removeCallbacks(queueTick);queueHandler.post(queueTick);if(scanOnResume) { scanOnResume=false;reloadLocal() };val game=activeGame ?: return
         if(!leftForGame)return
         activeGame=null;leftForGame=false
         val elapsed=(SystemClock.elapsedRealtime()-launchedAt)/60000
@@ -712,9 +927,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(event.repeatCount>0 && keyCode in setOf(KeyEvent.KEYCODE_BUTTON_A,KeyEvent.KEYCODE_BUTTON_X,KeyEvent.KEYCODE_BUTTON_START))return true
         when(keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> { currentFocus?.performClick();return true }
-            KeyEvent.KEYCODE_BUTTON_B -> { if(dialog!=null)dialog?.dismiss() else if(search.text.isNotEmpty())search.text.clear() else { collection="cell";page=0;render() };return true }
+            KeyEvent.KEYCODE_BUTTON_B -> { if(dialog!=null)dialog?.dismiss() else if(collection=="stream")selectCollection("cell") else if(search.text.isNotEmpty())search.text.clear() else { collection="cell";page=0;render() };return true }
             KeyEvent.KEYCODE_BUTTON_X -> { (currentFocus?.tag as? Game)?.let(::toggleFavorite);return true }
-            KeyEvent.KEYCODE_BUTTON_Y -> { if(event.repeatCount==0)controllerSearch();return true }
+            KeyEvent.KEYCODE_BUTTON_Y -> { if(event.repeatCount==0 && collection!="stream")controllerSearch();return true }
             KeyEvent.KEYCODE_BUTTON_L1 -> { changePage(-1);return true }
             KeyEvent.KEYCODE_BUTTON_R1 -> { changePage(1);return true }
             KeyEvent.KEYCODE_BUTTON_L2,KeyEvent.KEYCODE_BUTTON_R2 -> { if(event.repeatCount==0)changeCollection(if(keyCode==KeyEvent.KEYCODE_BUTTON_R2)1 else -1);return true }

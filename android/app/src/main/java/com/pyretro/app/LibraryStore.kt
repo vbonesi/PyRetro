@@ -147,16 +147,21 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         context.contentResolver.query(uri,arrayOf(OpenableColumns.SIZE),null,null,null)?.use { it.moveToFirst() && (it.isNull(0) || it.getLong(0)>0) } ?: false
     }.getOrDefault(false)
     fun displayName(uri:Uri):String=context.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { if(it.moveToFirst())it.getString(0) else "ROM" } ?: "ROM"
-    fun removeLocal(game:Game) {
+    fun removeLocal(game:Game,expected:RomStamp?=null) {
         val uri=game.localUri ?: error("Este jogo não tem ROM no celular.")
         require(uri.authority=="com.android.externalstorage.documents") { "Somente a cópia local pode ser removida." }
         val name=displayName(uri)
         require(accepts(game.code,name) && name.substringAfterLast('.').lowercase() !in setOf("cue","m3u")) { "CUE/M3U têm arquivos associados. Remova o conjunto pelo gerenciador do notebook, após conferir as faixas/discos." }
         require(files(game.code).any { documentId(it.uri)==documentId(uri) }) { "Arquivo fora da pasta local escolhida. Nenhum arquivo foi removido." }
-        require(DocumentsContract.deleteDocument(context.contentResolver,uri)) { "Não foi possível remover a ROM." }
+        require(!DownloadQueue.get(this).contains(game.key)) { "Retire este jogo da fila de downloads antes de remover a ROM." }
+        synchronized(SpaceStore.mutationLock) {
+            require(!SpaceStore(this).pinned(game)) { "Jogo fixado para manter baixado. Desfixe antes de remover a ROM." }
+            if(expected!=null)require(SpaceStore(this).stamp(uri)==expected) { "ROM mudou desde a análise. Atualize a lista antes de remover." }
+            require(DocumentsContract.deleteDocument(context.contentResolver,uri)) { "Não foi possível remover a ROM." }
+        }
         prefs.edit().remove("rom:${game.key}").apply();game.localUri=null
     }
-    fun download(game:Game,progress:(Long)->Unit):Uri = DownloadStore(this).download(game,progress)
+    fun download(game:Game,progress:(Long)->Unit):Uri = DownloadStore(this).download(game,progress=progress)
     fun tracking(game:Game):JSONObject {
         val value=JSONObject(game.tracking.toString());val queued=prefs.getString("pending:${game.key}",null)?.let(::JSONObject)?.optJSONObject("campos")
         queued?.keys()?.forEach { value.put(it,queued.opt(it)) };return value
