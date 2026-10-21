@@ -71,13 +71,15 @@ playlists com prévia e atualização opcional, índice da nuvem por pasta/sele�
 lote e checkpoints para continuar downloads. APK instalado e teste sintético no
 aparelho aprovado; homologação de uso continua. A 0.4 reúne situação offline,
 conexão com o notebook, pendências/conflitos, permissões e checkpoints em uma
-central com ações de resolução. Preparada sem celular: build/lint e 24 testes JVM
-aprovados; o telefone permanece com a 0.3 até uma atualização posterior.
+central com ações de resolução. A 0.4.1 está instalada, com resumos atualizados
+automaticamente, tratamento de pastas inválidas e foco inicial nos diálogos.
+Build/lint, 24 testes JVM e instrumentação da central no aparelho passaram;
+consulta ao notebook por Tailscale conferida.
 Detalhes no [README Android](android/README.md).
 Texturas PSP/3DS aceitam ZIP local offline e pacotes preparados pelo notebook;
 a interface do PC também recebe arquivos locais. Ao finalizar um jogo baixado,
 o app pergunta se deseja remover somente a ROM local, preservando saves e histórico.
-Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. Versão 0.3 instalada
+Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. Versão 0.4.1 instalada
 e navegação touch conferida no aparelho; testes físicos do G8 e do provedor Drive
 continuam pendentes. Instruções e limites no README Android.
 

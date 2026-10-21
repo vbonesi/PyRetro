@@ -10,8 +10,11 @@ import java.util.UUID
 
 /** Usa somente uma pasta própria de teste, criada dentro da concessão Jogos. */
 class StorageSmoke:Instrumentation() {
-    override fun onCreate(arguments:Bundle?) { super.onCreate(arguments);start() }
+    private var statusSuite=false
+    private var connectionTest=false
+    override fun onCreate(arguments:Bundle?) { super.onCreate(arguments);statusSuite=arguments?.getString("suite")=="status";connectionTest=arguments?.getString("connection")=="true";start() }
     override fun onStart() {
+        if(statusSuite) { StatusSmoke(this,connectionTest).run();return }
         val result=Bundle();var testRoot:android.net.Uri?=null;var temp:File?=null
         val resolver=targetContext.contentResolver
         try {

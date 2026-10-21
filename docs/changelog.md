@@ -6,6 +6,33 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Android 0.4.1 instalada: correções e validação no aparelho
+
+- Abrir Situação durante a leitura inicial podia deixar a contagem em zero até
+  reabrir a tela. Contagem, data e falhas passam a acompanhar a conclusão da
+  leitura com a central aberta. O resumo de conexão também é atualizado na
+  própria tela após o teste, tanto em sucesso quanto em falha.
+- Concessões com URI inválida aparecem como necessidade de escolher novamente,
+  sem derrubar a lista de pastas. Observações incompletas ou inválidas dos grupos
+  de saves são ignoradas na central; nenhum arquivo ou baseline é descartado.
+- Diálogos personalizados passam a focar a primeira ação habilitada. Aplicativos
+  não encontrados ficam desativados no submenu de conexões, evitando uma ação
+  cujo aviso só aparecia atrás do diálogo. Homologação do G8 físico continua pendente.
+- Instrumentação ampliada (`-e suite status`) verifica estados com preferências
+  isoladas, dados inválidos, atualização da leitura, foco e submenus nas duas
+  orientações efetivamente aplicadas. Com `-e connection true`, consulta o notebook
+  explicitamente e confere o resumo na mesma tela; preserva as demais preferências.
+- 0.4.1 (code5) instalada somente no usuário principal com a assinatura existente.
+  Build/lint e 24 JVM aprovados; suítes de situação e armazenamento SAF passaram
+  no aparelho. Tailscale estava desconectado; sessão existente reconectada e
+  notebook respondeu, sem mudança de conta/pareamento. Sem lançamento de jogo,
+  sync de save real ou alteração de progresso/tempo. Inventário real de ROMs,
+  saves/estados/playlists idêntico em caminho, tamanho e mtime antes/depois.
+  APK auxiliar/fixtures temporários removidos. Pasta RetroArch ainda depende da
+  concessão do usuário; Drive real, emuladores e G8 físico seguem para homologação.
+- Cache gerado `android/.kotlin/` incluído no ignore; APK, chave, auditoria e
+  preferências continuam privados.
+
 ## 21/10/2026 — Android 0.4: situação e conexões, sem celular
 
 - Central **Situação**, acessível na tela principal/Opções e em paisagem, reúne

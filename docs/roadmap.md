@@ -17,7 +17,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
 | Texturas PSP/3DS e remoção confirmada da ROM ao finalizar no Android | ✅ Implementado; ZIP offline e preparação pelo PC, sem substituir saves/texturas existentes |
 | Recuperação de versões pelo app, playlists e downloads retomáveis | ✅ Implementado na 0.3; instalado e instrumentação sintética aprovada no celular |
 | Índice da nuvem por pasta concedida ou arquivos em lote | ✅ Implementado na 0.3; associação única, prévia e cache; provedor Drive real pendente |
-| Central Android de situação e conexões | ✅ Implementada na 0.4, preparada sem celular; build/lint e 24 testes JVM passaram. Instalação e uso real pendentes |
+| Central Android de situação e conexões | ✅ 0.4.1 instalada; resumos automáticos, permissões e foco corrigidos. Build/lint, 24 JVM e instrumentação retrato/paisagem aprovados; notebook respondeu via Tailscale |
 | Saves/states/runtime pelo app Android | ✅ Versão 0.2: grupos, SHA-256, conflitos e histórico; sincronização real aguarda uso do usuário |
 | Xbox/PS4 remotos e Switch Lite Wi-Fi | Clientes integrados e sem duplicação; Switch confirmado, sessão PS4/Xbox ainda depende de uso real |
 | GUI de capas (galeria, busca, flag/duplicada/renomear/apagar) | ✅ Pronto |
@@ -85,8 +85,9 @@ Registrado em 21/10/2026 para continuação em outra conversa. A 0.3 está insta
 testes sintéticos aprovados não substituem os testes de uso abaixo. As sugestões
 são propostas de evolução, sem automação agendada. **Continuação em 21/10:** o
 usuário pediu novas melhorias sem celular; a central do item 2 foi implementada
-na 0.4, compilada e testada no notebook. A 0.3 continua instalada; os demais itens
-seguem como propostas/homologação pendente.
+na 0.4, compilada e testada no notebook. Depois o celular foi reconectado: a 0.4.1
+foi corrigida, instalada e testada no aparelho. Os demais itens seguem como
+propostas/homologação pendente.
 
 1. **Fechar a homologação de uso:** Galileo G8 físico e touch, provedor Google
    Drive real, NDS/3DS e demais emuladores, pacote real de texturas e sincronização
@@ -99,7 +100,9 @@ seguem como propostas/homologação pendente.
    **Implementada na 0.4:** leitura local/cache, registros de contato, pendências
    por jogo, análises/aplicações de arquivos, concessões SAF, checkpoints e atalhos
    de emuladores/clientes/Tailscale. Concessão persistente não comprova existência
-   do documento; abrir a central não consulta a rede. Conferir layout/foco no aparelho.
+   do documento; abrir a central não consulta a rede. Na 0.4.1, layout/foco e
+   atualização dos resumos foram conferidos por instrumentação em retrato/paisagem;
+   G8 físico e homologação dos fluxos reais continuam pendentes.
 3. **Gerenciar espaço pelo app:** tamanho dos jogos baixados, checkpoints e
    versões anteriores; filtros por sistema e progresso. Permitir fixar jogos para
    manter baixados e propor remoção confirmada de ROMs finalizadas, preservando

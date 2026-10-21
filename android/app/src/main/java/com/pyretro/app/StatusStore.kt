@@ -19,14 +19,20 @@ class StatusStore(private val store:LibraryStore) {
     }
     fun folders():List<FolderStatus> {
         val granted=grants();val sync=FileSync(store)
-        fun access(uri:Uri?):FolderAccess {
-            if(uri==null)return FolderAccess.UNSELECTED
-            return identity(uri)?.let { StatusRules.access(it,granted) } ?: FolderAccess.RESELECT
-        }
-        return listOf(FolderStatus("ROOT","Pasta Jogos",access(store.prefs.getString("tree:ROOT",null)?.let(Uri::parse))))+
-            store.folders.map { (code,label) -> FolderStatus(code,label,access(store.tree(code))) }+
-            listOf(FolderStatus("retroarch","Pasta RetroArch",access(sync.retroarchTree())))+
-            sync.groups.map { (code,label) -> FolderStatus(code,label,access(sync.tree(code))) }
+        fun access(resolve:()->Uri?):FolderAccess=runCatching {
+            val uri=resolve()
+            if(uri==null)FolderAccess.UNSELECTED else identity(uri)?.let { StatusRules.access(it,granted) } ?: FolderAccess.RESELECT
+        }.getOrDefault(FolderAccess.RESELECT)
+        return listOf(FolderStatus("ROOT","Pasta Jogos",access { store.prefs.getString("tree:ROOT",null)?.let(Uri::parse) }))+
+            store.folders.map { (code,label) -> FolderStatus(code,label,access { store.tree(code) }) }+
+            listOf(FolderStatus("retroarch","Pasta RetroArch",access { sync.retroarchTree() }))+
+            sync.groups.map { (code,label) -> FolderStatus(code,label,access { sync.tree(code) }) }
+    }
+    fun connectionSummary(date:(Long)->String):String {
+        if(store.base().isBlank())return "Endereço ainda não configurado. Abra Opções para salvar o endereço HTTPS."
+        fun whenRecorded(key:String)=store.prefs.getLong(key,0).takeIf { it>0 }?.let(date) ?: "ainda não registrado"
+        val attempt=if(!store.prefs.contains("last-attempt-ok"))"." else if(store.prefs.getBoolean("last-attempt-ok",false))" · respondeu." else " · falhou. Confira notebook, Tailscale e endereço."
+        return "Último contato bem-sucedido: ${whenRecorded("last-contact")}.\nÚltima tentativa: ${whenRecorded("last-attempt")}$attempt\nÉ um registro de contato; a conexão pode mudar. Testar não sincroniza nem abre jogos."
     }
     fun pending():List<PendingStatus> {
         val snapshot=store.prefs.all

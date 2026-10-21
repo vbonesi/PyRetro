@@ -51,6 +51,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private var games=emptyList<Game>()
     private var localProblems=emptyList<String>()
     private var localScanAt=0L
+    private var updateLocalStatus:(()->Unit)?=null
     private var collection="cell"
     private var page=0
     private var pageCount=1
@@ -83,9 +84,15 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun horizontal(parent:LinearLayout,content:LinearLayout) { parent.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(content) },LinearLayout.LayoutParams(-1,-2)) }
     private fun message(value:String) { status.text=value }
     private fun failure(error:Throwable) { message(error.message ?: "Não foi possível concluir.") }
+    private fun firstEnabledButton(view:View):Button? {
+        if(view.visibility!=View.VISIBLE)return null
+        if(view is Button && view.isEnabled)return view
+        if(view is ViewGroup)for(index in 0 until view.childCount)firstEnabledButton(view.getChildAt(index))?.let { return it }
+        return null
+    }
     private fun show(builder:AlertDialog.Builder):AlertDialog {
         dialog?.dismiss();return builder.create().also { opened ->
-            dialog=opened;opened.setOnDismissListener { if(dialog===opened)dialog=null }
+            dialog=opened;opened.setOnDismissListener { if(dialog===opened) { dialog=null;updateLocalStatus=null } }
             opened.setOnKeyListener { _,code,event ->
                 when(code) {
                     KeyEvent.KEYCODE_BUTTON_A -> {
@@ -101,7 +108,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     else -> false
                 }
             }
-            opened.show();opened.listView?.apply { isFocusableInTouchMode=true;requestFocus();setSelection(checkedItemPosition.takeIf { it>=0 } ?: 0) }
+            opened.show()
+            val list=opened.listView
+            if(list!=null)list.apply { isFocusableInTouchMode=true;requestFocus();setSelection(checkedItemPosition.takeIf { it>=0 } ?: 0) }
+            else opened.findViewById<View>(android.R.id.custom)?.let(::firstEnabledButton)?.apply { isFocusableInTouchMode=true;requestFocus() }
             opened.window?.decorView?.setOnGenericMotionListener { _,event -> navigateMotion(event,opened.currentFocus) }
         }
     }
@@ -141,13 +151,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onInputDeviceAdded(deviceId:Int)=updateControllerOrientation()
     override fun onInputDeviceRemoved(deviceId:Int)=updateControllerOrientation()
     override fun onInputDeviceChanged(deviceId:Int)=updateControllerOrientation()
-    override fun onDestroy() { if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
+    override fun onDestroy() { updateLocalStatus=null;if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
     private fun reloadLocal(after:(()->Unit)?=null) {
         work.execute {
             val problems=mutableListOf<String>()
             val roms=store.folders.keys.flatMap { code -> runCatching { store.files(code) }.getOrElse { problems.add(store.folders.getValue(code));emptyList() } }
             val all=store.bind(catalog,roms)
-            runOnUiThread { games=all;localProblems=problems;localScanAt=System.currentTimeMillis();render();after?.invoke() }
+            runOnUiThread { games=all;localProblems=problems;localScanAt=System.currentTimeMillis();render();updateLocalStatus?.invoke();after?.invoke() }
         }
     }
     private fun render() {
@@ -319,18 +329,17 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun statusCenter() {
         val box=column();val helper=StatusStore(store);val pending=helper.pending();val prefs=store.prefs
-        fun section(title:String,value:String) { box.addView(text(title,19f).apply { setTypeface(null,Typeface.BOLD) });box.addView(text(value,14f)) }
+        fun section(title:String,value:String):TextView { box.addView(text(title,19f).apply { setTypeface(null,Typeface.BOLD) });return text(value,14f).also(box::addView) }
         fun date(key:String)=prefs.getLong(key,0).takeIf { it>0 }?.let(::versionDate) ?: "ainda não registrado"
         box.addView(text("Situação e conexões",23f))
-        section("Disponível offline","${games.count { it.localUri!=null }} jogo(s) na última leitura local · ${catalog.size} entrada(s) no catálogo em cache.\nCatálogo atualizado: ${date("updated")}. Favoritos, progresso e tempo ficam neste app. Capas consultadas dependem do cache do Android.")
-        box.addView(text(if(localScanAt==0L)"Leitura local ainda em andamento." else "Leitura local em ${versionDate(localScanAt)}."+
-            if(localProblems.isEmpty())"" else " Lista parcial: falha ao ler ${localProblems.joinToString()}. Confira as pastas e permissões.",13f))
+        fun localSummary()="${games.count { it.localUri!=null }} jogo(s) na última leitura local · ${catalog.size} entrada(s) no catálogo em cache.\nCatálogo atualizado: ${date("updated")}. Favoritos, progresso e tempo ficam neste app. Capas consultadas dependem do cache do Android."
+        fun readSummary()=if(localScanAt==0L)"Leitura local ainda em andamento." else "Leitura local em ${versionDate(localScanAt)}."+
+            if(localProblems.isEmpty())"" else " Lista parcial: falha ao ler ${localProblems.joinToString()}. Confira as pastas e permissões."
+        val availability=section("Disponível offline",localSummary())
+        val localRead=text(readSummary(),13f);box.addView(localRead)
         add(box,button("Ver jogos neste celular") { dialog?.dismiss();collection="cell";page=0;render() })
         add(box,button("Reler pastas locais") { dialog?.dismiss();reloadLocal { statusCenter() } })
-        section("Notebook / Tailscale",if(store.base().isBlank())"Endereço ainda não configurado. Abra Opções para salvar o endereço HTTPS." else
-            "Último contato bem-sucedido: ${date("last-contact")}.\nÚltima tentativa: ${date("last-attempt")}"+
-                (if(prefs.contains("last-attempt-ok"))if(prefs.getBoolean("last-attempt-ok",false))" · respondeu." else " · falhou. Confira notebook, Tailscale e endereço." else ".")+
-                "\nÉ um registro de contato; a conexão pode mudar. Testar não sincroniza nem abre jogos.")
+        val connectionRecord=section("Notebook / Tailscale",helper.connectionSummary(::versionDate))
         val connection=text("",14f);box.addView(connection)
         val test=button("Testar conexão com notebook") {};box.addView(test)
         add(box,button("Configurar endereço / abrir Opções") { settings() })
@@ -357,11 +366,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("Continuar / pausar downloads") { downloads() })
         add(box,button("Playlists do RetroArch") { playlists() })
         val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Fechar",null))
+        updateLocalStatus={ if(dialog===opened) { availability.text=localSummary();localRead.text=readSummary() } }
         test.isEnabled=store.base().isNotBlank()
         test.setOnClickListener {
             test.isEnabled=false;connection.text="Testando conexão…"
             work.execute { val result=runCatching { store.checkConnection() };runOnUiThread {
                 if(dialog===opened && !isFinishing && !isDestroyed) {
+                    connectionRecord.text=helper.connectionSummary(::versionDate)
                     test.isEnabled=true;connection.text=if(result.isSuccess)"PyRetro respondeu em ${versionDate(System.currentTimeMillis())}." else "Não foi possível confirmar o PyRetro. Confira endereço, notebook e Tailscale. Seus dados offline continuam disponíveis."
                 }
             } }
@@ -407,8 +418,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         for((label,packages) in apps) {
             val installed=packages.firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null }
             add(box,button("$label · ${if(installed==null)"não encontrado" else "abrir"}") {
-                if(installed!=null)openPackage(installed) else message("$label não encontrado. Instale ou confira o aplicativo antes de tentar novamente.")
-            })
+                if(installed!=null)openPackage(installed)
+            }.apply { isEnabled=installed!=null;alpha=if(installed!=null)1f else 0.55f })
         }
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> statusCenter() })
     }

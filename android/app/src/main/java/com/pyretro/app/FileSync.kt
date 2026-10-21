@@ -67,7 +67,10 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
     fun lastResult()=prefs.getString("last-result","Ainda não sincronizado.")!!
     fun observation(group:String):JSONObject? {
         val value=runCatching { prefs.getString("observation:$group",null)?.let(::JSONObject) }.getOrNull() ?: return null
-        return value.takeIf { StatusRules.currentObservation(it.optString("server"),it.optString("tree"),store.base(),tree(group).toString()) }
+        return runCatching { value.takeIf {
+            it.getLong("at")>0 && it.getInt("conflicts")>=0 && it.getInt("failures")>=0 && it.has("applied") &&
+                StatusRules.currentObservation(it.optString("server"),it.optString("tree"),store.base(),tree(group).toString())
+        } }.getOrNull()
     }
     private fun observe(plan:SyncPlan,applied:Boolean,failures:Int=0) {
         if(sha(store.base()+"|"+plan.group+"|"+plan.rootTag+"|"+tree(plan.group))!=plan.identity)return

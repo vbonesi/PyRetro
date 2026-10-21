@@ -5,7 +5,7 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.4.0-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.4.1-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções**, escolha **Pasta Jogos · reconhecer todos os sistemas**, ou cada
    pasta separadamente. Arquivos que eram sincronizados pelo FolderSync são reaproveitados.
@@ -49,9 +49,21 @@ ou **Opções → Situação e conexões**. A central reúne:
 
 Abrir a central lê registros locais e permissões, sem consultar notebook/Drive
 ou iniciar cópias. Dados anteriores à 0.4 podem aparecer sem data/resultado até a
-próxima operação. O APK 0.4 foi preparado **sem celular**: compilação, lint e
-24 testes JVM passaram; instalação, layout/foco no aparelho e homologação dos
-fluxos continuam pendentes. A versão instalada no telefone permanece a 0.3.
+próxima operação. A contagem local acompanha o fim da leitura inicial sem precisar
+fechar a central, e o resumo de contato é atualizado após testar a conexão.
+Pastas inválidas pedem nova escolha; observações de sincronização incompletas não
+fecham a central. Diálogos com botões recebem foco na primeira ação disponível;
+aplicativos ausentes ficam desativados na lista de conexões.
+
+A 0.4 foi preparada sem celular. Após reconexão, a **0.4.1 foi instalada** no
+usuário principal, com a assinatura preservada. Compilação, lint e 24 testes JVM
+passaram; a instrumentação da central verificou retrato/paisagem, foco, concessões,
+pendências e atualização dos resumos sem alterar progresso/tempo. A suíte de
+armazenamento SAF também passou com fixtures próprias, e o inventário dos arquivos
+reais permaneceu idêntico antes/depois. O teste explícito
+com o notebook respondeu após reconectar o Tailscale já configurado. A pasta
+RetroArch ainda precisa da concessão do usuário; G8 físico, Drive e sync real
+continuam para homologação de uso.
 
 ## Controle e touch
 
@@ -251,12 +263,13 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.4.0-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.4.1-debug.apk
 ```
 
-Compilação, lint e 24 testes JVM passaram para a versão 0.4, sem instalação nem
-instrumentação nesta etapa. A instrumentação existente foi recompilada para a 0.4.
-A versão 0.3 passou em 18 testes JVM e foi instalada
+Compilação, lint e 24 testes JVM passaram para a versão 0.4.1, instalada no
+usuário principal após reconexão. A central foi exercitada no aparelho em retrato
+e paisagem, com foco e preferências de teste isoladas. A suíte de armazenamento
+SAF foi reexecutada com sucesso. A versão 0.3 passou em 18 testes JVM e foi instalada
 no usuário principal do aparelho. A instrumentação da 0.3 passou
 com arquivos sintéticos: recuperação de versões, índice em lote, download pausado/
 retomado e playlists preservando campos/itens externos. Inventário real de ROMs,
@@ -281,3 +294,12 @@ isoladas. Foi executado com sucesso no aparelho reconectado. O teste exige que a
 raiz derivada permaneça dentro da pasta sintética antes de iniciar as cópias.
 Desinstale somente `com.pyretro.app.test` depois da execução; o aplicativo principal
 e suas permissões permanecem instalados.
+
+Suíte da central (preferências isoladas, sem copiar saves ou abrir jogos):
+`adb shell am instrument -w -e suite status com.pyretro.app.test/com.pyretro.app.StorageSmoke`.
+Ela verifica também pastas inválidas, observações incompletas, foco inicial,
+leitura local concluída com a central aberta e ausência de alterações nas
+preferências reais. Para testar explicitamente a consulta ao notebook e o resumo
+atualizado na mesma tela, adicione `-e connection true`; só os registros de contato
+reais podem mudar. As duas orientações são verificadas na configuração efetiva do
+app. Desbloqueie o aparelho para a execução.

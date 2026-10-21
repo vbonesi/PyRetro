@@ -123,7 +123,10 @@ do PyRetro e abre cada emulador por intent.
   Versão 0.4 preparada sem celular: central de situação/conexões com registros de
   contato, pendências por jogo, resultados de saves, concessões SAF e checkpoints;
   atalhos para corrigir pastas, consultar nuvem e abrir emuladores/clientes/Tailscale.
-  Build/lint e 24 testes JVM aprovados; instalação e layout/foco reais pendentes.
+  Após reconexão, 0.4.1 instalada: atualização automática dos resumos, tratamento
+  de pastas/observações inválidas e foco inicial dos diálogos corrigidos. Build/lint,
+  24 JVM e instrumentação retrato/paisagem aprovados; notebook respondeu após
+  reconectar Tailscale. G8 físico, Drive e sync de uso ainda pendentes.
   Projeto, wrapper e `tools/build_android.py` versionados. Build, lint e testes JVM
   executados; APK pessoal em `cache/artifacts/`, fora do Git.
 - Depois da preparação inicial, aparelho conectado e APK instalado: catálogo por
