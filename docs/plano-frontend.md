@@ -73,6 +73,13 @@ estiver em foco, para evitar teclado/mouse duplicados com Gamepad/SDL.
 - Capas já no celular: miniaturas do RetroArch (sincronizadas) e a pasta `covers` do DuckStation, onde
   acabei de copiar as capas de Castlevania SOTN e Diablo (os dois PS1 que estão lá).
 
+### Continuação após a 0.5 (21/10)
+
+A avaliação de robustez, a matriz de homologação PC/Android e a ordem das próximas
+melhorias estão no [roadmap](roadmap.md#avaliação-de-robustez--encerramento-de-21102026).
+Priorizar sessões reais e recuperação de falhas; o registro de encerramento não
+inicia novas implementações nem agenda testes.
+
 ### Decisão (16/10): app Android nativo
 Você quer um app de verdade. É a opção C da análise: um app pequeno em Kotlin que lista o acervo com as capas
 do PyRetro e abre cada emulador por intent.

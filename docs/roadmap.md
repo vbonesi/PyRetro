@@ -49,36 +49,76 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
 | PyRetro rodando no Android (Termux) | ❌ **Descontinuado (22/09/2026)** - saiu do plano: o PyRetro não roda mais no celular. O passo a passo ([`docs/termux_setup.md`](termux_setup.md)) fica como histórico, nunca chegou a ser testado no aparelho. O backend Python continua no PC; desde 20/10 há também cliente Android nativo, com offline (veja `android/README.md`). O `adb` permanece disponível para manutenção. |
 | `sync.py` pra saves/states/runtime-logs | Trilha antiga cancelada; cliente Android 0.2 implementa sincronização explícita por grupo |
 
+## Avaliação de robustez — encerramento de 21/10/2026
+
+A base está bem encaminhada para uso pessoal confiável. O PC está mais próximo
+de uma experiência consolidada; o Android 0.5 tem uma base funcional boa, mas
+recente. Esta é uma avaliação qualitativa do projeto, sem percentual, prazo ou
+comparação medida com produtos do mercado. A próxima etapa é consolidar a
+arquitetura existente e comprovar previsibilidade no uso diário.
+
+| Frente | Base disponível | Evidência ainda necessária |
+|---|---|---|
+| PC | Biblioteca, modo TV, controle, lançamento, downloads e clientes remotos | Sessões completas com controle físico: abrir, jogar, sair e recuperar foco; Steam Link e PS4/Xbox remoto |
+| Android | Offline, catálogo, execução local, saves, espaço, fixados, fila e Stream | G8 físico, provedor Drive real, diferentes emuladores e sincronização de saves reais entre as duas pontas |
+
+Testes automatizados e instrumentação sintética aprovados sustentam as regras e
+as proteções de dados. Para declarar um fluxo homologado, registrar também sua
+execução real e as limitações encontradas. Uma matriz pequena dos sistemas mais
+usados deve cobrir:
+
+- Navegar, abrir o jogo, jogar, encerrar e voltar ao catálogo com foco e posição
+  utilizáveis; repetir sessões e conferir uso prolongado.
+- Trabalhar offline e recuperar-se de queda de rede, encerramento do processo,
+  permissão de pasta expirada e origem/destino indisponível, sem perder pendências
+  ou apresentar sucesso indevido.
+- Retomar downloads e conferir saves nas duas pontas, incluindo conflitos e
+  recuperação de versões. Escolher a pasta RetroArch antes dessa homologação;
+  testes sintéticos não concedem essa pasta nem homologam o Drive/G8.
+
+A 0.5 está instalada e publicada. A fila Android solicita pausa ao sair do app;
+serviço em segundo plano ainda é proposta. Voltar de um jogo usa Recentes do
+Android → PyRetro; encerrar a partida depende do emulador. Não há nova função,
+automação ou teste real agendado por este registro de encerramento.
+
 ## Próximos passos (em ordem)
 
-1. Homologar o fluxo de console com Xbox físico, retorno de foco e Steam Link;
-   conferir a sessão do PS4 já registrado com console ligado/IP atual e Xbox remoto.
-   Wii por jogo e pendências estão em [`plano-frontend.md`](plano-frontend.md).
-   Testar o APK com Galileo G8 físico e o download pelo provedor Drive; touch/cache
-   e pastas existentes já conferidos. Conferir a sincronização 0.2 com os
-   emuladores fechados e estados compatíveis. NDS/3DS priorizados no celular.
-2. Homologar a 0.3 no uso com G8 e Drive real. A instalação e a instrumentação
-   sintética já passaram: recuperação local, download pausado/retomado, índice e
-   preservação de playlists. Pastas dependem do suporte do
-   provedor; seleção em lote é a alternativa. CUE/M3U dependentes continuam
-   exigindo tratar o conjunto de faixas/discos antes de download/remoção nativos.
-   Retomada pode reler o prefixo pelo provedor e continua explícita, sem serviço
-   de download em segundo plano.
-3. Mídia: buscar logos/trailers por fontes verificadas; a importação local já
-   funciona no PC. Runtime antigo não é somado automaticamente às sessões novas.
-4. Para ampliar o backup fora do RetroArch — achados via adb em 05/08 (a parte
-   de Flycast/Dreamcast saiu daqui em 24/08 junto com a mudança pra
-   RetroArch - ver docs/changelog.md, não é mais um caso "fora do
-   RetroArch"):
-   - **Dolphin (Wii)** ainda exige tratar a estrutura tipo NAND por title-ID em
-     hexadecimal (`Wii/title/<high>/<low>/data/`). O título não vem legível;
-     para exibir o nome seria preciso cruzar title-ID com
-     alguma base externa, ou extrair do header do próprio arquivo de
-     ROM local. O cliente 0.2 já copia os dados/extdata do 3DS por grupo,
-     mas ainda não traduz esses IDs para nomes de jogos na análise.
-   - Nota: o app de 3DS instalado no aparelho é **Lime3DS**
-     (`io.github.lime3ds.android`), não "Azahar" como mencionado -
-     mesma família (fork do Citra), mas nome/pacote diferentes.
+1. **Homologação de uso:** executar a matriz acima e corrigir os atritos. No PC,
+   Xbox físico, retorno de foco, Steam Link e sessões PS4/Xbox remoto; no Android,
+   G8, Drive, emuladores (com NDS/3DS priorizados), pacote real de texturas e saves
+   com emuladores fechados/estados compatíveis. Detalhes em
+   [`plano-frontend.md`](plano-frontend.md) e [`../android/README.md`](../android/README.md).
+2. **Acabamento da interface:** aproximar a identidade visual PC/Android, indicar
+   claramente a aba ativa e reduzir passos nas ações frequentes. Preservar foco,
+   rolagem e legibilidade com controle e touch, conferindo retrato/paisagem.
+3. **Downloads Android em segundo plano:** avaliar serviço com notificação e
+   recuperação após encerramento do processo. Manter pausa/cancelamento explícitos,
+   integridade e checkpoints. A fila atual já é sequencial e persistente; a
+   retomada continua explícita e pode reler todo o prefixo pelo provedor.
+4. **Diagnóstico acessível:** explicar causa da falha e ação de recuperação na
+   própria interface; oferecer relatório compartilhável sem contas, credenciais,
+   endereços privados ou inventário pessoal.
+5. **Conjuntos e distribuição:** tratar CUE/M3U com todas as faixas/discos no
+   download e na remoção; simplificar atualização do APK com assinatura estável.
+   Hoje CUE/M3U dependentes exigem gerenciador, e instalar atualização continua
+   restrito ao usuário principal, preservando a assinatura.
+6. **Evoluções posteriores:** nomes por title ID para saves/texturas 3DS, fontes
+   verificadas de logos/prévias/trailers, identidade de documentos no índice da
+   nuvem e importação de runtime antigo com prévia sem duplicar sessões. Retenção
+   de versões deve ser explícita e recuperável; não há limpeza automática ativada.
+
+### Notas para backup fora do RetroArch
+
+Achados via adb em 05/08. Flycast/Dreamcast passaram para RetroArch em 24/08;
+ver o histórico no changelog.
+
+- **Dolphin (Wii)** ainda exige tratar a estrutura tipo NAND por title ID
+  hexadecimal (`Wii/title/<high>/<low>/data/`). Para mostrar nomes legíveis seria
+  preciso cruzar uma base externa ou extrair o título da ROM local. O cliente
+  0.2 já copia dados/extdata do 3DS por grupo, mas a análise ainda não traduz
+  esses IDs para nomes de jogos.
+- O app de 3DS instalado no aparelho é **Lime3DS**
+  (`io.github.lime3ds.android`); conferir o pacote efetivamente usado ao homologar.
 
 ## Registro de encerramento — prioridades após a 0.3
 

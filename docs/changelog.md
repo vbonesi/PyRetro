@@ -6,6 +6,26 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Encerramento após a 0.5 e critérios de robustez PC/Android
+
+- Registrada avaliação qualitativa: PC mais próximo de uma experiência
+  consolidada; Android funcional, porém recente. A etapa recomendada é consolidar
+  a arquitetura existente e comprovar previsibilidade no uso diário, sem prometer
+  percentual, prazo ou equivalência medida com frontends do mercado.
+- Roadmap passa a concentrar uma matriz de homologação: ciclo completo de jogo e
+  retorno com foco/posição, sessões prolongadas, offline, falha de rede, processo
+  encerrado, permissão expirada e recuperação de downloads/saves/conflitos.
+  G8, Drive real, diferentes emuladores, Steam Link e PS4/Xbox remoto continuam
+  pendentes; testes sintéticos aprovados não substituem essas evidências.
+- Prioridades seguintes: homologação, acabamento visual e aba ativa, downloads
+  Android em segundo plano com notificação/recuperação, diagnóstico acessível e
+  relatório compartilhável sem dados privados, CUE/M3U completos e atualização
+  do APK mais simples com assinatura estável. Mídia, title IDs, identidade de
+  nuvem, runtime sem duplicação e retenção explícita de versões seguem posteriores.
+- Encerramento somente documental, a pedido do usuário. A implementação 0.5 do
+  commit `232f9db` permanece instalada e publicada. Nenhum novo teste, modificação
+  de dados, configuração do aparelho ou automação foi executado por este registro.
+
 ## 21/10/2026 — Android 0.5: espaço, jogos fixados, fila e interface compacta
 
 - Gestão de espaço lista ROMs por tamanho, com filtros de sistema/progresso/fixação
