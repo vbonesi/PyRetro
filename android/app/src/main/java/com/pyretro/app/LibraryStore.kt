@@ -23,8 +23,8 @@ data class Game(val id:String, val key:String, val name:String, val platform:Str
 }
 data class RomFile(val code:String,val name:String,val uri:Uri)
 
-class LibraryStore(val context:Context) {
-    val prefs=context.getSharedPreferences("pyretro",Context.MODE_PRIVATE)
+class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
+    val prefs=context.getSharedPreferences(preferenceName,Context.MODE_PRIVATE)
     val folders=linkedMapOf("NDS" to "Nintendo DS", "3DS" to "Nintendo 3DS", "PS" to "PlayStation", "PSP" to "PSP",
         "FC" to "NES", "SFC" to "Super Nintendo", "GB" to "Game Boy", "GBC" to "Game Boy Color", "GBA" to "Game Boy Advance",
         "MD" to "Mega Drive", "SMS" to "Master System", "GG" to "Game Gear", "N64" to "Nintendo 64", "PCE" to "PC Engine", "PCECD" to "PC Engine CD", "ARCADE" to "Arcade")
@@ -79,31 +79,34 @@ class LibraryStore(val context:Context) {
         val temporary=File(context.filesDir,"catalog.tmp");temporary.writeText(JSONArray(games.map { it.cache() }).toString())
         require(temporary.renameTo(File(context.filesDir,"catalog.json"))) { "Falha ao guardar catálogo." }
     }
+    fun extensionsFor(code:String)=extensions[code] ?: emptySet()
     fun accepts(code:String,name:String):Boolean=name.substringAfterLast('.').lowercase() in (extensions[code] ?: emptySet())
     fun tree(code:String):Uri? {
         prefs.getString("tree:$code",null)?.let { return Uri.parse(it) }
         val root=prefs.getString("tree:ROOT",null)?.let(Uri::parse) ?: return null
-        return DocumentsContract.buildDocumentUriUsingTree(root,DocumentsContract.getTreeDocumentId(root)+"/"+code)
+        return DocumentsContract.buildDocumentUriUsingTree(root,documentId(root)+"/"+code)
     }
     fun documentId(uri:Uri):String = if(DocumentsContract.isDocumentUri(context,uri))DocumentsContract.getDocumentId(uri) else DocumentsContract.getTreeDocumentId(uri)
     fun saveTree(code:String,uri:Uri) { prefs.edit().putString("tree:$code",uri.toString()).apply() }
-    fun files(code:String):List<RomFile> {
-        val root=tree(code) ?: return emptyList();val result=mutableListOf<RomFile>()
+    fun files(code:String,strict:Boolean=false):List<RomFile> {
+        val root=tree(code) ?: if(strict)error("Selecione a pasta de ROMs.") else return emptyList();val result=mutableListOf<RomFile>();var visited=0
         fun scan(document:String,depth:Int) {
-            if(depth>2 || result.size>=20000)return
+            if(strict)require(depth<=16 && result.size<20000) { "Pasta excede os limites da análise." } else if(depth>2 || result.size>=20000)return
             val children=DocumentsContract.buildChildDocumentsUriUsingTree(root,document)
             context.contentResolver.query(children,arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,DocumentsContract.Document.COLUMN_DISPLAY_NAME,DocumentsContract.Document.COLUMN_MIME_TYPE,DocumentsContract.Document.COLUMN_SIZE),null,null,null)?.use { cursor ->
-                while(cursor.moveToNext() && result.size<20000) {
+                while(cursor.moveToNext()) {
+                    if(strict)require(result.size<20000 && ++visited<=50000) { "Pasta excede os limites da análise." } else if(result.size>=20000)return
                     val id=cursor.getString(0);val name=cursor.getString(1)
                     if(cursor.getString(2)==DocumentsContract.Document.MIME_TYPE_DIR)scan(id,depth+1)
                     else if(accepts(code,name) && (cursor.isNull(3) || cursor.getLong(3)>0))result.add(RomFile(code,name,DocumentsContract.buildDocumentUriUsingTree(root,id)))
                 }
-            }
+            } ?: if(strict)error("Pasta indisponível; selecione novamente a concessão.") else Unit
         }
+        if(strict)require(SafStorage(this).folder(root,false)!=null) { "Pasta de ROMs indisponível." }
         scan(documentId(root),0);return result
     }
     fun bind(catalog:List<Game>,roms:List<RomFile>):List<Game> {
-        val games=catalog.map { it.copy(localUri=null) }.toMutableList();val used=mutableSetOf<Uri>()
+        val games=(catalog+CloudIndex(this).extra(catalog)).map { it.copy(localUri=null) }.toMutableList();val used=mutableSetOf<Uri>()
         val matches=games.associate { game ->
             val available=roms.filter { it.code==game.code }
             val wanted=(game.aliases+game.name+GameLogic.fileLabel(game.romName.substringAfterLast('/'))).map(GameLogic::normalized).toSet()
@@ -131,30 +134,7 @@ class LibraryStore(val context:Context) {
         require(DocumentsContract.deleteDocument(context.contentResolver,uri)) { "Não foi possível remover a ROM." }
         prefs.edit().remove("rom:${game.key}").apply();game.localUri=null
     }
-    fun download(game:Game,progress:(Long)->Unit):Uri {
-        val source=Uri.parse(prefs.getString("cloud:${game.key}",null) ?: error("Vincule o arquivo no Drive primeiro."))
-        val tree=tree(game.code) ?: error("Escolha a pasta de ${game.code} no celular.")
-        require(tree.authority=="com.android.externalstorage.documents") { "Escolha uma pasta local no celular como destino do download." }
-        val name=displayName(source);require(accepts(game.code,name)) { "Formato incompatível com ${game.code}." }
-        val expected=context.contentResolver.query(source,arrayOf(OpenableColumns.SIZE),null,null,null)?.use { if(it.moveToFirst() && !it.isNull(0))it.getLong(0) else null }
-        require(name.substringAfterLast('.').lowercase() !in setOf("cue","m3u")) { "Para PS1 sob demanda, escolha CHD ou PBP. CUE/M3U precisam das faixas e discos associados." }
-        val existing=files(game.code).find { it.name==name };require(existing==null) { "Já existe $name no celular. Nenhum arquivo foi substituído." }
-        val parent=DocumentsContract.buildDocumentUriUsingTree(tree,documentId(tree))
-        val temporary=DocumentsContract.createDocument(context.contentResolver,parent,"application/octet-stream",".pyretro-${UUID.randomUUID()}.part") ?: error("Não foi possível criar o arquivo temporário.")
-        try {
-            context.contentResolver.openInputStream(source).use { input ->
-                requireNotNull(input);context.contentResolver.openOutputStream(temporary,"w").use { output ->
-                    requireNotNull(output);val buffer=ByteArray(256*1024);var total=0L
-                    while(true) { val count=input.read(buffer);if(count<0)break;output.write(buffer,0,count);total+=count;progress(total) }
-                    require(total>0) { "O arquivo está vazio." }
-                    require(expected==null || expected==total) { "Download incompleto: tamanho diferente da origem. Tente novamente." }
-                }
-            }
-            require(files(game.code).none { it.name==name }) { "O destino apareceu durante o download; arquivo preservado." }
-            val finished=DocumentsContract.renameDocument(context.contentResolver,temporary,name) ?: error("Não foi possível concluir o download.")
-            prefs.edit().putString("rom:${game.key}",finished.toString()).apply();return finished
-        } catch(error:Exception) { runCatching { DocumentsContract.deleteDocument(context.contentResolver,temporary) };throw error }
-    }
+    fun download(game:Game,progress:(Long)->Unit):Uri = DownloadStore(this).download(game,progress)
     fun tracking(game:Game):JSONObject {
         val value=JSONObject(game.tracking.toString());val queued=prefs.getString("pending:${game.key}",null)?.let(::JSONObject)?.optJSONObject("campos")
         queued?.keys()?.forEach { value.put(it,queued.opt(it)) };return value

@@ -14,7 +14,9 @@ data class SyncFile(val uri:Uri,val sha256:String,val size:Long,val modified:Lon
 data class SyncRow(val path:String,val local:SyncFile?,val remote:JSONObject?,val kind:String,var choice:String=kind)
 data class SyncPlan(val group:String,val rootTag:String,val identity:String,val rows:List<SyncRow>)
 
-class FileSync(private val store:LibraryStore,preferenceName:String="file-sync") {
+data class LocalVersion(val group:String,val path:String,val tree:String,val file:SyncFile,val current:String?,val created:Long)
+
+class FileSync(private val store:LibraryStore,preferenceName:String=if(store.preferenceName=="pyretro")"file-sync" else store.preferenceName+"-file-sync") {
     private val resolver=store.context.contentResolver
     private val prefs=store.context.getSharedPreferences(preferenceName,0)
     private val limit=512L*1024*1024
@@ -34,6 +36,33 @@ class FileSync(private val store:LibraryStore,preferenceName:String="file-sync")
         require(group=="retroarch" || group in groups)
         require(uri.authority=="com.android.externalstorage.documents") { "Escolha uma pasta local; o notebook é a outra ponta da sincronização." }
         prefs.edit().putString(if(group=="retroarch")"retroarch-tree" else "tree:$group",uri.toString()).apply()
+    }
+    fun retroarchTree():Uri?=prefs.getString("retroarch-tree",null)?.let(Uri::parse)
+    fun localHistory(group:String):List<LocalVersion> {
+        val root=tree(group) ?: error("Escolha a pasta do grupo.");val result=mutableListOf<LocalVersion>()
+        val pattern=Regex("\\.pyretro-previous-([0-9]+)-[0-9a-f-]{36}-(.+)")
+        fun scan(parent:Uri,prefix:String,depth:Int) {
+            require(depth<=16)
+            val query=DocumentsContract.buildChildDocumentsUriUsingTree(root,store.documentId(parent))
+            resolver.query(query,arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME,DocumentsContract.Document.COLUMN_DOCUMENT_ID,DocumentsContract.Document.COLUMN_MIME_TYPE),null,null,null)?.use { c ->
+                while(c.moveToNext()) {
+                    val name=c.getString(0);val uri=DocumentsContract.buildDocumentUriUsingTree(root,c.getString(1));val match=pattern.matchEntire(name)
+                    if(match!=null && SyncRules.accepted(group,prefix+match.groupValues[2])) {
+                        val path=prefix+match.groupValues[2];val current=children(root,parent)[match.groupValues[2]]?.let(::fingerprint)
+                        require(result.size<20000);result.add(LocalVersion(group,path,root.toString(),fingerprint(uri),current?.sha256,match.groupValues[1].toLong()))
+                    } else if(!name.startsWith(".pyretro-") && c.getString(2)==DocumentsContract.Document.MIME_TYPE_DIR)scan(uri,prefix+name+"/",depth+1)
+                }
+            } ?: error("Histórico indisponível: confira a permissão da pasta.")
+        }
+        folder(group,false)?.let { scan(it,"",0) };return result.sortedByDescending { it.created }
+    }
+    fun restoreLocal(version:LocalVersion) {
+        require(tree(version.group).toString()==version.tree) { "Pasta mudou; abra o histórico novamente." }
+        val temp=File.createTempFile("restore-",".tmp",store.context.cacheDir)
+        try {
+            resolver.openInputStream(version.file.uri).use { input -> requireNotNull(input);temp.outputStream().use { copyBounded(input,it) } }
+            install(version.group,version.path,temp,version.file.sha256,version.current)
+        } finally { temp.delete() }
     }
     fun lastResult()=prefs.getString("last-result","Ainda não sincronizado.")!!
     private fun hex(bytes:ByteArray)=bytes.joinToString("") { "%02x".format(it) }
@@ -144,29 +173,8 @@ class FileSync(private val store:LibraryStore,preferenceName:String="file-sync")
     internal fun install(group:String,path:String,temp:File,expected:String,expectedLocal:String?) {
         require(SyncRules.accepted(group,path)) { "Arquivo não pertence ao grupo." }
         require(temp.length()<=limit && hash(temp)==expected) { "Checksum do arquivo recebido não confere." }
-        val (root,parent)=parent(group,path);val name=path.substringAfterLast('/')
-            val existing=children(root,parent)[name]
-            require(existing?.let { fingerprint(it).sha256 }==expectedLocal) { "Save local mudou depois da análise." }
-            val stage=DocumentsContract.createDocument(resolver,parent,"application/octet-stream",".pyretro-stage-${UUID.randomUUID()}") ?: error("Não foi possível preparar o save.")
-            var previous:Uri?=null;var published=false
-            try {
-                resolver.openOutputStream(stage,"w").use { output -> requireNotNull(output);temp.inputStream().use { it.copyTo(output,1024*1024) } }
-                require(fingerprint(stage).sha256==expected) { "Cópia local incompleta." }
-                val latest=children(root,parent)[name]
-                require(latest?.let { fingerprint(it).sha256 }==expectedLocal) { "Save mudou antes da conclusão." }
-                if(latest!=null) {
-                    previous=DocumentsContract.renameDocument(resolver,latest,".pyretro-previous-${System.currentTimeMillis()}-${UUID.randomUUID()}-$name") ?: error("Não foi possível preservar a versão anterior.")
-                    require(fingerprint(previous).sha256==expectedLocal) { "Save mudou ao guardar a versão anterior." }
-                }
-                require(children(root,parent)[name]==null) { "Outro processo criou o save; versões preservadas." }
-                val ready=DocumentsContract.renameDocument(resolver,stage,name) ?: error("Não foi possível concluir o save.")
-                require(store.displayName(ready)==name && fingerprint(ready).sha256==expected) { "Destino mudou; confira as versões preservadas na pasta." };published=true
-            } finally {
-                if(!published) {
-                    runCatching { DocumentsContract.deleteDocument(resolver,stage) }
-                    if(previous!=null && children(root,parent)[name]==null)runCatching { DocumentsContract.renameDocument(resolver,previous,name) }
-                }
-            }
+        val (root,parent)=parent(group,path)
+        SafStorage(store).publish(root,parent,path.substringAfterLast('/'),temp,expected,expectedLocal)
     }
     fun apply(plan:SyncPlan,progress:(String)->Unit):String {
         val fresh=JSONObject(store.request("/api/mobile/sync/manifest?group="+Uri.encode(plan.group)))

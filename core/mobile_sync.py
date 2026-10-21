@@ -206,3 +206,63 @@ def receive(cfg, group, relative, expected, sha256, stream, length):
                 raise
             finally:
                 temporary.unlink(missing_ok=True)
+
+
+VERSION_PATTERN = r'[0-9]+-[0-9a-f]{32}\.previous'
+
+
+def history_path(cfg, group, relative, version):
+    if not accepted(group, relative) or not isinstance(version, str) or not re.fullmatch(VERSION_PATTERN, version):
+        raise ValueError('versão inválida')
+    path = root(cfg, group)
+    for part in ('.pyretro-history', *relative.split('/'), version):
+        path = path/part
+        if path.is_symlink():
+            raise ValueError('links não são aceitos no histórico')
+    return path
+
+
+def history(cfg, group):
+    base = root(cfg, group); versions = []; current = {}
+    start = base/'.pyretro-history'
+    if start.is_symlink():
+        raise ValueError('histórico inválido')
+    for parent, dirs, names in os.walk(start, followlinks=False):
+        if any((Path(parent)/name).is_symlink() for name in dirs):
+            raise ValueError('link no histórico')
+        for name in names:
+            relative = Path(parent).relative_to(start).as_posix()
+            if not accepted(group, relative) or not re.fullmatch(VERSION_PATTERN, name):
+                continue
+            info = fingerprint(history_path(cfg, group, relative, name))
+            if info is None:
+                raise Conflict('histórico mudou durante a leitura')
+            if relative not in current:
+                latest = fingerprint(resolve(cfg, group, relative))
+                current[relative] = latest['sha256'] if latest else '-'
+            versions.append({'path': relative, 'version': name, 'created': int(name.split('-')[0])//1000000, 'current': current[relative], **info})
+            if len(versions) > MAX_FILES:
+                raise ValueError('histórico excede 20 mil versões')
+    versions.sort(key=lambda row: int(row['version'].split('-')[0]), reverse=True)
+    return {'rootTag': hashlib.sha256(str(base).encode()).hexdigest(), 'versions': versions}
+
+
+def restore(cfg, group, relative, version, expected, sha256):
+    sha256 = valid_hash(sha256)
+    path = history_path(cfg, group, relative, version)
+    info = fingerprint(path)
+    if info is None or info['sha256'] != sha256:
+        raise Conflict('versão anterior mudou ou não está disponível')
+    # receive preserva também o save atual. A versão escolhida não é consumida.
+    with tempfile.TemporaryFile() as staged:
+        with path.open('rb') as source:
+            remaining = info['size']
+            while remaining:
+                block = source.read(min(remaining, 1024*1024))
+                if not block:
+                    raise Conflict('versão mudou durante a cópia')
+                staged.write(block); remaining -= len(block)
+            if source.read(1):
+                raise Conflict('versão mudou durante a cópia')
+        staged.seek(0)
+        return receive(cfg, group, relative, expected, sha256, staged, info['size'])

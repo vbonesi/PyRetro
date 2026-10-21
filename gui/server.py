@@ -1570,6 +1570,8 @@ class Handler(BaseHTTPRequestHandler):
                 cfg = load_config(); group = query.get('group',[''])[0]
                 if parts == ['api','mobile','sync','groups']:
                     return self._json(mobile_sync_mod.groups(cfg))
+                if parts == ['api','mobile','sync','history']:
+                    return self._json(mobile_sync_mod.history(cfg,group))
                 if parts == ['api','mobile','sync','manifest']:
                     return self._json(mobile_sync_mod.manifest(cfg,group))
                 if parts == ['api','mobile','sync','file']:
@@ -2440,6 +2442,18 @@ class Handler(BaseHTTPRequestHandler):
                     cfg=load_config();mobile_sync_mod.check_tag(cfg,query.get('group',[''])[0],query.get('rootTag',[''])[0])
                     result=mobile_sync_mod.receive(cfg,query.get('group',[''])[0],query.get('path',[''])[0],
                         query.get('expected',[''])[0],query.get('sha256',[''])[0],self.rfile,int(self.headers.get('Content-Length',0)))
+                return self._json(result)
+            except mobile_sync_mod.Conflict as error:return self._json({'error':str(error)},409)
+            except (ValueError,OSError) as error:return self._json({'error':str(error)},400)
+
+        if parts == ['api','mobile','sync','restore']:
+            body=self._read_json_body()
+            try:
+                if not isinstance(body,dict):raise ValueError('pedido inválido')
+                with file_lock_mod.exclusive(TRANSFER_LOCK_KEY):
+                    cfg=load_config();group=body.get('group','')
+                    mobile_sync_mod.check_tag(cfg,group,body.get('rootTag',''))
+                    result=mobile_sync_mod.restore(cfg,group,body.get('path',''),body.get('version',''),body.get('expected',''),body.get('sha256',''))
                 return self._json(result)
             except mobile_sync_mod.Conflict as error:return self._json({'error':str(error)},409)
             except (ValueError,OSError) as error:return self._json({'error':str(error)},400)

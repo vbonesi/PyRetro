@@ -9,7 +9,7 @@ import urllib.request
 from unittest.mock import patch
 
 from core import mobile_sync as sync
-from test_api import BaseAPI
+from test_api import BaseAPI, srv
 
 
 def digest(data):return hashlib.sha256(data).hexdigest()
@@ -76,6 +76,30 @@ class MobileSyncFiles(unittest.TestCase):
         self.assertFalse(sync.accepted('psp-saves','SYSTEM/ppsspp.ini'))
         self.assertTrue(sync.accepted('psp-saves','ULUS12345DATA/DATA.BIN'))
 
+    def test_history_restore_keeps_selected_and_current_versions(self):
+        self.put(b'first');self.put(b'second',digest(b'first'))
+        versions=sync.history(self.cfg,'retro-saves')['versions'];self.assertEqual(len(versions),1)
+        version=versions[0];self.assertEqual(version['current'],digest(b'second'))
+        sync.restore(self.cfg,'retro-saves',version['path'],version['version'],version['current'],version['sha256'])
+        self.assertEqual((self.root/'Jogo.srm').read_bytes(),b'first')
+        self.assertEqual({row['sha256'] for row in sync.history(self.cfg,'retro-saves')['versions']},{digest(b'first'),digest(b'second')})
+
+    def test_history_restore_rejects_stale_destination_source_and_invalid_versions(self):
+        self.put(b'first');self.put(b'second',digest(b'first'))
+        version=sync.history(self.cfg,'retro-saves')['versions'][0]
+        with self.assertRaises(sync.Conflict):sync.restore(self.cfg,'retro-saves','Jogo.srm',version['version'],digest(b'old'),version['sha256'])
+        for name in ('../Jogo.srm','1-bad.previous',''):
+            with self.assertRaises(ValueError):sync.restore(self.cfg,'retro-saves','Jogo.srm',name,version['current'],version['sha256'])
+        path=sync.history_path(self.cfg,'retro-saves','Jogo.srm',version['version']);path.write_bytes(b'altered')
+        with self.assertRaises(sync.Conflict):sync.restore(self.cfg,'retro-saves','Jogo.srm',version['version'],version['current'],version['sha256'])
+        self.assertEqual((self.root/'Jogo.srm').read_bytes(),b'second')
+
+    def test_history_does_not_follow_symbolic_links(self):
+        self.put(b'first');self.put(b'second',digest(b'first'))
+        version=sync.history(self.cfg,'retro-saves')['versions'][0]
+        path=sync.history_path(self.cfg,'retro-saves','Jogo.srm',version['version']);path.unlink();path.symlink_to(self.root/'Jogo.srm')
+        with self.assertRaises(ValueError):sync.history(self.cfg,'retro-saves')
+
 
 class MobileSyncHTTP(BaseAPI):
     def test_raw_transfer_manifest_download_and_compare_and_swap(self):
@@ -92,3 +116,19 @@ class MobileSyncHTTP(BaseAPI):
         self.assertEqual(error.exception.code,403)
         error.exception.close()
         self.assertEqual((self.raiz/'Saves/saves/Mobile.srm').read_bytes(),data)
+
+
+    def test_restore_http_requires_fresh_root_and_destination(self):
+        cfg=srv.load_config();root=sync.root(cfg,'retro-saves');root.mkdir(parents=True,exist_ok=True)
+        (root/'Restore.srm').write_bytes(b'first')
+        sync.receive(cfg,'retro-saves','Restore.srm',digest(b'first'),digest(b'second'),io.BytesIO(b'second'),6)
+        status,result=self.pedir('/api/mobile/sync/history?group=retro-saves');self.assertEqual(status,200)
+        row=next(row for row in result['versions'] if row['path']=='Restore.srm')
+        body={'group':'retro-saves','rootTag':result['rootTag'],'path':row['path'],'version':row['version'],'sha256':row['sha256'],'expected':row['current']}
+        status,_=self.pedir('/api/mobile/sync/restore',{**body,'rootTag':'0'*64});self.assertEqual(status,409)
+        (root/'Restore.srm').write_bytes(b'new external')
+        status,_=self.pedir('/api/mobile/sync/restore',body);self.assertEqual(status,409)
+        self.assertEqual((root/'Restore.srm').read_bytes(),b'new external')
+        body['expected']=digest(b'new external')
+        status,_=self.pedir('/api/mobile/sync/restore',body);self.assertEqual(status,200)
+        self.assertEqual((root/'Restore.srm').read_bytes(),b'first')

@@ -39,6 +39,11 @@ class StorageSmoke:Instrumentation() {
             var refused=false;try { sync.install("retro-saves","Synthetic.srm",temp,hash("third"),hash("first")) } catch(_:IllegalArgumentException) { refused=true };check(refused)
             check(sync.local("retro-saves").getValue("Synthetic.srm").sha256==hash("second"))
             refused=false;try { sync.install("retro-saves","Synthetic.srm",temp,hash("wrong"),hash("second")) } catch(_:IllegalArgumentException) { refused=true };check(refused)
+            val savedVersion=sync.localHistory("retro-saves").single()
+            sync.restoreLocal(savedVersion)
+            check(sync.local("retro-saves").getValue("Synthetic.srm").sha256==hash("first"))
+            refused=false;try { sync.restoreLocal(savedVersion) } catch(_:IllegalArgumentException) { refused=true };check(refused)
+            check(sync.localHistory("retro-saves").any { it.file.sha256==hash("second") })
             val derived=FileSync(store,"file-sync-smoke-derived");derived.setTree("retroarch",testRoot)
             check(derived.local("retro-saves").isEmpty())
             // A análise da pasta derivada não cria saves/; só aplicar cria o destino.
@@ -47,11 +52,52 @@ class StorageSmoke:Instrumentation() {
             }
             temp.writeText("derived");derived.install("retro-saves","core/First.srm",temp,hash("derived"),null)
             check(derived.local("retro-saves").getValue("core/First.srm").sha256==hash("derived"))
-            result.putString("stream","PASS: criação, substituição com histórico, conflito, checksum e pasta derivada vazia; saves reais intocados.")
+            // Fixture isolada para nuvem, download e playlist; nenhum pref real é alterado.
+            val fixture=LibraryStore(targetContext,"storage-smoke-catalog")
+            fixture.saveTree("ROOT",testRoot)
+            check(fixture.documentId(fixture.tree("FC")!!)==store.documentId(testRoot)+"/FC")
+            FileSync(fixture).setTree("retroarch",DocumentsContract.buildDocumentUriUsingTree(testRoot,store.documentId(testRoot)+"/RetroArch"))
+            val sourceFolder=DocumentsContract.createDocument(resolver,testRoot,DocumentsContract.Document.MIME_TYPE_DIR,"sources")!!
+            val sourceName="CloudSynthetic-"+UUID.randomUUID()
+            val source=DocumentsContract.createDocument(resolver,sourceFolder,"application/octet-stream",sourceName+".nes")!!
+            val payload=ByteArray(700000) { (it%251).toByte() }
+            resolver.openOutputStream(source,"w")!!.use { it.write(payload) }
+            val game=Game("fixture","fixture:FC:synthetic",sourceName,"NES","FC",sourceName+".nes")
+            val index=CloudIndex(fixture)
+            val indexPlan=index.analyze("FC",org.json.JSONArray().put(org.json.JSONObject().put("uri",source.toString()).put("tree",false)),listOf(game))
+            check(indexPlan.matches[game.key]==source.toString());index.apply(indexPlan)
+            check(index.extra(listOf(game)).isEmpty())
+            var paused=false
+            try { DownloadStore(fixture).download(game) { if(it>0)DownloadStore.pause() } } catch(_:ResumableCopy.Paused) { paused=true };check(paused)
+            check(DownloadStore(fixture).jobs().single().getLong("bytes") in 1 until payload.size.toLong())
+            val downloaded=DownloadStore(fixture).download(game) {};game.localUri=downloaded
+            check(DownloadStore(fixture).jobs().isEmpty())
+            check(SafStorage(fixture).read(downloaded,800000).contentEquals(payload))
+            val playlists=PlaylistStore(fixture);val initial=playlists.plan("FC");check(initial.added==1)
+            playlists.apply(initial,true)
+            val playlistParent=SafStorage(fixture).folder(initial.root,false)!!
+            val playlistFile=SafStorage(fixture).children(initial.root,playlistParent).getValue(initial.name)
+            val json=org.json.JSONObject(SafStorage(fixture).read(playlistFile,800000).toString(Charsets.UTF_8))
+            json.getJSONArray("items").getJSONObject(0).put("core_path","my-custom-core").put("label","My label")
+            json.getJSONArray("items").put(org.json.JSONObject().put("path","/another/root/preserve.nes").put("label","Keep outside"))
+            json.getJSONArray("items").put(org.json.JSONObject().put("path",PlaylistRules.path(fixture.documentId(fixture.tree("FC")!!))+"/missing.nes").put("label","Missing"))
+            temp.writeText(json.toString())
+            SafStorage(fixture).publish(initial.root,playlistParent,initial.name,temp,SafStorage(fixture).hash(temp),SafStorage(fixture).fingerprint(playlistFile).sha256)
+            val update=playlists.plan("FC");check(update.added==0 && update.removed==1)
+            val resultJson=org.json.JSONObject(update.json);check(resultJson.getJSONArray("items").length()==2)
+            check(resultJson.getJSONArray("items").getJSONObject(0).getString("core_path")=="my-custom-core")
+            playlists.apply(update,true)
+            val playlistVersion=playlists.versions("FC").first();playlists.restore(playlistVersion,"FC")
+            check(!fixture.prefs.getBoolean("playlist-auto:FC",true))
+            fixture.removeLocal(game);check(fixture.files("FC",true).isEmpty())
+            result.putString("stream","PASS: publicação e recuperação SAF, conflitos, checksum, grupo vazio, índice em lote, download pausado/retomado e playlists; somente fixtures próprias.")
         } catch(error:Throwable) { result.putString("stream","FAIL: "+error.stackTraceToString()) }
         finally {
             temp?.delete();targetContext.getSharedPreferences("file-sync-smoke",0).edit().clear().commit()
             targetContext.getSharedPreferences("file-sync-smoke-derived",0).edit().clear().commit()
+            targetContext.getSharedPreferences("storage-smoke-catalog",0).edit().clear().commit()
+            targetContext.getSharedPreferences("storage-smoke-catalog-file-sync",0).edit().clear().commit()
+            File(targetContext.filesDir,"storage-smoke-catalog-downloads").deleteRecursively()
             if(testRoot!=null)runCatching { check(DocumentsContract.deleteDocument(resolver,testRoot)) }.onFailure { result.putString("stream","FAIL limpeza: "+it.message) }
         }
         finish(if(result.getString("stream","").startsWith("PASS"))Activity.RESULT_OK else Activity.RESULT_CANCELED,result)

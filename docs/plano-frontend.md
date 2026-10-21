@@ -113,6 +113,12 @@ do PyRetro e abre cada emulador por intent.
   Sync de saves/states/runtime disponível desde 21/10 na versão 0.2: grupos,
   SHA-256, conflitos e versões anteriores preservadas. BIOS/configurações ficam
   fora desses planos; runtime não é somado automaticamente. Uso real aguarda Victor.
+- Versão 0.3: recuperar versões locais/PC pelo app, playlists
+  JSON com prévia e atualização opcional, índice da nuvem por concessões SAF (pasta
+  ou lote de arquivos), checkpoints para pausar/continuar downloads. Prefixo é
+  validado de novo e pode ser relido; não há serviço de download em segundo plano.
+  Build/lint/JVM passaram; instalado após reconexão, instrumentação ampliada aprovada
+  com fixtures próprias e inventário real preservado. Uso com G8/Drive continua pendente.
 - JDK/SDK/Gradle preparados em cache local persistente, sem instalação global/root.
   Projeto, wrapper e `tools/build_android.py` versionados. Build, lint e testes JVM
   executados; APK pessoal em `cache/artifacts/`, fora do Git.

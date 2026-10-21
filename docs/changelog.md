@@ -6,6 +6,39 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 21/10/2026 — Android 0.3: recuperação, playlists, nuvem e retomada
+
+- Recuperação de versões nos grupos de saves/estados/runtime: histórico local
+  funciona offline; histórico do notebook usa API com SHA-256, identidade da raiz
+  e comparação do destino antes de restaurar. A versão selecionada e o arquivo
+  atual são preservados. Alteração concorrente bloqueia a restauração.
+- Playlists JSON do RetroArch recebem análise de entradas novas/ausentes por raiz
+  e sistema, preservando itens externos e campos dos itens mantidos. Publicação
+  com histórico e comparação; recuperação pelo app. Atualização após download/
+  remoção é opcional, vinculada às pastas, e desativada ao restaurar uma versão.
+  Falha de leitura/permissão/limites não vira uma lista vazia para apagar entradas.
+- Índice da nuvem por sistema: pasta concedida quando o provedor suporta ou arquivos
+  em seleção múltipla. Prévia, cache, associação única nos dois sentidos e entradas
+  extras para ROMs sem cadastro no notebook. Escolhas manuais prevalecem. Não lê
+  conteúdo das ROMs ao indexar nem varre a conta inteira; fontes são atualizadas
+  explicitamente. Drive sem seleção de pasta usa a alternativa em lote.
+- Downloads mantêm checkpoint privado e permitem pausar/continuar/descartar apenas
+  o parcial. URI/destino/metadados e todo o prefixo existente são conferidos antes
+  de acrescentar bytes; o provedor pode reler esse prefixo. Tamanho, SHA-256 e
+  publicação local são verificados; destino diferente permanece preservado.
+  Sem serviço em segundo plano ou retomada automática; limite de 12 GB/arquivo.
+- Publicador SAF compartilhado por saves/playlists/downloads; instrumentação
+  ampliada usa preferências e diretórios próprios. A primeira execução encontrou
+  resolução incorreta de raiz derivada (tree URI versus document URI); corrigida
+  para respeitar a subpasta e exigir isolamento antes de copiar no teste. Fixture
+  sintética criada fora da pasta de teste removida após conferir SHA-256.
+  Victor reconectou o aparelho durante a etapa; 0.3 instalada no usuário principal,
+  com assinatura preservada. Instrumentação ampliada passou no aparelho; inventário
+  real de ROMs/saves/states/playlists igual antes/depois. Fixtures e APK auxiliar limpos.
+- Validação: 276 testes Python, 43 de interface e 18 JVM; build/lint sem erros.
+  G8 físico, provedor Drive real e uso dos saves do usuário continuam para homologação.
+  Documentação de produto e pendências atualizada.
+
 ## 21/10/2026 — Android 0.2: sincronização de saves, estados e runtime
 
 - **Opções → Saves, estados e runtime** compara arquivos locais com o notebook por

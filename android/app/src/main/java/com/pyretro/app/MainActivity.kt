@@ -161,7 +161,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             val cover=ImageView(this).apply { setImageResource(com.pyretro.app.R.drawable.ic_pyretro);scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name }
             card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
             card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
-            card.addView(text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+(if(game.localUri!=null)"Neste celular" else if(game.pcLocal)"No notebook" else "Catálogo"),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END })
+            card.addView(text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+(if(game.localUri!=null)"Neste celular" else if(store.prefs.contains("cloud:${game.key}"))"Na nuvem" else if(game.pcLocal)"No notebook" else "Catálogo"),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END })
             val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(card,params)
             images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
         }
@@ -278,7 +278,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun offerRomRemoval(game:Game) {
         show(AlertDialog.Builder(this).setTitle("Remover ROM do celular?").setMessage("${game.name}\n\nExcluir apenas a ROM local para liberar espaço? Progresso, saves, states, BIOS, texturas e a origem no PC/Drive serão preservados. Você pode baixar o jogo novamente depois.").setNegativeButton("Manter ROM") { _,_ -> details(game) }.setPositiveButton("Excluir ROM local") { _,_ ->
             message("Removendo somente a ROM local…")
-            work.execute { runCatching { store.removeLocal(game) }.onSuccess { runOnUiThread { message("ROM removida do celular. Histórico e saves preservados.");reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } }
+            work.execute { runCatching { store.removeLocal(game);PlaylistStore(store).afterChange(game.code) }.onSuccess { playlist -> runOnUiThread { message("ROM removida do celular. Histórico e saves preservados. $playlist");reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } }
         })
     }
     private fun settings() {
@@ -290,11 +290,128 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("Carregar catálogo do notebook") { runCatching { store.setBase(server.text.toString()) }.onFailure { failure(it);return@button };dialog?.dismiss();message("Consultando notebook…");work.execute { runCatching { store.refresh() }.onSuccess { catalog=it;runOnUiThread { message("Catálogo atualizado. As capas são guardadas conforme você navega.");reloadLocal() } }.onFailure { store.online=false;runOnUiThread { failure(it) } } } })
         add(box,button("Sincronizar progresso e tempo (${store.pending()})") { dialog?.dismiss();message("Sincronizando alterações escolhidas…");work.execute { runCatching { store.synchronize() }.onSuccess { result -> catalog=store.cached();runOnUiThread { message(result);reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } } })
         add(box,button("Saves, estados e runtime") { syncFiles() })
+        add(box,button("Playlists do RetroArch") { playlists() })
+        add(box,button("Catálogo da nuvem / Drive") { cloudMenu() })
+        add(box,button("Downloads · continuar / pausar") { downloads() })
         add(box,button("Pasta Jogos · reconhecer todos os sistemas") { dialog?.dismiss();pickFolder("ROOT") })
         for((code,label) in store.folders)add(box,button("Pasta · $label") { dialog?.dismiss();pickFolder(code) })
         box.addView(text("Drive: use o seletor Android para vincular arquivos. ROMs baixadas ficam na pasta escolhida e funcionam offline. PS1 sob demanda aceita CHD/PBP, que contêm o jogo num arquivo.",13f))
         add(box,button("Cores do RetroArch por sistema") { chooseCore() })
         box.addView(text("Galileo G8: A escolhe, B volta, X favorita, Y busca, LB/RB mudam de página; LT/RT trocam a coleção. Os mesmos botões também respondem ao touch.",13f))
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+    }
+    private fun paged(title:String,items:List<Pair<String,()->Unit>>,page:Int=0) {
+        val box=column();box.addView(text(title,22f))
+        if(items.isEmpty())box.addView(text("Nenhum item disponível.",15f))
+        items.drop(page*16).take(16).forEach { (label,action) -> add(box,button(label,action)) }
+        val navigation=row()
+        if(page>0)add(navigation,button("Anterior") { paged(title,items,page-1) })
+        if((page+1)*16<items.size)add(navigation,button("Próxima") { paged(title,items,page+1) })
+        box.addView(navigation)
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+    }
+    private fun versionDate(timestamp:Long)=java.text.SimpleDateFormat("dd/MM/yyyy HH:mm",java.util.Locale.getDefault()).format(java.util.Date(timestamp))
+    private fun localVersions(group:String) {
+        dialog?.dismiss();message("Consultando versões locais…")
+        work.execute { runCatching { FileSync(store).localHistory(group) }.onSuccess { versions -> runOnUiThread {
+            paged("Versões neste celular",versions.map { version ->
+                "${versionDate(version.created)} · ${version.path} · ${version.file.size} B" to {
+                    show(AlertDialog.Builder(this).setTitle("Restaurar versão local?").setMessage("${version.path}\n${versionDate(version.created)}\nFeche o emulador. O arquivo atual também será preservado no histórico. A restauração funciona offline.").setNegativeButton("Cancelar",null).setPositiveButton("Restaurar") { _,_ ->
+                        work.execute { runCatching { FileSync(store).restoreLocal(version) }.onSuccess { runOnUiThread { message("Versão restaurada. Analise a sincronização antes de copiar ao notebook.") } }.onFailure { runOnUiThread { failure(it) } } }
+                    });Unit
+                }
+            })
+        } }.onFailure { runOnUiThread { failure(it) } } }
+    }
+    private fun remoteVersions(group:String) {
+        dialog?.dismiss();message("Consultando versões no notebook…")
+        work.execute { runCatching { JSONObject(store.request("/api/mobile/sync/history?group="+Uri.encode(group))) }.onSuccess { result -> runOnUiThread {
+            val versions=result.getJSONArray("versions")
+            paged("Versões no notebook",(0 until versions.length()).map { versions.getJSONObject(it) }.map { version ->
+                "${versionDate(version.getLong("created"))} · ${version.getString("path")} · ${version.getLong("size")} B" to {
+                    show(AlertDialog.Builder(this).setTitle("Restaurar no notebook?").setMessage("${version.getString("path")}\nFeche o emulador no notebook. O arquivo atual será preservado. Esta ação restaura no PC; para receber no celular, analise o grupo depois.").setNegativeButton("Cancelar",null).setPositiveButton("Restaurar") { _,_ ->
+                        val request=JSONObject().put("group",group).put("rootTag",result.getString("rootTag")).put("path",version.getString("path")).put("version",version.getString("version")).put("sha256",version.getString("sha256")).put("expected",version.getString("current"))
+                        work.execute { runCatching { store.request("/api/mobile/sync/restore",request) }.onSuccess { runOnUiThread { message("Versão restaurada no notebook. Analise o grupo antes de sincronizar.") } }.onFailure { runOnUiThread { failure(it) } } }
+                    });Unit
+                }
+            })
+        } }.onFailure { runOnUiThread { failure(it) } } }
+    }
+    private fun playlists() {
+        paged("Playlists do RetroArch",PlaylistStore(store).names.map { (code,label) -> label to {
+            val box=column();box.addView(text(label,22f))
+            add(box,button("Analisar atualização") { analyzePlaylist(code,label) })
+            add(box,button("Recuperar versão anterior") { playlistVersions(code) })
+            add(box,button("Desativar atualização automática") { store.prefs.edit().putBoolean("playlist-auto:$code",false).apply();message("Atualização automática desativada para $label.") })
+            show(AlertDialog.Builder(this).setView(box).setNegativeButton("Voltar",null));Unit
+        } }+listOf("Último resultado" to { show(AlertDialog.Builder(this).setTitle("Playlists").setMessage(store.prefs.getString("playlist-last","Nenhuma atualização aplicada.")).setPositiveButton("Fechar",null));Unit }))
+    }
+    private fun analyzePlaylist(code:String,label:String) {
+        dialog?.dismiss();message("Analisando playlist de $label…")
+        work.execute { runCatching { PlaylistStore(store).plan(code) }.onSuccess { plan -> runOnUiThread {
+            val box=column();box.addView(text(plan.name,20f))
+            box.addView(text("${plan.added} entrada(s) nova(s), ${plan.removed} ausente(s) da pasta local a retirar. Campos das entradas mantidas e itens de outras pastas serão preservados. O arquivo atual fica no histórico. Feche o RetroArch antes de aplicar.",14f))
+            val auto=CheckBox(this).apply { text="Atualizar também após baixar/remover uma ROM pelo PyRetro";isChecked=store.prefs.getBoolean("playlist-auto:$code",false);minHeight=dp(48);setTextColor(appForeground) };box.addView(auto)
+            show(AlertDialog.Builder(this).setView(box).setNegativeButton("Cancelar",null).setPositiveButton("Aplicar") { _,_ ->
+                val automatic=auto.isChecked
+                work.execute { runCatching { PlaylistStore(store).apply(plan,automatic) }.onSuccess { runOnUiThread { message("Playlist atualizada. Versão anterior preservada.") } }.onFailure { runOnUiThread { failure(it) } } }
+            })
+        } }.onFailure { runOnUiThread { failure(it) } } }
+    }
+    private fun playlistVersions(code:String) {
+        dialog?.dismiss();message("Consultando histórico da playlist…")
+        work.execute { runCatching { PlaylistStore(store).versions(code) }.onSuccess { versions -> runOnUiThread {
+            paged("Versões da playlist",versions.map { version -> "${versionDate(version.created)} · ${version.name}" to {
+                show(AlertDialog.Builder(this).setTitle("Restaurar playlist?").setMessage("Feche o RetroArch. A versão atual será preservada. A atualização automática será desativada até você analisar novamente.").setNegativeButton("Cancelar",null).setPositiveButton("Restaurar") { _,_ ->
+                    work.execute { runCatching { PlaylistStore(store).restore(version,code) }.onSuccess { runOnUiThread { message("Playlist restaurada; histórico preservado.") } }.onFailure { runOnUiThread { failure(it) } } }
+                });Unit
+            } })
+        } }.onFailure { runOnUiThread { failure(it) } } }
+    }
+    private fun cloudMenu() {
+        paged("Catálogo da nuvem / Drive",store.folders.map { (code,label) -> label to { cloudCode(code);Unit } })
+    }
+    private fun cloudCode(code:String) {
+        val box=column();box.addView(text("Nuvem · ${store.folders[code]}",22f))
+        box.addView(text("Escolha arquivos em lote ou uma pasta, se o provedor oferecer essa opção. O app indexa nomes e tamanhos, sem baixar ROMs. Associações únicas são propostas; homônimos ficam para sua escolha. Não precisa do notebook/Tailscale.",14f))
+        fun pick(tree:Boolean) {
+            store.prefs.edit().putString("index-picking",code).apply();dialog?.dismiss()
+            val intent=if(tree)Intent(Intent.ACTION_OPEN_DOCUMENT_TREE) else Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true)
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);startActivityForResult(intent,if(tree)15 else 14)
+        }
+        add(box,button("Adicionar arquivos em lote") { pick(false) })
+        add(box,button("Adicionar pasta do provedor") { pick(true) })
+        add(box,button("Atualizar índice das origens escolhidas") { analyzeCloud(code,CloudIndex(store).sources(code)) })
+        add(box,button("Limpar somente este índice") {
+            show(AlertDialog.Builder(this).setTitle("Limpar índice de ${store.folders[code]}?").setMessage("Remove apenas a lista de fontes e vínculos automáticos. ROMs locais, arquivos da nuvem e vínculos manuais ficam preservados.").setNegativeButton("Cancelar",null).setPositiveButton("Limpar índice") { _,_ ->
+                CloudIndex(store).apply(CloudPlan(code,JSONArray(),emptyList(),emptyMap(),0));reloadLocal()
+            })
+        })
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+    }
+    private fun analyzeCloud(code:String,sources:JSONArray) {
+        dialog?.dismiss();message("Lendo nomes de arquivos na nuvem…");val snapshot=catalog.toList()
+        work.execute { runCatching { CloudIndex(store).analyze(code,sources,snapshot) }.onSuccess { plan -> runOnUiThread {
+            show(AlertDialog.Builder(this).setTitle("Aplicar catálogo da nuvem?").setMessage("${plan.files.size} ROM(s) no índice, ${plan.matches.size} associação(ões) única(s), ${plan.ambiguous} jogo(s) ambíguo(s). Arquivos sem associação aparecem como entradas da nuvem. Vínculos manuais prevalecem. Nenhum download será iniciado.").setNegativeButton("Cancelar",null).setPositiveButton("Aplicar índice") { _,_ ->
+                runCatching { CloudIndex(store).apply(plan) }.onSuccess { reloadLocal();message("Índice atualizado. Escolha um jogo para baixar sob demanda.") }.onFailure(::failure)
+            })
+        } }.onFailure { runOnUiThread { failure(it) } } }
+    }
+    private fun downloads() {
+        val box=column();box.addView(text("Downloads",22f))
+        box.addView(text("Cópias parciais ficam no armazenamento privado do app. Continuar confere o trecho já baixado; o provedor pode reler esse trecho. Nada é publicado antes de concluir. Sem serviço de download em segundo plano.",14f))
+        add(box,button("Pausar download em andamento") { DownloadStore.pause();message("Pausa solicitada; a cópia parcial será preservada.") })
+        add(box,button("Ver cópias parciais") {
+            dialog?.dismiss()
+            work.execute { runCatching { DownloadStore(store).jobs() }.onSuccess { jobs -> runOnUiThread {
+                paged("Cópias parciais",jobs.map { job -> "${job.optString("title")} · ${job.getLong("bytes")/1024/1024} MB" to {
+                    val game=games.find { it.key==job.getString("key") } ?: Game("",job.getString("key"),job.getString("title"),store.folders[job.getString("code")] ?: "",job.getString("code"))
+                    show(AlertDialog.Builder(this).setTitle(game.name).setMessage("Continuar a cópia ou descartar somente o checkpoint deste download? O jogo existente e a origem não serão apagados.").setNegativeButton("Voltar",null).setNeutralButton("Descartar parcial") { _,_ ->
+                        work.execute { runCatching { DownloadStore(store).discard(game.key) }.onSuccess { runOnUiThread { message("Cópia parcial descartada.") } }.onFailure { runOnUiThread { failure(it) } } }
+                    }.setPositiveButton("Continuar e jogar") { _,_ -> download(game) });Unit
+                } })
+            } }.onFailure { runOnUiThread { failure(it) } } }
+        })
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun pickSyncFolder(group:String) {
@@ -310,6 +427,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         for((group,label) in sync.groups)add(box,button(label) {
             val item=column();item.addView(text(label,22f));item.addView(text(if(sync.tree(group)==null)"Escolha a pasta local para continuar." else "Pasta local definida. Notebook via HTTPS/Tailscale; jogar continua disponível offline.",14f))
             add(item,button("Escolher pasta deste grupo") { pickSyncFolder(group) })
+            add(item,button("Versões deste celular") { localVersions(group) })
+            add(item,button("Versões do notebook") { remoteVersions(group) })
             add(item,button("Analisar sem copiar") {
                 dialog?.dismiss();message("Comparando arquivos de $label…")
                 work.execute { runCatching { sync.analyze(group) }.onSuccess { plan -> runOnUiThread { reviewSync(plan) } }.onFailure { runOnUiThread { failure(it) } } }
@@ -354,7 +473,19 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun pickRom(game:Game,cloud:Boolean) { pickingGame=game;pickingCloud=cloud;startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),11) }
     @Deprecated("Compatibilidade com Activity sem dependências extras")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
-        super.onActivityResult(requestCode,resultCode,data);if(resultCode!=RESULT_OK)return;val uri=data?.data ?: return
+        super.onActivityResult(requestCode,resultCode,data);if(resultCode!=RESULT_OK || data==null)return
+        if(requestCode in listOf(14,15)) {
+            val code=store.prefs.getString("index-picking",null) ?: return
+            val uris=if(data.clipData!=null)(0 until data.clipData!!.itemCount).map { data.clipData!!.getItemAt(it).uri } else listOfNotNull(data.data)
+            if(uris.isEmpty())return
+            runCatching {
+                uris.forEach { contentResolver.takePersistableUriPermission(it,Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                val sources=CloudIndex(store).sources(code);val seen=(0 until sources.length()).map { sources.getJSONObject(it).getString("uri") }.toMutableSet()
+                uris.forEach { if(seen.add(it.toString()))sources.put(JSONObject().put("uri",it.toString()).put("tree",requestCode==15)) }
+                analyzeCloud(code,sources)
+            }.onFailure(::failure);return
+        }
+        val uri=data.data ?: return
         if(requestCode==13) {
             runCatching {
                 require(data.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION!=0) { "A pasta precisa permitir leitura e escrita." }
@@ -379,7 +510,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             if(!pickingCloud && uri.authority!="com.android.externalstorage.documents") { message("Escolha uma ROM no armazenamento local. Para o Drive, use Vincular ROM no Drive e depois baixe.");return }
             if(!store.accepts(game.code,name)) { message("Esse formato não corresponde a ${game.code}.");return }
             show(AlertDialog.Builder(this).setTitle("Vincular arquivo").setMessage("Usar $name para ${game.name}?").setNegativeButton("Cancelar",null).setPositiveButton("Vincular") { _,_ ->
-                store.prefs.edit().putString((if(pickingCloud)"cloud:" else "rom:")+game.key,uri.toString()).apply()
+                val edit=store.prefs.edit().putString((if(pickingCloud)"cloud:" else "rom:")+game.key,uri.toString())
+                if(pickingCloud)edit.remove("cloud-auto:${game.code}:${game.key}")
+                edit.apply()
                 if(pickingCloud)message("ROM vinculada. Use Baixar ROM vinculada e jogar quando quiser.") else game.localUri=uri
                 reloadLocal { details(game) }
             })
@@ -389,7 +522,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun download(game:Game) {
         if(store.tree(game.code)==null) { downloadAfterFolder=game;pickFolder(game.code);return }
         message("Baixando ${game.name} pelo provedor de arquivos…");var update=0L
-        work.execute { runCatching { store.download(game) { bytes -> val now=SystemClock.elapsedRealtime();if(now-update>500) { update=now;runOnUiThread { message("Baixando ${game.name}: ${bytes/1024/1024} MB") } } } }.onSuccess { uri -> game.localUri=uri;runOnUiThread { message("Download concluído. Disponível offline.");reloadLocal { launchLocal(game) } } }.onFailure { runOnUiThread { failure(it) } } }
+        work.execute { runCatching { store.download(game) { bytes -> val now=SystemClock.elapsedRealtime();if(now-update>500) { update=now;runOnUiThread { message("Baixando ${game.name}: ${bytes/1024/1024} MB") } } } }.onSuccess { uri -> game.localUri=uri;val playlist=PlaylistStore(store).afterChange(game.code);runOnUiThread { message("Download concluído. Disponível offline. $playlist");reloadLocal { launchLocal(game) } } }.onFailure { runOnUiThread { failure(it) } } }
     }
     private fun openPackage(name:String) {
         val intent=packageManager.getLaunchIntentForPackage(name)

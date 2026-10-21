@@ -5,7 +5,7 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.2.0-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.3.0-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções**, escolha **Pasta Jogos · reconhecer todos os sistemas**, ou cada
    pasta separadamente. Arquivos que eram sincronizados pelo FolderSync são reaproveitados.
@@ -61,13 +61,35 @@ Nos detalhes de um jogo, **Vincular ROM no Drive** abre o seletor de arquivos do
 Android. Escolha o arquivo no provedor Google Drive instalado e autenticado.
 Depois, **Baixar ROM vinculada e jogar** copia pelo provedor para a pasta local
 escolhida, sem passar pelo notebook/Tailscale. Precisa de internet para baixar;
-concluído o download, funciona offline. A associação é escolhida uma vez por
-jogo; não há indexação automática de todo o Drive nem OAuth embutido no APK.
+concluído o download, funciona offline. A versão 0.3 também oferece
+**Opções → Catálogo da nuvem / Drive**: escolha um sistema e adicione uma pasta
+(se o provedor permitir) ou arquivos em lote. O app lê nomes/tamanhos e apresenta
+uma prévia antes de guardar o índice. Correspondências únicas nos dois sentidos
+são associadas ao catálogo; homônimos/edições ambíguas continuam separados para
+escolha manual. ROMs sem registro no notebook aparecem como entradas da nuvem,
+inclusive sem conexão ao PC. Vínculos manuais prevalecem sobre a atualização do
+índice. **Atualizar índice** relê as origens concedidas; não há varredura de toda
+a conta, OAuth embutido ou atualização periódica em segundo plano.
 
-A cópia usa `.part` exclusivo, confere o tamanho quando informado pelo provedor
-e só publica o nome final após concluir. Arquivo existente nunca é substituído.
-Um download interrompido pelo encerramento forçado do app pode deixar um `.part`
-sem entrar na biblioteca; não há retomada automática nesta versão.
+O seletor só mostra as operações oferecidas pelo provedor. Se o Drive não
+permitir selecionar pastas, use **Adicionar arquivos em lote**. Limpar um índice
+remove apenas seus metadados/vínculos automáticos; arquivos de origem e ROMs
+locais permanecem. A indexação não baixa o conteúdo dos jogos.
+
+**Opções → Downloads** permite pausar, continuar e descartar cópias parciais.
+Checkpoints persistem no armazenamento privado do app mesmo após encerrar o
+processo. Ao continuar, URI/destino e metadados são conferidos; todo o prefixo
+já baixado é comparado à origem antes de acrescentar bytes. Por isso o provedor
+pode reler esse trecho: não há promessa de economia de tráfego nem suporte HTTP
+Range pelo provedor. Origem diferente bloqueia a continuação até descartar o
+checkpoint explicitamente. Depois de falha de rede, basta continuar a cópia.
+
+O app confere tamanho quando informado, SHA-256 e cópia final antes de publicar
+na pasta local. Arquivo existente diferente nunca é substituído; uma cópia
+idêntica pode ser reaproveitada. O limite é 12 GB por arquivo. A fase final usa
+espaço para o checkpoint privado e a cópia na pasta local; reserve espaço para
+ambos. Não há serviço de download em segundo plano, fila automática ou retomada
+sem ação do usuário. Checkpoints antigos da 0.1 não são importados.
 
 PS1 sob demanda aceita CHD/PBP. CUE/M3U com faixas/discos dependentes não são
 baixados isoladamente. Os arquivos locais existentes nesses formatos podem ser
@@ -113,14 +135,21 @@ PPSSPP fica em `Saves/PPSSPP/` e 3DS em `Saves/Lime3DS/sdmc/`.
 
 No PC, versões anteriores ficam em `.pyretro-history/<caminho original>/` na
 pasta do grupo. No celular, ficam ao lado do save com prefixo
-`.pyretro-previous-`. Ative mostrar arquivos ocultos no gerenciador para recuperá-las.
+`.pyretro-previous-`. Desde a versão 0.3, abra o grupo e escolha
+**Versões deste celular** (offline)
+ou **Versões do notebook** (conectado), selecione uma versão e confirme restaurar.
+No segundo caso a restauração acontece no PC; analise o grupo para recebê-la no
+telefone. O arquivo atual e a versão escolhida ficam preservados. Alteração do
+destino desde a listagem bloqueia a operação; abra novamente o histórico.
+Também é possível recuperar pelo gerenciador com arquivos ocultos visíveis.
 Não são apagadas automaticamente. Históricos não entram na próxima sincronização.
 
 Estados precisam de core/versão compatíveis. Runtime é copiado como arquivo, sem
 somar tempos acumulados nem importá-los automaticamente no tempo do PyRetro.
 3DS inclui somente `title/.../data` e `extdata`; não copia jogos instalados,
 NAND, firmware ou configurações. BIOS/texturas/configurações não fazem parte desses
-planos. Playlists externas e retomada de downloads continuam nas próximas etapas.
+planos. A restauração não redefine automaticamente o último estado comum de
+sincronização; analise o grupo antes de enviar a versão restaurada à outra ponta.
 Não use FolderSync em paralelo nas mesmas pastas.
 
 Ao marcar um jogo baixado como **Finalizado** (inclusive pela cascata de
@@ -129,7 +158,31 @@ também está nos detalhes e só alcança o arquivo de ROM na pasta local escolh
 Progresso, favorito, tempo, saves, states, BIOS, capas, texturas e a origem no
 PC/Drive ficam preservados. CUE/M3U exigem conferir faixas/discos no gerenciador
 do notebook; o app recusa apagar um descritor isolado. As playlists externas
-do RetroArch não são modificadas pelo APK. Não há limpeza automática em lote.
+do RetroArch só são modificadas se você habilitar a função abaixo. Não há limpeza
+automática em lote.
+
+## Playlists do RetroArch
+
+Desde a versão 0.3, **Opções → Playlists do RetroArch** gera/atualiza a playlist
+JSON convencional de cada sistema compatível, usando apenas ROMs presentes no
+telefone. A concessão da pasta RetroArch é a mesma usada pelos saves; o destino
+é `playlists/<nome do sistema>.lpl`. PSP/3DS ficam nos emuladores próprios.
+
+Use **Analisar atualização** para ver quantas entradas serão adicionadas/removidas.
+Só são retiradas entradas ausentes da raiz local e das extensões do sistema
+escolhido; itens de outras pastas e campos existentes (rótulos, core, CRC etc.)
+permanecem. Novas entradas usam `DETECT`, no formato documentado pelo
+[RetroArch](https://docs.libretro.com/guides/roms-playlists-thumbnails/).
+Playlists antigas não JSON são preservadas e exigem conversão pelo RetroArch.
+Falha de permissão, lista incompleta ou mudança de arquivos aborta a atualização.
+
+Feche o RetroArch antes de aplicar. A versão anterior fica no histórico e pode
+ser restaurada pelo submenu **Recuperar versão anterior**. Uma restauração
+suspende a atualização automática até nova análise. A opção de atualizar após
+download/remoção de ROM pelo PyRetro é voluntária; pode ser desativada por sistema.
+Mudança de pastas exige nova ativação. Operações externas exigem análise manual;
+o APK não monitora os emuladores. CUE/M3U locais entram como descritores: sua
+presença não comprova que todas as faixas/discos existem.
 
 ## Texturas PSP e 3DS
 
@@ -165,12 +218,16 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.2.0-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.3.0-debug.apk
 ```
 
-Compilação, lint e dez testes JVM passaram. APK instalado no aparelho:
-catálogo via HTTPS/Tailscale, cache offline, pastas existentes, sorteio, ZIP
-de textura mínimo, confirmação de remoção e lançamento NES/Nestopia conferidos. Instalação limitada ao perfil principal evita
+Compilação, lint e 18 testes JVM passaram para a versão 0.3. O APK foi instalado
+no usuário principal do aparelho. A instrumentação da 0.3 passou
+com arquivos sintéticos: recuperação de versões, índice em lote, download pausado/
+retomado e playlists preservando campos/itens externos. Inventário real de ROMs,
+saves, estados e playlists conferido igual antes/depois; fixtures removidas.
+Nas versões anteriores já foram conferidos catálogo via HTTPS/Tailscale, cache
+offline, pastas existentes, sorteio, ZIP mínimo, remoção e NES/Nestopia. Instalação limitada ao perfil principal evita
 cópias no perfil Dual App da Samsung; novas aberturas reutilizam a mesma tela.
 Galileo G8 físico e download real pelo provedor Google Drive ainda precisam de
 homologação; eventos de botões padrão são apenas uma verificação de software.
@@ -183,5 +240,9 @@ Teste técnico de armazenamento no aparelho (usa somente pasta sintética própr
 `./gradlew :app:assembleDebugAndroidTest`, instale o APK de teste no usuário 0 e
 execute `adb shell am instrument -w com.pyretro.app.test/com.pyretro.app.StorageSmoke`.
 O teste exige a concessão Pasta Jogos e remove seus arquivos ao terminar.
+Na versão 0.3 ele também cobre restauração, índice em lote, download interrompido/
+retomado e preservação dos campos de playlists, com preferências e pasta sintéticas
+isoladas. Foi executado com sucesso no aparelho reconectado. O teste exige que a
+raiz derivada permaneça dentro da pasta sintética antes de iniciar as cópias.
 Desinstale somente `com.pyretro.app.test` depois da execução; o aplicativo principal
 e suas permissões permanecem instalados.

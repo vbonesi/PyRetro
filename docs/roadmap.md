@@ -15,6 +15,8 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
 | Tempo de emuladores, duração manual e logos/prévias locais no modo TV | ✅ Implementado; registro separado do tempo histórico da Biblioteca |
 | App Android com offline, G8/touch e ROMs do Drive sob demanda | APK instalado; touch, cache e pastas conferidos. G8 físico e provedor Drive pendentes |
 | Texturas PSP/3DS e remoção confirmada da ROM ao finalizar no Android | ✅ Implementado; ZIP offline e preparação pelo PC, sem substituir saves/texturas existentes |
+| Recuperação de versões pelo app, playlists e downloads retomáveis | ✅ Implementado na 0.3; instalado e instrumentação sintética aprovada no celular |
+| Índice da nuvem por pasta concedida ou arquivos em lote | ✅ Implementado na 0.3; associação única, prévia e cache; provedor Drive real pendente |
 | Saves/states/runtime pelo app Android | ✅ Versão 0.2: grupos, SHA-256, conflitos e histórico; sincronização real aguarda uso do usuário |
 | Xbox/PS4 remotos e Switch Lite Wi-Fi | Clientes integrados e sem duplicação; Switch confirmado, sessão PS4/Xbox ainda depende de uso real |
 | GUI de capas (galeria, busca, flag/duplicada/renomear/apagar) | ✅ Pronto |
@@ -53,11 +55,13 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
    Testar o APK com Galileo G8 físico e o download pelo provedor Drive; touch/cache
    e pastas existentes já conferidos. Conferir a sincronização 0.2 com os
    emuladores fechados e estados compatíveis. NDS/3DS priorizados no celular.
-2. Evoluir o cliente Android depois da homologação: recuperação de versões pela
-   interface (hoje pelo gerenciador de arquivos ocultos), atualização de playlists externas,
-   catálogo automático de ROMs do Drive (hoje o vínculo usa o seletor por jogo)
-   e retomada de downloads interrompidos. CUE/M3U dependentes exigem tratar o
-   conjunto de faixas/discos antes de permitir download/remoção nativos.
+2. Homologar a 0.3 no uso com G8 e Drive real. A instalação e a instrumentação
+   sintética já passaram: recuperação local, download pausado/retomado, índice e
+   preservação de playlists. Pastas dependem do suporte do
+   provedor; seleção em lote é a alternativa. CUE/M3U dependentes continuam
+   exigindo tratar o conjunto de faixas/discos antes de download/remoção nativos.
+   Retomada pode reler o prefixo pelo provedor e continua explícita, sem serviço
+   de download em segundo plano.
 3. Mídia: buscar logos/trailers por fontes verificadas; a importação local já
    funciona no PC. Runtime antigo não é somado automaticamente às sessões novas.
 4. Para ampliar o backup fora do RetroArch — achados via adb em 05/08 (a parte
