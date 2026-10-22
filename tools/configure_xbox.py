@@ -87,8 +87,9 @@ def azahar_values(guid):
                'Quick%20Load': 'RB', 'Toggle%20Turbo%20Mode': 'Right', 'Capture%20Screenshot': 'X',
                'Exit%20Azahar': 'Start'}
     ui = {f'Shortcuts\\Main%20Window\\{name}\\controller_keyseq': combo(button) for name, button in hotkeys.items()}
-    # Back+L3 alterna entre as duas telas (0, padrão) e uma tela (1); Back+R3 troca qual aparece.
-    layout = {'layout_option': '0', 'layouts_to_cycle': '0, 1'}
+    # Back+L3 alterna entre Tela grande (2: a de cima grande, a outra menor ao lado) e uma tela
+    # (1); Back+R3 troca qual aparece/qual é a grande. Empilhadas (0) ficavam pequenas em 16:9.
+    layout = {'layout_option': '2', 'layouts_to_cycle': '2, 1'}
     return controls, ui, layout
 
 
@@ -190,9 +191,12 @@ def planned(home):
             out[azahar.resolve()] = text
     nds = home / '.var/app/org.libretro.RetroArch/config/retroarch/config/melonDS/NDS.opt'
     if nds.is_file():
-        # Toque pelo analógico direito + R3; RT troca as telas (Toggle); padrão em duas telas.
-        change(nds, '', {'melonds_touch_mode': '"Joystick"', 'melonds_swapscreen_mode': '"Toggle"',
-                         'melonds_screen_layout': '"Top/Bottom"'})
+        # Mouse faz a caneta (cursor desenhado pelo core, clique esquerdo toca); RT troca as
+        # telas (Toggle); Hybrid Top = tela de cima grande + a outra menor (as duas cabem).
+        change(nds, '', {'melonds_touch_mode': '"Mouse"', 'melonds_swapscreen_mode': '"Toggle"',
+                         'melonds_screen_layout': '"Hybrid Top"'})
+        # Escala inteira global deixava o DS em 2x (512x768) numa tela 1080p.
+        change(nds.with_suffix('.cfg'), '', {'video_scale_integer': '"false"'})
     return out
 
 
