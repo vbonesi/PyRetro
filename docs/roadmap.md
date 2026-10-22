@@ -180,9 +180,8 @@ instala tudo no celular. Começar pelo roteiro de validação acima (branch
 - **Um app só:** seguir a direção abaixo; nesta rodada só o Android deu o 1º passo.
 
 **Lote de interface recomendado (só dados/rotas existentes, sem arquitetura nova):**
-1. Android · **Início com fileiras** (Continuar jogando, Recentes, Mais jogados,
-   Prontos no celular): online por `/api/tv/home`; offline pelo cache (progresso
-   e `time:` locais). Maior ganho de fluidez.
+1. ✅ Android · **Início com fileiras** (0.6.2, 22/10): Continuar jogando, Recentes,
+   Mais jogados, Favoritos, Prontos no celular, só com dados do celular.
 2. Android · **Nota 0–11** na ficha.
 3. Android · **Selos no cartão**: ✓ finalizado, ⏱ minutos, 💾 tem save, barra de
    download do próprio jogo (fila já expõe bytes/total).

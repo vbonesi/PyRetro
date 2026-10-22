@@ -11,6 +11,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.Uri
 import android.os.Bundle
 import android.os.Build
@@ -36,7 +38,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     companion object {
         /** Catálogo e progresso atualizam sozinhos quando o notebook responde; a instrumentação desliga. */
         @Volatile var automaticUpdates=true
-        private val COLLECTIONS=listOf("cell" to "Neste celular","catalog" to "Catálogo","favorites" to "Favoritos","kept" to "Fixados","stream" to "Stream")
+        private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","favorites" to "Favoritos","kept" to "Fixados","stream" to "Stream")
     }
     private lateinit var store:LibraryStore
     private lateinit var pageRoot:LinearLayout
@@ -92,7 +94,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         }
     }
     private fun bytesLabel(value:Long)=android.text.format.Formatter.formatFileSize(this,value)
-    private var collection="cell"
+    private var collection="home"
     private var page=0
     private var pageCount=1
     private var dialog:AlertDialog?=null
@@ -110,6 +112,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private var lastMotion=0L
     private var lastCollectionAt=0L
     private var lastProbeAt=0L
+    private var networkCallback:ConnectivityManager.NetworkCallback?=null
     @Volatile private var probing=false
     private var leftTrigger=false
     private var rightTrigger=false
@@ -163,7 +166,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState);store=LibraryStore(this)
-        collection=store.prefs.getString("ui:collection","cell").takeIf { it in listOf("cell","catalog","stream","favorites","kept") } ?: "cell"
+        collection=store.prefs.getString("ui:collection","home").takeIf { it in COLLECTIONS.map { c -> c.first } } ?: "home"
         page=store.prefs.getInt("ui:page",0).coerceAtLeast(0);restoredScroll=store.prefs.getInt("ui:scroll",0).coerceAtLeast(0)
         restoredPage=page
         lastSelectedKey=store.prefs.getString("ui:selected",null)
@@ -193,6 +196,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val paging=row();add(paging,button("LB · Anterior") { changePage(-1) });counter=text("",13f);add(paging,counter,1f);add(paging,button("Próxima · RB") { changePage(1) });pageRoot.addView(paging);pagingBar=paging
         controlHint=text("Galileo G8: direcional/analógico · A abrir · B voltar · X favorito · Y buscar · Menu opções",11f);pageRoot.addView(controlHint)
         setContentView(pageRoot);adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal();probeNotebook()
+        // Ligar o Tailscale (VPN) troca a rede padrão: sonda de novo sem esperar o usuário sair e voltar.
+        networkCallback=object:ConnectivityManager.NetworkCallback() { override fun onAvailable(network:Network) { queueHandler.postDelayed({ if(!isFinishing && !isDestroyed)probeNotebook(force=true) },2_000) } }
+        runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).registerDefaultNetworkCallback(networkCallback!!) }
         controllerManager=getSystemService(INPUT_SERVICE) as InputManager;controllerManager.registerInputDeviceListener(this,null);updateControllerOrientation()
     }
     private fun updateControllerOrientation() {
@@ -203,7 +209,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onInputDeviceAdded(deviceId:Int)=updateControllerOrientation()
     override fun onInputDeviceRemoved(deviceId:Int)=updateControllerOrientation()
     override fun onInputDeviceChanged(deviceId:Int)=updateControllerOrientation()
-    override fun onDestroy() { queueHandler.removeCallbacks(queueTick);updateQueueStatus=null;updateLocalStatus=null;if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
+    override fun onDestroy() { networkCallback?.let { callback -> runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(callback) } };queueHandler.removeCallbacks(queueTick);updateQueueStatus=null;updateLocalStatus=null;if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
     private fun reloadLocal(after:(()->Unit)?=null) {
         work.execute {
             val problems=mutableListOf<String>()
@@ -221,6 +227,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         drawShortcut.visibility=if(streaming)View.GONE else View.VISIBLE
         controlHint.visibility=if(streaming || resources.configuration.orientation==2 || !store.prefs.getBoolean("ui:show-hint",true))View.GONE else View.VISIBLE
         if(streaming) { renderStream();return }
+        val home=collection=="home" && search.text.isBlank()
+        pagingBar.visibility=if(home)View.GONE else View.VISIBLE
+        if(home) { renderHome();return }
         val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
         val query=GameLogic.normalized(search.text.toString())
         val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
@@ -231,20 +240,46 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         grid.removeAllViews();val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
         val columns=if(width>=900)4 else if(width>=600)3 else 2;grid.columnCount=columns
         for(game in visible.drop(page*24).take(24)) {
-            val card=column().apply { isFocusable=true;isClickable=true;descendantFocusability=ViewGroup.FOCUS_BLOCK_DESCENDANTS;tag=game;background=shape();setOnClickListener { details(game) };setOnFocusChangeListener { _,focused -> background=shape(focused) } }
-            if(compact)card.setPadding(dp(8),dp(4),dp(8),dp(4))
-            val cover=ImageView(this).apply { setImageResource(com.pyretro.app.R.drawable.ic_pyretro);scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name }
-            card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
-            card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
-            card.addView(text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END })
-            val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(card,params)
-            images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
+            val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(gameCard(game,compact),params)
         }
         if(visible.isEmpty())grid.addView(text(when(collection) { "cell" -> "Escolha a pasta Jogos em Opções. Jogos do Catálogo podem ser baixados direto pela ficha do jogo.";"kept" -> "Fixe jogos nos detalhes para encontrá-los aqui e proteger as ROMs contra remoção.";else -> "Carregue o catálogo uma vez ou marque seus favoritos. Sem conexão, o cache continua disponível." },17f))
         if(focusedKey!=null) {
             val next=(0 until grid.childCount).map { grid.getChildAt(it) }.firstOrNull { (it.tag as? Game)?.key==focusedKey } ?: grid.getChildAt(0)
             next?.requestFocus()
         }
+        if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
+    }
+    private fun gameCard(game:Game,compact:Boolean):LinearLayout {
+        val card=column().apply { isFocusable=true;isClickable=true;descendantFocusability=ViewGroup.FOCUS_BLOCK_DESCENDANTS;tag=game;background=shape();setOnClickListener { details(game) };setOnFocusChangeListener { _,focused -> background=shape(focused) } }
+        if(compact)card.setPadding(dp(8),dp(4),dp(8),dp(4))
+        val cover=ImageView(this).apply { setImageResource(com.pyretro.app.R.drawable.ic_pyretro);scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name }
+        card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
+        card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
+        card.addView(text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END })
+        images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
+        return card
+    }
+    /** Início: fileiras horizontais com o que faz sentido abrir agora. Pesquisar mostra a grade do catálogo. */
+    private fun renderHome() {
+        val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
+        page=0;pageCount=1;grid.removeAllViews();grid.columnCount=1
+        val byKey=games.associateBy { it.key }
+        val entries=games.map { game -> val tracking=store.tracking(game)
+            HomeEntry(game.key,game.name,game.localUri!=null,tracking.optBoolean("iniciado"),tracking.optBoolean("finalizado"),
+                store.prefs.getBoolean("favorite:${game.key}",false),store.prefs.getLong("played:${game.key}",0),store.prefs.getLong("time:${game.key}",0)) }
+        val compact=resources.configuration.orientation==2
+        val box=column()
+        for((title,keys) in HomeRules.rows(entries)) {
+            box.addView(text(title,18f).apply { setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(10),dp(4),dp(2)) })
+            val line=row()
+            for(key in keys)byKey[key]?.let { game -> line.addView(gameCard(game,compact),LinearLayout.LayoutParams(dp(if(compact)150 else 170),-2).apply { setMargins(dp(4),dp(4),dp(4),dp(4)) }) }
+            box.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(line) },LinearLayout.LayoutParams(-1,-2))
+        }
+        if(box.childCount==0)box.addView(text("Escolha a pasta Jogos em Opções ou carregue o catálogo. Jogos iniciados, abertos por aqui e favoritos aparecem em fileiras.",17f))
+        grid.addView(box,GridLayout.LayoutParams().apply { width=ViewGroup.LayoutParams.MATCH_PARENT })
+        val cards=generateSequence(listOf<View>(box)) { level -> level.flatMap { v -> if(v is ViewGroup)(0 until v.childCount).map(v::getChildAt) else emptyList() }.takeIf { it.isNotEmpty() } }.flatten().filter { it.tag is Game }.toList()
+        counter.text="${games.size} jogos"
+        if(focusedKey!=null)(cards.firstOrNull { (it.tag as Game).key==focusedKey } ?: cards.firstOrNull())?.requestFocus()
         if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
     }
     private fun selectCollection(id:String) {
@@ -565,7 +600,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 if(dialog===opened && !isFinishing && !isDestroyed) {
                     contact.text=StatusStore(store).connectionSummary(::versionDate);test.isEnabled=true
                     notebook.text=if(result.isSuccess)"Online. PyRetro respondeu em ${versionDate(System.currentTimeMillis())}." else "Sem resposta. Confira o Tailscale e o notebook; o modo offline continua."
-                    if(result.isSuccess)automaticUpdate(force=true)
+                    if(result.isSuccess) { store.online=true;notebookOnline(force=true) }
                 }
             } }
         }
@@ -1020,6 +1055,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);intent.clipData=ClipData.newRawUri("ROM",uri)
             activeGame=game;launchedAt=SystemClock.elapsedRealtime();leftForGame=false;startActivity(intent)
+            store.prefs.edit().putLong("played:${game.key}",System.currentTimeMillis()).apply() // fileira Recentes do Início
         } catch(error:Exception) { activeGame=null;failure(error) }
     }
     private fun notebook(game:Game) {
@@ -1042,25 +1078,30 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     /** Confere o notebook em segundo plano (só /api/csrf, no máximo 1×/min) para que o
      *  estado online, o aviso do topo e o download de capas reflitam a conexão real, em vez de
      *  ficar "Offline" até o usuário atualizar o catálogo à mão. Não baixa catálogo nem sincroniza. */
-    private fun probeNotebook() {
+    private fun probeNotebook(force:Boolean=false) {
         val now=SystemClock.elapsedRealtime()
-        if(probing || store.base().isBlank() || (lastProbeAt>0 && now-lastProbeAt<60_000))return
+        // Offline, a próxima tentativa não espera 1 min: o Tailscale pode ter acabado de ligar.
+        val wait=if(force || !store.online)5_000 else 60_000
+        if(probing || store.base().isBlank() || (lastProbeAt>0 && now-lastProbeAt<wait))return
         probing=true;lastProbeAt=now
         Thread {
             val ok=store.probe()
             runOnUiThread {
                 probing=false
                 if(isFinishing || isDestroyed)return@runOnUiThread
-                val updated=store.prefs.getLong("updated",0).takeIf { it>0 }?.let(::versionDate)
-                val text=status.text.toString()
-                val notice=text.startsWith("Offline") || text.startsWith("Modo offline") || text.startsWith("Online ·")
-                if(ok) {
-                    if(notice)message(if(catalog.isEmpty())"Online · notebook conectado. Buscando o catálogo…" else "Online · notebook conectado. Catálogo de ${updated ?: "data desconhecida"}.")
-                    if(collection!="stream")render() // capas que faltavam no cache agora podem ser baixadas
-                    automaticUpdate()
-                } else if(notice && text.startsWith("Online ·"))message("Offline · notebook não respondeu. Catálogo em cache e jogos locais continuam disponíveis.")
+                if(ok)notebookOnline()
+                else if(status.text.startsWith("Online ·"))message("Offline · notebook não respondeu. Catálogo em cache e jogos locais continuam disponíveis.")
             }
         }.apply { isDaemon=true }.start()
+    }
+    /** O notebook respondeu (sondagem ou "Testar conexão"): o aviso do topo deixa de dizer Offline. */
+    private fun notebookOnline(force:Boolean=false) {
+        val updated=store.prefs.getLong("updated",0).takeIf { it>0 }?.let(::versionDate)
+        val text=status.text.toString()
+        if(text.startsWith("Offline") || text.startsWith("Modo offline") || text.startsWith("Online ·"))
+            message(if(catalog.isEmpty())"Online · notebook conectado. Buscando o catálogo…" else "Online · notebook conectado. Catálogo de ${updated ?: "data desconhecida"}.")
+        if(collection!="stream")render() // capas que faltavam no cache agora podem ser baixadas
+        automaticUpdate(force)
     }
     override fun onPause() {
         queueHandler.removeCallbacks(queueTick);runCatching { queue().pause() }
@@ -1092,7 +1133,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(event.repeatCount>0 && keyCode in setOf(KeyEvent.KEYCODE_BUTTON_A,KeyEvent.KEYCODE_BUTTON_X,KeyEvent.KEYCODE_BUTTON_START))return true
         when(keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> { currentFocus?.performClick();return true }
-            KeyEvent.KEYCODE_BUTTON_B -> { if(dialog!=null)dialog?.dismiss() else if(collection=="stream")selectCollection("cell") else if(search.text.isNotEmpty())search.text.clear() else { collection="cell";page=0;render() };return true }
+            KeyEvent.KEYCODE_BUTTON_B -> { if(dialog!=null)dialog?.dismiss() else if(collection=="stream")selectCollection("home") else if(search.text.isNotEmpty())search.text.clear() else { collection="home";page=0;render() };return true }
             KeyEvent.KEYCODE_BUTTON_X -> { (currentFocus?.tag as? Game)?.let(::toggleFavorite);return true }
             KeyEvent.KEYCODE_BUTTON_Y -> { if(event.repeatCount==0 && collection!="stream")controllerSearch();return true }
             KeyEvent.KEYCODE_BUTTON_L1 -> { changePage(-1);return true }

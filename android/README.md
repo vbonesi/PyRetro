@@ -5,7 +5,7 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.6.1-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.6.3-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções → Configurar este celular**, escolha a **Pasta Jogos** (cada sistema
    fica em `Jogos/<sistema>`) e a **Pasta RetroArch** (saves e estados por sistema).
@@ -23,6 +23,9 @@ cores padrão (NES/Nestopia, PC Engine/Beetle PCE, NDS/melonDS, PS1/SwanStation�
 Mudanças nessa estrutura são feitas no próprio app, não em telas de opções.
 Escolhas antigas de pasta por sistema e de core continuam respeitadas.
 
+- **Início (0.6.2):** primeira coleção, com fileiras Continuar jogando, Recentes, Mais
+  jogados, Favoritos e Prontos no celular, feitas só com dados do celular (funcionam
+  offline). Recentes conta a partir da 0.6.2, quando o app passou a guardar a abertura.
 - **Cabeçalho único:** Situação e Opções ficam só no topo, nas duas orientações;
   a barra abaixo tem as coleções (a ativa fica destacada) e **🎲 Sortear**.
 - **Ficha do jogo:** a primeira ação é a que faz sentido para o jogo:
@@ -369,7 +372,7 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.6.1-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.6.3-debug.apk
 ```
 
 A **0.6.0** foi compilada em 22/10/2026 fora do notebook (build, lint, 38 testes JVM

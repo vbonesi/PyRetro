@@ -10,7 +10,7 @@ data class KeyMigration(val puts:Map<String,Any>,val removes:Set<String>)
  * `rekey` troca o campo "key" dentro dos JSON de pendência/sessão.
  */
 object KeyAliases {
-    private val prefixes=listOf("favorite:","keep:","time:","pending:","rom:","cloud:","conflict:")
+    private val prefixes=listOf("favorite:","keep:","time:","played:","pending:","rom:","cloud:","conflict:")
     fun plan(prefs:Map<String,*>,aliases:Map<String,String>,rekey:(String,String)->String):KeyMigration {
         val puts=linkedMapOf<String,Any>();val removes=mutableSetOf<String>()
         fun current(name:String):Any?=if(name in removes)null else puts[name] ?: prefs[name]
@@ -21,6 +21,7 @@ object KeyAliases {
                 val merged:Any=when {
                     existing==null -> if(prefix=="pending:" && value is String)rekey(value,new) else value
                     prefix=="time:" && value is Long && existing is Long -> existing+value
+                    prefix=="played:" && value is Long && existing is Long -> maxOf(existing,value)
                     prefix=="favorite:" && value is Boolean && existing is Boolean -> existing || value
                     else -> existing
                 }

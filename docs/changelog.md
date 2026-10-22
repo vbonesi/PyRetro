@@ -6,6 +6,22 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 22/10/2026 (noite, 2) — Android 0.6.2/0.6.3: Início com fileiras; online sem reiniciar
+
+- **Início (0.6.2, code 11):** nova primeira coleção, padrão para quem não escolheu outra.
+  Fileiras horizontais **Continuar jogando** (iniciado e não finalizado; os do celular
+  primeiro), **Recentes**, **Mais jogados**, **Favoritos** e **Prontos no celular**, até 15
+  jogos cada; fileira vazia some. Tudo vem do cache e das preferências do celular, então é
+  igual online e offline (o `/api/tv/home` reflete o PC e o `/api/tv/playtime` está vazio).
+  O app passa a gravar `played:<chave>` ao abrir um jogo (Recentes); o tempo continua em
+  `time:`. `played:` entra na migração de chaves renomeadas (fica o mais recente). Digitar
+  na busca troca para a grade do catálogo. Regras em `HomeRules` (3 testes JVM).
+- **Online sem reiniciar (0.6.3, code 12):** ligar o Tailscale com o app aberto não era
+  percebido (a sondagem só rodava ao abrir/voltar, no máximo 1×/min) e "Testar conexão"
+  não tirava o "Offline" do topo. Agora um `NetworkCallback` sonda de novo 2 s depois de a
+  rede mudar (permissão `ACCESS_NETWORK_STATE`), offline a espera entre sondagens cai para
+  5 s, e o teste de conexão atualiza o topo. Validado no aparelho. 42 testes JVM.
+
 ## 22/10/2026 (noite) — 0.6 validada no celular; 0.6.1; rclone com client_id próprio
 
 Branch da nuvem unido ao `main` nos três repositórios. APK 0.6.0 compilado no notebook
