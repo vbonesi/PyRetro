@@ -64,7 +64,8 @@ def azahar_guid(home):
                              'org.azahar_emu.Azahar', str(probe)], capture_output=True, text=True, timeout=60)
     pads = [json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
     xbox = [pad for pad in pads if 'xbox' in pad['name'].lower() and pad['controller']]
-    return xbox[0]['guid'] if xbox else None
+    guid = xbox[0]['guid'] if xbox else ''
+    return guid if len(guid) == 32 else None
 
 
 # SDL_GameController: botões e eixos (iguais em SDL2/SDL3 para o Xbox).

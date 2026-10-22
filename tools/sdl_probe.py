@@ -9,9 +9,15 @@ import ctypes
 import json
 import time
 
+class SDL_GUID(ctypes.Structure):  # struct de 16 bytes passada por valor
+    _fields_ = [('data', ctypes.c_uint8 * 16)]
+
+
 sdl = ctypes.CDLL('libSDL2-2.0.so.0')
 sdl.SDL_JoystickNameForIndex.restype = ctypes.c_char_p
-sdl.SDL_JoystickGetDeviceGUID.restype = ctypes.c_ubyte * 16
+sdl.SDL_JoystickGetDeviceGUID.restype = SDL_GUID
+sdl.SDL_JoystickGetDeviceGUID.argtypes = [ctypes.c_int]
+sdl.SDL_JoystickGetGUIDString.argtypes = [SDL_GUID, ctypes.c_char_p, ctypes.c_int]
 sdl.SDL_SetHint(b'SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS', b'1')
 if sdl.SDL_Init(0x200 | 0x2000) != 0:  # JOYSTICK | GAMECONTROLLER
     raise SystemExit('SDL_Init falhou')
