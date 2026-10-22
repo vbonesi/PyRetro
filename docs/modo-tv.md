@@ -211,8 +211,8 @@ preservando appid e artes. O atalho web antigo fica oculto no menu; `/` continua
 pelo navegador. A entrada no Bigscreen é responsabilidade do botão Modo TV do setup,
 sem alteração de boot/autostart pelo PyRetro.
 
-A Steam Flatpak chama o script no host por `flatpak-spawn --host`, seguindo o
-padrão do ES-DE instalado pelo setup. O lançamento de ROMs pelo backend usa o
+A Steam Flatpak chama o script no host por `flatpak-spawn --host` (o mesmo padrão
+que o ES-DE usava antes de sair do PC em 22/10/2026). O lançamento de ROMs pelo backend usa o
 executável fixo `~/.local/bin/bonisarch-emulator`, sem shell nem comandos livres
 recebidos do navegador. O mapeamento é explícito em `core/play.py`; o bridge
 continua sendo mantido no setup-linux-bonesi. A pasta de ROMs configurada no

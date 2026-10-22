@@ -1,9 +1,9 @@
 """
 Mostra as capas do PyRetro (Capas/<sistema>/Named_Boxarts/<nome-da-ROM>.png)
-dentro do ES-DE e dos emuladores, sem copiar nada: tudo vira symlink para a
-pasta de capas, então uma capa nova ou trocada no PyRetro aparece sozinha.
+dentro dos emuladores, sem copiar nada: tudo vira symlink para a pasta de
+capas, então uma capa nova ou trocada no PyRetro aparece sozinha. (O ES-DE saiu
+do PC em 22/10/2026; o modo TV do PyRetro é o frontend.)
 
-  ES-DE        downloaded_media/<sistema>/covers -> a pasta Named_Boxarts inteira
   DuckStation  covers/<nome-da-ROM>.<ext>        (um link por ROM que existe)
   PCSX2        covers/<nome-da-ROM>.<ext>        (idem; convive com as capas que
                o próprio PCSX2 baixou, nomeadas pelo serial)
@@ -13,11 +13,9 @@ pasta de capas, então uma capa nova ou trocada no PyRetro aparece sozinha.
 Nada existente é sobrescrito: um destino que já tem conteúdo de outra origem é
 pulado e aparece como "pulado" no relatório."""
 import re
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 HOME = Path.home()
-ESDE_HOME = HOME / ".local/share/bonisarch/ES-DE"
 DUCKSTATION_COVERS = HOME / ".local/share/duckstation/covers"
 PCSX2_COVERS = HOME / ".var/app/net.pcsx2.PCSX2/config/PCSX2/covers"
 DOLPHIN_COVERS = HOME / ".var/app/org.DolphinEmu.dolphin-emu/cache/dolphin-emu/GameCovers"
@@ -67,30 +65,6 @@ def _link(destino: Path, origem: Path, apply: bool) -> dict:
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.symlink_to(origem, target_is_directory=origem.is_dir())
     return {"destino": str(destino), "estado": "criado" if apply else "a criar"}
-
-
-def esde_sistemas(esde_home: Path = ESDE_HOME) -> list[tuple[str, str]]:
-    """[(nome do sistema no ES-DE, pasta de ROM)] lidos do es_systems.xml personalizado."""
-    xml = esde_home / "custom_systems" / "es_systems.xml"
-    if not xml.is_file():
-        return []
-    out = []
-    for s in ET.parse(xml).getroot().iter("system"):
-        nome, caminho = s.findtext("name"), s.findtext("path")
-        if nome and caminho:
-            out.append((nome, Path(caminho).name))
-    return out
-
-
-def plano_esde(cfg: dict, apply: bool, esde_home: Path = ESDE_HOME) -> list[dict]:
-    out = []
-    for nome, code in esde_sistemas(esde_home):
-        capas = _capas_dir(cfg, code)
-        if capas is None:
-            out.append({"alvo": f"ES-DE {nome}", "destino": "", "estado": "pulado", "motivo": f"sem pasta de capas para {code}"})
-            continue
-        out.append({"alvo": f"ES-DE {nome}", **_link(esde_home / "downloaded_media" / nome / "covers", capas, apply)})
-    return out
 
 
 def serial_ps2(iso: Path) -> str | None:
@@ -206,7 +180,6 @@ def plano_dolphin(cfg: dict, apply: bool, pasta: Path = DOLPHIN_COVERS) -> list[
 
 def plano(cfg: dict, apply: bool) -> list[dict]:
     """Relatório (e, com apply, criação) dos links de capa para todos os destinos."""
-    return (plano_esde(cfg, apply)
-            + _por_rom(cfg, "PS", DUCKSTATION_COVERS, "DuckStation", apply)
+    return (_por_rom(cfg, "PS", DUCKSTATION_COVERS, "DuckStation", apply)
             + _por_rom(cfg, "PS2", PCSX2_COVERS, "PCSX2", apply, serial_ps2)
             + plano_dolphin(cfg, apply))

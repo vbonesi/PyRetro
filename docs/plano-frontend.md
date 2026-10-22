@@ -21,7 +21,7 @@ Implementado no modo TV (`/tv`):
 - **LB/RB** pulam uma página da grade; **LT/RT** trocam de coleção. Direcional/analógico
   continuam navegando item a item; A confirma e B volta.
 - **Apps** abre a lista fixa dos programas instalados: Steam em Big Picture, Heroic,
-  emuladores, ES-DE e Remote Play Xbox/PlayStation. Entradas adicionais usam `[apps.<id>]`
+  emuladores e Remote Play Xbox/PlayStation. Entradas adicionais usam `[apps.<id>]`
   no arquivo de configuração; o navegador envia somente ID, nunca argv/comando.
 - Acessos rápidos no Início para Xbox remoto, PS4 remoto, Steam, Heroic e emuladores.
   PS4 já registrado no Chiaki, com acesso direto preparado em tela cheia; dados de
@@ -52,12 +52,12 @@ estiver em foco, para evitar teclado/mouse duplicados com Gamepad/SDL.
 
 - Homologação física do Xbox nos jogos, foco, Steam Input e Steam Link.
 - Ajustes por jogo no Wii (ponteiro/movimento e controle clássico).
-- NDS/3DS foram priorizados no celular; não instalar emuladores no PC só para preencher a TV.
+- NDS/3DS: priorizados no celular; desde 22/10/2026 também no PC, a pedido (melonDS no RetroArch e Azahar).
 - Pareamento/uso real de Xbox e PS4. Switch Lite teve transmissão confirmada;
   controle Xbox no PC não é encaminhado ao Switch por essa integração.
 - Tempo de sessão e importação de logos/prévias locais implementados; homologar no uso real.
   Busca automática de trailers/logos e importação de runtime antigo continuam futuras.
-- ES-DE permanece instalado até a homologação do fluxo completo.
+- ES-DE removido do PC em 22/10/2026 (decisão do usuário): o modo TV do PyRetro é o frontend.
 
 ## Celular
 

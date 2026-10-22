@@ -6,6 +6,23 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 22/10/2026 — ES-DE removido do PC
+
+- Decisão do usuário: o modo TV do PyRetro é o frontend. Saíram o app da TV
+  (`core/tv_apps.py`), os links de capa (`core/capas_emuladores.py`, hoje só
+  DuckStation/PCSX2/Dolphin) e o texto da tela de Manutenção. No setup, saíram o
+  app do Sunshine (`apps.json` regravado com cópia), `bonisarch-stream`, ícones e
+  o texto do lançador. AppImage, `bonisarch-esde`, item de menu e dados
+  (`~/.local/share/bonisarch/ES-DE`, só configurações e 17 links) foram para a
+  **lixeira**.
+- Azahar entrou no menu de apps da TV, e um override do Flatpak com as variáveis
+  PRIME faz ele usar a RTX também fora do lançador.
+- "Controle não funciona no PyRetro": reiniciei o `pyretro-gui` duas vezes com o
+  modo TV aberto (11:58:58 e 11:59:23; o `bonisarch-tv-controller` mostra o Chrome
+  da TV em uso). A página ficou sem servidor por alguns segundos. O controle e as
+  permissões (`devices=all`, ACL do `event19`) estavam certos, e a página `/tv`
+  carrega sem erro depois.
+
 ## 22/10/2026 — 3DS e DS no PC, capas de PSP/3DS, rclone
 
 - **rclone** configurado pelo usuário (`drive`, `scope=drive.readonly`; o

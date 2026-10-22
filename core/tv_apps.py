@@ -18,6 +18,7 @@ DEFAULTS = {
     'pcsx2': ('PCSX2', 'net.pcsx2.PCSX2', '🎮'),
     'dolphin': ('Dolphin', 'org.DolphinEmu.dolphin-emu', '🐬'),
     'ppsspp': ('PPSSPP', 'org.ppsspp.PPSSPP', '🎮'),
+    'azahar': ('Azahar (3DS)', 'org.azahar_emu.Azahar', '🎮'),
     'chiaki': ('PS4 remoto', 'io.github.streetpea.Chiaki4deck', '◈'),
     'greenlight': ('Xbox remoto', 'io.github.unknownskl.greenlight', '⊗'),
     'sysdvr': ('Switch Lite', 'com.github.exelix11.sysdvr', '◧'),
@@ -58,9 +59,6 @@ def entries(cfg):
     duck = Path.home() / 'AppImages/DuckStation-x64.AppImage'
     if duck.is_file():
         result['duckstation'] = {'nome': 'DuckStation', 'icone': '🎮', 'comando': [str(duck)]}
-    esde = Path.home() / '.local/bin/bonisarch-esde'
-    if esde.is_file():
-        result['esde'] = {'nome': 'ES-DE', 'icone': '🕹', 'comando': [str(esde)]}
     for key, value in cfg.get('apps', {}).items():
         command = value.get('comando')
         if not isinstance(command, list) or not command or not all(isinstance(x, str) and x and '\0' not in x for x in command):

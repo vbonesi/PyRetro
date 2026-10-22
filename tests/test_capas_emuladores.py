@@ -89,15 +89,6 @@ class CapasEmuladoresTest(unittest.TestCase):
         self.assertEqual(r[0]["estado"], "pulado")
         self.assertEqual((pasta / "Jogo A.png").read_bytes(), b"do usuario")
 
-    def test_esde_liga_a_pasta_inteira(self):
-        esde = self.d / "esde"
-        (esde / "custom_systems").mkdir(parents=True)
-        (esde / "custom_systems/es_systems.xml").write_text(
-            f"<systemList><system><name>ps2</name><path>{self.d}/ROMs/PS2</path></system></systemList>")
-        r = ce.plano_esde(self.cfg, True, esde)
-        self.assertEqual(r[0]["estado"], "criado")
-        self.assertEqual((esde / "downloaded_media/ps2/covers").resolve(), self.capas.resolve())
-
     def test_dolphin_so_png_com_id_do_cabecalho(self):
         (self.d / "ROMs/NGC").mkdir()
         cap = self.d / "Capas/Nintendo - GameCube/Named_Boxarts"

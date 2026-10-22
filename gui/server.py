@@ -1225,7 +1225,7 @@ def run_heavy_catalog_job(emit) -> None:
 
 
 def run_capas_emuladores_job(emit, apply: bool) -> None:
-    """Liga as capas do PyRetro ao ES-DE, DuckStation, PCSX2 e Dolphin (symlinks)."""
+    """Liga as capas do PyRetro ao DuckStation, PCSX2 e Dolphin (symlinks)."""
     contagem: dict = {}
     for a in capas_emu_mod.plano(load_config(), apply):
         contagem[a["estado"]] = contagem.get(a["estado"], 0) + 1
