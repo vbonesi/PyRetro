@@ -17,6 +17,12 @@ class HubRulesTest {
         for(bad in listOf("pyretro-rom:PS/../x.chd?etag=1&size=1","pyretro-rom:PS/x.chd?etag=1&size=0","pyretro-rom:/x.chd?etag=1&size=3","pyretro-rom:PS/x.chd?size=3"))
             assertNull(bad,RomSource.parse(bad))
     }
+    @Test fun retroarchFolderMustBeTheRootNotSavesOrStates() {
+        assertNull(SaveRules.retroarchFolderProblem("primary:RetroArch"))
+        assertNull(SaveRules.retroarchFolderProblem("primary:Android/data/com.retroarch/files"))
+        for(bad in listOf("primary:RetroArch/saves","primary:RetroArch/states/","primary:RetroArch/Saves"))
+            assertNotNull(bad,SaveRules.retroarchFolderProblem(bad))
+    }
     @Test fun onlyStandaloneFormatsTheAppAcceptsAreOffered() {
         val options=listOf(RomOption("Crash.cue",10,"e","pc"),RomOption("Crash.chd",10,"e","pc"),RomOption("Crash.bin",10,"e","pc"),RomOption("Vazio.chd",0,"e","pc"))
         assertEquals(listOf("Crash.chd"),RomSource.playable(options) { it.substringAfterLast('.') in setOf("chd","pbp","cue","m3u") }.map { it.file })

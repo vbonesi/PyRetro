@@ -6,6 +6,32 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 22/10/2026 (noite) — 0.6 validada no celular; 0.6.1; rclone com client_id próprio
+
+Branch da nuvem unido ao `main` nos três repositórios. APK 0.6.0 compilado no notebook
+(toolchain em `~/.cache/pyretro/android-toolchain`: `JAVA_HOME=…/jdk ANDROID_HOME=…/sdk`)
+e instalado. Validado com o Victor no aparelho:
+- Catálogo atualizou sozinho ao abrir (Tailscale, `https://bonisarch.tailcc66ce.ts.net:8443`).
+- ⬇ Baixar de jogo que só está no PC (3 Ninjas, SFC): SHA-256 igual ao do PC.
+- ⬇ Baixar de PSP que só está no Drive (ATV Offroad, 679 MB): pausa e retomada pediram
+  ao Drive a partir do byte exato do parcial (`rclone cat --offset`); MD5 igual ao do Drive.
+  Os dois downloads de teste foram removidos depois.
+- 💾 Saves com notebook online e offline, stream Xbox/PS/Switch/PC, Situação/Opções nas
+  duas orientações: ok.
+
+**Defeito achado → 0.6.1 (code 10):** escolher `RetroArch/saves` como "Pasta RetroArch"
+fazia o app ler `saves/saves/`; o save local parecia faltar e o do notebook era oferecido
+para baixar (foi baixado para `saves/saves/SFC/`, cópia idêntica; removida). Agora a
+pasta `saves`/`states` é recusada com explicação, uma escolha antiga errada pede nova
+escolha, e o 💾 Saves avisa quando vai baixar sem nenhum save local. A linha de status
+não fica mais parada em "Conferindo saves…". 39 testes JVM.
+
+**rclone:** client_id próprio (Google Cloud, projeto PyRetro, cliente "App para
+computador"). App em modo Teste com o Victor como testador: o token vence em ~7 dias
+(`rclone config reconnect drive:`). Publicar exige links de página inicial/privacidade no
+Branding. Cliente OAuth **Android** criado no mesmo projeto para o login Google no app
+(pacote `com.pyretro.app`, SHA-1 da chave de debug local), ainda sem código.
+
 ## 22/10/2026 (tarde) — Android 0.6: hub de jogos; download direto pelo notebook
 
 Pedido do usuário depois de usar o app: baixar a ROM direto quando o jogo está no

@@ -850,8 +850,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val sync=FileSync(store)
         val group=when(game.code) { "PSP" -> "psp-saves";"3DS" -> "3ds-saves";else -> null }
         if(group!=null) { syncGroup(group,sync.groups.getValue(group));return } // PSP/3DS usam IDs do jogo, não o nome da ROM
-        if(sync.tree("retro-saves")==null) {
-            show(AlertDialog.Builder(this).setTitle("Saves de ${game.name}").setMessage("Escolha uma vez a pasta RetroArch do celular (normalmente RetroArch, no armazenamento interno). Depois os saves de cada jogo aparecem aqui.")
+        val wrongFolder=sync.retroarchTree()?.let { SaveRules.retroarchFolderProblem(DocumentsContract.getTreeDocumentId(it)) }
+        if(sync.tree("retro-saves")==null || wrongFolder!=null) {
+            show(AlertDialog.Builder(this).setTitle("Saves de ${game.name}").setMessage((wrongFolder?.let { "$it\n\n" } ?: "")+"Escolha uma vez a pasta RetroArch do celular (normalmente RetroArch, no armazenamento interno; não entre em saves). Depois os saves de cada jogo aparecem aqui.")
                 .setNegativeButton("Voltar") { _,_ -> details(game) }.setPositiveButton("Escolher pasta") { _,_ -> pickSyncFolder("retroarch") });return
         }
         dialog?.dismiss();message("Conferindo saves de ${game.name}…")
@@ -869,10 +870,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             box.addView(text(if(files.isEmpty())"Nenhum save ou estado deste jogo no celular." else files.joinToString("\n") { (path,size) -> "${path.substringAfterLast('/')} · ${bytesLabel(size)}" },14f))
         }.onFailure { box.addView(text("Não foi possível ler a pasta RetroArch: ${it.message}",13f)) }
         val ready=plans?.getOrNull()
+        message(when { ready!=null -> "Saves de ${game.name} conferidos.";plans==null -> "Saves de ${game.name}: notebook não configurado.";else -> "Saves de ${game.name}: notebook offline, só os do celular." })
         if(ready==null) box.addView(text(if(plans==null)"Configure o notebook para comparar." else "Notebook offline: comparação indisponível. Os arquivos acima continuam valendo no celular.",13f))
         else {
             val rows=ready.flatMap { plan -> plan.rows.filter { it.kind!="same" }.map { plan to it } }
             box.addView(text(if(rows.isEmpty())"Iguais no celular e no notebook." else "${rows.count { it.second.choice in setOf("upload","download") }} cópia(s) a fazer · ${rows.count { it.second.choice=="conflict" }} conflito(s).",14f))
+            if(rows.any { it.second.choice=="download" } && local.getOrNull().isNullOrEmpty())
+                box.addView(text("O celular não tem nenhum save deste jogo nesta pasta. Se você já jogou aqui, confira em Opções se a pasta RetroArch escolhida é a raiz (não saves/states) antes de baixar.",12f))
             for((_,row) in rows) {
                 val direction=when(row.choice) { "upload" -> "Celular → notebook";"download" -> "Notebook → celular";else -> "Escolher versão" }
                 if(row.kind=="conflict")add(box,button("$direction · ${row.path.substringAfterLast('/')}") {

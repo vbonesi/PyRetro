@@ -36,6 +36,7 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
     fun setTree(group:String,uri:Uri) {
         require(group=="retroarch" || group in groups)
         require(uri.authority=="com.android.externalstorage.documents") { "Escolha uma pasta local; o notebook é a outra ponta da sincronização." }
+        if(group=="retroarch")SaveRules.retroarchFolderProblem(DocumentsContract.getTreeDocumentId(uri))?.let { error(it) }
         prefs.edit().putString(if(group=="retroarch")"retroarch-tree" else "tree:$group",uri.toString()).apply()
     }
     fun retroarchTree():Uri?=prefs.getString("retroarch-tree",null)?.let(Uri::parse)

@@ -5,7 +5,7 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.6.0-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.6.1-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
 2. Em **Opções → Configurar este celular**, escolha a **Pasta Jogos** (cada sistema
    fica em `Jogos/<sistema>`) e a **Pasta RetroArch** (saves e estados por sistema).
@@ -369,7 +369,7 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.6.0-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.6.1-debug.apk
 ```
 
 A **0.6.0** foi compilada em 22/10/2026 fora do notebook (build, lint, 38 testes JVM

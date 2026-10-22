@@ -14,7 +14,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026 (tarde).
 | Sorteio com sugestão de jogar/transmitir/abrir loja nas duas interfaces | ✅ Implementado, com identidade por ID e link entre interfaces |
 | Tempo de emuladores, duração manual e logos/prévias locais no modo TV | ✅ Implementado; registro separado do tempo histórico da Biblioteca |
 | App Android com offline, G8/touch e ROMs do Drive sob demanda | APK instalado; touch, cache e pastas conferidos. G8 físico e provedor Drive pendentes |
-| Android 0.6 · hub: baixar em um toque pelo notebook/Drive, saves por jogo, stream para consoles, Situação/Opções enxutas | Compilado e com testes JVM; instalação e uso no aparelho pendentes |
+| Android 0.6 · hub: baixar em um toque pelo notebook/Drive, saves por jogo, stream para consoles, Situação/Opções enxutas | ✅ 0.6.1 instalada e validada no aparelho em 22/10 |
 | Texturas PSP/3DS e remoção confirmada da ROM ao finalizar no Android | ✅ Implementado; ZIP offline e preparação pelo PC, sem substituir saves/texturas existentes |
 | Recuperação de versões pelo app, playlists e downloads retomáveis | ✅ Implementado na 0.3; instalado e instrumentação sintética aprovada no celular |
 | Índice da nuvem por pasta concedida ou arquivos em lote | ✅ Implementado na 0.3; associação única, prévia e cache; provedor Drive real pendente |
@@ -173,8 +173,10 @@ instala tudo no celular. Começar pelo roteiro de validação acima (branch
   mesma rota de edição do progresso (`/api/library/edit`); o modo TV já tem.
 - **Saves de PSP/3DS por jogo:** hoje abrem o grupo inteiro (IDs do jogo, não nome
   da ROM); precisa do serial/title ID por jogo.
-- **Download sem o notebook:** exige conta Google no app (cliente OAuth Android no
-  Google Cloud, decisão do Victor); aproveitar o mesmo projeto do client_id do rclone.
+- **ROMs e saves sem o notebook (conta Google no app):** cliente OAuth Android já criado
+  em 22/10 (projeto PyRetro). Além do download, o Victor quer **saves pela nuvem**: ler e
+  gravar `Jogos/Saves` no Drive direto do celular, com as mesmas regras (conflito
+  pergunta, versão anterior preservada). Exige escopo amplo do Drive (ok em modo Teste).
 - **Um app só:** seguir a direção abaixo; nesta rodada só o Android deu o 1º passo.
 
 **Lote de interface recomendado (só dados/rotas existentes, sem arquitetura nova):**
