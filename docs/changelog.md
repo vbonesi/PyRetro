@@ -33,6 +33,24 @@ plano.
   gerador). 305 Python e 43 JS passando. Conferido no navegador em desktop e 375 px
   (corrigido o `<details>` flex, que deixava a lista mais larga que o modal).
 
+## 22/10/2026 (noite, 3) — Android 0.7.0 (nota e selos); modo TV com Saves e Ranking
+
+- **Android 0.7.0 (code 13), compilado, instalação pendente** (o celular saiu do cabo):
+  - **Nota 0–11** em Progresso e tempo, com −1/−0,1/+0,1/+1 e Limpar (mesmo passo do modo
+    TV). Fica pendente como o progresso, com o valor visto antes (`TrackingRules`), e vai
+    pelo `/api/library/edit` com `expected`. Só para jogo da Biblioteca (com `id`).
+  - **Selos no cartão:** ▶ Jogando / ✓ Finalizado / 🏆, ★ nota, ⏱ tempo no celular, 💾 se há
+    save/estado do RetroArch no celular (lido junto com as pastas) e ⬇ % do download, que
+    atualiza pela fila sem redesenhar a grade.
+- **Servidor:** `/api/library/edit` aceita `nota` em `expected` (número ou vazio; booleano
+  é recusado) com a mesma regra de conflito do progresso. Nova rota só de leitura
+  `/api/tv/saves?code=&label=` (`rom_rename.game_saves`: pasta do sistema e raiz antiga,
+  marcada como `legado`; label de ROM pesada com extensão também vale).
+- **Modo TV:** 💾 Saves na ficha (lista saves/estados do PC com tamanho e data) e coleção
+  **Ranking** (`/api/ranking`, maior nota primeiro). A coleção Jogando já existia.
+- Testes: 307 Python, 43 JS (todos, inclusive o do modo TV), 43 JVM. Conferido no navegador
+  embutido: Ranking e Saves do Final Fantasy VI.
+
 ## 22/10/2026 (noite, 2) — Android 0.6.2/0.6.3: Início com fileiras; online sem reiniciar
 
 - **Início (0.6.2, code 11):** nova primeira coleção, padrão para quem não escolheu outra.

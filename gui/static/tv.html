@@ -24,7 +24,8 @@
   <div id="play-actions" class="actions"></div>
   <p id="play-hint" class="hint" role="status"></p>
   <p id="game-time" class="hint"></p><video id="detail-video" controls playsinline preload="none" hidden></video>
-  <div class="actions"><button id="time-toggle">Registrar tempo</button><button id="media-toggle">Personalizar mídia</button><a id="textures-link" hidden>Texturas · fontes e arquivo local</a></div>
+  <div class="actions"><button id="time-toggle">Registrar tempo</button><button id="media-toggle">Personalizar mídia</button><button id="saves-toggle" aria-expanded="false" hidden>💾 Saves</button><a id="textures-link" hidden>Texturas · fontes e arquivo local</a></div>
+  <div id="saves-fields" hidden></div>
   <div id="time-fields" hidden><p class="hint">Emuladores abertos pelo PyRetro contam o tempo da sessão, incluindo pausas. Para Steam, Heroic e transmissões, informe quanto jogou.</p><label>Minutos jogados <input id="time-minutes" type="number" min="1" max="1440" value="30"></label><button id="time-save">Adicionar sessão</button></div>
   <div id="media-fields" hidden><p class="hint">Escolha mídia deste jogo. Os arquivos ficam neste PC, separados do acervo. Até 64 MB por arquivo; a prévia no início é silenciosa.</p><label>Logo (PNG, JPEG ou WebP) <input id="media-logo" type="file" accept="image/png,image/jpeg,image/webp"></label><label>Vídeo (MP4 ou WebM) <input id="media-video" type="file" accept="video/mp4,video/webm"></label></div>
   <button id="progress-toggle" aria-expanded="false">Progresso e nota</button>

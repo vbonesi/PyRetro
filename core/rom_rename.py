@@ -296,3 +296,23 @@ def delete_with_cascade(roms_dir: Path, capas_dir: Path | None, saves_dir: Path,
     states = [f for d in save_folders(states_dir, code, not skip_flat) for f in delete_flat_matches(d, label)]
     kept = flat_kept(saves_dir, states_dir, label) if skip_flat else []
     return {"rom": rom_result, "capa": capa_deleted, "saves": saves, "states": states, "flat_skipped": skip_flat, "flat_kept": kept}
+
+
+def game_saves(saves_dir: Path, states_dir: Path, code: str, label: str) -> list:
+    """Saves e estados de um jogo no PC, só leitura (ficha do modo TV). Procura em
+    `<raiz>/<código>/` e na raiz achatada legada; `legado` marca os da raiz, que
+    podem ser de outro sistema com o mesmo nome. Aceita o label com extensão de
+    arquivo (ROM pesada vem como "Jogo.iso") e tenta também sem ela."""
+    labels = {label}
+    if "." in label:
+        labels.add(label.rsplit(".", 1)[0])
+    found = []
+    for kind, root in (("save", Path(saves_dir)), ("state", Path(states_dir))):
+        for folder in save_folders(root, code):
+            for name in sorted(labels):
+                for p in find_flat_matches(folder, name):
+                    st = p.stat()
+                    found.append({"name": p.name, "kind": kind, "size": st.st_size,
+                                  "mtime": int(st.st_mtime), "legado": folder == root})
+    return sorted({f["kind"] + f["name"] + str(f["legado"]): f for f in found}.values(),
+                  key=lambda f: -f["mtime"])

@@ -182,11 +182,11 @@ instala tudo no celular. Começar pelo roteiro de validação acima (branch
 **Lote de interface recomendado (só dados/rotas existentes, sem arquitetura nova):**
 1. ✅ Android · **Início com fileiras** (0.6.2, 22/10): Continuar jogando, Recentes,
    Mais jogados, Favoritos, Prontos no celular, só com dados do celular.
-2. Android · **Nota 0–11** na ficha.
-3. Android · **Selos no cartão**: ✓ finalizado, ⏱ minutos, 💾 tem save, barra de
+2. ✅ Android · **Nota 0–11** na ficha (0.7.0, instalação pendente).
+3. ✅ Android · **Selos no cartão** (0.7.0): ✓ finalizado, ⏱ minutos, 💾 tem save, barra de
    download do próprio jogo (fila já expõe bytes/total).
-4. Modo TV · **💾 Saves na ficha**, reaproveitando as rotas da aba Saves da web.
-5. Modo TV · **coleções Jogando e Ranking** (depois Desejados e Estatísticas), com
+4. ✅ Modo TV · **💾 Saves na ficha** (leitura), reaproveitando as rotas da aba Saves da web.
+5. ✅ Modo TV · **coleções Jogando e Ranking** (depois Desejados e Estatísticas), com
    as consultas que a web já faz.
 
 Depois do lote: filtro por plataforma/gênero na grade do Android (o sorteio já

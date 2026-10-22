@@ -113,3 +113,24 @@ class TestDeleteSaveSystemFolder(BaseAPI):
             self.assertFalse(save.exists())
         finally:
             (ps2 / "Final Fantasy VI.iso").unlink(); save.unlink(missing_ok=True)
+
+
+class TestGameSaves(unittest.TestCase):
+    def test_lists_system_folder_and_marks_legacy_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            saves, states = Path(tmp, "saves"), Path(tmp, "states")
+            (saves / "SFC").mkdir(parents=True); (states / "SFC").mkdir(parents=True)
+            Path(saves, "SFC", "Final Fantasy VI.srm").write_bytes(b"x" * 8192)
+            Path(states, "SFC", "Final Fantasy VI.state.auto").write_bytes(b"y")
+            Path(saves, "Final Fantasy VI.srm").write_bytes(b"old")
+            Path(saves, "SFC", "Final Fantasy VI - Bonus.srm").write_bytes(b"z")  # outro jogo
+            items = rom_rename.game_saves(saves, states, "SFC", "Final Fantasy VI")
+            self.assertEqual(sorted((i["kind"], i["name"], i["legado"]) for i in items),
+                             [("save", "Final Fantasy VI.srm", False), ("save", "Final Fantasy VI.srm", True),
+                              ("state", "Final Fantasy VI.state.auto", False)])
+
+    def test_heavy_label_with_extension(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            saves = Path(tmp, "saves"); (saves / "PS").mkdir(parents=True)
+            Path(saves, "PS", "Crash.srm").write_bytes(b"x")
+            self.assertEqual([i["name"] for i in rom_rename.game_saves(saves, Path(tmp, "states"), "PS", "Crash.chd")], ["Crash.srm"])

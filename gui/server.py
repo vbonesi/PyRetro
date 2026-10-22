@@ -1622,6 +1622,16 @@ class Handler(BaseHTTPRequestHandler):
             # ROMs renomeadas no PC: o app Android migra favoritos/tempo/fixados.
             return self._json(rename_links_mod.load_aliases(KEY_ALIASES_PATH))
 
+        if parts == ['api', 'tv', 'saves']:
+            # Ficha do modo TV: saves/estados do RetroArch deste jogo no PC. Só leitura.
+            cfg = load_config(); code = query.get('code', [''])[0]; label = query.get('label', [''])[0]
+            if not (cfg['systems'].get(code) or heavy_mod.load_heavy_systems(cfg).get(code)):
+                return self._json({'error': 'sistema desconhecido'}, 404)
+            if not label or '/' in label or '\\' in label or label.startswith('.'):
+                return self._json({'error': 'nome inválido'}, 400)
+            return self._json({'items': rom_rename_mod.game_saves(Path(cfg['pc']['saves_root']).expanduser(),
+                                                                  Path(cfg['pc']['states_root']).expanduser(), code, label)})
+
         if parts == ['api', 'tv', 'playtime']:
             return self._json({key:playtime_mod.public(value) for key,value in playtime_mod.load(PLAYTIME_PATH).items()})
 
@@ -2744,10 +2754,14 @@ class Handler(BaseHTTPRequestHandler):
             # ocorre dentro da mesma transação/lock da escrita, inclusive no retry.
             expected = body.get('expected')
             if expected is not None:
-                if not isinstance(expected, dict) or not isinstance(campos, dict) or set(expected) != set(campos) or any(c not in ('iniciado','finalizado','platinado') or type(v) is not bool for c,v in expected.items()):
+                # Progresso é booleano; a nota (0-11) pode ser número ou vazia (None).
+                def comparavel(c, v):
+                    return type(v) is bool if c in ('iniciado','finalizado','platinado') else c == 'nota' and (v is None or (type(v) in (int, float)))
+                if not isinstance(expected, dict) or not isinstance(campos, dict) or set(expected) != set(campos) or not all(comparavel(c, v) for c,v in expected.items()):
                     return self._json({'error':'comparação de progresso inválida'}, 400)
                 current = next(g for g in library['games'] if g['id'] == game_id)
-                if any(current.get(c, False) != old and current.get(c, False) != campos[c] for c,old in expected.items()):
+                atual = lambda c: current.get(c) if c == 'nota' else current.get(c, False)
+                if any(atual(c) != old and atual(c) != campos[c] for c,old in expected.items()):
                     return self._json({'error':'progresso mudou no notebook; alteração do celular preservada para conferir'}, 409)
 
             desconhecidos = [c for c in campos if c not in library_mod.EDITABLE_FIELDS]

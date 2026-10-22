@@ -30,4 +30,13 @@ class HomeRulesTest {
         assertEquals(30L,migration.puts["played:novo"])
         assertTrue("played:velho" in migration.removes)
     }
+    @Test fun ratingStepsAndComparisonMatchTheServer() {
+        assertEquals(1.0,TrackingRules.adjust(null,1.0),0.0)
+        assertEquals(11.0,TrackingRules.adjust(10.95,1.0),0.0)
+        assertEquals(0.0,TrackingRules.adjust(0.05,-1.0),0.0)
+        assertEquals(7.6,TrackingRules.adjust(7.5,0.1),0.0)
+        assertTrue(TrackingRules.same(8,8.0));assertTrue(TrackingRules.same(org.json.JSONObject.NULL,null))
+        assertFalse(TrackingRules.same(7.5,null))
+        assertEquals("Sem nota",TrackingRules.label(null))
+    }
 }

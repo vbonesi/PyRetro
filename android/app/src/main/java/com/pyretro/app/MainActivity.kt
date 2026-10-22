@@ -84,6 +84,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     val rows=helper.snapshot();val active=rows.firstOrNull { it.state==DownloadState.RUNNING }
                     queueBanner.visibility=if(rows.any { it.state!=DownloadState.DONE })View.VISIBLE else View.GONE
                     queueBanner.text=if(active!=null)"↓ ${active.game.name} · ${bytesLabel(active.bytes)}" else "Downloads · ${rows.count { it.state!=DownloadState.DONE }} pendente(s) · abrir fila"
+                    for(row in rows)downloadBadges[row.game.key]?.let { badge -> badge.text=badges(row.game,row.takeIf { it.state!=DownloadState.DONE });badge.visibility=if(badge.text.isEmpty())View.GONE else View.VISIBLE }
                     updateQueueStatus?.invoke()
                 }
                 if(helper.completedAt>seenQueueCompletion) {
@@ -95,6 +96,11 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun bytesLabel(value:Long)=android.text.format.Formatter.formatFileSize(this,value)
     private var collection="home"
+    /** Saves/estados do RetroArch no celular por sistema (nomes de arquivo), lidos junto com as pastas. */
+    private var saveNames:Map<String,List<String>> = emptyMap()
+    /** Selo de download de cada cartão visível, atualizado pela fila sem redesenhar a grade. */
+    private val downloadBadges=mutableMapOf<String,TextView>()
+    private var cardQueue:List<QueuedDownload> = emptyList()
     private var page=0
     private var pageCount=1
     private var dialog:AlertDialog?=null
@@ -215,7 +221,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             val problems=mutableListOf<String>()
             val roms=store.folders.keys.flatMap { code -> runCatching { store.files(code) }.getOrElse { problems.add(store.folders.getValue(code));emptyList() } }
             val all=store.bind(catalog,roms)
-            runOnUiThread { games=all;localProblems=problems;localScanAt=System.currentTimeMillis();render();updateLocalStatus?.invoke();after?.invoke() }
+            val saves=runCatching { val sync=FileSync(store);if(sync.retroarchTree()==null)emptyMap() else listOf("retro-saves","retro-states").flatMap { sync.local(it).keys }.groupBy({ it.substringBefore('/') },{ it.substringAfter('/') }) }.getOrDefault(emptyMap())
+            runOnUiThread { games=all;saveNames=saves;localProblems=problems;localScanAt=System.currentTimeMillis();render();updateLocalStatus?.invoke();after?.invoke() }
         }
     }
     private fun render() {
@@ -237,7 +244,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val count=((visible.size+23)/24).coerceAtLeast(1);pageCount=count;page=page.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos"
         if(restorePosition && localScanAt>0 && restoredPage!=null) { page=restoredPage!!.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos" }
         val compact=resources.configuration.orientation==2
-        grid.removeAllViews();val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
+        grid.removeAllViews();downloadBadges.clear();cardQueue=runCatching { queue().snapshot() }.getOrDefault(emptyList());val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
         val columns=if(width>=900)4 else if(width>=600)3 else 2;grid.columnCount=columns
         for(game in visible.drop(page*24).take(24)) {
             val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(gameCard(game,compact),params)
@@ -256,13 +263,29 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
         card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
         card.addView(text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END })
+        val badges=text(badges(game),12f).apply { maxLines=1;setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
+        card.addView(badges);downloadBadges[game.key]=badges
         images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
         return card
+    }
+    /** Selos do cartão: progresso, nota, tempo no celular, save e download em andamento. */
+    private fun badges(game:Game,download:QueuedDownload?=null):String {
+        val tracking=store.tracking(game);val minutes=store.prefs.getLong("time:${game.key}",0)/60
+        val label=game.romName.substringAfterLast('/').let { SaveRules.label(it,store.extensionsFor(game.code)) }
+        val saved=game.localUri!=null && saveNames[game.code].orEmpty().any { SaveRules.belongs("${game.code}/$it",game.code,label) }
+        val row=download ?: cardQueue.firstOrNull { it.game.key==game.key && it.state!=DownloadState.DONE }
+        return listOfNotNull(
+            when { tracking.optBoolean("platinado") -> "🏆";tracking.optBoolean("finalizado") -> "✓ Finalizado";tracking.optBoolean("iniciado") -> "▶ Jogando";else -> null },
+            (TrackingRules.value(tracking,"nota") as Double?)?.let { "★ "+TrackingRules.label(it) },
+            minutes.takeIf { it>0 }?.let { if(it>=60)"⏱ ${it/60}h${"%02d".format(it%60)}" else "⏱ ${it}min" },
+            "💾".takeIf { saved },
+            row?.let { when(it.state) { DownloadState.FAILED -> "⬇ falhou";DownloadState.PAUSED -> "⬇ pausado";else -> "⬇ "+(it.total?.takeIf { t -> t>0 }?.let { t -> "${it.bytes*100/t}%" } ?: bytesLabel(it.bytes)) } }
+        ).joinToString(" · ")
     }
     /** Início: fileiras horizontais com o que faz sentido abrir agora. Pesquisar mostra a grade do catálogo. */
     private fun renderHome() {
         val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
-        page=0;pageCount=1;grid.removeAllViews();grid.columnCount=1
+        page=0;pageCount=1;grid.removeAllViews();downloadBadges.clear();cardQueue=runCatching { queue().snapshot() }.getOrDefault(emptyList());grid.columnCount=1
         val byKey=games.associateBy { it.key }
         val entries=games.map { game -> val tracking=store.tracking(game)
             HomeEntry(game.key,game.name,game.localUri!=null,tracking.optBoolean("iniciado"),tracking.optBoolean("finalizado"),
@@ -439,6 +462,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             store.setProgress(game,field,!tracking.optBoolean(field))
             if(GameLogic.offerRemoval(tracking.optBoolean("finalizado"),store.tracking(game).optBoolean("finalizado"),game.localUri!=null) && !SpaceStore(store).pinned(game))offerRomRemoval(game) else details(game)
         })
+        if(game.id.isNotBlank()) { // nota só vale para jogo da Biblioteca; ROM solta não cria cadastro
+            val nota=TrackingRules.value(tracking,"nota") as Double?
+            progress.addView(text("Nota (0–11): ${TrackingRules.label(nota)}",16f).apply { setTypeface(null,Typeface.BOLD) })
+            val rating=row();horizontal(progress,rating)
+            for((label,delta) in listOf("−1" to -1.0,"−0,1" to -0.1,"+0,1" to 0.1,"+1" to 1.0))add(rating,button(label) { store.setNota(game,TrackingRules.adjust(nota,delta));details(game) })
+            if(nota!=null)add(rating,button("Limpar") { store.setNota(game,null);details(game) })
+        }
         val minutes=store.prefs.getLong("time:${game.key}",0)/60
         progress.addView(text("$minutes min neste celular. Vai para o notebook sozinho quando ele estiver online.",12f))
         val more=expandable(box,"Mais opções")

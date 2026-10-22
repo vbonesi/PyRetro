@@ -15,7 +15,7 @@ async function api(url, body) {
   return data;
 }
 const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "home", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null, preferences: {favorites: [], theme: "dark"}, home: null};
-const collections = [["home", "Início"], ["local", "Neste PC"], ["favorites", "Favoritos"], ["systems", "Sistemas"], ["library", "Biblioteca"], ["playing", "Jogando"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["apps", "Apps"]];
+const collections = [["home", "Início"], ["local", "Neste PC"], ["favorites", "Favoritos"], ["systems", "Sistemas"], ["library", "Biblioteca"], ["playing", "Jogando"], ["ranking", "Ranking"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["apps", "Apps"]];
 const cardGames = new WeakMap();
 let spotlightGame, settingsReturnFocus;
 function button(text, action, pressed) {
@@ -45,7 +45,7 @@ function platformTabs() {
       state.genre = name; platformTabs(); render(); genres.querySelector('[aria-pressed="true"]')?.focus();
     }, (state.genre || "") === name));
   }
-  if (["library", "playing", "local", "search", "favorites"].includes(state.kind)) {
+  if (["library", "playing", "ranking", "local", "search", "favorites"].includes(state.kind)) {
     const platforms = [...new Set(state.items.map(g => g.platform))].sort();
     for (const p of ["", ...platforms]) nav.append(button(p || "Todas as plataformas", () => {
       state.filter = p; platformTabs(); render(); nav.querySelector(`[aria-pressed="true"]`)?.focus();
@@ -95,8 +95,9 @@ async function load(kind = state.kind, code = "") {
       items = await api("/api/tv/local");
     } else if (kind === "apps") {
       items = await api("/api/tv/apps");
-    } else if (kind === "library" || kind === "playing") {
-      items = (await api(kind === "library" ? "/api/library" : "/api/iniciados")).filter(g => !g.oculto).map(libraryItem);
+    } else if (kind === "library" || kind === "playing" || kind === "ranking") {
+      // Ranking: só quem tem nota, maior primeiro (mesma ordem da web).
+      items = (await api(kind === "library" ? "/api/library" : kind === "ranking" ? "/api/ranking" : "/api/iniciados")).filter(g => !g.oculto).map(libraryItem);
       if (state.installedOnly) {
         const local = await api("/api/tv/local");
         for (const g of items) g.local = local.some(x => x.id && x.id === g.id || x.code && x.code === g.code && x.romName === g.romName);
@@ -362,6 +363,7 @@ function openGame(g, origin = document.activeElement) {
   $("game-time").textContent = g.playtime?.seconds ? `${formatTime(g.playtime.seconds)} em ${g.playtime.sessions} sessão(ões) registrada(s).` : 'Ainda sem tempo registrado neste PC.';
   $("detail-video").pause(); $("detail-video").hidden = !g.media?.video;
   $("detail-video").removeAttribute('src'); if (g.media?.video) $("detail-video").src = g.media.video;
+  $("saves-toggle").hidden = !g.code; $("saves-fields").hidden = true; $("saves-toggle").setAttribute("aria-expanded", "false");
   updateFavoriteButton(g); $("progress-fields").hidden = true; $("progress-toggle").setAttribute("aria-expanded", "false");
   report("", false, "detail-status"); renderTracking();
   $("download").hidden = !g.downloadName; $("download").textContent = "Baixar para o PC"; $("download").dataset.confirm = "";
@@ -369,6 +371,23 @@ function openGame(g, origin = document.activeElement) {
   $("details").showModal(); $("close").focus();
   refreshPlayOptions(g);
 }
+// 💾 Saves do jogo no PC (RetroArch, pasta do sistema e raiz antiga). Só leitura.
+$("saves-toggle").onclick = async () => {
+  const g = state.selected, box = $("saves-fields");
+  box.hidden = !box.hidden; $("saves-toggle").setAttribute("aria-expanded", String(!box.hidden));
+  if (box.hidden || !g?.code) return;
+  box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint", textContent: "Procurando saves neste PC…"}));
+  try {
+    const {items} = await api('/api/tv/saves?' + new URLSearchParams({code: g.code, label: g.romName || g.name}));
+    if (state.selected !== g) return;
+    const when = t => new Date(t * 1000).toLocaleString("pt-BR", {dateStyle: "short", timeStyle: "short"});
+    const size = n => n >= 1048576 ? `${(n/1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n/1024))} KB`;
+    box.replaceChildren(...(items.length ? items.map(f => Object.assign(document.createElement("p"), {
+      textContent: `${f.kind === "save" ? "💾" : "⏸"} ${f.name} · ${size(f.size)} · ${when(f.mtime)}${f.legado ? " · pasta antiga" : ""}`})) :
+      [Object.assign(document.createElement("p"), {className: "hint", textContent: "Nenhum save ou estado deste jogo no RetroArch do PC."})]),
+      Object.assign(document.createElement("p"), {className: "hint", textContent: "Para trocar saves com o celular, use 💾 Saves no app Android. Feche o emulador antes."}));
+  } catch (error) { box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint", textContent: error.message})); }
+};
 $("progress-toggle").onclick = () => {
   $("progress-fields").hidden = !$("progress-fields").hidden;
   $("progress-toggle").setAttribute("aria-expanded", String(!$("progress-fields").hidden));

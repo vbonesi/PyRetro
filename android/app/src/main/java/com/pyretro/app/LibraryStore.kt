@@ -202,10 +202,19 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         val stored=prefs.getString("pending:${game.key}",null)?.let(::JSONObject) ?: JSONObject().put("key",game.key).put("id",game.id).put("campos",JSONObject()).put("base",JSONObject())
         val fields=stored.getJSONObject("campos");val base=stored.getJSONObject("base")
         for((name,state) in GameLogic.progress(field,value)) { if(!base.has(name))base.put(name,game.tracking.optBoolean(name));fields.put(name,state) }
-        val edit=prefs.edit()
-        if(fields.keys().asSequence().all { fields.optBoolean(it)==base.optBoolean(it) })edit.remove("pending:${game.key}")
-        else edit.putString("pending:${game.key}",stored.toString())
-        edit.apply()
+        save(game,stored)
+    }
+    /** Nota 0–11 (null limpa). Fica pendente como o progresso, com o valor visto antes da edição. */
+    fun setNota(game:Game,nota:Double?) {
+        val stored=prefs.getString("pending:${game.key}",null)?.let(::JSONObject) ?: JSONObject().put("key",game.key).put("id",game.id).put("campos",JSONObject()).put("base",JSONObject())
+        val base=stored.getJSONObject("base")
+        if(!base.has("nota"))base.put("nota",TrackingRules.value(game.tracking,"nota") ?: JSONObject.NULL)
+        stored.getJSONObject("campos").put("nota",nota ?: JSONObject.NULL);save(game,stored)
+    }
+    private fun save(game:Game,stored:JSONObject) {
+        val fields=stored.getJSONObject("campos");val base=stored.getJSONObject("base")
+        if(fields.keys().asSequence().all { TrackingRules.same(fields.opt(it),base.opt(it)) })prefs.edit().remove("pending:${game.key}").apply()
+        else prefs.edit().putString("pending:${game.key}",stored.toString()).apply()
     }
     fun addTime(game:Game,minutes:Int) {
         val event=UUID.randomUUID().toString();val value=JSONObject().put("key",game.key).put("minutes",minutes).put("event",event)
@@ -224,7 +233,7 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
                 try {
                     if(key.startsWith("pending:")) {
                         val fields=payload.getJSONObject("campos");val baseline=payload.getJSONObject("base")
-                        if(fields.keys().asSequence().any { field -> game.tracking.optBoolean(field)!=baseline.optBoolean(field) && game.tracking.optBoolean(field)!=fields.optBoolean(field) }) { conflict(key,raw);continue }
+                        if(fields.keys().asSequence().any { field -> val now=TrackingRules.value(game.tracking,field);!TrackingRules.same(now,baseline.opt(field)) && !TrackingRules.same(now,fields.opt(field)) }) { conflict(key,raw);continue }
                         if(game.id.isBlank()) { conflict(key,raw);continue }
                         request("/api/library/edit",JSONObject().put("id",game.id).put("campos",fields).put("expected",baseline))
                         fields.keys().forEach { field -> game.tracking.put(field,fields.get(field)) }

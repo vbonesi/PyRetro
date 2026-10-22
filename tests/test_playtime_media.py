@@ -140,3 +140,14 @@ class TestTimeMediaHTTP(BaseAPI):
         body['expected']={'iniciado':True,'finalizado':True,'platinado':True}
         self.assertEqual(self.pedir('/api/library/edit',body)[0],200)
         self.assertEqual(self.pedir('/api/library/edit',body)[0],200,'retry já aplicado deve ser aceito')
+
+    def test_offline_rating_is_compared_like_progress(self):
+        self.game.update(nota=7.5);self.gravar_biblioteca([self.game]);before=self.lib_path.read_bytes()
+        body={'id':self.game['id'],'campos':{'nota':9},'expected':{'nota':None}}
+        self.assertEqual(self.pedir('/api/library/edit',body)[0],409,'nota mudou no notebook: preserva a do celular')
+        self.assertEqual(self.lib_path.read_bytes(),before)
+        self.assertEqual(self.pedir('/api/library/edit',{**body,'expected':{'nota':True}})[0],400)
+        body['expected']={'nota':7.5}
+        self.assertEqual(self.pedir('/api/library/edit',body)[0],200)
+        self.assertEqual(self.pedir('/api/library/edit',body)[0],200,'retry já aplicado deve ser aceito')
+        self.assertEqual(self.pedir('/api/library/edit',{'id':self.game['id'],'campos':{'nota':None},'expected':{'nota':9}})[0],200)
