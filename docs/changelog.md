@@ -6,6 +6,44 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 22/10/2026 — Saves do RetroArch numa pasta por sistema (PC e celular)
+
+Aprovado pelo usuário. Motivo: 68 nomes de ROM existem em mais de um sistema
+e, com a pasta achatada, dividiam o mesmo `.srm`/`.state`.
+
+- **Conferência antes:** os 10 arquivos de saves/states tinham conteúdo
+  idêntico no PC e no celular. O `Super Mario 64.srm` só tinha a data
+  diferente (16/10). O FolderSync não está mais instalado no celular,
+  então cada lado foi migrado de forma independente.
+- **Cópia de segurança:**
+  `~/Drive/Jogos/Backups/saves_por_sistema_2026-10-21_1917_antes/` guarda os
+  saves/states do PC (com `SHA256SUMS`), os do celular (`celular/`) e os dois
+  `retroarch.cfg` originais.
+- **RetroArch:** `sort_savefiles_by_content_enable` e
+  `sort_savestates_by_content_enable` = `"true"` no PC (flatpak) e no
+  celular. O diff confirmou que só essas duas linhas mudaram. A pasta nova é a
+  pasta da ROM, que é o código do sistema nos dois lados (`ROMs/<código>/`,
+  `Jogos/<código>/`).
+- **Arquivos movidos** com `python3 -m core.save_layout [--celular] --aplicar`
+  (confere tudo antes, nunca sobrescreve). Nos dois lados:
+  `N64/Super Mario 64.srm` e `.state`, `SFC/Final Fantasy VI.srm`,
+  `GBA/Moemon Ruby.srm`, `ARCADE/fbneo/kof97.fs`. As pastas `Backup/` ficaram
+  intactas. Os hashes depois da mudança são iguais aos do backup.
+- **Validado no RetroArch:** PC N64 (save e state lidos de `N64/`), PC FBNeo
+  (`EEPROM successfully loaded from …/ARCADE/fbneo/kof97.fs`) e celular N64
+  (save e state de `N64/`). Os testes usaram configuração anexa/temporária
+  sem salvamento automático de state.
+- **Cuidado aprendido:** `savestate_automatic_interval = "10"` grava
+  `.state.auto` periodicamente mesmo com `savestate_auto_save = "false"`.
+  O teste de 25 s no celular criou um `.state.auto` novo, que seria
+  carregado no lugar do state real. Ele foi copiado para
+  `artefato-do-teste/` no backup e removido do celular. Os `.lrtl` de
+  runtime ganharam alguns segundos (Super Mario 64 e kof97 no PC, Super
+  Mario 64 no celular).
+- **Como desfazer:** voltar as duas opções para `"false"` e restaurar o backup.
+- Migrador corrigido antes de aplicar: a listagem via adb cortava um nível de
+  pasta (`PurePosixPath` descarta o `./`). Agora há `parse_find` com teste.
+
 ## 21/10/2026 — Relacional jogo ↔ save/tempo/favoritos (PC, web, TV, Android 0.5.2)
 
 Validação no PC: 285 Python e 43 JS passam. Todas as rotas GET responderam

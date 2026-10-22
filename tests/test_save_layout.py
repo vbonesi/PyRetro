@@ -33,6 +33,11 @@ class TestSaveLayout(unittest.TestCase):
         self.assertIn("FC, MD", reasons["Aladdin.srm"]); self.assertIn("nenhuma ROM", reasons["Orfao.srm"])
         self.assertNotIn("Backup/", reasons)
 
+    def test_parse_find_keeps_top_level_folders(self):
+        entries = save_layout.parse_find("./Backup/Donkey Kong Country.srm\n./fbneo/kof97.fs\n./Super Mario 64.srm\n")
+        self.assertEqual(entries, [("Backup", True, ["Donkey Kong Country.srm"]), ("Super Mario 64.srm", False, []), ("fbneo", True, ["kof97.fs"])])
+        self.assertEqual(save_layout.parse_find("./N64/x.srm\n"), [("N64", True, ["x.srm"])])
+
     def test_apply_checks_everything_before_moving_and_never_overwrites(self):
         (self.saves / "Super Mario 64.srm").write_bytes(b"velho")
         (self.saves / "N64").mkdir(); (self.saves / "N64" / "Super Mario 64.srm").write_bytes(b"novo")

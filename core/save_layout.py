@@ -11,9 +11,9 @@ Fica onde está, e aparece no relatório: nome sem ROM, nome em 2+ sistemas
 "Backup" ficam intactas. Pastas que o próprio core cria (FBNeo: `fbneo/`) vão
 para dentro da pasta do sistema.
 
-Uso (simula por padrão; `--aplicar` move de verdade, só no PC):
+Uso (simula por padrão; `--aplicar` move de verdade):
     python3 -m core.save_layout [--aplicar]
-    python3 -m core.save_layout --celular   # imprime o plano do celular via adb
+    python3 -m core.save_layout --celular [--aplicar]   # celular via adb
 """
 import argparse
 import subprocess
@@ -94,11 +94,14 @@ def apply_local(root: Path, moves) -> list:
     return done
 
 
-def adb_entries(remote_root: str):
-    listing = subprocess.run(["adb", "shell", f"cd '{remote_root}' && find . -type f"], capture_output=True, text=True, check=True).stdout
+def parse_find(listing: str):
+    """Saída de `find . -type f` (uma linha por arquivo, "./a/b") → entradas de plan()."""
     tops = {}
     for line in listing.splitlines():
-        parts = PurePosixPath(line.strip()).parts[1:]
+        line = line.strip()
+        if not line.startswith("./"):
+            continue
+        parts = PurePosixPath(line[2:]).parts
         if not parts:
             continue
         if len(parts) == 1:
@@ -106,6 +109,38 @@ def adb_entries(remote_root: str):
         else:
             tops.setdefault(parts[0], (True, []))[1].append("/".join(parts[1:]))
     return [(name, is_dir, inner) for name, (is_dir, inner) in sorted(tops.items())]
+
+
+def adb_entries(remote_root: str):
+    listing = subprocess.run(["adb", "shell", f"cd '{remote_root}' && find . -type f"], capture_output=True, text=True, check=True).stdout
+    return parse_find(listing)
+
+
+def _q(path: str) -> str:
+    return "'" + path.replace("'", "'\\''") + "'"
+
+
+def apply_adb(remote_root: str, moves) -> list:
+    """Mesmas garantias de apply_local, no celular: confere origem/destino de
+    todos antes de mover qualquer um; mv -n nunca sobrescreve."""
+    def sh(cmd):
+        return subprocess.run(["adb", "shell", cmd], capture_output=True, text=True)
+    for src, dst in moves:
+        s, d = f"{remote_root}/{src}", f"{remote_root}/{dst}"
+        if sh(f"[ -f {_q(s)} ] && [ ! -e {_q(d)} ]").returncode != 0:
+            raise FileExistsError(f"origem ausente ou destino já existe: {src} -> {dst}")
+    done = []
+    for src, dst in moves:
+        s, d = f"{remote_root}/{src}", f"{remote_root}/{dst}"
+        r = sh(f"mkdir -p {_q(str(PurePosixPath(d).parent))} && mv -n {_q(s)} {_q(d)} && [ -f {_q(d)} ] && [ ! -e {_q(s)} ]")
+        if r.returncode != 0:
+            raise OSError(f"falha ao mover {src}: {r.stderr.strip()}")
+        done.append(dst)
+    for src, _ in moves:
+        parent = PurePosixPath(src).parent
+        if str(parent) != ".":
+            sh(f"rmdir {_q(remote_root + '/' + str(parent))} 2>/dev/null")
+    return done
 
 
 def main():
@@ -125,8 +160,9 @@ def main():
             print(f"   mover   {src}  ->  {dst}")
         for name, why in result["skipped"]:
             print(f"   manter  {name}  ({why})")
-        if args.aplicar and not args.celular and result["moves"]:
-            print("   movidos:", len(apply_local(root, result["moves"])))
+        if args.aplicar and result["moves"]:
+            done = apply_adb(root, result["moves"]) if args.celular else apply_local(root, result["moves"])
+            print("   movidos:", len(done))
 
 
 if __name__ == "__main__":

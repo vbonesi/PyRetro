@@ -11,9 +11,11 @@ do arquivo - ou da pasta inteira, pra formatos tipo Switch que usam
 pasta por jogo (fora do escopo de [heavy_systems] hoje, mas a função já
 suporta).
 
-Save/state: RetroArch guarda tudo achatado (sem subpasta por sistema)
-em saves_root/<label>.<ext> e states_root/<label>.state[.auto] - troca
-qualquer arquivo cujo nome comece com "<label antigo>." exatamente.
+Save/state: desde 22/10/2026 o RetroArch (PC e celular) grava em
+saves_root/<código>/<label>.<ext> e states_root/<código>/<label>.state[.auto]
+(sort_save*_by_content_enable; a pasta da ROM é o código do sistema). A raiz
+achatada antiga continua sendo lida como legado (ver save_folders). Troca só
+"<label antigo>" + extensão(ões), nunca outro título (ver is_save_of).
 Sistemas com save gerenciado por emulador standalone (PS1/SDC via
 DuckStation/Flycast, PS2/etc via seus próprios apps) simplesmente não
 têm arquivo nesse padrão - não acha nada, não faz nada, sem tratamento

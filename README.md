@@ -939,9 +939,10 @@ O que tem até agora:
 - Filtros "⚑ só marcadas" / "só sem correspondência" / "só sem capa",
   combináveis entre si (união, não interseção)
 - **💾/⏱ Save/State por jogo**: badges na própria capa quando o jogo
-  tem save e/ou state (convenção achatada do RetroArch, `saves_root`/
-  `states_root`) - clicar apaga só aquele save ou state, sem mexer na
-  ROM/capa
+  tem save e/ou state (`saves_root`/`states_root`, numa pasta por
+  sistema desde 22/10/2026 - `<raiz>/<código>/`, com a raiz achatada
+  antiga ainda lida como legado) - clicar apaga só aquele save ou state,
+  sem mexer na ROM/capa
 - Botão de busca em massa por fonte pra reprocessar sem_match/
   marcadas erradas - "🔍 Buscar no LaunchBox" e "🔍 Buscar no
   ScreenScraper", cada um roda só na fonte escolhida
