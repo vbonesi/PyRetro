@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import json
 
 
 def edit(text, section, values, append=False):
@@ -37,6 +38,58 @@ def edit(text, section, values, append=False):
             block.pop()
         block.append('\n')
     return ''.join(lines[:start] + block + lines[end:])
+
+
+def qt_edit(text, section, values):
+    """Ini do Qt (Azahar): `chave=valor` sem espaços e `chave\\default=false` ao lado."""
+    lines = text.splitlines(keepends=True)
+    start = next(i + 1 for i, line in enumerate(lines) if line.strip() == '[' + section + ']')
+    end = next((i for i in range(start, len(lines)) if lines[i].startswith('[')), len(lines))
+    block = lines[start:end]
+    for key, value in values.items():
+        for name, val in ((key, value), (key + '\\default', 'false')):
+            row = name + '=' + val + '\n'
+            index = next((i for i, line in enumerate(block) if line.split('=', 1)[0] == name), None)
+            if index is None:
+                block.insert(len(block) - (1 if block and not block[-1].strip() else 0), row)
+            else:
+                block[index] = row
+    return ''.join(lines[:start] + block + lines[end:])
+
+
+def azahar_guid(home):
+    """GUID do Xbox como o SDL do sandbox do Azahar o vê (ver tools/sdl_probe.py)."""
+    probe = Path(__file__).with_name('sdl_probe.py')
+    result = subprocess.run(['flatpak', 'run', '--filesystem=' + str(probe.parent) + ':ro', '--command=python3',
+                             'org.azahar_emu.Azahar', str(probe)], capture_output=True, text=True, timeout=60)
+    pads = [json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
+    xbox = [pad for pad in pads if 'xbox' in pad['name'].lower() and pad['controller']]
+    return xbox[0]['guid'] if xbox else None
+
+
+# SDL_GameController: botões e eixos (iguais em SDL2/SDL3 para o Xbox).
+SDL_BUTTON = dict(A=0, B=1, X=2, Y=3, Back=4, Start=6, LS=7, RS=8, LB=9, RB=10, Up=11, Down=12, Left=13, Right=14)
+
+
+def azahar_values(guid):
+    def sdl(**params):
+        return '"' + ','.join(f'{k}:{v}' for k, v in {'api': 'controller', **params, 'engine': 'sdl', 'guid': guid, 'port': 0}.items()) + '"'
+    # Posição de Nintendo (A à direita), igual ao mapeamento automático do Azahar.
+    buttons = dict(a='B', b='A', x='Y', y='X', l='LB', r='RB', start='Start', select='Back',
+                   up='Up', down='Down', left='Left', right='Right')
+    controls = {f'profiles\\1\\button_{k}': sdl(button=SDL_BUTTON[v]) for k, v in buttons.items()}
+    controls['profiles\\1\\button_zl'] = sdl(axis=4, direction='+', threshold=0.5)
+    controls['profiles\\1\\button_zr'] = sdl(axis=5, direction='+', threshold=0.5)
+    controls['profiles\\1\\circle_pad'] = sdl(axis_x=0, axis_y=1, deadzone=0.1)
+    controls['profiles\\1\\c_stick'] = sdl(axis_x=2, axis_y=3, deadzone=0.1)
+    combo = lambda button: '"' + sdl(button=SDL_BUTTON['Back'])[1:-1] + '||' + sdl(button=SDL_BUTTON[button])[1:-1] + '"'
+    hotkeys = {'Toggle%20Screen%20Layout': 'LS', 'Swap%20Screens': 'RS', 'Quick%20Save': 'LB',
+               'Quick%20Load': 'RB', 'Toggle%20Turbo%20Mode': 'Right', 'Capture%20Screenshot': 'X',
+               'Exit%20Azahar': 'Start'}
+    ui = {f'Shortcuts\\Main%20Window\\{name}\\controller_keyseq': combo(button) for name, button in hotkeys.items()}
+    # Back+L3 alterna entre as duas telas (0, padrão) e uma tela (1); Back+R3 troca qual aparece.
+    layout = {'layout_option': '0', 'layouts_to_cycle': '0, 1'}
+    return controls, ui, layout
 
 
 PAD = dict(Up='DPadUp', Down='DPadDown', Left='DPadLeft', Right='DPadRight',
@@ -124,6 +177,22 @@ def planned(home):
             combo = '10-196:10-' + value
             values[key] = ','.join(old + ([combo] if combo not in old else []))
         change(psp, 'ControlMapping', values)
+    azahar = home / '.var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini'
+    if azahar.is_file():
+        guid = azahar_guid(home)
+        if guid is None:
+            print('Azahar: ligue o controle Xbox e rode de novo (o GUID vem do SDL do Azahar).')
+        else:
+            controls, ui, layout = azahar_values(guid)
+            text = out.get(azahar.resolve(), azahar.read_text(encoding='utf-8'))
+            for section, values in (('Controls', controls), ('UI', ui), ('Layout', layout)):
+                text = qt_edit(text, section, values)
+            out[azahar.resolve()] = text
+    nds = home / '.var/app/org.libretro.RetroArch/config/retroarch/config/melonDS/NDS.opt'
+    if nds.is_file():
+        # Toque pelo analógico direito + R3; RT troca as telas (Toggle); padrão em duas telas.
+        change(nds, '', {'melonds_touch_mode': '"Joystick"', 'melonds_swapscreen_mode': '"Toggle"',
+                         'melonds_screen_layout': '"Top/Bottom"'})
     return out
 
 
@@ -131,7 +200,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
-    for name in ('retroarch', 'pcsx2-qt', 'dolphin-emu', 'duckstation-qt', 'PPSSPPSDL'):
+    for name in ('retroarch', 'pcsx2-qt', 'dolphin-emu', 'duckstation-qt', 'PPSSPPSDL', 'azahar'):
         if subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0:
             raise SystemExit('Feche o emulador antes de configurar: ' + name)
     changes = planned(Path.home())

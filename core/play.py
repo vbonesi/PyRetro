@@ -16,6 +16,7 @@ SYSTEMS = {
     'MD': 'megadrive', 'SMS': 'mastersystem', 'GG': 'gamegear', 'N64': 'n64',
     'ARCADE': 'arcade', 'PCE': 'pcengine', 'PCECD': 'pcenginecd',
     'PS': 'psx', 'PS2': 'ps2', 'PSP': 'psp', 'NGC': 'gc', 'WII': 'wii',
+    'NDS': 'nds', '3DS': 'n3ds',
 }
 LAUNCHER = Path.home() / '.local/bin/bonisarch-emulator'
 CORE_ROOT = Path.home() / '.var/app/org.libretro.RetroArch/config/retroarch/cores'

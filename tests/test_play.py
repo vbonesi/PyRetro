@@ -102,8 +102,9 @@ class TestPlay(unittest.TestCase):
         with self.assertRaises(ValueError): play.prepare(self.cfg, 'PS', 'Vazio.m3u')
 
     def test_unknown_system_extension_and_launcher_are_refused(self):
-        self.file('3DS/Jogo.3ds'); self.file('PS2/Jogo.exe')
-        with self.assertRaises(ValueError): play.prepare(self.cfg, '3DS', 'Jogo.3ds')
+        # Switch não tem emulador no lançador (3DS/NDS ganharam em 22/10).
+        self.file('NSW/Jogo.nsp'); self.file('PS2/Jogo.exe')
+        with self.assertRaises(ValueError): play.prepare(self.cfg, 'NSW', 'Jogo.nsp')
         with self.assertRaises(ValueError): play.prepare(self.cfg, 'PS2', 'Jogo.exe')
         self.file('PS/Jogo.ccd')
         with self.assertRaisesRegex(ValueError, 'CCD'): play.prepare(self.cfg, 'PS', 'Jogo.ccd')
