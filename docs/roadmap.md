@@ -99,7 +99,7 @@ Feito nesta conversa (detalhe no changelog de 21–22/10):
 - **melonDS:** se o atualizador de cores do RetroArch baixar o core de novo, ele volta
   a pedir pilha executável e não carrega (`step_emulator_extras` resolve). Avaliar o
   `melondsds`, que não tem o problema e pode ter renderizador de alta resolução.
-- **rclone:** o client_id compartilhado para de funcionar em 2026; criar um próprio.
+- **rclone:** ✅ client_id próprio desde 22/10 (modo Teste: refazer o login a cada ~7 dias até publicar o app).
 - **Controles do 3DS:** atalhos Back+L3/R3 etc. aplicados, mas não confirmados no jogo.
 - **Celular:** Tailscale estava desconectado; com ele ligado, "Carregar catálogo" traz
   as capas novas de PSP/3DS e o Pokémon X ganha capa.
@@ -141,7 +141,7 @@ no toque e no mouse/teclado, fazendo tudo o que a interface web faz.
 | Item | Situação |
 |---|---|
 | melonDS volta a pedir pilha executável se o atualizador baixar o core | Aberto, no notebook: rodar `step_emulator_extras` de novo; avaliar `melondsds` |
-| rclone com client_id compartilhado | Aberto, ação do Victor: criar client_id próprio no Google Cloud (o download do celular via notebook depende do rclone) |
+| rclone com client_id compartilhado | ✅ Client_id próprio em 22/10 (projeto PyRetro no Google Cloud). App em modo Teste: token vence em ~7 dias (`rclone config reconnect drive:`); publicar exige links de página inicial/privacidade no Branding |
 | Atalhos do 3DS (Back+L3/R3…) | Aberto: conferir no jogo com o Xbox ligado |
 | Celular com Tailscale desconectado | Aberto, ação no aparelho: ligar e deixar o app atualizar o catálogo sozinho |
 | `NDS.opt` reordenado a cada simulação | ✅ Corrigido (teste em `test_controller_config.py`) |
