@@ -910,6 +910,36 @@ button.tiny.danger {
   flex: 0 0 auto;
 }
 
+/* Fontes de textura: como flex (.saves-add-card), o conteúdo do <details>
+   cresceria até o nome mais longo e passaria do modal no celular. */
+#texturas-fontes {
+  display: block;
+}
+
+#texturas-fontes > .tiny {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 6px 0 8px;
+}
+
+#texturas-fontes-lista .heavy-item-size {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Link com cara de botão tiny secondary (página externa do pacote de textura). */
+a.button-link {
+  background: var(--border);
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
 .sortear-result {
   padding: 16px;
   min-height: 60px;

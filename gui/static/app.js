@@ -2792,6 +2792,77 @@ async function carregarTexturas() {
     `O arquivo precisa estar em ${data.importar_dir || "~/Downloads"} (só o nome, sem caminho).`;
   if (data.celular_ok === false) textStatus("celular não conectado por adb");
   renderTexturas();
+  carregarFontesTextura();
+}
+
+// Índice de fontes externas (core/texturas_fontes.json): só links para a página
+// do pacote; a instalação vai pela importação de arquivo, já preenchida.
+let texturasFontes = [];
+
+async function carregarFontesTextura() {
+  try {
+    const res = await fetch(`/api/texturas/fontes?alvo=${textAlvo()}`);
+    const data = await res.json();
+    texturasFontes = res.ok ? (data.fontes || []) : [];
+  } catch (_) {
+    texturasFontes = [];
+  }
+  renderFontesTextura();
+}
+
+function renderFontesTextura() {
+  const lista = document.getElementById("texturas-fontes-lista");
+  const termo = document.getElementById("texturas-busca").value.trim().toLowerCase();
+  const sis = document.getElementById("texturas-sistema").value;
+  const itens = texturasFontes.filter(f => (!sis || f.sistema === sis) &&
+    (!termo || f.jogo.toLowerCase().includes(termo) || f.nome.toLowerCase().includes(termo) || f.id_jogo.toLowerCase().includes(termo)));
+  itens.sort((a, b) => a.jogo.localeCompare(b.jogo) || a.sistema.localeCompare(b.sistema));
+  document.getElementById("texturas-fontes-n").textContent = `(${new Set(itens.map(f => f.sistema + f.jogo)).size} jogos, ${itens.length} páginas)`;
+  lista.innerHTML = "";
+  if (!itens.length) {
+    lista.innerHTML = '<div class="empty-state">Nenhuma página para este filtro.</div>';
+    return;
+  }
+  for (const f of itens) {
+    const row = document.createElement("div");
+    row.className = "heavy-item";
+    const nome = document.createElement("div");
+    nome.className = "heavy-item-name";
+    nome.textContent = f.id_jogo ? `${f.nome} [${f.id_jogo}]` : f.nome;
+    nome.title = `${f.jogo} · ${f.url}`;
+    const info = document.createElement("div");
+    info.className = "heavy-item-size";
+    info.textContent = [f.sistema, f.site, f.autor, f.regiao, f.tamanho].filter(Boolean).join(" · ");
+    const st = document.createElement("div");
+    st.className = "heavy-item-status";
+    st.textContent = [f.restricao === "Ads" ? "anúncios" : f.restricao, f.no_catalogo ? "também no catálogo" : ""].filter(Boolean).join(" · ");
+    const abrir = document.createElement("a");
+    abrir.className = "tiny secondary button-link";
+    abrir.textContent = "Abrir página ↗";
+    if (f.url.startsWith("https://")) abrir.href = f.url;
+    abrir.target = "_blank";
+    abrir.rel = "noopener noreferrer";
+    const usar = document.createElement("button");
+    usar.className = "tiny";
+    usar.type = "button";
+    usar.textContent = "Importar";
+    usar.addEventListener("click", () => usarFonteTextura(f));
+    row.append(nome, info, st, abrir, usar);
+    lista.appendChild(row);
+  }
+}
+
+function usarFonteTextura(f) {
+  const sel = document.getElementById("texturas-imp-sistema");
+  if (![...sel.options].some(o => o.value === f.sistema)) { textStatus(`${f.sistema} não tem suporte a texturas neste alvo`); return; }
+  sel.value = f.sistema;
+  document.getElementById("texturas-imp-id").value = f.id_jogo;
+  const caixa = document.getElementById("texturas-importar");
+  caixa.open = true;
+  caixa.scrollIntoView({ block: "nearest" });
+  const campo = document.getElementById(f.id_jogo ? "texturas-imp-arquivo" : "texturas-imp-id");
+  campo.focus();
+  textStatus(f.id_jogo ? `${f.jogo}: informe o arquivo baixado` : `${f.jogo}: informe o ID do jogo e o arquivo baixado`);
 }
 
 function renderTexturas() {
@@ -2965,7 +3036,7 @@ document.getElementById("texturas-modal").addEventListener("click", (e) => {
   if (e.target.id === "texturas-modal") fecharTexturas();
 });
 for (const id of ["texturas-busca", "texturas-sistema", "texturas-so-meus"]) {
-  document.getElementById(id).addEventListener("input", renderTexturas);
+  document.getElementById(id).addEventListener("input", () => { renderTexturas(); renderFontesTextura(); });
 }
 const textureParams = new URLSearchParams(location.search);
 if (textureParams.has('textures')) (async () => {

@@ -2374,6 +2374,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "alvo inválido"}, 400)
             return self._json(_texturas_lista(alvo))
 
+        if parts == ["api", "texturas", "fontes"]:
+            alvo = query.get("alvo", ["pc"])[0]
+            if alvo not in ("pc", "celular"):
+                return self._json({"error": "alvo inválido"}, 400)
+            cfg = load_config()
+            library = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
+            return self._json({"fontes": texturas_mod.fontes_da_biblioteca(library["games"], _texturas_sistemas(alvo))})
+
         if parts == ["api", "memcards"]:
             cfg = load_config()
             mc_cfg = cfg.get("memcards", {})

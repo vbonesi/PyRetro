@@ -147,6 +147,63 @@ class TexturasTest(unittest.TestCase):
             self.assertEqual(len(p["sha1"]), 40)
 
 
+class TexturasFontesTest(unittest.TestCase):
+    """Índice de fontes externas (planilha): só casa com jogos da Biblioteca."""
+    fontes = [
+        {"sistema": "PS1", "nome": "Castlevania: Symphony of the Night", "url": "https://gbatemp.net/a", "serial": "SLUS-00067"},
+        {"sistema": "PS2", "nome": "Need for Speed: Underground 2", "url": "https://gbatemp.net/b", "serial": ""},
+        {"sistema": "PS2", "nome": "Need for Speed: Underground", "url": "https://gbatemp.net/c", "serial": ""},
+        {"sistema": "GC", "nome": "Harry Potter & the Chamber of Secrets", "url": "https://gbatemp.net/d", "serial": ""},
+        {"sistema": "PSP", "nome": "Tetris", "url": "https://gbatemp.net/e", "serial": "lixo"},
+    ]
+    catalogo = [{"sistema": "PS2", "nome": "Need for Speed - Underground 2 (USA)", "id_jogo": "SLUS-21065"}]
+    jogos = [
+        {"nome": "Castlevania - Symphony of the Night", "plataforma": "Sony - PlayStation"},
+        {"nome": "NFSU2", "nomes_alt": ["Need for Speed Underground 2"], "plataforma": "Sony - PlayStation 2"},
+        {"nome": "Harry Potter and the Chamber of Secrets", "plataforma": "Nintendo - GameCube"},
+        {"nome": "Tetris", "plataforma": "Sony - PSP"},
+        {"nome": "Castlevania - Symphony of the Night", "plataforma": "Xbox"},
+    ]
+
+    def test_casa_por_nome_e_nome_alternativo_no_mesmo_sistema(self):
+        r = tx.fontes_da_biblioteca(self.jogos, list(tx.PLATAFORMAS), self.fontes, self.catalogo)
+        por = {f["url"]: f for f in r}
+        self.assertEqual(set(por), {"https://gbatemp.net/a", "https://gbatemp.net/b", "https://gbatemp.net/d", "https://gbatemp.net/e"})
+        self.assertEqual(por["https://gbatemp.net/a"]["id_jogo"], "SLUS-00067")
+        self.assertEqual(por["https://gbatemp.net/b"]["id_jogo"], "SLUS-21065")  # veio do catálogo
+        self.assertTrue(por["https://gbatemp.net/b"]["no_catalogo"])
+        self.assertEqual(por["https://gbatemp.net/b"]["jogo"], "NFSU2")
+        self.assertEqual(por["https://gbatemp.net/e"]["id_jogo"], "")  # serial inválido não vira pasta
+
+    def test_filtra_pelos_sistemas_do_alvo(self):
+        r = tx.fontes_da_biblioteca(self.jogos, tx.sistemas_celular(), self.fontes, self.catalogo)
+        self.assertEqual({f["sistema"] for f in r}, {"PS1", "PSP"})
+
+    def test_indice_real_sem_pagos_e_so_https(self):
+        fontes = tx.carregar_fontes()
+        self.assertGreater(len(fontes), 0)
+        for f in fontes:
+            self.assertTrue(f["url"].startswith("https://"), f)
+            self.assertNotIn("patreon.com", f["site"])
+            self.assertNotEqual(f["restricao"].lower(), "paywall")
+            self.assertIn(f["sistema"], tx.PLATAFORMAS)
+
+
+class TexturasGeradorFontesTest(unittest.TestCase):
+    def test_gerador_tira_pagos_e_normaliza_serial(self):
+        sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
+        import gerar_fontes_texturas as g
+        cab = {c: (t, None) for c, t in zip("BCEFH", ["Game Title", "Download", "Region", "Serial Number", "Restriction"])}
+        abas = {"PSOne": [cab,
+                          {"B": ("Livre", None), "C": ("Link", "https://gbatemp.net/x"), "F": ("SLUS00067", None), "H": ("N/A", None)},
+                          {"B": ("Pago", None), "C": ("Link", "https://www.patreon.com/y"), "H": ("Paywall", None)},
+                          {"B": ("Pago 2", None), "C": ("Link", "https://www.mediafire.com/z"), "H": ("Paywall", None)},
+                          {"B": ("Sem link", None), "C": ("Link", None)}],
+                "N64": [cab, {"B": ("Mario", None), "C": ("Link", "https://emulationking.com/m")}]}
+        r = g.fontes(abas)
+        self.assertEqual([(f["nome"], f["serial"], f["restricao"]) for f in r], [("Livre", "SLUS-00067", "")])
+
+
 class TexturasCelularTest(unittest.TestCase):
     """O celular é simulado: shell/push de core.adb viram operações num dict."""
     def setUp(self):

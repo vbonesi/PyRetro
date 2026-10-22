@@ -35,6 +35,7 @@ import urllib.request
 from pathlib import Path
 
 CATALOGO_PATH = Path(__file__).parent / "texturas_catalogo.json"
+FONTES_PATH = Path(__file__).parent / "texturas_fontes.json"
 CACHE_DIR = Path(__file__).parent.parent / "cache" / "texturas"
 MANIFESTO = ".pyretro-textura.json"
 URL_PERMITIDAS = ("https://archive.org/", "https://github.com/", "https://raw.githubusercontent.com/")
@@ -452,6 +453,61 @@ def tem_rom(pacote: dict, nomes_rom: list[str]) -> bool:
     a ROM de "NFS Underground 2"."""
     alvo = _normalizar(pacote["nome"])
     return bool(alvo) and any(alvo == _normalizar(Path(n).stem) for n in nomes_rom)
+
+
+# ---------------------------------------------------------------------------
+# Índice de fontes externas (core/texturas_fontes.json, gerado por
+# tools/gerar_fontes_texturas.py a partir da planilha "Texture Packs Archive").
+# São páginas de fórum, não arquivos: o PyRetro só mostra o link para os jogos
+# da Biblioteca, e a instalação vai pela importação local (arquivo baixado à mão).
+# ---------------------------------------------------------------------------
+PLATAFORMAS = {
+    "PS1": ("Sony - PlayStation", "PlayStation"),
+    "PS2": ("Sony - PlayStation 2", "PlayStation 2"),
+    "PSP": ("Sony - PSP",),
+    "GC": ("Nintendo - GameCube",),
+    "WII": ("Nintendo - Wii",),
+    "3DS": ("Nintendo - 3DS",),
+}
+
+
+def carregar_fontes(path: Path = FONTES_PATH) -> list[dict]:
+    if not path.is_file():
+        return []
+    return json.loads(path.read_text(encoding="utf-8"))["fontes"]
+
+
+def _chave_nome(s: str) -> frozenset:
+    return frozenset(_normalizar(s.replace("&", " and ")))
+
+
+def fontes_da_biblioteca(jogos: list[dict], sistemas: list[str], fontes: list[dict] | None = None,
+                         catalogo: list[dict] | None = None) -> list[dict]:
+    """Fontes cujo título é igual (mesma regra de tem_rom) ao nome, ou a um
+    nome alternativo, de um jogo da Biblioteca do mesmo sistema. O ID do jogo
+    vem do serial da planilha ou, sem ele, do pacote de mesmo nome no catálogo."""
+    fontes = carregar_fontes() if fontes is None else fontes
+    catalogo = carregar_catalogo() if catalogo is None else catalogo
+    nomes = {s: {} for s in sistemas if s in PLATAFORMAS}
+    for g in jogos:
+        for sis, plats in PLATAFORMAS.items():
+            if sis in nomes and g.get("plataforma") in plats:
+                for n in [g.get("nome") or "", *(g.get("nomes_alt") or [])]:
+                    if _chave_nome(n):
+                        nomes[sis].setdefault(_chave_nome(n), g.get("nome"))
+    no_cat = {(p["sistema"], _chave_nome(p["nome"])): p["id_jogo"] for p in catalogo}
+    out = []
+    for f in fontes:
+        chave = _chave_nome(f["nome"])
+        jogo = nomes.get(f["sistema"], {}).get(chave)
+        if not jogo:
+            continue
+        id_cat = no_cat.get((f["sistema"], chave), "")
+        id_jogo = f.get("serial") or id_cat
+        if id_jogo and not _CEL_ID[f["sistema"]].match(id_jogo):
+            id_jogo = ""
+        out.append({**f, "jogo": jogo, "id_jogo": id_jogo, "no_catalogo": bool(id_cat)})
+    return out
 
 
 # ---------------------------------------------------------------------------

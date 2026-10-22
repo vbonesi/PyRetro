@@ -6,6 +6,33 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 22/10/2026 (noite, 3) — Texturas: índice de fontes da planilha comunitária
+
+- **Fonte:** planilha "Texture Packs Archive" (mantida por Sad Origami; 1.456 pacotes de
+  10 sistemas). Avaliada antes: quase nenhum link é arquivo direto (são tópicos do
+  gbatemp/forums.ppsspp, Patreon pago ou espelho TeraBox, que pede conta e em boa parte
+  copia pacote pago), então **não entra no download automático** (archive.org/GitHub com
+  SHA-1). Vira só um índice de onde achar o pacote.
+- **`tools/gerar_fontes_texturas.py`** lê o `.xlsx` só com a biblioteca padrão e gera
+  `core/texturas_fontes.json` (943 páginas de PS1/PS2/PSP/GC/Wii/3DS). Ficam de fora os
+  pagos (Patreon/Ko-fi/BuyMeACoffee ou restrição "Paywall"), os espelhos TeraBox, links sem
+  `https://` e os sistemas sem texturas no PyRetro (N64, Dreamcast, Switch, Vita). Para
+  atualizar: baixar a planilha de novo e rodar
+  `python3 -I tools/gerar_fontes_texturas.py "~/Downloads/Texture Packs Archive.xlsx"`.
+- **`texturas.fontes_da_biblioteca`** casa as páginas com os jogos da Biblioteca do mesmo
+  sistema (nome ou `nomes_alt`, mesma regra do `tem_rom`, `&` = "and"). O ID do jogo vem
+  do serial da planilha ou, sem ele, do pacote de mesmo nome no catálogo; ID inválido fica
+  vazio. Hoje: 83 jogos, 121 páginas (PS2 63, PSP 31, PS1 23, GC 3, Wii 1).
+- **Rota `GET /api/texturas/fontes?alvo=pc|celular`** (no celular só PS1/PSP/3DS).
+- **Aba 🎨 Texturas:** seção recolhível "Outras fontes para jogos da Biblioteca", com os
+  mesmos filtros de busca/sistema, "Abrir página ↗" (nova aba, `noopener`) e "Importar",
+  que preenche sistema + ID na importação de arquivo e foca o campo que falta. A instalação
+  continua pelo fluxo local (manifesto, remover só o que o PyRetro instalou). Avisos de
+  Mega/anúncios e "também no catálogo".
+- **Testes:** 5 novos em `tests/test_texturas.py` (casamento, alvo, índice real sem pagos,
+  gerador). 305 Python e 43 JS passando. Conferido no navegador em desktop e 375 px
+  (corrigido o `<details>` flex, que deixava a lista mais larga que o modal).
+
 ## 22/10/2026 (noite, 2) — Android 0.6.2/0.6.3: Início com fileiras; online sem reiniciar
 
 - **Início (0.6.2, code 11):** nova primeira coleção, padrão para quem não escolheu outra.
