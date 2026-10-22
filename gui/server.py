@@ -56,6 +56,7 @@ from core import playtime as playtime_mod
 from core import tv_media as tv_media_mod
 from core import mobile_textures as mobile_textures_mod
 from core import mobile_sync as mobile_sync_mod
+from core import mobile_roms as mobile_roms_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -1623,6 +1624,30 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts == ['api', 'tv', 'playtime']:
             return self._json({key:playtime_mod.public(value) for key,value in playtime_mod.load(PLAYTIME_PATH).items()})
+
+        if parts[:3] == ['api','mobile','rom']:
+            # Download da ROM pelo celular: arquivo do acervo ou streaming do Drive (rclone).
+            try:
+                cfg = load_config(); code = query.get('code',[''])[0]
+                drive = {g['name'] for g in sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH).get(code, [])}
+                if parts == ['api','mobile','rom','options']:
+                    return self._json({'files': mobile_roms_mod.options(cfg, code, query.get('name',[''])[0], drive)})
+                if parts == ['api','mobile','rom','file']:
+                    item = mobile_roms_mod.resolve(cfg, code, query.get('file',[''])[0], query.get('etag',[''])[0], drive)
+                    try: span = mobile_roms_mod.parse_range(self.headers.get('Range'), item['size'])
+                    except IndexError:
+                        self.send_response(416); self.send_header('Content-Range', f"bytes */{item['size']}"); self.end_headers(); return
+                    start, end = span or (0, item['size'] - 1)
+                    self.send_response(206 if span else 200)
+                    self.send_header('Content-Type', 'application/octet-stream'); self.send_header('Accept-Ranges', 'bytes')
+                    self.send_header('Content-Length', str(end - start + 1)); self.send_header('ETag', '"' + item['etag'] + '"')
+                    if span: self.send_header('Content-Range', f"bytes {start}-{end}/{item['size']}")
+                    self.send_header('Cache-Control', 'no-store'); self._security_headers(); self.end_headers()
+                    try: mobile_roms_mod.send(item, start, end, self.wfile)
+                    except (OSError, ValueError): self.close_connection = True  # celular confere o tamanho e mantém o parcial
+                    return
+            except LookupError as error: return self._json({'error': str(error)}, 409)
+            except (ValueError, OSError) as error: return self._json({'error': str(error)}, 400)
 
         if parts == ['api','mobile','textures']:
             return self._json([p for p in texturas_mod.carregar_catalogo() if p['sistema']=='PSP'])

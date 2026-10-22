@@ -82,6 +82,12 @@ Detalhes no [README Android](android/README.md).
 Texturas PSP/3DS aceitam ZIP local offline e pacotes preparados pelo notebook;
 a interface do PC também recebe arquivos locais. Ao finalizar um jogo baixado,
 o app pergunta se deseja remover somente a ROM local, preservando saves e histórico.
+A **0.6** vira hub de jogos: na ficha, a ação principal já é jogar, **baixar em um
+toque** (o notebook entrega o arquivo do acervo ou faz streaming do Drive pelo rclone,
+com retomada), transmitir do console ou jogar no notebook; saves do jogo ficam ao
+lado. Catálogo e progresso atualizam sozinhos quando o notebook responde, e
+Situação/Opções ficaram enxutas, com estrutura de pastas e cores fixa. Compilada e
+testada fora do aparelho; instalação pendente.
 Compilação: `python3 tools/build_android.py`, com JDK/SDK configurados. Versão 0.5.1 instalada
 e navegação touch conferida no aparelho; testes físicos do G8 e do provedor Drive
 continuam pendentes. Instruções e limites no README Android.

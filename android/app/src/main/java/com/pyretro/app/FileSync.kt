@@ -12,7 +12,8 @@ import java.util.UUID
 
 data class SyncFile(val uri:Uri,val sha256:String,val size:Long,val modified:Long)
 data class SyncRow(val path:String,val local:SyncFile?,val remote:JSONObject?,val kind:String,var choice:String=kind)
-data class SyncPlan(val group:String,val rootTag:String,val identity:String,val rows:List<SyncRow>)
+/** [partial]: só os arquivos de um jogo; não substitui o registro da última comparação do grupo. */
+data class SyncPlan(val group:String,val rootTag:String,val identity:String,val rows:List<SyncRow>,val partial:Boolean=false)
 
 data class LocalVersion(val group:String,val path:String,val tree:String,val file:SyncFile,val current:String?,val created:Long)
 
@@ -73,6 +74,7 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
         } }.getOrNull()
     }
     private fun observe(plan:SyncPlan,applied:Boolean,failures:Int=0) {
+        if(plan.partial)return
         if(sha(store.base()+"|"+plan.group+"|"+plan.rootTag+"|"+tree(plan.group))!=plan.identity)return
         val value=JSONObject().put("server",store.base()).put("tree",tree(plan.group).toString())
             .put("at",System.currentTimeMillis()).put("applied",applied).put("failures",failures)
@@ -132,18 +134,18 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
         }
         folder(group,false)?.let { scan(it,"",0) };return result
     }
-    fun analyze(group:String):SyncPlan {
+    fun analyze(group:String,only:((String)->Boolean)?=null):SyncPlan {
         val tree=tree(group) ?: error("Selecione a pasta local primeiro.")
         val remote=JSONObject(store.request("/api/mobile/sync/manifest?group="+Uri.encode(group)))
         val tag=remote.getString("rootTag");val identity=sha(store.base()+"|"+group+"|"+tag+"|"+tree)
         val baseline=JSONObject(prefs.getString("baseline:$identity","{}")!!)
         val local=local(group);val other=linkedMapOf<String,JSONObject>();val array=remote.getJSONArray("files")
         for(i in 0 until array.length()) { val row=array.getJSONObject(i);val path=row.getString("path");require(SyncRules.accepted(group,path) && path !in other);other[path]=row }
-        val rows=(local.keys+other.keys+baseline.keys().asSequence().toList()).sorted().map { path ->
+        val rows=(local.keys+other.keys+baseline.keys().asSequence().toList()).distinct().filter { only==null || only(it) }.sorted().map { path ->
             val left=local[path];val right=other[path];val previous=baseline.optString(path).takeIf { it.isNotBlank() }
             SyncRow(path,left,right,SyncRules.direction(left?.sha256,right?.getString("sha256"),previous))
         }
-        return SyncPlan(group,tag,identity,rows).also { observe(it,false) }
+        return SyncPlan(group,tag,identity,rows,only!=null).also { observe(it,false) }
     }
     private fun connection(path:String)= (URL(store.base()+path).openConnection() as HttpURLConnection).apply { connectTimeout=15000;readTimeout=600000;instanceFollowRedirects=false }
     private fun parameters(group:String,path:String)= "group="+Uri.encode(group)+"&path="+Uri.encode(path)

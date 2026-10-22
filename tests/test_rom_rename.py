@@ -42,6 +42,7 @@ class TestFlatMatches(unittest.TestCase):
         self.assertEqual(renamed["rom"]["status"], "renomeado")
         self.assertTrue(renamed["flat_skipped"])
         self.assertTrue((self.saves / "Aladdin.srm").exists())
+        self.assertEqual(renamed["flat_kept"], ["Aladdin.srm"], "a tela precisa dizer quais arquivos ficaram")
 
     def test_systems_with_label(self):
         md = self.raiz / "ROMs" / "MD"; md.mkdir()

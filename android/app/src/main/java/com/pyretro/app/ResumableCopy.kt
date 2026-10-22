@@ -6,15 +6,20 @@ import java.io.InputStream
 import java.io.IOException
 import java.security.MessageDigest
 
-/** Valida todo o prefixo na origem antes de acrescentar bytes ao checkpoint. */
+/** Valida todo o prefixo na origem antes de acrescentar bytes ao checkpoint.
+ *  Com [resumed], a origem já começa depois do checkpoint (HTTP Range com etag conferido
+ *  pelo notebook): o prefixo local só entra no SHA-256, sem ser relido da rede. */
 object ResumableCopy {
     class Paused:IOException("Download pausado. Use Downloads para continuar.")
     fun copy(input:InputStream,file:File,expected:Long?,limit:Long=12L*1024*1024*1024,
-             cancelled:()->Boolean={false},progress:(Long)->Unit={}):String {
+             cancelled:()->Boolean={false},progress:(Long)->Unit={},resumed:Boolean=false):String {
         var total=file.length();require(total<=limit && (expected==null || total<=expected)) { "Origem mudou. Descarte a cópia parcial para reiniciar." }
         val digest=MessageDigest.getInstance("SHA-256");val buffer=ByteArray(256*1024)
         fun checkPause() { if(cancelled())throw Paused() }
-        if(total>0)file.inputStream().use { previous ->
+        if(total>0 && resumed)file.inputStream().use { previous ->
+            while(true) { checkPause();val n=previous.read(buffer);if(n<0)break;digest.update(buffer,0,n) }
+        }
+        else if(total>0)file.inputStream().use { previous ->
             var left=total;val old=ByteArray(buffer.size)
             while(left>0) {
                 checkPause();val n=input.read(buffer,0,minOf(buffer.size.toLong(),left).toInt())

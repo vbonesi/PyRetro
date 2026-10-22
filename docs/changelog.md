@@ -6,6 +6,54 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 22/10/2026 (tarde) — Android 0.6: hub de jogos; download direto pelo notebook
+
+Pedido do usuário depois de usar o app: baixar a ROM direto quando o jogo está no
+catálogo (hoje exigia Opções → índice do Drive), um só botão Situação (havia dois em
+retrato), Situação/Opções mais simples, funções ligadas ao jogo e estrutura fechada.
+Feito fora do notebook e sem o celular: compilado e testado aqui, **não instalado**.
+
+- **PC (`core/mobile_roms.py`, rotas `/api/mobile/rom/options|file`):** o notebook
+  lista os arquivos que tem para o jogo (pasta do sistema; por rótulo, arquivo ou
+  pasta) ou, para sistema pesado que só está no Drive, o item do catálogo em cache
+  via `rclone lsjson`. O download aceita `Range` e confere o etag (tamanho + data;
+  no Drive, tamanho + ModTime) em cada pedido: 409 se a ROM mudou. Drive vem por
+  `rclone cat --offset/--count`, sem gravar no PC; rclone curto encerra a conexão
+  em vez de parecer sucesso. Caminho fora do sistema, formato fora das extensões e
+  nome fora do catálogo do Drive são recusados. Somente leitura.
+- **Android 0.6.0 (code 9):**
+  - Origem `pyretro-rom:<sistema>/<arquivo>?etag=&size=` na mesma fila/checkpoint;
+    sem o endereço do notebook dentro, então LAN ↔ Tailscale não invalida a fila.
+    Retomada por Range: o prefixo local entra no SHA-256 sem ser relido da rede
+    (`ResumableCopy` com `resumed`); resposta 200 numa retomada cai na conferência
+    antiga do prefixo. A publicação final é a mesma (SHA-256, sem substituir).
+  - Ficha do jogo com ação principal por contexto (jogar, baixar, transmitir do
+    Xbox/PlayStation, Switch pelo notebook, jogar no notebook); favoritar, fixar e
+    💾 Saves logo abaixo; o resto em Mais opções. Console não oferece mais "iniciar
+    no PC". PS5 usa o Remote Play.
+  - Escolher um arquivo no seletor do Drive já vincula e inicia o download (antes:
+    vincular → voltar → adicionar à fila → confirmar).
+  - Quando o notebook responde: catálogo (se > 6 h), progresso/tempo pendentes e
+    capas de jogos do celular/favoritos/fixados, no máximo a cada 15 min. A
+    instrumentação desliga isso (`MainActivity.automaticUpdates`).
+  - 💾 Saves por jogo: `SaveRules` (pasta do sistema, sufixo de extensão; raiz
+    achatada fica de fora porque o nome pode ser de outro sistema) e plano parcial
+    do `FileSync` que não sobrescreve o registro do grupo. Voltar de um jogo
+    oferece "Salvar e ver saves". `.fs` (FBNeo) entrou nos saves aceitos.
+  - Situação: uma linha por assunto e ação só quando há algo a fazer; detalhes
+    técnicos recolhidos. Opções: Configurar este celular (Pasta Jogos, Pasta
+    RetroArch, endereço), Uso e Avançado recolhido. Saíram da interface a escolha
+    de core, as pastas por sistema, Aparência, o atalho de 3DS e o de Texturas na
+    barra; escolhas antigas continuam valendo.
+- **Modo TV:** depois de 10 s sem controle na Gamepad API, o rodapé explica que o
+  navegador não vê o controle e aponta o `/run/udev` do Chrome Flatpak.
+- **Web:** renomear/apagar diz quais saves legados foram preservados (`flat_kept`).
+- **`configure_xbox.py`:** valor igual não é reescrito nem reordenado; valor novo
+  fica no mesmo lugar (antes cada simulação "mudava" o `NDS.opt`).
+- Validação aqui: 300 Python (OK, 2 pulados), build/lint/38 JVM do Android e APK de
+  instrumentação compilado. Gradle usou um espelho do Maven Central por init script
+  local da sessão (o Central respondia 429); nada disso foi versionado.
+
 ## 22/10/2026 — ES-DE removido do PC
 
 - Decisão do usuário: o modo TV do PyRetro é o frontend. Saíram o app da TV

@@ -53,21 +53,40 @@ class DownloadStore(private val store:LibraryStore) {
         val file=record(key);if(file.exists())cleanStage(JSONObject(file.readText()))
         require(!part(key).exists() || part(key).delete());require(!file.exists() || file.delete())
     }
+    /** Continua do checkpoint com Range; o etag faz o notebook recusar (409) uma ROM que mudou. */
+    private fun fetch(remote:RomRef,file:File,stop:()->Boolean,progress:(Long)->Unit):String {
+        val offset=file.length()
+        if(offset==remote.size)return ResumableCopy.copy(java.io.ByteArrayInputStream(ByteArray(0)),file,remote.size,cancelled=stop,progress=progress,resumed=true)
+        require(store.base().isNotBlank()) { "Configure o endereço do notebook em Opções." }
+        val connection=java.net.URL(store.base()+"/api/mobile/rom/file?"+remote.query()).openConnection() as java.net.HttpURLConnection
+        connection.connectTimeout=15000;connection.readTimeout=120000;connection.instanceFollowRedirects=false
+        if(offset>0)connection.setRequestProperty("Range","bytes=$offset-")
+        try {
+            val status=try { connection.responseCode } catch(error:java.io.IOException) { throw java.io.IOException("Notebook indisponível. Ligue o Tailscale e continue a fila; a cópia parcial está preservada.",error) }
+            if(status==409)error("A ROM mudou no notebook/Drive. Descarte a cópia parcial em Downloads e baixe de novo.")
+            require(status==200 || status==206) { runCatching { JSONObject(connection.errorStream.bufferedReader().readText()).optString("error") }.getOrNull()?.takeIf { it.isNotBlank() } ?: "Notebook recusou o download (HTTP $status)." }
+            if(status==206)require(connection.getHeaderField("Content-Range")?.startsWith("bytes $offset-")==true) { "Resposta parcial inesperada; cópia preservada." }
+            return connection.inputStream.use { input -> ResumableCopy.copy(input,file,remote.size,cancelled=stop,progress=progress,resumed=status==206) }
+        } finally { connection.disconnect() }
+    }
     fun download(game:Game,sourceOverride:Uri?=null,treeOverride:Uri?=null,cancelled:()->Boolean={false},onSize:(Long?)->Unit={},progress:(Long)->Unit):Uri=exclusive {
         copy(game,sourceOverride,treeOverride,cancelled,onSize,progress)
     }
     private fun copy(game:Game,sourceOverride:Uri?,treeOverride:Uri?,cancelled:()->Boolean,onSize:(Long?)->Unit,progress:(Long)->Unit):Uri {
         paused.set(false)
-        val source=sourceOverride ?: Uri.parse(store.prefs.getString("cloud:${game.key}",null) ?: error("Vincule a ROM ou indexe a nuvem primeiro."))
-        require(source.scheme=="content") { "Escolha um arquivo pelo seletor Android." }
+        val sourceText=sourceOverride?.toString() ?: store.prefs.getString("cloud:${game.key}",null) ?: error("Vincule a ROM ou indexe a nuvem primeiro.")
+        val remote=RomSource.parse(sourceText);val source=Uri.parse(sourceText)
+        require(remote!=null || source.scheme=="content") { "Escolha um arquivo pelo seletor Android." }
+        require(remote==null || remote.code==game.code) { "Origem pertence a outro sistema." }
         val tree=treeOverride ?: store.tree(game.code) ?: error("Escolha uma pasta local de ${game.code}.")
         require(tree.authority=="com.android.externalstorage.documents")
-        val meta=metadata(source);val name=meta.getString("name")
+        // Notebook: nome/tamanho/etag vêm da origem guardada e são conferidos pelo servidor a cada pedido.
+        val meta=if(remote!=null)JSONObject().put("name",remote.name).put("size",remote.size).put("modified",remote.etag) else metadata(source);val name=meta.getString("name")
         require(store.accepts(game.code,name) && name.substringAfterLast('.').lowercase() !in setOf("cue","m3u")) { "Escolha um formato independente; PS1 sob demanda usa CHD/PBP." }
         require(name !in listOf(".","..") && !name.contains('/') && !name.contains('\\'))
         val saved=record(game.key)
-        val job=if(saved.exists())JSONObject(saved.readText()) else JSONObject().put("key",game.key).put("code",game.code).put("title",game.name).put("source",source.toString()).put("tree",tree.toString()).put("metadata",meta)
-        require(job.getString("source")==source.toString() && job.getString("tree")==tree.toString() && job.getString("code")==game.code) { "Origem ou destino mudou. Descarte o download anterior em Downloads antes de reiniciar." }
+        val job=if(saved.exists())JSONObject(saved.readText()) else JSONObject().put("key",game.key).put("code",game.code).put("title",game.name).put("source",sourceText).put("tree",tree.toString()).put("metadata",meta)
+        require(job.getString("source")==sourceText && job.getString("tree")==tree.toString() && job.getString("code")==game.code) { "Origem ou destino mudou. Descarte o download anterior em Downloads antes de reiniciar." }
         val before=job.getJSONObject("metadata")
         require(listOf("name","size","modified").all { before.get(it).toString()==meta.get(it).toString() }) { "Origem mudou. A cópia parcial está preservada; descarte-a para reiniciar." }
         save(job);cleanStage(job)
@@ -75,9 +94,11 @@ class DownloadStore(private val store:LibraryStore) {
         require(size==null || size<=12L*1024*1024*1024) { "ROM acima do limite de 12 GB." }
         if(size!=null)require(android.os.StatFs(store.context.filesDir.path).availableBytes>=maxOf(0,size-part(game.key).length())) { "Espaço insuficiente para o checkpoint privado. Libere espaço e continue a fila." }
         onSize(size)
-        val checksum=resolver.openInputStream(source).use { input -> requireNotNull(input);ResumableCopy.copy(input,part(game.key),size,cancelled={paused.get() || cancelled()},progress=progress) }
-        if(paused.get() || cancelled())throw ResumableCopy.Paused()
-        val after=metadata(source)
+        val stop={ paused.get() || cancelled() }
+        val checksum=if(remote!=null)fetch(remote,part(game.key),stop,progress)
+            else resolver.openInputStream(source).use { input -> requireNotNull(input);ResumableCopy.copy(input,part(game.key),size,cancelled=stop,progress=progress) }
+        if(stop())throw ResumableCopy.Paused()
+        val after=if(remote!=null)meta else metadata(source)
         require(listOf("name","size","modified").all { before.get(it).toString()==after.get(it).toString() }) { "Origem mudou durante a cópia; parcial preservado." }
         job.put("sha256",checksum);save(job)
         val parent=storage.folder(tree,true)!!;val existing=storage.children(tree,parent)[name]

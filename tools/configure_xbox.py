@@ -29,6 +29,12 @@ def edit(text, section, values, append=False):
         new = value if isinstance(value, list) else [value]
         if append:
             new = old + [v for v in new if v not in old]
+        if old == new:
+            continue  # já igual: não reordena nem reformata (simulação repetida = sem mudança)
+        positions = [i for i, line in enumerate(block) if '=' in line and line.split('=', 1)[0].strip() == key]
+        if len(positions) == 1 and len(new) == 1:
+            block[positions[0]] = key + ' = ' + new[0] + '\n'
+            continue
         block = [line for line in block if not ('=' in line and line.split('=', 1)[0].strip() == key)]
         while block and not block[-1].strip():
             block.pop()

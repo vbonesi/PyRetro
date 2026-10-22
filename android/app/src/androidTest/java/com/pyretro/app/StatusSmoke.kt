@@ -66,6 +66,7 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
             // Dados do usuário só são lidos. Nenhum botão de sync/download/remoção é acionado.
             val realBefore=real.prefs.all.toMap()
             realUI=realBefore.filterKeys { it.startsWith("ui:") }
+            MainActivity.automaticUpdates=false // navegar não pode baixar catálogo nem enviar progresso
             activity=startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
             orientation=activity!!.requestedOrientation
             invoke("statusCenter")
@@ -75,7 +76,7 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
                 if(scanned)break
                 Thread.sleep(100)
             }
-            check(scanned && !contains("Leitura local ainda em andamento")) { "Central não atualizou a leitura local automaticamente." }
+            check(scanned && !contains("Lendo as pastas")) { "Central não atualizou a leitura local automaticamente." }
             for(direction in listOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)) {
                 runOnMainSync { activity!!.requestedOrientation=direction };waitForIdleSync()
                 val expected=if(direction==ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)android.content.res.Configuration.ORIENTATION_PORTRAIT else android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -87,19 +88,18 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
                 }
                 check(actual==expected) { "Orientação não aplicada; desbloqueie o aparelho para testar retrato/paisagem." }
                 invoke("statusCenter")
-                check(contains("Situação e conexões") && contains("Disponível offline") && contains("Progresso e tempo"))
+                check(contains("Situação") && contains("Neste celular") && contains("Progresso e tempo") && contains("Saves"))
                 val buttons=dialogViews().filterIsInstance<Button>()
-                check(buttons.any { it.text.toString()=="Conferir / escolher pastas" })
-                check(buttons.any { it.text.toString()=="Continuar / pausar downloads" })
+                check(buttons.any { it.text.toString()=="Pastas e permissões" })
                 check(buttons.all { it.minimumHeight>=48*targetContext.resources.displayMetrics.density || it.id==android.R.id.button2 })
-                check(buttons.first { it.text.toString()=="Ver jogos neste celular" }.hasFocus()) { "Central sem foco inicial na primeira ação." }
+                check(buttons.first { it.visibility==View.VISIBLE && it.isEnabled && it.id!=android.R.id.button2 }.hasFocus()) { "Central sem foco inicial na primeira ação." }
                 invoke("folderStatuses");check(contains("Pastas e permissões"))
                 invoke("connectionApps");check(contains("Emuladores e conexões") && contains("Tailscale"))
                 check(dialogViews().filterIsInstance<Button>().filter { it.text.toString().contains("não encontrado") }.all { !it.isEnabled })
                 invoke("pendingChanges");check(contains("Alterações pendentes"))
                 invoke("downloads");check(contains("Iniciar / continuar fila") && contains("Ver fila / reordenar itens"))
                 check(dialogViews().filterIsInstance<TextView>().first { it.text.toString().startsWith("Um arquivo por vez, na ordem") }.visibility==View.GONE)
-                invoke("appearance");check(contains("Mostrar dica do controle"))
+                invoke("settings");check(contains("Configurar este celular") && contains("Avançado"))
                 runOnMainSync {
                     (MainActivity::class.java.getDeclaredField("dialog").apply { isAccessible=true }.get(activity) as? android.app.AlertDialog)?.dismiss()
                 }
@@ -148,7 +148,7 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
             val retro=StatusStore(real).folders().first { it.code=="retroarch" }.access
             var contact="não consultado"
             if(connectionTest && real.base().isNotBlank()) {
-                val button=dialogViews().filterIsInstance<Button>().first { it.text.toString()=="Testar conexão com notebook" }
+                val button=dialogViews().filterIsInstance<Button>().first { it.text.toString()=="Testar conexão" }
                 val started=System.currentTimeMillis()
                 runOnMainSync { button.performClick() }
                 var completed=false
@@ -167,6 +167,7 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
             result.putString("stream","PASS: estados/permissões/pendências isoladas e central/submenus/aba Stream em retrato/paisagem; ${pending.size} pendência(s) real(is), $locals jogo(s) local(is), ${real.cached().size} entrada(s) em cache, ${problems.size} falha(s) na leitura local, RetroArch=$retro, notebook=$contact. Coleção/página restauradas após recriação; preferências visuais temporárias restauradas, dados de jogos/pastas preservados salvo registro de contato explícito. Nenhum jogo ou sync acionado.")
         } catch(error:Throwable) { result.putString("stream","FAIL: "+error.stackTraceToString()) }
         finally {
+            MainActivity.automaticUpdates=true
             activity?.let { current -> runOnMainSync { current.requestedOrientation=orientation;current.finish() };waitForIdleSync() }
             realUI?.let { previous ->
                 val preferences=LibraryStore(targetContext).prefs;val edit=preferences.edit()

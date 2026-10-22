@@ -5,25 +5,69 @@ notebook; o APK não contém banco, contas, IPs, ROMs nem credenciais do Drive.
 
 ## Primeiro uso
 
-1. Instale `PyRetro-0.5.2-debug.apk`. É uma compilação pessoal de teste, assinada
+1. Instale `PyRetro-0.6.0-debug.apk`. É uma compilação pessoal de teste, assinada
    com a chave local de debug; preserve essa chave para atualizar sem desinstalar.
-2. Em **Opções**, escolha **Pasta Jogos · reconhecer todos os sistemas**, ou cada
-   pasta separadamente. Arquivos que eram sincronizados pelo FolderSync são reaproveitados.
-3. Opcionalmente salve o endereço HTTPS privado do PyRetro e escolha **Carregar
-   catálogo do notebook**, com o Tailscale conectado. O endereço não vem no APK.
-4. **Neste celular** mostra arquivos locais; **Catálogo em cache** também mostra
-   os jogos que só estão no PC/nuvem. A presença no notebook não conta como
-   presença no celular. NDS/3DS têm prioridade de execução local.
+2. Em **Opções → Configurar este celular**, escolha a **Pasta Jogos** (cada sistema
+   fica em `Jogos/<sistema>`) e a **Pasta RetroArch** (saves e estados por sistema).
+3. Salve o endereço HTTPS privado do PyRetro com **Salvar endereço e atualizar
+   catálogo**, com o Tailscale conectado. O endereço não vem no APK.
+4. **Neste celular** mostra arquivos locais; **Catálogo** também mostra os jogos
+   que só estão no PC/Drive. A presença no notebook não conta como presença no
+   celular. NDS/3DS têm prioridade de execução local.
+
+## Hub de jogos (0.6)
+
+O app é menos configurável à mão e mais direto. A estrutura é fixa: pastas
+`Jogos/<sistema>`, saves e estados por sistema na pasta RetroArch, emuladores e
+cores padrão (NES/Nestopia, PC Engine/Beetle PCE, NDS/melonDS, PS1/SwanStation…).
+Mudanças nessa estrutura são feitas no próprio app, não em telas de opções.
+Escolhas antigas de pasta por sistema e de core continuam respeitadas.
+
+- **Cabeçalho único:** Situação e Opções ficam só no topo, nas duas orientações;
+  a barra abaixo tem as coleções (a ativa fica destacada) e **🎲 Sortear**.
+- **Ficha do jogo:** a primeira ação é a que faz sentido para o jogo:
+  **▶ Jogar neste celular**, **⬇ Baixar para este celular**, **📡 Transmitir do
+  Xbox/PlayStation** (o jogo é escolhido no console; abrir direto não é possível),
+  **📡 Transmitir do Switch pelo notebook** (SysDVR + Moonlight) ou **🖥 Jogar no
+  notebook · Moonlight** para jogos de PC. Ao lado: favoritar, fixar e **💾 Saves**.
+  Trocar ROM, texturas e remoção ficam em **Mais opções**.
+- **Baixar em um toque:** com o notebook online, o celular pergunta ao PyRetro
+  quais arquivos ele tem para o jogo (acervo do PC ou catálogo do Drive em cache)
+  e baixa direto pelo Tailscale. ROMs que só estão no Drive vêm em streaming pelo
+  `rclone` do notebook, sem gravar nada no PC. Há retomada por `Range`: a cópia
+  parcial continua de onde parou, e a versão do arquivo (tamanho + data) é
+  conferida em cada pedido; se a ROM mudou, o download para e pede descarte do
+  parcial. Formatos que o celular não abre sozinho (CUE/BIN, M3U) não são
+  oferecidos. Sem notebook, **Procurar a ROM no Drive** abre o seletor; escolher
+  o arquivo já vincula ao jogo e inicia o download.
+- **Atualiza sozinho:** quando o notebook responde, o catálogo é atualizado (se
+  tiver mais de 6 h), o progresso e o tempo pendentes são enviados e as capas dos
+  jogos do celular, favoritos e fixados vão para o cache offline. No máximo a cada
+  15 min; conflitos continuam preservados para conferência. Saves não são
+  automáticos: exigem os emuladores fechados e decisão nos conflitos.
+- **💾 Saves deste jogo:** lista saves/estados do RetroArch do jogo (pasta do
+  sistema, inclusive `ARCADE/fbneo/`) e, com o notebook, compara e sincroniza só
+  esses arquivos, com escolha em conflitos e versões anteriores preservadas.
+  PSP/3DS usam IDs próprios e abrem o grupo inteiro. Ao voltar de um jogo, o
+  registro de tempo oferece **Salvar e ver saves**.
 
 Sem notebook/Tailscale, continuam funcionando as pastas locais, catálogo já
 carregado, últimas 128 capas consultadas, favoritos, progresso e tempo. O app
 não importa `library.json` antigo do celular. Capas ficam no cache privado e
 podem ser descartadas pelo Android; ROMs baixadas ficam na pasta compartilhada.
 
-## Situação e conexões (0.4)
+## Situação (0.6)
 
-Abra **Situação** na tela principal, inclusive na barra horizontal em paisagem,
-ou **Opções → Situação e conexões**. A central reúne:
+**Situação**, no topo, mostra uma linha por assunto e só oferece ação quando há
+algo a fazer: jogos prontos no celular e data do catálogo, notebook online/offline
+(com **Testar conexão**), progresso/tempo esperando envio, downloads, saves e
+pastas. O restante fica recolhido em **Detalhes técnicos** (registro de contato,
+cópias parciais, pastas e permissões, apps instalados). Abrir a tela não consulta
+rede nem provedores.
+
+### Central detalhada (histórico da 0.4)
+
+A versão 0.4 reunia na central:
 
 - Jogos da última leitura local, falhas de leitura e data do catálogo em cache;
   ações para abrir a coleção local, reler pastas e atualizar o catálogo.
@@ -81,11 +125,10 @@ touch. Não remapeia o controle dentro dos emuladores ou clientes de streaming.
 disponíveis: jogar localmente, abrir o cliente remoto ou vincular/baixar a ROM.
 Não inicia jogos, transmissões ou downloads automaticamente.
 
-As barras de coleções e ações têm rolagem horizontal. Em **Opções → Aparência**,
-você pode ocultar a dica de controle, o aviso de modo offline e o atalho de
-texturas para liberar espaço. Erros operacionais continuam
-visíveis. Nos detalhes, **ROM, emulador e texturas**, **Progresso e tempo** e a ajuda
-ficam recolhidos; **Jogar neste celular** permanece como primeira ação local.
+As barras de coleções e ações têm rolagem horizontal. A dica de controle some em
+paisagem; a tela **Aparência** saiu na 0.6 (preferências antigas continuam
+valendo). Erros operacionais continuam visíveis. Na ficha, **Progresso e tempo**
+e **Mais opções** ficam recolhidos; a ação principal vem primeiro.
 
 Para voltar de um jogo, use **Recentes do Android → PyRetro**. A coleção, busca,
 página, rolagem e seleção são guardadas ao sair, inclusive para recriação do app.
@@ -101,11 +144,10 @@ não instalados ficam desativados. Abrir a aba não liga consoles nem inicia ses
 Para solicitar um título ao notebook, use a ação nos detalhes do jogo. Login,
 pareamento e escolha do computador/console continuam nos clientes.
 
-- RetroArch: intent explícito, ROM no armazenamento local, core instalado no
-  próprio RetroArch; NDS oferece melonDS (padrão), melonDS DS ou DeSmuME. PS1 usa SwanStation.
-  **Cores do RetroArch por sistema**, em Opções (ou nos detalhes do jogo), permite
-  escolher um core já instalado. NES usa Nestopia e PC Engine usa Beetle PCE
-  por padrão, conforme a instalação conferida; não baixa cores automaticamente.
+- RetroArch: intent explícito, ROM no armazenamento local, core padrão do PyRetro
+  instalado no próprio RetroArch: NDS melonDS, PS1 SwanStation, NES Nestopia,
+  PC Engine Beetle PCE. Desde a 0.6 não há escolha de core na interface; uma
+  escolha feita antes continua valendo. Não baixa cores automaticamente.
 - PPSSPP/PPSSPP Gold: `ACTION_VIEW` com URI e permissão de leitura.
 - Lime3DS/Azahar: `ACTION_VIEW` com URI `content` e permissão de leitura.
 - Xbox abre XBXPlay; PS4 abre o PS Remote Play oficial; PC abre Moonlight.
@@ -120,13 +162,14 @@ externa; pode exigir ajuste conforme a instalação do usuário.
 
 ## ROM do Drive sob demanda
 
-Nos detalhes de um jogo, **Vincular ROM no Drive** abre o seletor de arquivos do
-Android. Escolha o arquivo no provedor Google Drive instalado e autenticado.
-Depois, **Adicionar ROM à fila de downloads** permite só enfileirar ou também
-iniciar a fila. A cópia usa o provedor e a pasta local escolhida, sem passar pelo
-notebook/Tailscale. Precisa de internet para baixar;
-concluído o download, funciona offline. A versão 0.3 também oferece
-**Opções → Catálogo da nuvem / Drive**: escolha um sistema e adicione uma pasta
+Na ficha do jogo, **Procurar a ROM no Drive** (ou **Mais opções → Escolher o
+arquivo no Drive**) abre o seletor de arquivos do Android. Escolha o arquivo no
+provedor Google Drive instalado e autenticado: ele fica vinculado ao jogo e o
+download entra na fila e começa. A cópia usa o provedor e a pasta local escolhida,
+sem passar pelo notebook/Tailscale. Precisa de internet para baixar;
+concluído o download, funciona offline. Desde a 0.6 o caminho normal é **⬇ Baixar**
+na ficha (veja Hub de jogos); o índice manual continua em **Opções → Avançado →
+Índice manual do Drive**: escolha um sistema e adicione uma pasta
 (se o provedor permitir) ou arquivos em lote. O app lê nomes/tamanhos e apresenta
 uma prévia antes de guardar o índice. Correspondências únicas nos dois sentidos
 são associadas ao catálogo; homônimos/edições ambíguas continuam separados para
@@ -210,8 +253,9 @@ de retenção de versões ou limpeza em lote foi ativada.
 ## Progresso, tempo e arquivos existentes
 
 Progresso é guardado localmente, com a mesma cascata iniciado/finalizado/platinado.
-**Sincronizar progresso e tempo** é explícito: compara o estado visto na edição
-com o estado atual, revalida sob lock no servidor e preserva conflitos. Identidade
+Desde a 0.6 o envio é automático quando o notebook responde (ou **Enviar agora**
+em Situação): compara o estado visto na edição com o atual, revalida sob lock no
+servidor e preserva conflitos. Identidade
 é a chave do catálogo; jogos locais sem vínculo com o banco não criam cadastros.
 
 Ao voltar de um emulador aberto pelo app, ele propõe os minutos decorridos. O
@@ -219,7 +263,7 @@ usuário confirma ou descarta, pois esse intervalo pode incluir pausas/outros ap
 Eventos têm identificador para que uma repetição da sincronização não duplique
 a sessão no servidor. Não lê nem soma automaticamente runtime logs antigos.
 
-Desde a versão 0.2, **Opções → Saves, estados e runtime** oferece sincronização
+Desde a versão 0.2, **Opções → Saves e estados · todos os jogos** oferece sincronização
 por grupos: saves/estados/runtime do RetroArch, SAVEDATA/PPSSPP_STATE do PPSSPP e
 saves/extdata do SDMC do 3DS. O notebook usa os diretórios de saves configurados;
 PPSSPP fica em `Saves/PPSSPP/` e 3DS em `Saves/Lime3DS/sdmc/`.
@@ -269,7 +313,7 @@ automática em lote.
 
 ## Playlists do RetroArch
 
-Desde a versão 0.3, **Opções → Playlists do RetroArch** gera/atualiza a playlist
+Desde a versão 0.3, **Opções → Avançado → Playlists do RetroArch** gera/atualiza a playlist
 JSON convencional de cada sistema compatível, usando apenas ROMs presentes no
 telefone. A concessão da pasta RetroArch é a mesma usada pelos saves; o destino
 é `playlists/<nome do sistema>.lpl`. PSP/3DS ficam nos emuladores próprios.
@@ -325,8 +369,13 @@ SHA-256 para `cache/artifacts/`, ignorados pelo Git. Não publicar a chave.
 Instalação posterior, com depuração USB autorizada:
 
 ```bash
-adb install --user 0 -r cache/artifacts/PyRetro-0.5.2-debug.apk
+adb install --user 0 -r cache/artifacts/PyRetro-0.6.0-debug.apk
 ```
+
+A **0.6.0** foi compilada em 22/10/2026 fora do notebook (build, lint, 38 testes JVM
+e APK de instrumentação compilado); **ainda não foi instalada nem testada no
+aparelho**. A suíte de status foi ajustada à nova Situação e desliga a atualização
+automática durante a navegação de consulta.
 
 A versão **0.5.1 está instalada** no usuário principal com a mesma assinatura.
 Compilação/lint e 29 testes JVM aprovados. A instrumentação de interface verifica

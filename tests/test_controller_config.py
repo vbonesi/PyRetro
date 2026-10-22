@@ -19,3 +19,11 @@ class TestControllerConfig(unittest.TestCase):
                          '\ufeff[ControlMapping]\nCross = 10-189,10-196:10-194\n')
         self.assertEqual(edit('video = "keep"\ninput_save_state_btn = "4"\n', '', {'input_save_state_btn': '"5"'}),
                          'video = "keep"\ninput_save_state_btn = "5"\n')
+
+    def test_core_options_unchanged_keep_their_order(self):
+        # 22/10/2026: cada simulação reordenava o NDS.opt do melonDS sem mudar valor nenhum.
+        text = 'melonds_screen_layout = "Hybrid Top"\nmelonds_console_mode = "DS"\nmelonds_touch_mode = "Mouse"\n'
+        values = {'melonds_touch_mode': '"Mouse"', 'melonds_screen_layout': '"Hybrid Top"'}
+        self.assertEqual(edit(text, '', values), text)
+        changed = edit(text, '', {'melonds_touch_mode': '"Joystick"'})
+        self.assertEqual(changed, text.replace('"Mouse"', '"Joystick"'), 'troca de valor fica no mesmo lugar')

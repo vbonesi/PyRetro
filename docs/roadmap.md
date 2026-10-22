@@ -3,7 +3,7 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026.
+pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026 (tarde).
 
 ## Status atual
 
@@ -14,6 +14,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026.
 | Sorteio com sugestão de jogar/transmitir/abrir loja nas duas interfaces | ✅ Implementado, com identidade por ID e link entre interfaces |
 | Tempo de emuladores, duração manual e logos/prévias locais no modo TV | ✅ Implementado; registro separado do tempo histórico da Biblioteca |
 | App Android com offline, G8/touch e ROMs do Drive sob demanda | APK instalado; touch, cache e pastas conferidos. G8 físico e provedor Drive pendentes |
+| Android 0.6 · hub: baixar em um toque pelo notebook/Drive, saves por jogo, stream para consoles, Situação/Opções enxutas | Compilado e com testes JVM; instalação e uso no aparelho pendentes |
 | Texturas PSP/3DS e remoção confirmada da ROM ao finalizar no Android | ✅ Implementado; ZIP offline e preparação pelo PC, sem substituir saves/texturas existentes |
 | Recuperação de versões pelo app, playlists e downloads retomáveis | ✅ Implementado na 0.3; instalado e instrumentação sintética aprovada no celular |
 | Índice da nuvem por pasta concedida ou arquivos em lote | ✅ Implementado na 0.3; associação única, prévia e cache; provedor Drive real pendente |
@@ -113,6 +114,68 @@ Feito nesta conversa (detalhe no changelog de 21–22/10):
   de ficar sem resposta.
 - Avaliar o RomM como referência para sincronização de saves e metadados.
 - Consolidar o setup: itens em `setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`.
+
+## Rodada de 22/10/2026 (tarde) — hub de jogos e balanço da rodada anterior
+
+Pedido do Victor a partir do uso: baixar a ROM direto quando o jogo está no
+catálogo, um só botão Situação, Situação/Opções mais simples, funções ligadas ao
+jogo (ROM, saves, stream) em vez de espalhadas em Opções, estrutura fechada (apps,
+cores, pastas) e, como direção, **um app só** no PC e no Android, bom no controle,
+no toque e no mouse/teclado, fazendo tudo o que a interface web faz.
+
+**Feito (código; validação no notebook/celular pendente):**
+- Android 0.6.0: cabeçalho único, coleção ativa destacada, ficha com ação principal
+  por contexto, **⬇ Baixar** em um toque (notebook → acervo ou Drive via rclone,
+  com retomada por Range e etag), seletor do Drive que já vincula e baixa,
+  sugestão de stream para Xbox/PlayStation/Switch, **💾 Saves** por jogo, catálogo,
+  progresso/tempo e capas atualizados sozinhos quando o notebook responde,
+  Situação e Opções enxutas (Avançado recolhido; sem cores, pastas por sistema e
+  Aparência na interface). Saves do FBNeo (`.fs`) passam a entrar na sincronização.
+- PC: rotas `/api/mobile/rom/options` e `/api/mobile/rom/file` (`core/mobile_roms.py`).
+- Modo TV: aviso quando a página não vê o controle (Gamepad API vazia por 10 s).
+- Web: a cascata de renomear/apagar diz **quais** saves foram preservados.
+- `configure_xbox.py`: edição idempotente; não reordena mais o `NDS.opt`.
+
+**Correções da rodada anterior — situação:**
+
+| Item | Situação |
+|---|---|
+| melonDS volta a pedir pilha executável se o atualizador baixar o core | Aberto, no notebook: rodar `step_emulator_extras` de novo; avaliar `melondsds` |
+| rclone com client_id compartilhado | Aberto, ação do Victor: criar client_id próprio no Google Cloud (o download do celular via notebook depende do rclone) |
+| Atalhos do 3DS (Back+L3/R3…) | Aberto: conferir no jogo com o Xbox ligado |
+| Celular com Tailscale desconectado | Aberto, ação no aparelho: ligar e deixar o app atualizar o catálogo sozinho |
+| `NDS.opt` reordenado a cada simulação | ✅ Corrigido (teste em `test_controller_config.py`) |
+| Mostrar quais saves foram preservados | ✅ Corrigido (`flat_kept`) |
+| Mover saves legados da raiz pela tela | Despriorizado: a migração já foi feita nos dois lados em 22/10 e o RetroArch grava por sistema; o CLI `core.save_layout` continua para máquina nova |
+| Aviso de controle não visto no modo TV | ✅ Feito |
+| Avaliar RomM como referência | Aberto (pesquisa) |
+| Consolidar o setup (`PENDENTE-CONSOLIDAR.md`) | Aberto: exige instalação real |
+
+**A validar quando voltar ao notebook:** `git pull` nos três repositórios,
+`python3 -m unittest discover -s tests`, reiniciar `pyretro-gui`, compilar e
+instalar a 0.6.0 (`python3 tools/build_android.py`; `adb install --user 0 -r …`)
+e conferir no celular: baixar um jogo leve que só está no PC, um PSP/3DS que só
+está no Drive (rclone), pausar e retomar no meio, 💾 Saves de um jogo de RetroArch
+com o notebook online e offline, stream de um jogo de Xbox/PS4 e de Switch, e
+Situação/Opções nas duas orientações. A suíte `status` foi ajustada aos novos
+textos, mas não rodou no aparelho.
+
+### Direção: um app só (PC e Android)
+
+O modo TV (`/tv`) passa a ser a interface principal também no PC, e o app Android
+segue o mesmo desenho. A interface web completa (`/`) continua existindo até cada
+função ter lugar no app; nada é removido antes disso. Ordem proposta:
+
+1. **Mesmo modelo de ficha nos dois:** ação principal por contexto, saves do jogo,
+   stream sugerido para consoles, download — o Android 0.6 é o primeiro passo; o
+   modo TV já tem parte disso (download do Drive, stream, tempo) e ganha **💾 Saves**.
+2. **Entrada por toque e mouse no modo TV:** hoje é feito para controle; garantir
+   clique/rolagem, teclado completo e alvos de toque sem perder a navegação por foco.
+3. **Funções da web dentro do app, por uso:** capas (buscar/trocar/marcar), editar
+   jogo e nota na Biblioteca, organizar ROM nova, saves/memory card, texturas,
+   renomear/apagar com cascata e manutenção. Uma por vez, com os testes atuais.
+4. **Quando a web não tiver nada exclusivo**, o atalho do navegador vira só
+   diagnóstico.
 
 ## Próximos passos (em ordem)
 

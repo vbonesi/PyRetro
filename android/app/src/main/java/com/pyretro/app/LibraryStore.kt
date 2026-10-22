@@ -16,10 +16,12 @@ import java.util.UUID
 
 data class Game(val id:String, val key:String, val name:String, val platform:String, val code:String="",
     val romName:String="", val cover:String="", val genre:String="", val aliases:List<String> = emptyList(),
-    val tracking:JSONObject=JSONObject(), val pcLocal:Boolean=false, var localUri:Uri?=null) {
+    val tracking:JSONObject=JSONObject(), val pcLocal:Boolean=false, var localUri:Uri?=null, val drive:Boolean=false) {
     fun cache():JSONObject = JSONObject().put("id",id).put("key",key).put("name",name).put("platform",platform)
         .put("code",code).put("romName",romName).put("cover",cover).put("genre",genre).put("aliases",JSONArray(aliases))
-        .put("tracking",tracking).put("local",pcLocal)
+        .put("tracking",tracking).put("local",pcLocal).put("remote",drive)
+    /** O notebook tem a ROM no acervo ou o catálogo do Drive a conhece: dá para baixar sem vincular nada. */
+    val downloadable get()=code.isNotEmpty() && (pcLocal || drive)
 }
 data class RomFile(val code:String,val name:String,val uri:Uri)
 
@@ -98,7 +100,14 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         val id=if(row.isNull("id"))"" else row.optString("id")
         Game(id,row.getString("key"),row.getString("name"),row.getString("platform"),row.optString("mobileCode",row.optString("code")),
             row.optString("romName",row.getString("name")),row.optString("cover").takeUnless { it=="null" } ?: "",row.optString("genre",source.optString("genero")),
-            (0 until aliases.length()).map { aliases.getString(it) },tracking,row.optBoolean("local"))
+            (0 until aliases.length()).map { aliases.getString(it) },tracking,row.optBoolean("local"),
+            drive=row.optBoolean("remote") || !row.isNull("driveName"))
+    }
+    /** Arquivos que o notebook pode entregar para este jogo (acervo local ou Drive via rclone). */
+    fun romOptions(game:Game):List<RomOption> {
+        val name=if(game.romName.isNotBlank())game.romName else game.name
+        val files=JSONObject(request("/api/mobile/rom/options?code=${Uri.encode(game.code)}&name=${Uri.encode(name)}")).getJSONArray("files")
+        return (0 until files.length()).map { files.getJSONObject(it) }.map { RomOption(it.getString("file"),it.getLong("size"),it.getString("etag"),it.optString("source")) }
     }
     fun cached():List<Game> = runCatching { parse(JSONArray(File(context.filesDir,"catalog.json").readText())) }.getOrDefault(emptyList())
     fun refresh():List<Game> {

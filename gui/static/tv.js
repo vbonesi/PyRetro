@@ -640,7 +640,7 @@ document.addEventListener("keydown", e => {
   const key = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
   if (key) { e.preventDefault(); action(key); }
 });
-let held = new Set(), repeatAt = new Map(), foreground = true, awaitNeutral = false;
+let held = new Set(), repeatAt = new Map(), foreground = true, awaitNeutral = false, noPadSince = null;
 window.addEventListener("blur", () => { foreground = false; held.clear(); awaitNeutral = true; $("spotlight-video").pause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { $("spotlight-video").pause(); $("detail-video").pause(); } else if (state.kind === 'home' && spotlightGame) showSpotlight(spotlightGame); });
 window.addEventListener("focus", () => { foreground = true; });
@@ -648,7 +648,7 @@ function pollGamepad(now) {
   const pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false && p.buttons.length >= 10);
   const pad = pads.find(p => p.mapping === "standard") || pads[0];
   if (pad) {
-    $("controller").textContent = `Controle conectado: ${pad.id}`;
+    $("controller").textContent = `Controle conectado: ${pad.id}`; noPadSince = null; $("controller").classList.remove("warning");
     const pressed = i => pad.buttons[i]?.pressed;
     const keys = new Set();
     if (pressed(14) || pad.axes[0] < -0.55) keys.add("left");
@@ -667,7 +667,15 @@ function pollGamepad(now) {
       else if (["left", "right", "up", "down", "page-up", "page-down", ...($("search-dialog").open ? ["erase"] : [])].includes(k) && now >= repeatAt.get(k)) { action(k); repeatAt.set(k, now + 110); }
     }
     held = keys;
-  } else { held.clear(); $("controller").textContent = "Controle: pressione um botão para conectar"; }
+  } else {
+    held.clear();
+    // A Gamepad API só lista o controle depois de um botão; se continuar vazia, a página não o vê.
+    noPadSince ??= now;
+    const waited = now - noPadSince > 10000;
+    $("controller").textContent = !waited ? "Controle: pressione um botão para conectar"
+      : "Controle não visto pelo navegador. Ligue o Xbox e aperte um botão; se continuar, o Chrome do modo TV precisa de acesso a /run/udev (setup, passo de acesso dos emuladores).";
+    $("controller").classList.toggle("warning", waited);
+  }
   requestAnimationFrame(pollGamepad);
 }
 async function openLinkedGame(key) {

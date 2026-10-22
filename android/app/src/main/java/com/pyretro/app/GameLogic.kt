@@ -20,8 +20,10 @@ object GameLogic {
     }
     fun offerRemoval(wasFinished:Boolean, isFinished:Boolean, hasLocalRom:Boolean):Boolean = !wasFinished && isFinished && hasLocalRom
     fun remotePackage(platform: String): String? = when(platform) {
-        "PlayStation 4" -> "com.playstation.remoteplay"
+        "PlayStation 4", "PlayStation 5" -> "com.playstation.remoteplay"
         "Xbox", "Xbox One", "Xbox Series S", "Xbox Series X" -> "com.grill.xbxplay"
         else -> null
     }
+    /** Switch não tem cliente no celular: o notebook abre o SysDVR e o Moonlight transmite. */
+    fun streamedThroughNotebook(platform: String): Boolean = platform in setOf("Nintendo Switch", "Switch")
 }

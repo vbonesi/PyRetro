@@ -198,6 +198,13 @@ def save_folders(root: Path, code: str, include_root: bool = True) -> list:
     return folders
 
 
+def flat_kept(saves_dir: Path, states_dir: Path, label: str) -> list:
+    """Saves/states legados na raiz achatada que a cascata preservou por o nome
+    existir em outro sistema - só para mostrar quais arquivos ficaram."""
+    return [p.name for root in (Path(saves_dir), Path(states_dir)) if root.is_dir()
+            for p in sorted(root.iterdir()) if p.is_file() and is_save_of(p.name, label)]
+
+
 def rename_with_cascade(roms_dir: Path, saves_dir: Path, states_dir: Path,
                          old_label: str, new_label: str, exts: list, skip_flat: bool = False) -> dict:
     """Retorna {"rom": {"status": ..., "files": [...]}, "saves": [...],
@@ -206,11 +213,12 @@ def rename_with_cascade(roms_dir: Path, saves_dir: Path, states_dir: Path,
     ainda tem o nome velho)."""
     rom_result = _rename_rom(roms_dir, old_label, new_label, exts)
     if rom_result["status"] != "renomeado":
-        return {"rom": rom_result, "saves": [], "states": [], "flat_skipped": skip_flat}
+        return {"rom": rom_result, "saves": [], "states": [], "flat_skipped": skip_flat, "flat_kept": []}
     code = Path(roms_dir).name
     saves = [f for d in save_folders(saves_dir, code, not skip_flat) for f in _rename_flat_matches(d, old_label, new_label)]
     states = [f for d in save_folders(states_dir, code, not skip_flat) for f in _rename_flat_matches(d, old_label, new_label)]
-    return {"rom": rom_result, "saves": saves, "states": states, "flat_skipped": skip_flat}
+    kept = flat_kept(saves_dir, states_dir, old_label) if skip_flat else []
+    return {"rom": rom_result, "saves": saves, "states": states, "flat_skipped": skip_flat, "flat_kept": kept}
 
 
 def _delete_rom(roms_dir: Path, label: str, exts: list) -> dict:
@@ -286,4 +294,5 @@ def delete_with_cascade(roms_dir: Path, capas_dir: Path | None, saves_dir: Path,
     code = Path(roms_dir).name
     saves = [f for d in save_folders(saves_dir, code, not skip_flat) for f in delete_flat_matches(d, label)]
     states = [f for d in save_folders(states_dir, code, not skip_flat) for f in delete_flat_matches(d, label)]
-    return {"rom": rom_result, "capa": capa_deleted, "saves": saves, "states": states, "flat_skipped": skip_flat}
+    kept = flat_kept(saves_dir, states_dir, label) if skip_flat else []
+    return {"rom": rom_result, "capa": capa_deleted, "saves": saves, "states": states, "flat_skipped": skip_flat, "flat_kept": kept}

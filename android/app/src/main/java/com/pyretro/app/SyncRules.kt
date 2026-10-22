@@ -14,7 +14,7 @@ object SyncRules {
     fun accepted(group:String,path:String):Boolean {
         if(path.isEmpty() || path.length>1024 || path.startsWith('/') || path.contains('\\') || path.contains(':') || path.contains('\u0000') || path.split('/').any { it in listOf("",".","..") || it.startsWith(".pyretro-") })return false
         return when(group) {
-            "retro-saves" -> path.substringAfterLast('.').lowercase() in setOf("srm","sav","rtc","sra","eep","fla","mcr","mcd","dat","dsv","nv","nvm","mem")
+            "retro-saves" -> path.substringAfterLast('.').lowercase() in setOf("srm","sav","rtc","sra","eep","fla","mcr","mcd","dat","dsv","nv","nvm","mem","fs")
             "retro-states" -> Regex(".*\\.state(?:[0-9]+|\\.auto)?(?:\\.png)?",RegexOption.IGNORE_CASE).matches(path)
             "retro-runtime" -> path.endsWith(".lrtl",true)
             "psp-saves" -> Regex("[A-Z]{4}[0-9]{5}[^/]*(/[^/]+)+").matches(path)
