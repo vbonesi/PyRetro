@@ -375,12 +375,13 @@ Instalação posterior, com depuração USB autorizada:
 adb install --user 0 -r cache/artifacts/PyRetro-0.7.0-debug.apk
 ```
 
-A **0.6.0** foi compilada em 22/10/2026 fora do notebook (build, lint, 38 testes JVM
-e APK de instrumentação compilado); **ainda não foi instalada nem testada no
-aparelho**. A suíte de status foi ajustada à nova Situação e desliga a atualização
-automática durante a navegação de consulta.
+A **0.7.0 (code 13) está instalada** desde 22/10/2026 (43 testes JVM, build e lint).
+A 0.6 foi validada no aparelho nesse dia: download do PC e do Drive com pausa e
+retomada, saves por jogo online/offline, stream e Situação/Opções nas duas
+orientações. A suíte de status desliga a atualização automática durante a navegação
+de consulta; ela ainda não rodou no aparelho com a 0.6/0.7.
 
-A versão **0.5.1 está instalada** no usuário principal com a mesma assinatura.
+Histórico: a versão **0.5.1** foi instalada no usuário principal com a mesma assinatura.
 Compilação/lint e 29 testes JVM aprovados. A instrumentação de interface verifica
 retrato/paisagem, central, menus de espaço/downloads, aba Stream e restauração de
 coleção/página após recriação. A suíte SAF usa arquivos próprios para conferir

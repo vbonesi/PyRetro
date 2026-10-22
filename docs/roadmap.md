@@ -3,7 +3,7 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026 (tarde).
+pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026 (noite).
 
 ## Status atual
 
@@ -14,7 +14,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026 (tarde).
 | Sorteio com sugestão de jogar/transmitir/abrir loja nas duas interfaces | ✅ Implementado, com identidade por ID e link entre interfaces |
 | Tempo de emuladores, duração manual e logos/prévias locais no modo TV | ✅ Implementado; registro separado do tempo histórico da Biblioteca |
 | App Android com offline, G8/touch e ROMs do Drive sob demanda | APK instalado; touch, cache e pastas conferidos. G8 físico e provedor Drive pendentes |
-| Android 0.6 · hub: baixar em um toque pelo notebook/Drive, saves por jogo, stream para consoles, Situação/Opções enxutas | ✅ 0.6.1 instalada e validada no aparelho em 22/10 |
+| Android 0.6 · hub: baixar em um toque pelo notebook/Drive, saves por jogo, stream para consoles, Situação/Opções enxutas | ✅ 0.6 validada no aparelho em 22/10; 0.7.0 instalada (Início, nota, selos) |
 | Texturas PSP/3DS e remoção confirmada da ROM ao finalizar no Android | ✅ Implementado; ZIP offline e preparação pelo PC, sem substituir saves/texturas existentes |
 | Recuperação de versões pelo app, playlists e downloads retomáveis | ✅ Implementado na 0.3; instalado e instrumentação sintética aprovada no celular |
 | Índice da nuvem por pasta concedida ou arquivos em lote | ✅ Implementado na 0.3; associação única, prévia e cache; provedor Drive real pendente |
@@ -114,6 +114,67 @@ Feito nesta conversa (detalhe no changelog de 21–22/10):
   de ficar sem resposta.
 - Avaliar o RomM como referência para sincronização de saves e metadados.
 - Consolidar o setup: itens em `setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`.
+
+## Plano após 22/10/2026 (noite) — melhorias e um app só
+
+**Onde estamos:** Android **0.7.0 instalada** (Início com fileiras, nota 0–11, selos no
+cartão, online percebido sem reiniciar); 0.6 validada no aparelho (download do PC e do
+Drive com retomada, saves por jogo, stream, Situação/Opções). Modo TV com 💾 Saves na
+ficha (leitura) e Ranking. rclone com client_id próprio (modo Teste: refazer
+`rclone config reconnect drive:` a cada ~7 dias). Texturas com índice de fontes da
+planilha comunitária (outra conversa, 22/10). Lote de interface da rodada anterior: concluído.
+
+**Primeiro na próxima conversa:** conferir no celular a nota (enviar ao notebook e ver
+na web), os selos (💾 no Final Fantasy VI, ⬇ % durante um download) e Recentes/Mais
+jogados depois de abrir um jogo pelo app.
+
+### Web → apps (o que falta portar)
+
+| Função da web | Modo TV (PC) | App Android |
+|---|---|---|
+| Biblioteca, busca, sistemas, ROMs leves/pesadas | ✅ | ✅ (Catálogo) |
+| Jogando · Ranking | ✅ · ✅ | Jogando no Início · ❌ |
+| Sortear | ✅ | ✅ |
+| Progresso, nota, tempo | ✅ | ✅ (0.7.0) |
+| Saves do jogo | leitura | ✅ com sincronização |
+| Texturas | link para a web | ✅ PSP/3DS |
+| Desejados (PSN/Xbox/Steam) | ❌ | ❌ |
+| Estatísticas | ❌ | ❌ |
+| Capas (buscar/trocar/marcar) | ❌ | ❌ |
+| Editar jogo (gênero, comentário, dados) | ❌ | ❌ |
+| Organizar ROM nova | ❌ | ❌ |
+| Memory card PS1/PS2, saves PSP via adb | ❌ | ❌ |
+| Renomear/apagar com cascata | ❌ | ❌ |
+| Manutenção, Configurações | ❌ | fica só no PC |
+
+Regra: uma função por vez, primeiro no modo TV, depois no Android quando fizer sentido.
+A web (`/`) só vira diagnóstico quando não tiver nada exclusivo.
+
+### Ordem combinada
+
+1. **Conferir a 0.7.0 no celular** (acima).
+2. **Desejados e Estatísticas no modo TV** — só leitura, rotas existentes; depois o
+   **Ranking no Android**.
+3. **Editar jogo e capas no modo TV** — as funções da web mais usadas no dia a dia.
+4. **Conta Google no app:** ROMs e **saves pela nuvem** sem o notebook (cliente OAuth
+   Android criado no projeto PyRetro; escopo amplo do Drive, ok em modo Teste). Rodada própria.
+5. **Mouse/toque no modo TV** e identidade visual comum PC/Android.
+6. **Organizar, renomear/apagar e memory card** — mexem em arquivos, por último.
+
+Também na fila: "Adicionar à Biblioteca" para ROM só do celular; saves de PSP/3DS por
+jogo (title ID); filtro por plataforma/gênero na grade do Android; ficha com capa
+grande; contador de pendências no botão Situação; publicar o app OAuth (links de
+página inicial/privacidade no Branding) para o token do rclone não vencer.
+
+**Correções abertas (sem mudança):** melonDS e pilha executável (`step_emulator_extras`;
+avaliar `melondsds`), atalhos do 3DS no jogo, avaliar RomM, consolidar o setup
+(`setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`) e homologação física (G8, Steam
+Link, PS4/Xbox remotos).
+
+**Notas práticas:** compilar o APK com
+`JAVA_HOME=~/.cache/pyretro/android-toolchain/jdk ANDROID_HOME=~/.cache/pyretro/android-toolchain/sdk python3 tools/build_android.py`;
+endereço do notebook no app: `https://bonisarch.tailcc66ce.ts.net:8443`; na Pasta
+RetroArch, escolher a raiz `RetroArch` (o app recusa `saves`/`states` desde a 0.6.1).
 
 ## Rodada de 22/10/2026 (tarde) — hub de jogos e balanço da rodada anterior
 
