@@ -6,6 +6,41 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 22/10/2026 — 3DS e DS no PC, capas de PSP/3DS, rclone
+
+- **rclone** configurado pelo usuário (`drive`, `scope=drive.readonly`; o
+  PyRetro só lê do Drive). Aviso do rclone: o client_id compartilhado será
+  desativado em 2026. Criar um client_id próprio evita a interrupção.
+  Catálogo do Drive atualizado: 351 jogos.
+- **3DS:** `.cci`/`.cxi` faltavam em `[heavy_systems.3DS].exts` (o celular já
+  aceitava). O catálogo foi de 18 para 48 jogos, incluindo Pokémon X e o
+  Poochy & Yoshi local. Capas: 3DS 48/48 (29 libretro + 1 ScreenScraper) e PSP
+  54/54 (9 libretro), só acrescentadas e com correspondência exata.
+- **Azahar 2126.2** (Flathub, usuário, 33 MB) para 3DS: Vulkan na RTX
+  (confirmado no log: `VK_DEVICE: NVIDIA GeForce RTX 4060 Laptop GPU`; em
+  OpenGL/EGL ele ia para a Intel), 3x, shaders assíncronos. `physical_device=0`
+  só aponta para a RTX com as variáveis do lançador (`__VK_LAYER_NV_optimus`);
+  abrir o Azahar direto pelo menu usa a Intel. Layout: Tela grande ↔ Uma tela.
+  Cópia do ini original em `qt-config.ini.antes-pyretro`.
+- **DS no RetroArch:** core `melonds` baixado do buildbot. O build atual pedia
+  pilha executável, e o glibc recusava carregar. Resolvido com
+  `patchelf --clear-execstack`; **se o atualizador de cores baixar o melonDS de
+  novo, repetir.** O renderizador OpenGL de alta resolução do melonDS legado
+  não ativou (nem com `glcore` nem com `gl`, embora o GL rode na RTX); ficou o
+  software, com Hybrid Top e sem escala inteira (`config/melonDS/NDS.cfg`).
+  Toque por mouse (modo Mouse; no Joystick o mouse era ignorado), RT troca as
+  telas.
+- **Lançador** (`setup-linux-bonesi` `1b9b290`) e `core/play.py`: `nds`
+  (melonDS) e `n3ds` (Azahar).
+- **Controle no Azahar** em `tools/configure_xbox.py`: botões na posição de
+  Nintendo e atalhos Back+L3 (2 telas ↔ 1 tela), Back+R3 (trocar),
+  Back+LB/RB (salvar/carregar), Back+→, Back+X e Back+Start. O GUID vem do
+  SDL do próprio sandbox (`tools/sdl_probe.py`). **Pendente:** aplicar com o
+  Xbox ligado.
+- **Desempenho do DS:** medido com `--max-frames`. Rewind e preemptive frames
+  não mudaram a velocidade de forma perceptível nesse trecho (abertura de 7th
+  Dragon, centenas de fps de folga); não é uma medição de jogo pesado.
+
 ## 22/10/2026 — Saves do RetroArch numa pasta por sistema (PC e celular)
 
 Aprovado pelo usuário. Motivo: 68 nomes de ROM existem em mais de um sistema
