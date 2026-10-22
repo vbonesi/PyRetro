@@ -3,7 +3,7 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 21/10/2026.
+pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026.
 
 ## Status atual
 
@@ -80,6 +80,39 @@ A 0.5 está instalada e publicada. A fila Android solicita pausa ao sair do app;
 serviço em segundo plano ainda é proposta. Voltar de um jogo usa Recentes do
 Android → PyRetro; encerrar a partida depende do emulador. Não há nova função,
 automação ou teste real agendado por este registro de encerramento.
+
+## Encerramento de 22/10/2026 — estado e fila revisada
+
+Feito nesta conversa (detalhe no changelog de 21–22/10):
+- Android 0.5.1/0.5.2: Sortear em coleção vazia, estado online real, cache de capas
+  resistente a LAN↔Tailscale, sincronização de progresso tolerante a falhas,
+  Fixados rápido, migração de chaves quando uma ROM é renomeada no PC.
+- Vínculos jogo ↔ save/tempo/favoritos: cascata não toca save de outro jogo nem de
+  outro sistema; renomear leva Biblioteca, modo TV e Android junto.
+- Saves do RetroArch numa pasta por sistema (PC e celular), com backup e validação.
+- DS (melonDS) e 3DS (Azahar na RTX) no PC, com o perfil Xbox; capas de 3DS/PSP
+  completas; rclone configurado (somente leitura); ES-DE removido.
+- Controle no modo TV: o Chrome Flatpak precisa de `/run/udev:ro`.
+
+### Correções conhecidas (ainda abertas)
+- **melonDS:** se o atualizador de cores do RetroArch baixar o core de novo, ele volta
+  a pedir pilha executável e não carrega (`step_emulator_extras` resolve). Avaliar o
+  `melondsds`, que não tem o problema e pode ter renderizador de alta resolução.
+- **rclone:** o client_id compartilhado para de funcionar em 2026; criar um próprio.
+- **Controles do 3DS:** atalhos Back+L3/R3 etc. aplicados, mas não confirmados no jogo.
+- **Celular:** Tailscale estava desconectado; com ele ligado, "Carregar catálogo" traz
+  as capas novas de PSP/3DS e o Pokémon X ganha capa.
+- `configure_xbox.py` reordena as chaves do `NDS.opt` a cada simulação (sem mudança
+  de conteúdo); tornar a edição idempotente.
+
+### Próximas melhorias sugeridas
+- Avisar na interface web quando um save foi preservado por existir em outro sistema
+  (já existe o aviso; falta mostrar quais arquivos) e oferecer mover saves legados da
+  raiz para a pasta do sistema pela própria tela (`core/save_layout.py`).
+- Modo TV: indicar quando o controle não é visto pela página (Gamepad API vazia) em vez
+  de ficar sem resposta.
+- Avaliar o RomM como referência para sincronização de saves e metadados.
+- Consolidar o setup: itens em `setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`.
 
 ## Próximos passos (em ordem)
 
