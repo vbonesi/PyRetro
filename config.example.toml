@@ -232,7 +232,7 @@ repo  = "Sony_-_PlayStation_Portable"
 
 [heavy_systems.3DS]
 nome = "Nintendo - 3DS"
-exts = ["3ds", "cia"]
+exts = ["3ds", "cia", "cci", "cxi"]
 capas = "Nintendo - Nintendo 3DS"
 repo  = "Nintendo_-_Nintendo_3DS"
 
