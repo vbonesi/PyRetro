@@ -160,6 +160,51 @@ com o notebook online e offline, stream de um jogo de Xbox/PS4 e de Switch, e
 Situação/Opções nas duas orientações. A suíte `status` foi ajustada aos novos
 textos, mas não rodou no aparelho.
 
+### Continuação no notebook — fila da próxima rodada
+
+Registrado em 22/10/2026 para a conversa local, que continua a implementação e
+instala tudo no celular. Começar pelo roteiro de validação acima (branch
+`claude/app-hub-mobile-ux-beurbv` nos três repositórios); só depois seguir o lote.
+
+**Das anotações de uso ainda não atendidas:**
+- **Adicionar o jogo:** ROM que só existe no celular → ação explícita "Adicionar à
+  Biblioteca" no notebook (hoje nenhum cadastro é criado).
+- **Nota 0–11 no app:** o dado vem no catálogo (`tracking.nota`) e o envio usa a
+  mesma rota de edição do progresso (`/api/library/edit`); o modo TV já tem.
+- **Saves de PSP/3DS por jogo:** hoje abrem o grupo inteiro (IDs do jogo, não nome
+  da ROM); precisa do serial/title ID por jogo.
+- **Download sem o notebook:** exige conta Google no app (cliente OAuth Android no
+  Google Cloud, decisão do Victor); aproveitar o mesmo projeto do client_id do rclone.
+- **Um app só:** seguir a direção abaixo; nesta rodada só o Android deu o 1º passo.
+
+**Lote de interface recomendado (só dados/rotas existentes, sem arquitetura nova):**
+1. Android · **Início com fileiras** (Continuar jogando, Recentes, Mais jogados,
+   Prontos no celular): online por `/api/tv/home`; offline pelo cache (progresso
+   e `time:` locais). Maior ganho de fluidez.
+2. Android · **Nota 0–11** na ficha.
+3. Android · **Selos no cartão**: ✓ finalizado, ⏱ minutos, 💾 tem save, barra de
+   download do próprio jogo (fila já expõe bytes/total).
+4. Modo TV · **💾 Saves na ficha**, reaproveitando as rotas da aba Saves da web.
+5. Modo TV · **coleções Jogando e Ranking** (depois Desejados e Estatísticas), com
+   as consultas que a web já faz.
+
+Depois do lote: filtro por plataforma/gênero na grade do Android (o sorteio já
+filtra), ficha com capa grande e tempo no topo, contador no botão Situação quando
+houver pendência/falha, mouse/toque melhores no modo TV (roda, hover, alvos),
+trocar/buscar capa pela ficha do modo TV e identidade visual comum PC/Android
+(cores, ficha, selos, nomes das ações) com a mesma ação principal por contexto.
+
+**Correções ainda abertas:** melonDS e pilha executável (`step_emulator_extras`;
+avaliar `melondsds`), client_id próprio do rclone (agora também serve o download
+do celular), atalhos do 3DS no jogo, Tailscale ligado no celular, avaliar RomM,
+consolidar o setup (`setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`) e a
+homologação física (G8, Drive real, Steam Link, PS4/Xbox remotos).
+
+**Notas práticas:** a suíte `status` do celular desliga a atualização automática
+(`MainActivity.automaticUpdates=false`) para não mexer nas preferências reais. Na
+sessão em nuvem o Maven Central respondia 429; lá o build usou um init script
+local com o espelho do Google, que não foi versionado e não é necessário no notebook.
+
 ### Direção: um app só (PC e Android)
 
 O modo TV (`/tv`) passa a ser a interface principal também no PC, e o app Android
