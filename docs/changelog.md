@@ -22,6 +22,13 @@ plano.
   da TV em uso). A página ficou sem servidor por alguns segundos. O controle e as
   permissões (`devices=all`, ACL do `event19`) estavam certos, e a página `/tv`
   carrega sem erro depois.
+- **Causa real (confirmada pelo usuário):** o Chrome Flatpak (156, atualizado em
+  21/10) não tinha `/run/udev` no sandbox. A Gamepad API só reconhece o controle
+  pelo `ID_INPUT_JOYSTICK` do udev, e o Chrome nem abria o `event19`. Com o Chrome
+  da TV em foco, o `bonisarch-tv-controller` desliga as teclas do Bigscreen,
+  então nada respondia. Correção: `flatpak override --user
+  --filesystem=/run/udev:ro com.google.Chrome` (setup `bc5af81`,
+  `step_emulator_access`). Reaberto o modo TV, o controle respondeu.
 
 ## 22/10/2026 — 3DS e DS no PC, capas de PSP/3DS, rclone
 
