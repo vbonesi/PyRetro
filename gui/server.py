@@ -412,6 +412,86 @@ def search_cover_candidates(code: str, query: str, cfg: dict) -> list:
     return results[:40]
 
 
+def _organize_sources(cfg: dict) -> dict:
+    """Origens do Organizar: a pasta de entrada dentro das ROMs e a pasta de downloads."""
+    roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+    return {"organizar": roms_root / cfg["pc"].get("organizar_dir", "0-Organizar"),
+            "downloads": Path(cfg["pc"].get("downloads_dir", "~/Downloads")).expanduser().resolve()}
+
+
+def _organize_trash(cfg: dict):
+    fallback = Path(cfg["pc"]["backups_root"]).expanduser() / "Organizar substituídos"
+    return lambda path: organize_mod._trash(path, fallback=fallback)
+
+
+def _organize_cover(cfg: dict, code: str, label: str, image: Path | None) -> str | None:
+    """Capa do item recém-organizado: a imagem deixada ao lado (substitui a atual) ou um
+    candidato com o mesmo nome (sem região/tags) nas bases de ROM. Nunca chuta parecido."""
+    info = cfg["systems"].get(code) or heavy_mod.load_heavy_systems(cfg).get(code)
+    if not info or not info.get("capas"):
+        return None
+    capas_dir = Path(cfg["pc"]["capas_root"]).expanduser() / info["capas"] / "Named_Boxarts"
+    capas_dir.mkdir(parents=True, exist_ok=True)
+    dest = capas_dir / f"{label}.png"
+    registry = load_registry()
+    if image is not None and image.is_file():
+        tmp = capas_dir / f"{label}.dst.png.tmp"
+        conv = subprocess.run(["convert", str(image), str(tmp)], capture_output=True, timeout=60)
+        if conv.returncode == 0 and tmp.exists() and tmp.stat().st_size > 1000:
+            tmp.replace(dest)
+            registry.setdefault(code, {})[label] = {"status": "manual", "source": "imagem ao lado"}
+            save_registry(registry)
+            return "imagem"
+        tmp.unlink(missing_ok=True)
+    want = organize_mod._norm(re.sub(r"\(.*?\)|\[.*?\]", "", label))
+    try:
+        candidates = search_cover_candidates(code, label, cfg)
+    except Exception:
+        return None
+    for item in candidates:
+        if organize_mod._norm(re.sub(r"\(.*?\)|\[.*?\]", "", item.get("name", ""))) != want:
+            continue
+        try:  # uma fonte fora do ar não impede a próxima
+            if item["source"] == "screenscraper":
+                media_url = _ss_media_cache.get(f"{code}:{item.get('ss_id', '')}")
+                ok = screenscraper_mod.download_cover(media_url, dest) if media_url else False
+            else:
+                ok = download_selected_cover(item["source"], item["name"], info.get("repo", ""), item.get("filename", ""), dest)
+        except Exception:
+            ok = False
+        if ok:
+            registry.setdefault(code, {})[label] = {"status": "manual", "matched": item["name"], "source": item["source"]}
+            save_registry(registry)
+            return item["source"]
+    return None
+
+
+def _organize_genre(cfg: dict, code: str, label: str) -> str | None:
+    """Gênero pelo ScreenScraper e, sem resposta, pelo LaunchBox; grava no cadastro da ROM."""
+    genero = None
+    try:
+        genero = screenscraper_mod.buscar_genero(code, label, cfg)
+    except Exception:
+        genero = None
+    if not genero:
+        try:
+            genero = launchbox_mod.find_genero(code, label, launchbox_mod.build_index())
+        except Exception:
+            genero = None
+    if not genero:
+        return None
+    genero = generos_mod._normalizar(genero)
+    info = cfg["systems"].get(code) or heavy_mod.load_heavy_systems(cfg).get(code) or {}
+    plataforma = info.get("capas") if code in cfg["systems"] else info.get("nome", code)
+    library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+    with _library_transaction(library_path):
+        library = library_mod.load_library(library_path)
+        game = library_mod.get_or_create_for_rom(library, label, code, plataforma or code, f"rom:{code}")
+        library_mod.update_game(library, game["id"], "genero", genero)
+        library_mod.save_library(library_path, library)
+    return genero
+
+
 def download_selected_cover(source: str, name: str, repo: str, filename: str, dest: Path) -> bool:
     """Baixa o candidato que o usuário escolheu na tela de busca manual
     e grava em dest (sempre .png - RetroArch só exibe thumbnail nesse
@@ -1514,8 +1594,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(data); remaining -= len(data)
 
     def _read_json_body(self) -> dict:
-        length = int(self.headers.get("Content-Length", 0))
-        return json.loads(self.rfile.read(length)) if length else {}
+        # Guardado: uma rota pode olhar o corpo para decidir o formato e outra lê de novo.
+        if "_cached_body" not in self.__dict__:
+            length = int(self.headers.get("Content-Length", 0))
+            self._cached_body = json.loads(self.rfile.read(length)) if length else {}
+        return self._cached_body
 
     def _cover_path(self, code: str, label: str):
         """Resolve o caminho da capa (código do sistema + label) e o
@@ -2326,12 +2409,14 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if parts == ["api", "organize", "pending"]:
+            # Pasta de organizar + Downloads; ROMs dentro de .zip/.7z/.rar viram linhas próprias.
             cfg = load_config()
             roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
             staging = cfg["pc"].get("organizar_dir", "0-Organizar")
+            sources = _organize_sources(cfg)
             ext_index = organize_mod.build_ext_index(cfg["systems"], cfg.get("heavy_systems", {}))
-            pending = organize_mod.list_pending(roms_root, staging, ext_index)
-            return self._json({"staging_dir": staging, "items": pending})
+            items = organize_mod.scan(roms_root, list(sources.items()), ext_index)
+            return self._json({"staging_dir": staging, "downloads_dir": str(sources["downloads"]), "items": items})
 
         if parts == ["api", "heavy", "systems"]:
             cfg = load_config()
@@ -2533,9 +2618,15 @@ class Handler(BaseHTTPRequestHandler):
         ("api", "cover", "select"),
     }
 
+    def _organize_v2_body(self) -> bool:
+        """Pedido novo do Organizar (com "id"); o antigo manda só "name"."""
+        body = self._read_json_body()
+        return isinstance(body, dict) and "id" in body
+
     def do_POST(self):
         # Trava só o que mexe na biblioteca - o resto (disparo de job,
         # memory card, organize) segue em paralelo como sempre.
+        self.__dict__.pop("_cached_body", None)  # corpo é por requisição
         rota = tuple(p for p in urllib.parse.urlparse(self.path).path.split("/") if p)
         try:
             try:
@@ -3428,6 +3519,56 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 job_id = _start_job(lambda emit: worker(emit, source, apply))
             return self._json({"job": job_id})
+
+        if parts == ["api", "organize", "discard"]:
+            body = self._read_json_body(); cfg = load_config()
+            source, _, rest = str(body.get("id", "")).partition("/")
+            name = rest.partition("::")[0]
+            folder = _organize_sources(cfg).get(source)
+            if folder is None or not name or "/" in name or name.startswith(".") or not (folder / name).is_file():
+                return self._json({"error": "item desconhecido"}, 404)
+            try:
+                _organize_trash(cfg)(folder / name)
+            except OSError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json({"ok": True})
+
+        if parts == ["api", "organize", "move"] and self._organize_v2_body():
+            # Origem: pasta de organizar ou Downloads; sobrescreve no destino (o antigo vai para a
+            # lixeira), tenta capa (imagem ao lado ou nome exato) e gênero. Compactado esvaziado e a
+            # imagem usada vão para a lixeira.
+            body = self._read_json_body(); cfg = load_config()
+            item_id, code = str(body.get("id", "")), body.get("code")
+            if code not in cfg["systems"] and code not in cfg.get("heavy_systems", {}):
+                return self._json({"error": "sistema desconhecido"}, 404)
+            roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
+            sources = _organize_sources(cfg)
+            ext_index = organize_mod.build_ext_index(cfg["systems"], cfg.get("heavy_systems", {}))
+            before = next((i for i in organize_mod.scan(roms_root, list(sources.items()), ext_index) if i["id"] == item_id), None)
+            if before is None:
+                return self._json({"error": "o item não está mais na pasta; atualize a lista"}, 404)
+            if code not in [c["code"] for c in before["candidates"]]:
+                return self._json({"error": "esse sistema não abre este formato"}, 400)
+            trash = _organize_trash(cfg)
+            try:
+                result = organize_mod.organize(roms_root, sources, item_id, code, trash)
+            except LookupError as e:
+                return self._json({"error": str(e).strip("'")}, 404)
+            except (ValueError, OSError, subprocess.SubprocessError) as e:
+                return self._json({"error": str(e)}, 400)
+            folder = sources[before["source"]]
+            image = folder / before["cover_image"] if before.get("cover_image") else None
+            cover = _organize_cover(cfg, code, result["label"], image)
+            genero = _organize_genre(cfg, code, result["label"])
+            if image is not None and cover == "imagem":
+                trash(image)
+            if before["member"]:
+                left = [i for i in organize_mod.scan(roms_root, list(sources.items()), ext_index)
+                        if i["source"] == before["source"] and i["name"] == before["name"] and i["status"] == "pronto" and not i["exists_in"]]
+                if not left and (folder / before["name"]).exists():
+                    trash(folder / before["name"])
+            return self._json({"ok": True, "message": f"{code}/{Path(result['rom']).name}", "files": result["files"],
+                               "cover": cover, "genero": genero})
 
         if parts == ["api", "organize", "move"]:
             body = self._read_json_body()

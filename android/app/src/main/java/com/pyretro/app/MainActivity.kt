@@ -816,6 +816,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("Downloads") { downloads() })
         add(box,button("Espaço e jogos fixados") { spaceManager() })
         add(box,button("Saves e estados · todos os jogos") { syncFiles() })
+        add(box,button("🗂 Organizar ROMs novas (notebook)") { organizeRoms() })
         val advanced=expandable(box,"Avançado")
         add(advanced,button("Índice manual do Drive") { cloudMenu() })
         add(advanced,button("Playlists do RetroArch") { playlists() })
@@ -1264,6 +1265,40 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 while(buffer.hasRemaining() && channel.read(buffer)>0) {};require(!buffer.hasRemaining()) { "Cabeçalho truncado." };buffer.array() }
         }
     }
+    /** Organizar do notebook pelo celular: mesmas regras do modo TV (nome limpo, capa da imagem ao lado
+     *  ou das bases de ROM, gênero, substitui o que já existe com o antigo na lixeira do PC). */
+    private fun organizeRoms() {
+        if(!needsNotebook())return
+        message("Lendo a pasta de organizar e os Downloads do notebook…")
+        work.execute {
+            val result=runCatching { extras.organizePending() }
+            runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
+                result.onFailure(::failure).onSuccess { items ->
+                    val box=column();box.addView(text("🗂 Organizar ROMs novas",22f))
+                    box.addView(text("Pasta de organizar e Downloads do notebook. Escolha o sistema: o nome sai limpo, a capa e o gênero são preenchidos; se já existir, o antigo vai para a lixeira do PC.",13f))
+                    if(items.isEmpty())box.addView(text("Nada esperando organização.",15f))
+                    for(item in items) {
+                        val member=item.optString("member").takeIf { it.isNotBlank() && it!="null" }
+                        val status=item.getString("status");val exists=item.getJSONArray("exists_in")
+                        box.addView(text((if(item.getString("source")=="downloads")"⬇ " else "")+(member ?: item.getString("name"))+
+                            (if(status!="pronto")" · $status" else " → ${item.getString("final")}")+
+                            (if(!item.isNull("cover_image"))" · 🖼 capa ao lado" else "")+(if(exists.length()>0)" · substitui o que existe" else ""),14f).apply { setTypeface(null,Typeface.BOLD) })
+                        val line=row();horizontal(box,line)
+                        val candidates=item.getJSONArray("candidates")
+                        if(status=="pronto")for(i in 0 until candidates.length()) { val code=candidates.getJSONObject(i).getString("code")
+                            add(line,button("→ $code") { confirmOrganize("Mover ${item.getString("final")} para $code?") {
+                                message("Organizando ${item.getString("final")}… capa e gênero podem levar um pouco.")
+                                work.execute { val done=runCatching { extras.organizeMove(item.getString("id"),code) }
+                                    runOnUiThread { done.onSuccess { d -> message("${d.optString("message")} · capa: ${d.optString("cover").takeIf { it.isNotBlank() && it!="null" } ?: "não achada"} · gênero: ${d.optString("genero").takeIf { it.isNotBlank() && it!="null" } ?: "não achado"}");organizeRoms() }.onFailure(::failure) } } } }) }
+                        if(status!="baixando")add(line,button("Descartar") { confirmOrganize("Mandar ${item.getString("name")} para a lixeira do notebook?") {
+                            work.execute { val done=runCatching { extras.organizeDiscard(item.getString("id")) };runOnUiThread { done.onSuccess { message("${item.getString("name")} foi para a lixeira.");organizeRoms() }.onFailure(::failure) } } } })
+                    }
+                    show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+                }
+            }
+        }
+    }
+    private fun confirmOrganize(question:String,action:()->Unit) { show(AlertDialog.Builder(this).setMessage(question).setNegativeButton("Voltar") { _,_ -> organizeRoms() }.setPositiveButton("Confirmar") { _,_ -> action() }) }
     /** ROM que só existe no celular ganha cadastro na Biblioteca do notebook; favorito, tempo e
      *  fixação passam para a chave do cadastro. */
     private fun addToLibrary(game:Game) {

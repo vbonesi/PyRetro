@@ -39,6 +39,7 @@ backups_root    = "{raiz}/Backups"
 retroarch_root  = "{raiz}/RetroArch"
 library_root    = "{raiz}/Biblioteca"
 organizar_dir   = "0-Organizar"
+downloads_dir   = "{raiz}/Downloads"
 
 [android]
 device_serial     = ""

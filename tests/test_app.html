@@ -1084,8 +1084,8 @@ teste("modo TV: renomear e apagar ROM pela ficha, com confirmação e cascata", 
 teste("modo TV: ferramentas organizam, salvam só o alterado, desregistram card e simulam antes de aplicar", async () => {
   let streams = [];
   const {frame, app, doc, posts} = await abrirTV(url => {
-    if (url === "/api/organize/pending") return {staging_dir: "0-Organizar", items: posts.some(p => p.url === "/api/organize/move") ? [] : [{name: "jogo.gba", size: 1048576, is_dir: false, candidates: [{code: "GBA", nome: "Game Boy Advance"}]}]};
-    if (url === "/api/organize/move") return {ok: true, cover: "exact"};
+    if (url === "/api/organize/pending") return {staging_dir: "0-Organizar", downloads_dir: "/home/x/Downloads", items: posts.some(p => p.url === "/api/organize/move") ? [] : [{id: "downloads/jogo.zip::jogo.gba", source: "downloads", name: "jogo.zip", member: "jogo.gba", size: 1048576, status: "pronto", final: "jogo.gba", exists_in: [], cover_image: null, candidates: [{code: "GBA", nome: "Game Boy Advance"}]}]};
+    if (url === "/api/organize/move") return {ok: true, message: "GBA/jogo.gba", cover: "libretro", genero: "Ação"};
     if (url === "/api/settings") return {pc: {roms_root: "~/ROMs", capas_root: "~/Capas"}, android: {roms_root: "/sd"}};
     if (url === "/api/memcards") return [{console: "PS1", label: "Slot 1", key: "ps1:Slot 1", tool_ok: false}];
     if (url === "/api/memcards/remove") return {ok: true};
@@ -1098,8 +1098,8 @@ teste("modo TV: ferramentas organizam, salvam só o alterado, desregistram card 
   try {
     await app.load("tools");
     await tool("Organizar"); btn("→ GBA").click(); igual(posts.length, 0); btn("Mover para GBA").click();
-    await esperar(() => doc.getElementById("tool-status").textContent.includes("Capa baixada"), "mover não concluiu");
-    igual(posts[0], {url: "/api/organize/move", body: {name: "jogo.gba", code: "GBA"}});
+    await esperar(() => doc.getElementById("tool-status").textContent.includes("gênero: Ação"), "mover não concluiu");
+    igual(posts[0], {url: "/api/organize/move", body: {id: "downloads/jogo.zip::jogo.gba", code: "GBA"}});
     app.closeTool();
     await tool("Configurações"); btn("capas_root").click();
     doc.getElementById("search-input").value = "~/NovasCapas"; doc.getElementById("search-apply").click();

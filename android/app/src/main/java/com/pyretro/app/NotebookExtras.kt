@@ -74,6 +74,11 @@ class NotebookExtras(private val store:LibraryStore,private val dir:File) {
         val list=runCatching { JSONArray(raw) }.getOrElse { throw IllegalArgumentException(JSONObject(raw).optString("error","Busca falhou.")) }
         return (0 until list.length()).map { list.getJSONObject(it) }.map { it.getString("url") to it.optString("nome") }
     }
+    /** Organizar do notebook: pasta de organizar + Downloads, ROMs de dentro de compactados. */
+    fun organizePending():List<JSONObject> { val items=JSONObject(store.request("/api/organize/pending")).getJSONArray("items");return (0 until items.length()).map(items::getJSONObject) }
+    /** Extrair um PS1 de centenas de MB e buscar capa/gênero leva minutos: prazo longo só aqui. */
+    fun organizeMove(id:String,code:String):JSONObject = JSONObject(store.request("/api/organize/move",JSONObject().put("id",id).put("code",code),readTimeout=900_000))
+    fun organizeDiscard(id:String) { store.request("/api/organize/discard",JSONObject().put("id",id)) }
     /** ROM que só existe no celular vira cadastro da Biblioteca (`docs/mobile-library.md`). */
     fun addRom(name:String,code:String):JSONObject = JSONObject(store.request("/api/library/add-rom",JSONObject().put("nome",name).put("code",code)))
     /** ID do título dos saves PSP/3DS (`docs/mobile-save-ids.md`); guardado para uso offline. */

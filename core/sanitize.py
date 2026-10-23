@@ -38,12 +38,23 @@ def sanitize_name(name: str) -> str:
 # só esses três padrões específicos de site de tradução.
 _TRANSLATION_TAG_RE = re.compile(
     r"\s*\("
-    r"(?:BR(?:-[A-Z]+)?"                        # (BR), (BR-USA), (BR-U)
-    r"|T\d+(?:\.\d+)*[a-z]?"                     # (T1.0), (T1.1), (T1.02), (T2)
+    r"(?:BR(?:-[A-Z]+)*"                        # (BR), (BR-USA), (BR-U), (BR-U-E)
+    r"|T\d+(?:[._]\w+)*[a-z]?(?:-[A-Za-z]+)?"     # (T1.0), (T1.02), (T2), (T107-Beta), (T201_RC5)
+    r"|DUB"                                      # (DUB): versão dublada do mesmo lote
     r"|[^()]*\.(?:com|net|org|com\.br)[^()]*"    # (www.romsportugues.com) etc.
+    r"|www\.[^()]*"                              # (www.romsportugues), site sem domínio
     r")\)",
     re.IGNORECASE,
 )
+# Grupo tradutor: o parêntese colado antes ou depois da versão do patch, como
+# "(DindoeCia) (T2.0)" e "(T1.0) (Starman)" (achado em 23/10 no lote do romsportugues.com).
+# Tag padrão de região/idioma/revisão/disco nunca conta como grupo.
+_PATCH_VERSION = r"\(T\d+(?:[._]\w+)*[a-z]?(?:-[A-Za-z]+)?\)"
+_STANDARD_TAG = re.compile(
+    r"\((?:USA|Europe|Japan|World|Brazil|Korea|China|Asia|Australia|France|Germany|Spain|Italy|"
+    r"[A-Z][a-z](?:,[A-Z][a-z])+|Rev \w+|v\d[\w.]*|Beta\s*\d*|Proto\w*|Disc \d+|Track\s*\d+|Unl|Demo|Sample)\)", re.IGNORECASE)
+_CREDIT_BEFORE = re.compile(r"\s*(\([^()]*\))(?=\s*" + _PATCH_VERSION + ")", re.IGNORECASE)
+
 
 
 def strip_translation_tags(name: str) -> str:
@@ -53,6 +64,10 @@ def strip_translation_tags(name: str) -> str:
     stem, _, ext = name.rpartition(".")
     if not stem:
         stem, ext = name, ""
+    # Créditos colados na versão do patch saem antes das tags de tradução.
+    stem = _CREDIT_BEFORE.sub(lambda m: m.group(0) if _STANDARD_TAG.fullmatch(m.group(1)) else "", stem)
+    stem = re.sub(r"(" + _PATCH_VERSION + r")(\s*\([^()]*\))",
+                  lambda m: m.group(1) if not _STANDARD_TAG.fullmatch(m.group(2).strip()) else m.group(0), stem, flags=re.IGNORECASE)
     cleaned = _TRANSLATION_TAG_RE.sub("", stem)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return f"{cleaned}.{ext}" if ext else cleaned

@@ -148,6 +148,10 @@ sobrescreve nada no Drive: vira uma pendência que o notebook aplica (modo TV �
 ☁ Saves enviados pelo celular). PSP/3DS usam o ID do título de cada jogo (0.11.0); uma ROM só
 do celular pode ser cadastrada na Biblioteca pela ficha.
 
+**🗂 Organizar ROMs novas** (0.14.0, em Opções): lista a pasta de organizar e os Downloads do
+notebook (inclusive ROMs dentro de `.zip/.7z/.rar`) e move cada uma para o sistema escolhido,
+com nome limpo, capa e gênero — as mesmas regras do modo TV.
+
 As barras de coleções e ações têm rolagem horizontal. A dica de controle some em
 paisagem; a tela **Aparência** saiu na 0.6 (preferências antigas continuam
 valendo). Erros operacionais continuam visíveis. Na ficha, **Progresso e tempo**

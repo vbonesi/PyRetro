@@ -1119,19 +1119,24 @@ function renderTools() {
   report("Ferramentas de organização e manutenção. Ações que mexem em arquivos pedem confirmação.");
 }
 async function toolOrganize(body) {
-  body.replaceChildren(hint("Lendo a pasta de organizar…"));
-  const {staging_dir, items} = await api("/api/organize/pending");
+  body.replaceChildren(hint("Lendo a pasta de organizar e os Downloads…"));
+  const {staging_dir, downloads_dir, items} = await api("/api/organize/pending");
   const gb = n => n >= 1073741824 ? `${(n/1073741824).toFixed(1)} GB` : `${Math.max(1, Math.round(n/1048576))} MB`;
-  body.replaceChildren(hint(`Pasta: ROMs/${staging_dir}/. Escolha o sistema de cada item; a capa é buscada ao mover.`),
+  const label = i => (i.member ? `${i.name} › ${i.member}` : i.name);
+  body.replaceChildren(hint(`Origens: ROMs/${staging_dir}/ e ${downloads_dir}. Escolha o sistema de cada ROM: o nome sai limpo, a capa vem da imagem ao lado ou das bases de ROM e o gênero é preenchido. Se já existir, a antiga vai para a lixeira.`),
     ...(items.length ? items.map(item => {
-      const r = row(`${item.is_dir ? "📁 " : ""}${item.name} · ${gb(item.size)}`);
-      if (!item.candidates.length) r.append(Object.assign(document.createElement("small"), {textContent: "extensão não reconhecida"}));
-      for (const c of item.candidates) r.append(confirmButton(`→ ${c.code}`, `Mover para ${c.code}?`, async () => {
+      const r = row(`${item.source === "downloads" ? "⬇ " : ""}${label(item)} · ${gb(item.size)}${item.status !== "pronto" ? " · " + item.status : ` → ${item.final}`}${item.cover_image ? " · 🖼 " + item.cover_image : ""}${item.exists_in.length ? " · já existe em " + item.exists_in.join(", ") + " (substitui)" : ""}`);
+      if (item.status === "pronto") for (const c of item.candidates) r.append(confirmButton(`→ ${c.code}`, `Mover para ${c.code}?`, async () => {
+        toolStatus(`Organizando ${item.final}… (capa e gênero podem levar um pouco)`);
         try {
-          const d = await api("/api/organize/move", {name: item.name, code: c.code});
-          toolStatus(`${item.name} → ${c.code}. ${{exact: "Capa baixada.", fuzzy: "Capa parecida: revise em Capas dos sistemas.", no_match: "Sem capa: busque pela ficha do jogo."}[d.cover] || ""}`);
-          await toolOrganize(body);
+          const d = await api("/api/organize/move", {id: item.id, code: c.code});
+          toolStatus(`${d.message} · capa: ${d.cover || "não achada"} · gênero: ${d.genero || "não achado"}`);
         } catch (e) { toolStatus(e.message, true); }
+        await toolOrganize(body);
+      }));
+      if (item.status !== "baixando") r.append(confirmButton("Descartar", "Confirmar: para a lixeira", async () => {
+        try { await api("/api/organize/discard", {id: item.id}); toolStatus(`${item.name} foi para a lixeira.`); } catch (e) { toolStatus(e.message, true); }
+        await toolOrganize(body);
       }));
       return r;
     }) : [hint("Nada esperando organização.")]));

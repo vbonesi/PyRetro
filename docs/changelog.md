@@ -6,6 +6,36 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (11) — Organizar a partir dos Downloads (PC e celular); Android 0.14.0
+
+Pedido do Victor: organizar as ROMs baixadas (lote do romsportugues.com e uma ROM hack com capa
+ao lado), já com gênero e capa, sobrescrevendo repetidas, tanto pelo modo TV quanto pelo celular.
+
+- **Organizador novo** (`core/organize.scan/organize`, rotas `/api/organize/pending|move|discard`):
+  origens `ROMs/0-Organizar` e **`pc.downloads_dir`** (padrão `~/Downloads`); ROMs dentro de
+  `.zip/.7z/.rar` viram linhas próprias (lidas pelo `7z` sem extrair; o `.cue` é lido para saber
+  quais `.bin` são faixas), patches `.bps` ignorados, `.crdownload/.part` aparecem como "baixando"
+  e não podem ser mexidos. Mover extrai só o necessário, limpa os nomes, **reescreve o `.cue`**
+  para os nomes novos das faixas, **substitui** o que já existe (o antigo vai para a lixeira) e
+  manda para a lixeira o compactado esvaziado e a imagem usada como capa. **Capa:** imagem ao
+  lado com o mesmo nome (prioridade) ou candidato com o nome exato nas bases de ROM (nunca
+  "parecido"; uma fonte fora do ar não impede a próxima). **Gênero:** ScreenScraper e LaunchBox,
+  gravado no cadastro. **Descartar** manda para a lixeira.
+- **Modo TV** (Ferramentas → Organizar) e **Android 0.14.0** (Opções → 🗂 Organizar ROMs novas)
+  usam essas rotas; os dois foram usados de verdade (Flicky pelo celular, Hook pelo modo TV).
+- **Limpeza de nomes** (`core/sanitize`): região `BR-U-E`, patch `T107-Beta`/`T201_RC5`, `(DUB)`,
+  site sem domínio e o grupo tradutor colado na versão do patch (`(DindoeCia) (T2.0)`,
+  `(T1.0) (Starman)`); `(Track N)`, região, idioma, revisão e disco continuam.
+- **Organizados (14):** SNES Brain Lord, Hook, Popeye, Terranigma (Brain Lord e Popeye
+  substituídos); MD Flicky; GBC Lufia - The Legend Returns; GBA Metroid - Zero Mission
+  (substituído), ProjectZM, Revamp, Pokémon Ghost Grey Version v103 (capa da imagem deixada pelo
+  Victor; a edição coreana do mesmo zip foi para a lixeira); PS1 Bakusou Dekotora Densetsu
+  (3 faixas), Vagrant Story, Vandal Hearts II; PS2 Castlevania - Lament of Innocence; PSP
+  PoPoLoCrois. Capas e gêneros completados à mão onde as bases não tinham nome igual: hacks do
+  Metroid com a capa do original e Ação, Ghost Grey RPG, Bakusou Corrida (capa "Art Truck
+  Battle", o primeiro da série), Vagrant Story (USA), Castlevania pelo SteamGridDB.
+- Testes: 356 Python (8 novos em `test_organize_downloads.py`), 50 JS; JVM sem mudança.
+
 ## 23/10/2026 (10) — Saves criados por testes removidos (com cópia)
 
 Pedido do Victor: apagar saves feitos em testes. Levantamento de tudo alterado desde 15/10 em
