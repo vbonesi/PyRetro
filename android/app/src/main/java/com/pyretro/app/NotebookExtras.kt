@@ -10,6 +10,13 @@ data class WishItem(val id:String,val source:String,val name:String,val cover:St
 /** Para onde vai uma capa trocada: cadastro da Biblioteca ou arquivo da ROM no PC. */
 data class CoverTarget(val kind:String,val id:String="",val code:String="",val label:String="")
 
+/** Só a requisição mais recente vale: respostas de pedidos anteriores são descartadas. */
+class LatestRequest {
+    @Volatile private var current=0
+    fun start():Int=synchronized(this) { ++current }
+    fun isCurrent(id:Int)=id==current
+}
+
 /** Regras sem Android: leitura das respostas do notebook e escolhas de exibição. */
 object ExtrasRules {
     val STORES=linkedMapOf("steam" to "Steam","psn" to "PlayStation","xbox" to "Xbox")

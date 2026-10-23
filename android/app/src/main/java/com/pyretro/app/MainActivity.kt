@@ -431,13 +431,17 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         box.addView(query,LinearLayout.LayoutParams(-1,-2))
         val status=text("",13f);val results=GridLayout(this).apply { columnCount=3 }
         lateinit var search:()->Unit
+        // Só a busca mais recente desenha: resposta ou miniatura de uma busca anterior é descartada
+        // (achado do Codex na revisão da 0.9.0: buscar de novo antes da resposta misturava as capas).
+        val searches=LatestRequest()
         add(box,button("Buscar no SteamGridDB") { search() });box.addView(status);box.addView(results)
         val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
         search={
             val term=query.text.toString().trim()
             if(term.length>=2) {
+                val current=searches.start()
                 status.text="Buscando… o SteamGridDB pode levar até dois minutos.";results.removeAllViews()
-                work.execute { val found=runCatching { extras.searchCovers(term) };runOnUiThread { if(dialog!==opened)return@runOnUiThread
+                work.execute { val found=runCatching { extras.searchCovers(term) };runOnUiThread { if(dialog!==opened || !searches.isCurrent(current))return@runOnUiThread
                     found.onFailure { status.text=it.message ?: "Busca falhou." }.onSuccess { list ->
                         status.text=if(list.isEmpty())"Nada encontrado. Troque o termo." else "Toque numa capa para usar."
                         for((url,name) in list.take(12)) {
@@ -448,7 +452,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                                     work.execute { runCatching { extras.applyCover(target,url) }.onSuccess { runOnUiThread { message("Capa trocada. Atualizando o catálogo…");refreshCatalog(silent=true) } }.onFailure { runOnUiThread { failure(it) } } }
                                 }) } }
                             results.addView(image,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { width=0;height=dp(170);setMargins(dp(3),dp(3),dp(3),dp(3)) })
-                            images.execute { val bitmap=runCatching { extras.thumbnail(url) }.getOrNull();if(bitmap!=null)runOnUiThread { image.setImageBitmap(bitmap) } }
+                            images.execute { if(searches.isCurrent(current)) { val bitmap=runCatching { extras.thumbnail(url) }.getOrNull();if(bitmap!=null)runOnUiThread { if(searches.isCurrent(current))image.setImageBitmap(bitmap) } } }
                         }
                     } } }
             }

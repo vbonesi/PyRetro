@@ -24,4 +24,8 @@ class ExtrasRulesTest {
         val out=ExtrasRules.changes(mapOf("genero" to "Ação","observacoes" to "velho","tempo" to ""),mapOf("genero" to "Ação ","observacoes" to "","tempo" to "10:00:00"))
         assertEquals(mapOf("observacoes" to null,"tempo" to "10:00:00"),out)
     }
+    @Test fun lateResponseFromOlderSearchIsDiscarded() {
+        val gate=LatestRequest();val first=gate.start();val second=gate.start()
+        assertFalse(gate.isCurrent(first));assertTrue(gate.isCurrent(second))
+    }
 }

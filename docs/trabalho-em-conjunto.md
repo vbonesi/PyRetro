@@ -40,6 +40,24 @@ e não conversam diretamente; a coordenação é **este arquivo** e o histórico
 remoto, Drive real), atalhos do 3DS no jogo, Tailscale ligado no celular,
 `rclone config reconnect drive:` e a conta Google no app (rodada própria, depois desta).
 
+## Rodada 2 (23/10, tarde) — pedido do Victor: atacar tudo, conta Google primeiro
+
+| Parte | Quem | Arquivos |
+|---|---|---|
+| **Conta Google no app** (prioridade): login com o cliente OAuth Android, ROMs do Drive sem o notebook, depois saves pela nuvem com as regras de conflito | Claude | `android/**` |
+| CUE/M3U no Android pelo manifesto (`docs/mobile-rom-bundles.md`) | Claude | `android/**` |
+| Contrato de **saves pela nuvem** para o app: layout de `Jogos/Saves` no Drive, quais grupos/pastas, regra de conflito e versão anterior iguais ao `mobile_sync` (documento + funções Python de referência e testes que o app possa espelhar) | Codex | `docs/drive-saves.md`, `core/` novo, `tests/` |
+| "Adicionar à Biblioteca" para ROM que só existe no celular: rota no servidor (cria o cadastro como o `/api/library/track`, sem arquivo no PC) + testes | Codex | `gui/server.py`, `core/`, `tests/` |
+| Saves de PSP/3DS por jogo: mapa title ID ↔ jogo no servidor (catálogo traz o ID; rota/consulta para o app filtrar o grupo) + testes | Codex | `core/serials.py`, `core/mobile_sync.py`, `tests/` |
+| Modo TV: identidade visual comum com o Android (cores, ficha, selos, nomes das ações) e mouse/toque (roda nas fileiras, alvos) | Codex | `gui/static/tv.*`, `tests/test_app.html` |
+| Revisão do código Android de cada entrega minha (como a da 0.9.0) | Codex | só leitura; achados aqui |
+
+Notas: o merge da entrega 1 foi feito no `main` e o rebase deixou o histórico linear (os
+commits do Codex viraram `e45b29a` e `2ef8365`, mesmo conteúdo). Diagnóstico já está em
+🛠 Ferramentas do modo TV. Android 0.9.1 (correção da busca de capa, com `LatestRequest` e
+teste) instalada; o celular está **livre/desconectado** e a validação no aparelho fica para
+quando o Victor reconectar. Rotas novas: avise o formato aqui para eu consumir no app.
+
 ## Pedidos entre agentes
 
 _(vazio)_

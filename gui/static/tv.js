@@ -1045,6 +1045,7 @@ function renderTools() {
     ["🖼", "Capas dos sistemas", "Buscar capas que faltam nas ROMs leves e pesadas", toolCovers],
     ["🛠", "Manutenção", "Backups, nomes, playlists e sincronização de saves", toolMaintenance],
     ["⚙", "Configurações", "Pastas do PC e do celular usadas pelo PyRetro", toolSettings],
+    ["🩺", "Diagnóstico", "Confere pastas e programas; relatório sem dados privados", toolDiagnostics],
   ];
   $("gallery").replaceChildren(...tools.map(([symbol, title, text, open]) => {
     const card = button("", () => openTool(`${symbol} ${title}`, open)); card.className = "game system-card stat-card";
@@ -1210,6 +1211,18 @@ async function toolMaintenance(body) {
     jobRow("Sanitizar nomes (remove & : *)", a => q("/api/sanitize_names", {target: o.sanitize}, a), {extra: choice([["all", "Capas + ROMs"], ["capas", "Só Capas"], ["roms", "Só ROMs"]], o.sanitize, v => o.sanitize = v)}),
     jobRow("Reconstruir playlist do RetroArch", a => q(`/api/rebuild_playlist/${encodeURIComponent(o.playlist)}`, {target: o.playlistTarget}, a), {extra: actions(choice(state.light.map(s => [s.code, s.code]), o.playlist, v => o.playlist = v), choice(targets, o.playlistTarget, v => o.playlistTarget = v))}),
     jobRow("Sincronizar saves de emulador (PC/Drive/Android)", a => q("/api/emu_sync", {source: o.sync}, a), {extra: choice([["all", "Todos"], ...sources.map(x => [x.code, x.nome])], o.sync, v => o.sync = v)}));
+}
+// Relatório do Codex (core/diagnostics.py): só presença de pastas e programas, sem caminhos.
+async function toolDiagnostics(body) {
+  body.replaceChildren(hint("Conferindo…"));
+  const r = await api("/api/diagnostics");
+  const icon = {present: "✓", missing: "✗", unavailable: "?"};
+  body.replaceChildren(
+    ...r.checks.map(c => row(`${icon[c.status] || "?"} ${c.id}${c.action ? ` · ${c.action}` : ""}`)),
+    hint(`Jogo aberto pelo PyRetro: ${{idle: "nenhum", running: "sim", starting: "abrindo", error: "erro na última sessão"}[r.play_state] || "desconhecido"}.`),
+    ...r.limits.map(hint), hint(r.privacy),
+    actions(button("Atualizar", () => toolDiagnostics(body))),
+    Object.assign(document.createElement("p"), {className: "hint", innerHTML: 'Versão para copiar e enviar: <a href="/diagnostics">/diagnostics</a>.'}));
 }
 async function toolSettings(body) {
   const cfg = await api("/api/settings"), changed = {pc: {}, android: {}};
