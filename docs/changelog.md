@@ -11,8 +11,8 @@ plano.
 - **Google Cloud (projeto PyRetro):** o Victor preencheu o Branding com as páginas do GitHub
   Pages (`https://vbonesi.github.io/PyRetro/oauth/`, `privacy.html`, `terms.html`) e publicou
   o app OAuth (saiu do modo Teste). Com isso, novas autorizações deixam de vencer em 7 dias.
-  O token atual do rclone foi emitido ainda em modo Teste: rodar `rclone config reconnect
-  drive:` uma vez para obter um que não vence. O app Android pode pedir o consentimento de novo
+  O rclone foi reconectado logo em seguida (`rclone config reconnect drive:`, 16:02), já com o
+  app publicado: o token novo não tem mais o vencimento de 7 dias. O app Android pode pedir o consentimento de novo
   na próxima vez (tela "o Google não verificou este app" → Avançado → Acessar PyRetro).
 - **Homologação física pelo Victor:** Steam Link e sessões remotas de PS4 e Xbox validadas em
   uso real. Continua em aberto: G8 e atalhos do 3DS no jogo.
