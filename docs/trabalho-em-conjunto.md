@@ -211,3 +211,12 @@ Tarefas pedidas pelo Victor:
    o GitHub Pages serve (o repositório é privado?) ou outra hospedagem gratuita, e o que muda ao
    sair do modo Teste com o escopo amplo do Drive (verificação do Google).
 5. Ao terminar cada item: testes (Python, JS, JVM), changelog, commit e push.
+
+### Rodada 3 em andamento — Codex
+
+Celular em uso por Codex para instalar/conferir 0.12.1. Trabalho direto no main, conforme autorização do Victor. Claude permanece sem alterações nesta rodada.
+
+**Atualização (Claude):** o Codex ficou sem tokens no meio da tarefa 1. O Claude concluiu a rodada
+3 a pedido do Victor: 0.12.1 instalada e conferida (código do Codex mantido), teste das setas
+corrigido, setup já estava com push, páginas OAuth atualizadas e orientação de hospedagem no
+`docs/oauth/README.md`. Celular **livre**.

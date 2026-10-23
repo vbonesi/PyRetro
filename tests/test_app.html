@@ -1137,6 +1137,10 @@ teste("TV: fileiras têm setas, roda horizontal sem prender página/zoom e alvos
     verdade(!wheel(150,{deltaX:200}).defaultPrevented, 'trackpad horizontal interceptado');
     row.scrollLeft = row.scrollWidth;
     verdade(!wheel(150).defaultPrevented, 'borda prendeu rolagem vertical da página');
+    // Sem requestAnimationFrame (iframe fora da tela, painel embutido) a rolagem suave não anda:
+    // o teste pede movimento reduzido, que usa rolagem instantânea; o uso real continua suave.
+    const nativeMatch = app.matchMedia.bind(app);
+    app.matchMedia = query => /prefers-reduced-motion/.test(query) ? {matches: true, media: query, addEventListener() {}, removeEventListener() {}} : nativeMatch(query);
     const end = row.scrollLeft; controls[0].click();
     await esperar(() => row.scrollLeft < end, 'seta não moveu fileira');
     igual(posts.length,0,'rolagem acionou jogo ou gravou preferências');

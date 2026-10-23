@@ -1184,9 +1184,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val sync=FileSync(store)
         val local=runCatching { groups.flatMap { g -> sync.local(g).filterKeys { mine(g,it) }.map { (path,file) -> path to file.size } } }
         // Notebook fora do ar e conta Google conectada: compara com Jogos/Saves no Drive.
-        val plans=if(!store.online && drive.connected)runCatching { groups.map { g -> DriveSaves(store,drive,sync).analyze(g) { mine(g,it) } } }
+        val attemptedDrive=!store.online && drive.connected
+        val plans=if(attemptedDrive)runCatching { groups.map { g -> DriveSaves(store,drive,sync).analyze(g) { mine(g,it) } } }
             else if(store.base().isBlank())null else runCatching { groups.map { g -> sync.analyze(g) { mine(g,it) } } }
-        runOnUiThread { if(!isFinishing && !isDestroyed)reviewGameSaves(game,local,plans) }
+        runOnUiThread { if(!isFinishing && !isDestroyed)reviewGameSaves(game,local,plans,attemptedDrive) }
     }
     /** PSP/3DS: o notebook diz o ID do título do jogo (Redump para PSP, cabeçalho da ROM para 3DS).
      *  Sem ID seguro (ou jogo sem cadastro), abre o grupo inteiro como antes. Vários candidatos
@@ -1235,17 +1236,18 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }.onFailure(::failure) }
         }
     }
-    private fun reviewGameSaves(game:Game,local:Result<List<Pair<String,Long>>>,plans:Result<List<SyncPlan>>?) {
+    private fun reviewGameSaves(game:Game,local:Result<List<Pair<String,Long>>>,plans:Result<List<SyncPlan>>?,attemptedDrive:Boolean=false) {
         val box=column();box.addView(text("💾 ${game.name}",22f))
         local.onSuccess { files ->
             box.addView(text(if(files.isEmpty())"Nenhum save ou estado deste jogo no celular." else files.joinToString("\n") { (path,size) -> "${path.substringAfterLast('/')} · ${bytesLabel(size)}" },14f))
         }.onFailure { box.addView(text("Não foi possível ler a pasta RetroArch: ${it.message}",13f)) }
         val ready=plans?.getOrNull()
-        message(when { ready!=null -> "Saves de ${game.name} conferidos"+(if(ready.firstOrNull()?.rootTag?.startsWith("drive:")==true)" com o Drive." else ".");plans==null -> "Saves de ${game.name}: notebook não configurado.";else -> "Saves de ${game.name}: notebook offline, só os do celular." })
-        if(ready==null) box.addView(text(if(plans==null)"Configure o notebook para comparar." else "Notebook offline: comparação indisponível. Os arquivos acima continuam valendo no celular.",13f))
+        val labels=SaveReviewText.forComparison(ready?.map { it.rootTag },attemptedDrive,plans!=null)
+        message("Saves de ${game.name}: ${labels.notice}")
+        if(ready==null) box.addView(text(requireNotNull(labels.warning),13f))
         else {
             val rows=ready.flatMap { plan -> plan.rows.filter { it.kind!="same" }.map { plan to it } }
-            box.addView(text(if(rows.isEmpty())"Iguais no celular e no notebook." else "${rows.count { it.second.choice in setOf("upload","download") }} cópia(s) a fazer · ${rows.count { it.second.choice=="conflict" }} conflito(s).",14f))
+            box.addView(text(if(rows.isEmpty())labels.equal else "${rows.count { it.second.choice in setOf("upload","download") }} cópia(s) a fazer · ${rows.count { it.second.choice=="conflict" }} conflito(s).",14f))
             if(rows.any { it.second.choice=="download" } && local.getOrNull().isNullOrEmpty())
                 box.addView(text("O celular não tem nenhum save deste jogo nesta pasta. Se você já jogou aqui, confira em Opções se a pasta RetroArch escolhida é a raiz (não saves/states) antes de baixar.",12f))
             for((_,row) in rows) {
@@ -1255,7 +1257,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     val options=mutableListOf("Adiar" to "conflict")
                     if(row.local!=null)options.add("Usar a do celular (${bytesLabel(row.local.size)})" to "upload")
                     if(row.remote!=null)options.add((if(ready.firstOrNull()?.rootTag?.startsWith("drive:")==true)"Usar a do Drive" else "Usar a do notebook")+" (${bytesLabel(row.remote.getLong("size"))})" to "download")
-                    show(AlertDialog.Builder(this).setTitle(row.path).setItems(options.map { it.first }.toTypedArray()) { _,which -> row.choice=options[which].second;reviewGameSaves(game,local,plans) }.setNegativeButton("Voltar") { _,_ -> reviewGameSaves(game,local,plans) })
+                    show(AlertDialog.Builder(this).setTitle(row.path).setItems(options.map { it.first }.toTypedArray()) { _,which -> row.choice=options[which].second;reviewGameSaves(game,local,plans,attemptedDrive) }.setNegativeButton("Voltar") { _,_ -> reviewGameSaves(game,local,plans,attemptedDrive) })
                 }) else box.addView(text("$direction · ${row.path.substringAfterLast('/')}",13f))
             }
             if(rows.any { it.second.choice in setOf("upload","download") })add(box,button("Sincronizar este jogo") {

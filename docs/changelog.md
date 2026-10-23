@@ -6,6 +6,24 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (7) — Rodada 3: Android 0.12.1, teste das setas e páginas OAuth
+
+Iniciada pelo Codex (que ficou sem tokens no meio) e concluída pelo Claude.
+
+- **Android 0.12.1 (code 20), instalada e conferida:** a ficha de saves comparada pelo Drive diz
+  "Iguais no celular e no Drive." e não mostra avisos do notebook; se a comparação com o Drive
+  falhar, o aviso fala do Drive (`SaveReviewText`, com teste JVM; smoke de aparelho
+  `SaveReviewSmoke`, suíte `save-review`, feito pelo Codex). Conferido no Final Fantasy VI.
+- **Teste JS das setas das fileiras:** passa também sem `requestAnimationFrame` (o teste pede
+  movimento reduzido, que usa rolagem instantânea); o uso real continua com rolagem suave.
+- `tests/test_api.py`: instalação de textura por link não depende mais de DNS real (Codex).
+- **Setup:** o commit `dffee8a` (DS/3DS) já estava no `origin` do `setup-linux-bonesi`.
+- **Páginas OAuth** (`docs/oauth/`) atualizadas para a integração atual: login da Conta Google no
+  app com escopo do Drive (lê ROMs e saves; só cria saves novos ou pendências, nunca apaga ou
+  sobrescreve), rclone somente leitura no notebook. Hospedagem: ver orientação no fim de
+  `docs/oauth/README.md`.
+- Testes: 347 Python, 50 JS, 65 JVM.
+
 ## 23/10/2026 — Rodada 2, identidade TV e navegação por mouse/toque (Codex)
 
 - Paleta, ficha e selos alinhados ao Android; Progresso e tempo agrupados,

@@ -546,11 +546,13 @@ class TexturasAPI(BaseAPI):
             f.writestr("SLUS-21065/replacements/b.png", "1")
         corpo = {"alvo": "pc", "sistema": "PS2", "id_jogo": "SLUS-21065", "url": "https://exemplo.org/p.zip"}
         with mock.patch.object(tx, "baixar_url", return_value=(z, "abc123")), \
+                mock.patch.object(tx, "validar_url", return_value="exemplo.org") as validar, \
                 mock.patch.object(tx, "set_loading", return_value="ligado"), \
                 mock.patch.object(tx, "CACHE_DIR", self.raiz / "cache" / "texturas"):
             status, d = self.pedir("/api/texturas/instalar", corpo)
             self.assertEqual(status, 200)
             eventos = self._stream(d["job"])
+        validar.assert_called_once_with(corpo["url"])  # DNS externo não pertence à fixture HTTP.
         feito = [e for e in eventos if e["type"] == "system_done"][0]["result"]
         self.assertTrue(feito["ok"], feito)
         self.assertIn("abc123", feito["message"])
