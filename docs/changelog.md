@@ -43,6 +43,12 @@ Itens 2, 3 e parte do 5 da "Ordem combinada" do roadmap, mais a fila de interfac
   (sem gravar): Estatísticas e atalho Steam (92 jogos), Desejados (237) e ficha, lista de
   gêneros e teclado no ✎, busca de capa nas duas fontes, layout em largura de celular.
   Gravar edição, aplicar capa e Comprado foram testados só com dados simulados.
+- **23/10, no celular (S24 Ultra):** 0.8.0 instalada (code 14). Conferidos Ranking (96 jogos
+  com nota, 11,0 primeiro — bate com a web), Filtro "Ação" (12 jogos, botão vira "Filtro: Ação",
+  zera ao voltar ao Início) e capa grande na ficha (Final Fantasy VI). Situação sem número,
+  correto: nada pendente. O contador com pendência real não foi visto (só no teste JVM). O app
+  estava offline porque o Tailscale do celular estava desligado; capas de jogos de stream
+  sem cache aparecem como ✦ até o app falar com o notebook.
 
 ## 22/10/2026 (noite, 4) — Android 0.7.0 (nota e selos); modo TV com Saves e Ranking
 

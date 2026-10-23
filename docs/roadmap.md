@@ -124,11 +124,10 @@ ficha (leitura) e Ranking. rclone com client_id próprio (modo Teste: refazer
 `rclone config reconnect drive:` a cada ~7 dias). Texturas com índice de fontes da
 planilha comunitária (outra conversa, 22/10). Lote de interface da rodada anterior: concluído.
 
-**Primeiro na próxima conversa:** instalar a **0.8.0** (`cache/artifacts/PyRetro-0.8.0-debug.apk`;
-`adb install --user 0 -r …`) e conferir no celular a nota (enviar ao notebook e ver
+**Primeiro na próxima conversa:** a **0.8.0** já está instalada (23/10: Ranking, Filtro e capa
+grande conferidos). Ligar o Tailscale do celular e conferir a nota (enviar ao notebook e ver
 na web), os selos (💾 no Final Fantasy VI, ⬇ % durante um download), Recentes/Mais
-jogados depois de abrir um jogo pelo app, Ranking, Filtro, capa grande na ficha e o
-contador do Situação. No modo TV, com o controle: ✎ Editar e 🖼 Capa de um jogo de verdade.
+jogados depois de abrir um jogo pelo app e o contador do Situação com uma pendência real. No modo TV, com o controle: ✎ Editar e 🖼 Capa de um jogo de verdade.
 
 ### Web → apps (o que falta portar)
 
