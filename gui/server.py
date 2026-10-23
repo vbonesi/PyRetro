@@ -58,6 +58,7 @@ from core import tv_saves as tv_saves_mod
 from core import mobile_textures as mobile_textures_mod
 from core import mobile_sync as mobile_sync_mod
 from core import mobile_roms as mobile_roms_mod
+from core import diagnostics as diagnostics_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -1589,6 +1590,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path in ("/tv", "/tv/"):
             return self._file(STATIC_DIR / "tv.html", "text/html; charset=utf-8", no_cache=True)
 
+        if parsed.path in ('/diagnostics', '/diagnostics/'):
+            return self._file(STATIC_DIR / 'diagnostics.html', 'text/html; charset=utf-8', no_cache=True)
+
         if parts == ["api", "csrf"]:
             return self._json({"token": CSRF_TOKEN})
 
@@ -1614,6 +1618,14 @@ class Handler(BaseHTTPRequestHandler):
 
         if parts == ["api", "play", "status"]:
             return self._json(PLAY_SESSIONS.status())
+
+        if parts == ['api', 'diagnostics']:
+            try:
+                cfg = load_config()
+            except (OSError, ValueError):
+                # Nunca devolver a exceção: parsers podem incluir trechos privados.
+                return self._json({'error': 'Não foi possível ler a configuração do PC.'}, 400)
+            return self._json(diagnostics_mod.report(cfg, PLAY_SESSIONS.status().get('status')))
 
         if len(parts) == 3 and parts[0] == 'tv-media':
             try: return self._tv_media_file(tv_media_mod.resolve(TV_MEDIA_ROOT, parts[1], parts[2]))
@@ -1650,8 +1662,16 @@ class Handler(BaseHTTPRequestHandler):
                 drive = {g['name'] for g in sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH).get(code, [])}
                 if parts == ['api','mobile','rom','options']:
                     return self._json({'files': mobile_roms_mod.options(cfg, code, query.get('name',[''])[0], drive)})
+                if parts == ['api','mobile','rom','bundle']:
+                    return self._json(mobile_roms_mod.bundle(cfg, code, query.get('entry',[''])[0], drive))
+                if parts == ['api','mobile','rom','removal-plan']:
+                    return self._json(mobile_roms_mod.removal_plan(cfg, code, query.get('entry',[''])[0]))
                 if parts == ['api','mobile','rom','file']:
-                    item = mobile_roms_mod.resolve(cfg, code, query.get('file',[''])[0], query.get('etag',[''])[0], drive)
+                    if 'entry' in query:
+                        item = mobile_roms_mod.resolve_member(cfg, code, query['entry'][0], query.get('file',[''])[0],
+                                query.get('bundle',[''])[0], query.get('etag',[''])[0], drive)
+                    else:
+                        item = mobile_roms_mod.resolve(cfg, code, query.get('file',[''])[0], query.get('etag',[''])[0], drive)
                     try: span = mobile_roms_mod.parse_range(self.headers.get('Range'), item['size'])
                     except IndexError:
                         self.send_response(416); self.send_header('Content-Range', f"bytes */{item['size']}"); self.end_headers(); return

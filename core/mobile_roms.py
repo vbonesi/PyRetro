@@ -11,7 +11,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from core import heavy_roms, play
+from core import heavy_roms, play, rom_bundles
 
 MAX_FILES = 64
 
@@ -105,6 +105,103 @@ def drive_options(cfg, code, name, drive_names, run=subprocess.run):
 def options(cfg, code, name, drive_names, run=subprocess.run):
     local = local_options(cfg, code, name)
     return local or drive_options(cfg, code, name, drive_names, run)
+
+
+def bundle(cfg, code, entry, drive_names, run=subprocess.run):
+    """Conjunto completo de uma origem; não mistura faixas do PC e do Drive."""
+    root, exts, heavy = _system(cfg, code)
+    rel = rom_bundles.relative(entry)
+    if rel.suffix.lower() not in exts:
+        raise ValueError('formato não pertence a este sistema')
+    local = (root / str(rel)).exists()
+    if not local and (not heavy or rel.parts[0] not in drive_names):
+        raise ValueError('ROM não encontrada no catálogo do Drive')
+
+    def stat(name):
+        rom_bundles.relative(name)
+        if local:
+            path = root / name
+            if (path.is_symlink() or not path.resolve().is_relative_to(root.resolve())
+                    or not path.is_file()):
+                raise ValueError('arquivo associado ausente ou fora do acervo')
+            return {'size': path.stat().st_size, 'etag': _local_etag(path), 'source': 'pc'}
+        # Um descritor remoto só pode alcançar seu item de catálogo ou arquivos
+        # irmãos explicitamente referenciados; caminhos ascendentes são proibidos.
+        row = _rclone_json(['lsjson', '--stat', _drive_remote(cfg, code, name)], run)
+        if not isinstance(row, dict) or row.get('IsDir'):
+            raise ValueError('arquivo associado ausente no Drive')
+        return {'size': int(row.get('Size', 0)), 'etag': _drive_etag(row), 'source': 'drive'}
+
+    def read(name):
+        if local:
+            with (root / name).open('rb') as stream:
+                raw = stream.read(rom_bundles.MAX_TEXT + 1)
+        else:
+            try:
+                result = run(['rclone', 'cat', '--count', str(rom_bundles.MAX_TEXT + 1),
+                              _drive_remote(cfg, code, name)], capture_output=True, timeout=120)
+            except (FileNotFoundError, subprocess.TimeoutExpired) as error:
+                raise ValueError('rclone indisponível no notebook') from error
+            if result.returncode:
+                raise ValueError('descritor não encontrado no Drive')
+            raw = result.stdout
+        if isinstance(raw, str):
+            raw = raw.encode('utf-8')
+        if len(raw) > rom_bundles.MAX_TEXT:
+            raise ValueError('descritor de disco muito grande')
+        try:
+            return raw.decode('utf-8-sig')
+        except UnicodeError as error:
+            raise ValueError('descritor precisa estar em UTF-8') from error
+
+    return rom_bundles.manifest(entry, stat, read)
+
+
+def resolve_member(cfg, code, entry, relative, bundle_id, etag, drive_names, run=subprocess.run):
+    """Só entrega dependência presente no manifesto ainda vigente."""
+    current = bundle(cfg, code, entry, drive_names, run)
+    if not bundle_id or current['id'] != bundle_id:
+        raise LookupError('conjunto mudou; refaça a análise antes de continuar')
+    member = next((row for row in current['files'] if row['file'] == relative), None)
+    if member is None:
+        raise ValueError('arquivo não pertence ao conjunto escolhido')
+    if not etag or member['etag'] != etag:
+        raise LookupError('arquivo mudou; refaça a análise antes de continuar')
+    root, _, _ = _system(cfg, code)
+    return {**member, **({'path': root / relative} if member['source'] == 'pc'
+                        else {'remote': _drive_remote(cfg, code, relative)})}
+
+
+def removal_plan(cfg, code, entry):
+    """Prévia local conservadora: preserva dependências usadas por outro descritor.
+
+    Não executa exclusões. O destino Android precisa repetir a análise em SAF,
+    pois este inventário é do PC e não autoriza remover arquivos no telefone.
+    """
+    root, _, _ = _system(cfg, code)
+    if not (root / str(rom_bundles.relative(entry))).is_file():
+        raise ValueError('conjunto não está completo no PC')
+    target = bundle(cfg, code, entry, set())
+    members = {row['file'] for row in target['files']}
+    protected, uncertain = set(), False
+    for path in root.rglob('*'):
+        if path.suffix.lower() not in rom_bundles.DESCRIPTORS:
+            continue
+        name = str(path.relative_to(root))
+        if name in members:
+            continue
+        try:
+            # Se um descritor externo aponta para o próprio entry, preserva
+            # também todo o subgrafo. Leitura inválida impede afirmar exclusividade.
+            other = bundle(cfg, code, name, set())
+            protected.update(row['file'] for row in other['files'] if row['file'] in members)
+        except (ValueError, LookupError, OSError):
+            uncertain = True
+    if uncertain:
+        protected.update(members)
+    return {'version': 1, 'entry': entry, 'id': target['id'], 'scope': 'pc',
+            'complete': not uncertain, 'remove': sorted(members - protected),
+            'preserve': sorted(protected), 'requires_confirmation': True}
 
 
 def resolve(cfg, code, relative, etag, drive_names, run=subprocess.run):
