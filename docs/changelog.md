@@ -33,7 +33,7 @@ Android **0.13.0 (code 21), instalada e validada no celular.**
   Observação real: o PC ainda não tem os 2 saves do Pokémon X do celular (não sincronizado).
 - **melonDS (5):** o lançador `bonisarch-emulator` (setup `6e5700e`) corrige sozinho o core com
   pilha executável antes de cada jogo de DS; o resto do `PENDENTE-CONSOLIDAR` exige instalação limpa.
-- Testes: 349 Python, 50 JS, 70 JVM; setup 154.
+- Testes: 349 Python, 50 JS, 69 JVM; setup 154.
 
 ## 23/10/2026 (8) — App OAuth publicado; Steam Link e PS4/Xbox remotos homologados
 
