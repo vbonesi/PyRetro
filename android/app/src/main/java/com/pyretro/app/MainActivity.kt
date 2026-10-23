@@ -385,16 +385,19 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val actions=row();horizontal(box,actions)
         add(actions,button("Ranking") { dialog?.dismiss();selectCollection("ranking") });add(actions,button("Desejados") { dialog?.dismiss();selectCollection("wishlist") })
         val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+        var wishCount=extras.wishlist(false).size
         fun fill(stats:JSONObject?,fresh:Boolean) {
             if(dialog!==opened)return
             if(stats==null) { body.text="As estatísticas vêm do notebook. Conecte uma vez e elas ficam guardadas para ver offline.";return }
             val media=if(stats.isNull("nota_media"))"—" else "%.2f".format(java.util.Locale("pt","BR"),stats.getDouble("nota_media"))
             body.text=listOf("🎮 ${stats.getInt("total")} jogos na Biblioteca","▶ ${stats.getInt("jogando")} jogando agora","✓ ${stats.getInt("zerados")} finalizados · 🏆 ${stats.getInt("platinados")} platinados",
-                "★ nota média $media · ${stats.getInt("com_nota")} com nota","◷ ${ExtrasRules.hours(stats.getDouble("tempo_total_horas"))} de jogo registrado","♡ ${wishGames.size.takeIf { it>0 } ?: extras.wishlist(false).size} nos Desejados",
+                "★ nota média $media · ${stats.getInt("com_nota")} com nota","◷ ${ExtrasRules.hours(stats.getDouble("tempo_total_horas"))} de jogo registrado","♡ $wishCount nos Desejados",
                 if(fresh)"" else "Offline · dados de ${store.prefs.getLong("stats-at",0).takeIf { it>0 }?.let(::versionDate) ?: "—"}.").filter { it.isNotBlank() }.joinToString("\n")
         }
         fill(extras.stats(false),false)
-        if(store.online)work.execute { val result=runCatching { extras.stats(true) };runOnUiThread { result.onSuccess { fill(it,true) }.onFailure { fill(extras.stats(false),false) } } }
+        // Online: lê também os Desejados, para a contagem não depender de ter aberto a coleção antes.
+        if(store.online)work.execute { val result=runCatching { extras.stats(true) };val wishes=runCatching { extras.wishlist(true).size }.getOrNull()
+            runOnUiThread { if(wishes!=null)wishCount=wishes;result.onSuccess { fill(it,true) }.onFailure { fill(extras.stats(false),false) } } }
     }
     private fun editGame(game:Game) {
         if(!needsNotebook())return
@@ -433,7 +436,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         search={
             val term=query.text.toString().trim()
             if(term.length>=2) {
-                status.text="Buscando… pode levar até um minuto.";results.removeAllViews()
+                status.text="Buscando… o SteamGridDB pode levar até dois minutos.";results.removeAllViews()
                 work.execute { val found=runCatching { extras.searchCovers(term) };runOnUiThread { if(dialog!==opened)return@runOnUiThread
                     found.onFailure { status.text=it.message ?: "Busca falhou." }.onSuccess { list ->
                         status.text=if(list.isEmpty())"Nada encontrado. Troque o termo." else "Toque numa capa para usar."

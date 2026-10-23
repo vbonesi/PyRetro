@@ -62,7 +62,8 @@ class NotebookExtras(private val store:LibraryStore,private val dir:File) {
         store.request("/api/library/edit",JSONObject().put("id",id).put("campos",campos))
     }
     fun searchCovers(query:String):List<Pair<String,String>> {
-        val raw=store.request("/api/cover/search_sgdb?q=${Uri.encode(query)}")
+        // O SteamGridDB oscila (a busca chegou a 60 s em 23/10): prazo maior só aqui.
+        val raw=store.request("/api/cover/search_sgdb?q=${Uri.encode(query)}",readTimeout=150_000)
         val list=runCatching { JSONArray(raw) }.getOrElse { throw IllegalArgumentException(JSONObject(raw).optString("error","Busca falhou.")) }
         return (0 until list.length()).map { list.getJSONObject(it) }.map { it.getString("url") to it.optString("nome") }
     }

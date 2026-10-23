@@ -149,8 +149,9 @@ jogados depois de abrir um jogo pelo app e o contador do Situação com uma pend
 | Manutenção, Configurações | ✅ (Ferramentas) | fica só no PC |
 
 Em 23/10 o modo TV passou a cobrir tudo o que a web faz (ficha + 🛠 Ferramentas); a web
-fica como diagnóstico e reserva. Android 0.9.0 (23/10) compilada com Desejados, Estatísticas,
-editar e capa: **instalar e validar no celular** na próxima conexão (com o Tailscale ligado).
+fica como diagnóstico e reserva. Android 0.9.0 (23/10) instalada e validada com Desejados,
+Estatísticas, editar e capa. Comprado/Tirar, salvar edição e aplicar capa pelo app ainda não
+foram usados de verdade (só abertos).
 
 Regra: uma função por vez, primeiro no modo TV, depois no Android quando fizer sentido.
 A web (`/`) só vira diagnóstico quando não tiver nada exclusivo.

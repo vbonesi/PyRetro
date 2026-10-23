@@ -25,6 +25,16 @@ validar no aparelho na próxima conexão.
 - Regras sem Android em `ExtrasRules` (ordem dos desejados, horas, destino da capa, campos
   alterados); "1 dia" no singular também no modo TV.
 - Testes: 310 Python, 48 JS, 50 JVM.
+- **Validada no celular (23/10, Tailscale ligado):** Estatísticas iguais ao modo TV (2.957 jogos,
+  18 jogando, 97 finalizados, 11 platinados, média 7,10, 4.572 h, 237 Desejados); Desejados com
+  237 jogos e capas, ficha com Comprado/Tirar (não acionados); ✎ Editar do Celeste com os
+  valores reais (Plataforma, 2025-10-25, 31:40:00, comentário), fechado sem salvar; 🖼 Trocar
+  capa com 12 miniaturas, fechado sem aplicar. Nada foi gravado no notebook pelo teste.
+- **Corrigido na validação:** (1) Estatísticas mostravam "0 nos Desejados" se a coleção nunca
+  tinha sido aberta; agora leem os Desejados junto. (2) A busca de capa estourava os 60 s do
+  app: o SteamGridDB levou 30–60 s por chamada. O servidor busca as grades em paralelo
+  (`core/library.search_covers_steamgriddb`, teste novo) e o app espera até 2,5 min só nessa
+  busca. Reinstalada a mesma 0.9.0 (code 15) com as correções.
 
 ## 23/10/2026 (2) — Modo TV com 🛠 Ferramentas: a web vira só diagnóstico
 

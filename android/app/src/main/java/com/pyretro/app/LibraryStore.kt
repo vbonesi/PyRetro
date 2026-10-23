@@ -71,12 +71,12 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         if(base()==server)online=ok
         return ok
     }
-    fun request(path:String,body:JSONObject?=null,recordContact:Boolean=true):String {
+    fun request(path:String,body:JSONObject?=null,recordContact:Boolean=true,readTimeout:Int=60000):String {
         require(base().isNotBlank()) { "Configure o endereço HTTPS do notebook. O modo offline continua disponível." }
         val server=base()
         fun send(token:String):Pair<Int,String> {
             val connection=URL(server+path).openConnection() as HttpURLConnection
-            connection.connectTimeout=15000;connection.readTimeout=60000;connection.instanceFollowRedirects=false
+            connection.connectTimeout=15000;connection.readTimeout=readTimeout;connection.instanceFollowRedirects=false
             try {
                 if(body!=null) { connection.requestMethod="POST";connection.doOutput=true;connection.setRequestProperty("Content-Type","application/json");connection.setRequestProperty("X-PyRetro-CSRF",token);connection.outputStream.use { it.write(body.toString().toByteArray()) } }
                 val status=connection.responseCode

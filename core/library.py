@@ -1255,17 +1255,21 @@ def search_covers_steamgriddb(termo: str, api_key: str, max_jogos: int = 6,
     with urllib.request.urlopen(urllib.request.Request(search_url, headers=headers), timeout=15) as r:
         jogos = (json.loads(r.read()).get("data") or [])[:max_jogos]
 
-    out = []
-    for jogo in jogos:
+    def grades(jogo):
         grids_url = f"https://www.steamgriddb.com/api/v2/grids/game/{jogo['id']}?dimensions=600x900"
         try:
             with urllib.request.urlopen(urllib.request.Request(grids_url, headers=headers), timeout=15) as r:
-                grids = json.loads(r.read()).get("data") or []
+                return json.loads(r.read()).get("data") or []
         except (OSError, json.JSONDecodeError):
-            continue
-        for grid in grids[:por_jogo]:
-            out.append({"nome": jogo["name"], "url": grid["url"]})
-    return out
+            return []
+
+    # As grades em paralelo: o SteamGridDB chegou a levar 30 s por jogo (23/10), e em
+    # sequência a busca passava de um minuto (o app Android desistia em 60 s).
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max(1, len(jogos))) as pool:
+        resultados = list(pool.map(grades, jogos))
+    return [{"nome": jogo["name"], "url": grid["url"]}
+            for jogo, grids in zip(jogos, resultados) for grid in grids[:por_jogo]]
 
 
 def find_cover_steamgriddb(nome: str, api_key: str) -> str | None:
