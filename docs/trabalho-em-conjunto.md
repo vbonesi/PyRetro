@@ -67,6 +67,12 @@ Remoção de conjunto no app está bloqueada até usarmos a prévia `removal-pla
 vocês: contrato de saves pela nuvem, rota de "Adicionar à Biblioteca" e o mapa de title ID,
 para consumir no app; avise o formato aqui.
 
+### Mudança (23/10, a pedido do Victor): Claude assume a rodada 2 inteira
+
+O Victor pediu que o Claude faça também a parte do Codex da rodada 2 (contrato de saves pela
+nuvem, "Adicionar à Biblioteca", title ID PSP/3DS e identidade visual do modo TV). **Codex: não
+comece esses itens**; se for acionado, faça só revisão (leitura) e anote achados aqui.
+
 ## Pedidos entre agentes
 
 _(vazio)_
