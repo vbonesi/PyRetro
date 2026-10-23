@@ -26,12 +26,13 @@ ao lado), já com gênero e capa, sobrescrevendo repetidas, tanto pelo modo TV q
 - **Limpeza de nomes** (`core/sanitize`): região `BR-U-E`, patch `T107-Beta`/`T201_RC5`, `(DUB)`,
   site sem domínio e o grupo tradutor colado na versão do patch (`(DindoeCia) (T2.0)`,
   `(T1.0) (Starman)`); `(Track N)`, região, idioma, revisão e disco continuam.
-- **Organizados (14):** SNES Brain Lord, Hook, Popeye, Terranigma (Brain Lord e Popeye
+- **Organizados (15):** SNES Brain Lord, Hook, Popeye, Terranigma (Brain Lord e Popeye
   substituídos); MD Flicky; GBC Lufia - The Legend Returns; GBA Metroid - Zero Mission
   (substituído), ProjectZM, Revamp, Pokémon Ghost Grey Version v103 (capa da imagem deixada pelo
   Victor; a edição coreana do mesmo zip foi para a lixeira); PS1 Bakusou Dekotora Densetsu
   (3 faixas), Vagrant Story, Vandal Hearts II; PS2 Castlevania - Lament of Innocence; PSP
-  PoPoLoCrois. Capas e gêneros completados à mão onde as bases não tinham nome igual: hacks do
+  PoPoLoCrois; depois, GBA Magical Vacation (capa LaunchBox, RPG), o último download. Pasta de
+  Downloads vazia no fim. Capas e gêneros completados à mão onde as bases não tinham nome igual: hacks do
   Metroid com a capa do original e Ação, Ghost Grey RPG, Bakusou Corrida (capa "Art Truck
   Battle", o primeiro da série), Vagrant Story (USA), Castlevania pelo SteamGridDB.
 - Testes: 356 Python (8 novos em `test_organize_downloads.py`), 50 JS; JVM sem mudança.
