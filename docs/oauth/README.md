@@ -44,8 +44,10 @@ O repositório `vbonesi/PyRetro` é **público**, então o GitHub Pages é gratu
 3. Google Cloud, projeto **PyRetro** → *Google Auth Platform* → **Branding**: nome do app,
    e-mail de suporte, logo (opcional), *Application home page* = URL do item 2, *Privacy policy* =
    `.../privacy.html`, *Terms of service* = `.../terms.html`. Em *Authorized domains*, adicionar
-   `vbonesi.github.io`... o Google exige domínio verificável no Search Console; `github.io` não é
-   seu, então a verificação de marca pode exigir um domínio próprio (ver abaixo).
+   `vbonesi.github.io` (o `github.io` é sufixo público, então esse subdomínio conta como seu).
+   Se o Google pedir prova de posse: Google Search Console → adicionar a propriedade
+   `https://vbonesi.github.io/PyRetro/` → método **arquivo HTML** → salvar o arquivo baixado em
+   `docs/` do repositório, commit e push → Verificar.
 4. **Audience** → *Publish app* (sair de Testing para In production).
 
 O que muda ao publicar: o vencimento de 7 dias deixa de valer, mas os escopos do app são
@@ -55,4 +57,4 @@ este app" e tem limite de 100 usuários; para uso pessoal (só a sua conta) isso
 seguir em *Avançado → Acessar PyRetro (não seguro)* no primeiro consentimento. A verificação
 completa (com avaliação de segurança paga para escopos restritos) só faz sentido se o app for
 distribuído a outras pessoas. Um domínio próprio barato (com as páginas apontadas para o Pages)
-é o caminho se o Google recusar o `github.io` no Branding.
+é a alternativa se o Google recusar o `github.io` no Branding.
