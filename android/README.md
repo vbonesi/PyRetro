@@ -128,6 +128,12 @@ touch. Não remapeia o controle dentro dos emuladores ou clientes de streaming.
 disponíveis: jogar localmente, abrir o cliente remoto ou vincular/baixar a ROM.
 Não inicia jogos, transmissões ou downloads automaticamente.
 
+**Ranking** (0.8.0) lista só jogos com nota, a maior primeiro. **Filtro**, ao lado da
+busca, escolhe plataforma e gênero entre os que existem na coleção aberta e zera ao
+trocar de coleção. A ficha mostra a capa grande no topo, o tempo no celular e a nota;
+o botão **Situação** ganha um número quando algo pede atenção (progresso esperando o
+notebook, download com falha, pasta ilegível ou conflito de save).
+
 As barras de coleções e ações têm rolagem horizontal. A dica de controle some em
 paisagem; a tela **Aparência** saiu na 0.6 (preferências antigas continuam
 valendo). Erros operacionais continuam visíveis. Na ficha, **Progresso e tempo**

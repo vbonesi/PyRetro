@@ -914,6 +914,92 @@ teste('texturas: arquivo escolhido no aparelho é enviado e instalado no alvo se
   } finally {Object.assign(app,original);}
 });
 
+async function abrirTV(rotas) {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
+  document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
+  const app = frame.contentWindow, doc = app.document, posts = [];
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
+  app.fetch = async (url, init) => {
+    if (init?.method === "POST") { igual(init.headers["X-PyRetro-CSRF"], "tv-token"); posts.push({url, body: JSON.parse(init.body)}); }
+    let data = rotas(url, init);
+    if (data === undefined) {
+      if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
+      else if (url === "/api/csrf") data = {token: "tv-token"};
+      else if (url === "/api/play/status") data = {status: "idle"};
+      else if (["/api/tv/catalog", "/api/systems", "/api/heavy/systems", "/api/library"].includes(url)) data = [];
+      else throw new Error(`requisição inesperada: ${url}`);
+    }
+    return {ok: true, json: async () => data};
+  };
+  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
+  return {frame, app, doc, posts};
+}
+
+teste("modo TV: Desejados filtra por loja e Comprado pede confirmação; Estatísticas leva à coleção", async () => {
+  const lista = {steam: [jogo({id: "w1", nome: "Desejo Steam", fontes: ["wishlist:steam"]})], psn: [jogo({id: "w2", nome: "Desejo PSN", fontes: ["wishlist:psn"]})], xbox: []};
+  const {frame, app, doc, posts} = await abrirTV(url => {
+    if (url === "/api/wishlist") return lista;
+    if (url === "/api/wishlist/comprado") return {ok: true};
+    if (url === "/api/estatisticas") return {total: 2, zerados: 1, platinados: 0, jogando: 1, com_nota: 1, nota_media: 8.5, tempo_total_horas: 30, com_genero: 2};
+    if (url === "/api/library") return [jogo({id: "a", nome: "A", plataforma: "Steam", genero: "RPG"}), jogo({id: "b", nome: "B", plataforma: "Steam", genero: "Ação"})];
+  });
+  try {
+    await app.load("wishlist");
+    igual([...doc.querySelectorAll("#platforms button")].map(b => b.textContent), ["Todas as plataformas", "PlayStation", "Steam"]);
+    doc.querySelector("#gallery .game").click();
+    verdade(!doc.getElementById("wishlist-actions").hidden && doc.getElementById("favorite").hidden, "ficha de desejado errada");
+    doc.getElementById("wishlist-bought").click();
+    igual(posts, [], "primeiro toque só pede confirmação");
+    doc.getElementById("wishlist-bought").click();
+    await esperar(() => posts.length === 1 && !doc.getElementById("details").open, "Comprado não concluiu");
+    igual(posts[0], {url: "/api/wishlist/comprado", body: {source: "psn", id: "w2"}});
+    igual(doc.querySelectorAll("#gallery .game").length, 1);
+    await app.load("stats");
+    const cards = [...doc.querySelectorAll("#gallery .stat-card")];
+    verdade(cards.some(c => c.textContent.includes("8,50")) && cards.some(c => c.textContent.includes("30 h")), "números ausentes");
+    cards.find(c => c.textContent.includes("RPG")).click();
+    await esperar(() => doc.getElementById("title").textContent === "Biblioteca" && doc.querySelectorAll("#gallery .game").length === 1, "cartão de gênero não filtrou");
+  } finally { frame.remove(); }
+});
+
+teste("modo TV: editar grava só o alterado e capa de ROM usa a fonte escolhida", async () => {
+  const {frame, app, doc, posts} = await abrirTV(url => {
+    if (url === "/api/systems") return [{code: "FC", nome: "NES"}];
+    if (url === "/api/covers/FC") return [{label: "Jogo", display_name: "Jogo", file: "Jogo.png", biblioteca: {genero: "Ação", observacoes: "antigo"}}];
+    if (url === "/api/sortear/systems") return {grupos: [], generos: ["Ação", "RPG"]};
+    if (url === "/api/library/track") return {ok: true, id: "novo"};
+    if (url.startsWith("/api/cover/search?")) return [{source: "libretro", name: "Jogo (USA)", preview: "/x.png", filename: "Jogo (USA).png"}];
+    if (url === "/api/cover/select") return {ok: true};
+  });
+  try {
+    await app.load("light");
+    doc.querySelector("#gallery .game").click();
+    doc.getElementById("edit-toggle").click();
+    igual([...doc.querySelectorAll("#edit-list button")].map(b => b.dataset.field), ["genero", "data_final", "tempo", "observacoes"]);
+    doc.querySelector('#edit-list [data-field="genero"]').click();
+    await esperar(() => !doc.getElementById("genre-list").hidden, "lista de gêneros não abriu");
+    [...doc.querySelectorAll("#genre-list button")].find(b => b.textContent === "Ação").click(); // mesmo valor: não grava
+    doc.querySelector('#edit-list [data-field="observacoes"]').click();
+    verdade(doc.getElementById("search-dialog").open, "teclado não abriu");
+    doc.getElementById("search-input").value = "novo comentário"; doc.getElementById("search-apply").click();
+    doc.getElementById("edit-save").click();
+    await esperar(() => posts.length === 1, "não salvou");
+    igual(posts[0], {url: "/api/library/track", body: {nome: "Jogo", code: "FC", plataforma: "NES", fonte: "rom:FC", campos: {observacoes: "novo comentário"}}});
+    doc.getElementById("cover-toggle").click();
+    verdade(doc.getElementById("edit-fields").hidden, "painéis deveriam ser exclusivos");
+    await esperar(() => doc.querySelector("#cover-results .cover-choice"), "busca de capa vazia");
+    doc.querySelector("#cover-results .cover-choice").click();
+    await esperar(() => doc.getElementById("detail-status").textContent === "Capa trocada.", "capa não aplicada");
+    igual(posts[1], {url: "/api/cover/select", body: {code: "FC", label: "Jogo", source: "libretro", name: "Jogo (USA)", filename: "Jogo (USA).png", ss_id: ""}});
+    verdade(doc.getElementById("detail-cover").src.includes("/images/FC/Jogo.png?v="), "capa da ficha não atualizou");
+  } finally { frame.remove(); }
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];

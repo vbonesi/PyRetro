@@ -6,6 +6,44 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 22/10/2026 (noite, 5) — Modo TV com Desejados, Estatísticas, editar e capa; Android 0.8.0
+
+Itens 2, 3 e parte do 5 da "Ordem combinada" do roadmap, mais a fila de interface do Android.
+
+- **Modo TV:**
+  - **Desejados:** coleção com as três lojas juntas (`/api/wishlist`), ordenadas por nome;
+    a loja vira o filtro de plataforma. A ficha esconde Jogar, favorito, tempo, mídia e
+    progresso e oferece **✅ Comprado** e **🗑 Tirar da lista** (rotas da web, um jogo por
+    vez, com segundo toque para confirmar).
+  - **Estatísticas:** cartões com total, jogando, finalizados, platinados, nota média, tempo
+    total e Desejados (`/api/estatisticas`), mais os 8 maiores por plataforma e por gênero
+    (contados da `/api/library`). Cada cartão abre a coleção que explica o número; os de
+    plataforma/gênero já abrem a Biblioteca filtrada.
+  - **✎ Editar jogo** na ficha: nome, plataforma, gênero, data que finalizou, tempo e
+    comentário (ROM: sem nome/plataforma, que vêm do arquivo/sistema; renomear continua só
+    na web). Gênero por lista dos gêneros existentes ou "Outro…"; texto pelo **mesmo teclado
+    da tela da busca** (agora com ⇧ minúsculas e pontuação `:./,&!?()`). Só os campos
+    alterados são gravados (`/api/library/edit` ou `/api/library/track`, que cria o cadastro
+    da ROM).
+  - **🖼 Capa** na ficha: busca por bases de ROM (libretro/LaunchBox/ScreenScraper) ou
+    SteamGridDB, termo editável pelo teclado da tela; escolher aplica pelas rotas da web
+    (`/api/cover/select`, `/api/cover/apply_url`). A busca no SteamGridDB levou ~47 s no
+    teste (igual na web); o aviso diz que pode levar até um minuto.
+  - Saves, Editar e Capa são painéis exclusivos na ficha.
+  - **Mouse/toque:** botão direito no cartão favorita, botão lateral "voltar" do mouse e
+    Backspace fazem o B, realce ao passar o mouse e alvos de 48 px em tela de toque.
+- **Android 0.8.0 (code 14), compilada, não instalada** (celular desconectado):
+  - Coleção **Ranking** (só jogos com nota, maior primeiro; mesma ordem da web/TV).
+  - **Filtro** ao lado da busca: plataforma e gênero que existem na coleção aberta; zera ao
+    trocar de coleção.
+  - **Ficha com capa grande** no topo e tempo no celular e nota na linha de situação.
+  - **Contador no botão Situação** quando há progresso esperando o notebook, download com
+    falha, pasta ilegível ou conflito de save adiado (`GridRules`).
+- Testes: 307 Python, 45 JS, 46 JVM. Conferido no navegador embutido com os dados reais
+  (sem gravar): Estatísticas e atalho Steam (92 jogos), Desejados (237) e ficha, lista de
+  gêneros e teclado no ✎, busca de capa nas duas fontes, layout em largura de celular.
+  Gravar edição, aplicar capa e Comprado foram testados só com dados simulados.
+
 ## 22/10/2026 (noite, 4) — Android 0.7.0 (nota e selos); modo TV com Saves e Ranking
 
 - **Android 0.7.0 (code 13), instalada no celular** (conferência de uso na próxima rodada):

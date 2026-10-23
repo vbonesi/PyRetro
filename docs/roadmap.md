@@ -124,24 +124,26 @@ ficha (leitura) e Ranking. rclone com client_id próprio (modo Teste: refazer
 `rclone config reconnect drive:` a cada ~7 dias). Texturas com índice de fontes da
 planilha comunitária (outra conversa, 22/10). Lote de interface da rodada anterior: concluído.
 
-**Primeiro na próxima conversa:** conferir no celular a nota (enviar ao notebook e ver
-na web), os selos (💾 no Final Fantasy VI, ⬇ % durante um download) e Recentes/Mais
-jogados depois de abrir um jogo pelo app.
+**Primeiro na próxima conversa:** instalar a **0.8.0** (`cache/artifacts/PyRetro-0.8.0-debug.apk`;
+`adb install --user 0 -r …`) e conferir no celular a nota (enviar ao notebook e ver
+na web), os selos (💾 no Final Fantasy VI, ⬇ % durante um download), Recentes/Mais
+jogados depois de abrir um jogo pelo app, Ranking, Filtro, capa grande na ficha e o
+contador do Situação. No modo TV, com o controle: ✎ Editar e 🖼 Capa de um jogo de verdade.
 
 ### Web → apps (o que falta portar)
 
 | Função da web | Modo TV (PC) | App Android |
 |---|---|---|
 | Biblioteca, busca, sistemas, ROMs leves/pesadas | ✅ | ✅ (Catálogo) |
-| Jogando · Ranking | ✅ · ✅ | Jogando no Início · ❌ |
+| Jogando · Ranking | ✅ · ✅ | Jogando no Início · ✅ (0.8.0) |
 | Sortear | ✅ | ✅ |
 | Progresso, nota, tempo | ✅ | ✅ (0.7.0) |
 | Saves do jogo | leitura | ✅ com sincronização |
 | Texturas | link para a web | ✅ PSP/3DS |
-| Desejados (PSN/Xbox/Steam) | ❌ | ❌ |
-| Estatísticas | ❌ | ❌ |
-| Capas (buscar/trocar/marcar) | ❌ | ❌ |
-| Editar jogo (gênero, comentário, dados) | ❌ | ❌ |
+| Desejados (PSN/Xbox/Steam) | ✅ (ver, Comprado, tirar) | ❌ |
+| Estatísticas | ✅ | ❌ |
+| Capas (buscar/trocar/marcar) | ✅ buscar/trocar | ❌ |
+| Editar jogo (gênero, comentário, dados) | ✅ (sem renomear ROM) | ❌ |
 | Organizar ROM nova | ❌ | ❌ |
 | Memory card PS1/PS2, saves PSP via adb | ❌ | ❌ |
 | Renomear/apagar com cascata | ❌ | ❌ |
@@ -153,17 +155,16 @@ A web (`/`) só vira diagnóstico quando não tiver nada exclusivo.
 ### Ordem combinada
 
 1. **Conferir a 0.7.0 no celular** (acima).
-2. **Desejados e Estatísticas no modo TV** — só leitura, rotas existentes; depois o
-   **Ranking no Android**.
-3. **Editar jogo e capas no modo TV** — as funções da web mais usadas no dia a dia.
+2. ✅ **Desejados e Estatísticas no modo TV** e **Ranking no Android** (22/10, noite 5).
+3. ✅ **Editar jogo e capas no modo TV** (22/10, noite 5; testar aplicar capa de verdade).
 4. **Conta Google no app:** ROMs e **saves pela nuvem** sem o notebook (cliente OAuth
    Android criado no projeto PyRetro; escopo amplo do Drive, ok em modo Teste). Rodada própria.
-5. **Mouse/toque no modo TV** e identidade visual comum PC/Android.
+5. **Mouse/toque no modo TV** (1º passo em 22/10: botão direito, voltar, alvos) e
+   identidade visual comum PC/Android.
 6. **Organizar, renomear/apagar e memory card** — mexem em arquivos, por último.
 
 Também na fila: "Adicionar à Biblioteca" para ROM só do celular; saves de PSP/3DS por
-jogo (title ID); filtro por plataforma/gênero na grade do Android; ficha com capa
-grande; contador de pendências no botão Situação; publicar o app OAuth (links de
+jogo (title ID); ✅ filtro, ficha com capa grande e contador no Situação (0.8.0); publicar o app OAuth (links de
 página inicial/privacidade no Branding) para o token do rclone não vencer.
 
 **Correções abertas (sem mudança):** melonDS e pilha executável (`step_emulator_extras`;

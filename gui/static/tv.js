@@ -15,7 +15,7 @@ async function api(url, body) {
   return data;
 }
 const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "home", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null, preferences: {favorites: [], theme: "dark"}, home: null};
-const collections = [["home", "Início"], ["local", "Neste PC"], ["favorites", "Favoritos"], ["systems", "Sistemas"], ["library", "Biblioteca"], ["playing", "Jogando"], ["ranking", "Ranking"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["apps", "Apps"]];
+const collections = [["home", "Início"], ["local", "Neste PC"], ["favorites", "Favoritos"], ["systems", "Sistemas"], ["library", "Biblioteca"], ["playing", "Jogando"], ["ranking", "Ranking"], ["wishlist", "Desejados"], ["stats", "Estatísticas"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["apps", "Apps"]];
 const cardGames = new WeakMap();
 let spotlightGame, settingsReturnFocus;
 function button(text, action, pressed) {
@@ -39,13 +39,13 @@ function platformTabs() {
   const nav = $("platforms"); if (state.kind === "draw") return; nav.replaceChildren();
   const genres = $("genres");
   const names = [...new Set(state.items.map(g => g.tracking?.genero).filter(Boolean))].sort();
-  if (!["home", "systems", "apps"].includes(state.kind) && names.length) {
+  if (!["home", "systems", "apps", "stats"].includes(state.kind) && names.length) {
     genres.hidden = false;
     for (const name of ["", ...names]) genres.append(button(name || "Qualquer gênero", () => {
       state.genre = name; platformTabs(); render(); genres.querySelector('[aria-pressed="true"]')?.focus();
     }, (state.genre || "") === name));
   }
-  if (["library", "playing", "ranking", "local", "search", "favorites"].includes(state.kind)) {
+  if (["library", "playing", "ranking", "wishlist", "local", "search", "favorites"].includes(state.kind)) {
     const platforms = [...new Set(state.items.map(g => g.platform))].sort();
     for (const p of ["", ...platforms]) nav.append(button(p || "Todas as plataformas", () => {
       state.filter = p; platformTabs(); render(); nav.querySelector(`[aria-pressed="true"]`)?.focus();
@@ -80,7 +80,7 @@ async function load(kind = state.kind, code = "") {
   state.code = code || systems[0]?.code || "";
   state.items = []; collectionTabs(); platformTabs(); render();
   $("title").textContent = collections.find(x => x[0] === kind)?.[1] || "Pesquisa";
-  $("installed-only").hidden = ["home", "systems", "apps", "draw", "local"].includes(kind);
+  $("installed-only").hidden = ["home", "systems", "apps", "draw", "local", "wishlist", "stats"].includes(kind);
   report("Carregando catálogo…");
   try {
     let items;
@@ -102,6 +102,15 @@ async function load(kind = state.kind, code = "") {
         const local = await api("/api/tv/local");
         for (const g of items) g.local = local.some(x => x.id && x.id === g.id || x.code && x.code === g.code && x.romName === g.romName);
       }
+    } else if (kind === "wishlist") {
+      // Desejados: as três lojas juntas; a loja vira a "plataforma" para filtrar.
+      const lists = await api("/api/wishlist");
+      items = Object.entries(WISHLIST_STORES).flatMap(([source, label]) => (lists[source] || []).map(g => ({...libraryItem(g), platform: label, wishlist: source})))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    } else if (kind === "stats") {
+      const [stats, library, wishlist] = await Promise.all([api("/api/estatisticas"), api("/api/library"), api("/api/wishlist")]);
+      if (request !== state.request) return;
+      state.stats = {...stats, library: library.filter(g => !g.oculto), desejados: Object.values(wishlist).reduce((n, list) => n + list.length, 0)}; items = [];
     } else if (kind === "draw") {
       if (!state.sortear) state.sortear = await api("/api/sortear/systems");
       items = [];
@@ -141,6 +150,7 @@ function render() {
   if (home) return renderHome();
   if (state.kind === "systems") return renderSystems();
   if (state.kind === "apps") return renderApps();
+  if (state.kind === "stats") return renderStats();
   const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre) && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || ["local", "draw"].includes(state.kind) || g.local) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
   const gallery = $("gallery"); gallery.replaceChildren();
@@ -153,6 +163,8 @@ function gameCard(g) {
     const card = button("", () => openGame(g, card)); card.className = "game";
     cardGames.set(card, g); card.dataset.key = g.key || (g.id ? `pc:${g.id}` : `${g.code}:${g.romName}`);
     card.addEventListener("focus", () => { if (state.kind === "home") showSpotlight(g); });
+    // Mouse: botão direito favorita, igual ao X do controle.
+    card.addEventListener("contextmenu", e => { if (g.wishlist) return; e.preventDefault(); card.focus(); toggleFavorite(g); });
     if (g.cover) { const img = document.createElement("img"); img.src = g.cover; img.alt = ""; img.loading = "lazy"; img.className = "art"; card.append(img); }
     else { const art = document.createElement("div"); art.className = "art placeholder"; art.textContent = "✦"; card.append(art); }
     const title = document.createElement("strong"); title.textContent = (g.favorite ? "★ " : "") + g.name;
@@ -279,6 +291,40 @@ function renderApps() {
   }));
   report("Escolha um aplicativo para abrir.");
 }
+const WISHLIST_STORES = {steam: "Steam", psn: "PlayStation", xbox: "Xbox"};
+function formatHours(hours) {
+  const total = Math.round(hours), days = Math.floor(total / 24);
+  return days ? `${days} dias e ${total % 24} h (${total.toLocaleString("pt-BR")} h)` : `${total} h`;
+}
+// Estatísticas: os números da web em cartões; cada um leva à coleção que explica o número.
+function renderStats() {
+  const s = state.stats, gallery = $("gallery"); gallery.replaceChildren();
+  if (!s) return;
+  const tile = (symbol, value, label, go) => {
+    const card = button("", go); card.className = "game system-card stat-card";
+    const big = document.createElement("span"); big.className = "system-symbol"; big.textContent = symbol;
+    const name = document.createElement("strong"); name.textContent = value;
+    const hint = document.createElement("small"); hint.textContent = label;
+    card.append(big, name, hint); return card;
+  };
+  const byLibrary = (field, value) => async () => { await load("library"); state[field] = value; platformTabs(); render(); $("gallery").querySelector("button")?.focus(); };
+  gallery.append(
+    tile("🎮", s.total.toLocaleString("pt-BR"), "jogos na Biblioteca", () => load("library")),
+    tile("▶", s.jogando, "jogando agora", () => load("playing")),
+    tile("✓", s.zerados, "finalizados", () => load("library")),
+    tile("🏆", s.platinados, "platinados", () => load("library")),
+    tile("★", s.nota_media == null ? "—" : s.nota_media.toFixed(2).replace(".", ","), `nota média · ${s.com_nota} com nota`, () => load("ranking")),
+    tile("◷", formatHours(s.tempo_total_horas), "de jogo registrado", () => load("library")),
+    tile("♡", s.desejados, "nos Desejados", () => load("wishlist")));
+  const top = (field, title, filter) => {
+    const counts = new Map(); for (const g of s.library) if (g[field]) counts.set(g[field], (counts.get(g[field]) || 0) + 1);
+    const heading = document.createElement("h3"); heading.className = "stats-heading"; heading.textContent = title; gallery.append(heading);
+    for (const [name, n] of [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "pt-BR")).slice(0, 8))
+      gallery.append(tile(n, name, `${n} jogos`, byLibrary(filter, name)));
+  };
+  top("plataforma", "Por plataforma", "filter"); top("genero", "Por gênero", "genre");
+  report(`${s.total} jogos · ${s.com_genero} com gênero · escolha um cartão para ver a lista`);
+}
 async function launchApp(app, target = "play-status") {
   if (state.busy) return; state.busy = true;
   try {
@@ -290,23 +336,42 @@ async function launchApp(app, target = "play-status") {
   catch (e) { report(e.message, true, "play-status"); if (target !== "play-status") report(e.message, true, target); }
   finally { state.busy = false; }
 }
-let searchReturnFocus;
+let searchReturnFocus, textEntry = null;
 function openSearch() {
   if (document.querySelector("dialog[open]")) return;
+  textEntry = null; searchDialogLabels("Pesquisar jogos", "Nome do jogo", "Pesquisar", "Limpar busca");
   searchReturnFocus = document.activeElement; $("search-input").value = state.query;
   $("search-dialog").showModal(); $("keyboard").querySelector("button")?.focus();
 }
-function closeSearch() { $("search-dialog").close(); (searchReturnFocus?.isConnected ? searchReturnFocus : $("search-open"))?.focus(); }
+// O mesmo teclado da tela serve para editar texto (nome, gênero, comentário…) com o controle.
+function openTextEntry(title, value, apply) {
+  textEntry = apply; searchDialogLabels(title, title, "Confirmar", "Apagar tudo");
+  searchReturnFocus = document.activeElement; $("search-input").value = value || "";
+  $("search-dialog").showModal(); $("keyboard").querySelector("button")?.focus();
+}
+function searchDialogLabels(title, label, apply, clear) {
+  $("search-title").textContent = title; $("search-label").textContent = label;
+  $("search-apply").textContent = apply; $("search-clear").textContent = clear;
+  $("search-hint").textContent = textEntry ? "Direcional e A no teclado abaixo; ⇧ troca maiúsculas. X apaga; Menu confirma; B cancela." : "Use o direcional e A no teclado abaixo. X apaga; Menu pesquisa; B cancela.";
+}
+function closeSearch() { $("search-dialog").close(); textEntry = null; (searchReturnFocus?.isConnected ? searchReturnFocus : $("search-open"))?.focus(); }
 async function applySearch() {
+  if (textEntry) { const apply = textEntry, value = $("search-input").value.trim(); closeSearch(); return apply(value); }
   state.query = $("search-input").value.trim(); closeSearch();
   if (["home", "systems", "apps", "draw"].includes(state.kind)) await load("search"); else render();
   $("gallery").querySelector("button")?.focus();
 }
-for (const character of "1234567890QWERTYUIOPASDFGHJKLÇZXCVBNM -'") $("keyboard").append(button(character === " " ? "␣" : character, () => { const input = $("search-input"); input.value = (input.value + character).slice(0, 120); }));
-$("keyboard").append(button("⌫", () => { $("search-input").value = $("search-input").value.slice(0, -1); }));
+let keyboardLower = false;
+function buildKeyboard() {
+  const keys = [..."1234567890QWERTYUIOPASDFGHJKLÇZXCVBNM -':./,&!?()"].map(c => keyboardLower ? c.toLowerCase() : c);
+  $("keyboard").replaceChildren(...keys.map(character => button(character === " " ? "␣" : character, () => { const input = $("search-input"); input.value = (input.value + character).slice(0, 2000); })),
+    button("⌫", () => { $("search-input").value = $("search-input").value.slice(0, -1); }),
+    button(keyboardLower ? "⇧ ABC" : "⇧ abc", () => { keyboardLower = !keyboardLower; buildKeyboard(); $("keyboard").lastChild.focus(); }));
+}
+buildKeyboard();
 $("search-open").onclick = openSearch; $("search-close").onclick = closeSearch;
 $("search-apply").onclick = applySearch;
-$("search-clear").onclick = () => { $("search-input").value = ""; applySearch(); };
+$("search-clear").onclick = () => { $("search-input").value = ""; if (!textEntry) applySearch(); else $("search-input").focus(); };
 $("search-dialog").addEventListener("cancel", e => { e.preventDefault(); closeSearch(); });
 $("search-input").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); applySearch(); } });
 async function reloadSelection(origin) {
@@ -364,17 +429,141 @@ function openGame(g, origin = document.activeElement) {
   $("detail-video").pause(); $("detail-video").hidden = !g.media?.video;
   $("detail-video").removeAttribute('src'); if (g.media?.video) $("detail-video").src = g.media.video;
   $("saves-toggle").hidden = !g.code; $("saves-fields").hidden = true; $("saves-toggle").setAttribute("aria-expanded", "false");
+  state.edits = {}; $("edit-fields").hidden = true; $("cover-fields").hidden = true; $("genre-list").hidden = true;
+  $("edit-toggle").setAttribute("aria-expanded", "false"); $("cover-toggle").setAttribute("aria-expanded", "false");
+  $("cover-toggle").hidden = !g.code && !g.id; $("edit-toggle").hidden = !g.code && !g.id;
+  $("wishlist-actions").hidden = !g.wishlist;
+  // Desejado ainda não é seu: sem favorito, tempo, mídia ou progresso.
+  for (const id of ["favorite", "time-toggle", "media-toggle", "progress-toggle", "game-time"]) $(id).hidden = !!g.wishlist;
+  for (const id of ["wishlist-bought", "wishlist-remove"]) { $(id).dataset.confirm = ""; $(id).textContent = id === "wishlist-bought" ? "✅ Comprado" : "🗑 Tirar da lista"; }
   updateFavoriteButton(g); $("progress-fields").hidden = true; $("progress-toggle").setAttribute("aria-expanded", "false");
   report("", false, "detail-status"); renderTracking();
   $("download").hidden = !g.downloadName; $("download").textContent = "Baixar para o PC"; $("download").dataset.confirm = "";
   $("download").disabled = !!state.download;
   $("details").showModal(); $("close").focus();
-  refreshPlayOptions(g);
+  if (g.wishlist) { $("play-actions").replaceChildren(); $("play-hint").textContent = `Na sua lista de desejos (${WISHLIST_STORES[g.wishlist]}). Comprou? Marque abaixo e ele entra na Biblioteca.`; }
+  else refreshPlayOptions(g);
 }
+// ✎ Editar jogo: os mesmos campos do ✎ da web. ROM sem cadastro cria o registro na 1ª gravação
+// (/api/library/track); nome e plataforma de ROM vêm do arquivo/sistema e não são editados aqui.
+const EDIT_FIELDS = [["nome", "Nome"], ["plataforma", "Plataforma"], ["genero", "Gênero"], ["data_final", "Data que finalizou (aaaa-mm-dd)"], ["tempo", "Tempo jogado (ex.: 31:40:00)"], ["observacoes", "Comentário"]];
+function editFields(g) { return g.code ? EDIT_FIELDS.filter(([f]) => !["nome", "plataforma"].includes(f)) : EDIT_FIELDS; }
+function editValue(g, field) { return field in state.edits ? state.edits[field] : field === "nome" ? g.name : field === "plataforma" && !g.tracking.plataforma ? g.platform : g.tracking[field] ?? ""; }
+function renderEdit(focusField) {
+  const g = state.selected;
+  $("edit-list").replaceChildren(...editFields(g).map(([field, label]) => {
+    const value = editValue(g, field);
+    const b = button(`${field in state.edits ? "• " : ""}${label}: ${value || "—"}`, () => editField(field, label));
+    b.dataset.field = field; return b;
+  }));
+  if (focusField) $("edit-list").querySelector(`[data-field="${focusField}"]`)?.focus();
+}
+async function editField(field, label) {
+  const g = state.selected;
+  if (field !== "genero") return openTextEntry(label, editValue(g, field), value => { state.edits[field] = value; renderEdit(field); });
+  const box = $("genre-list");
+  if (!box.hidden) { box.hidden = true; return; }
+  try { if (!state.sortear) state.sortear = await api("/api/sortear/systems"); } catch (_) { /* sem lista: só o teclado */ }
+  const current = editValue(g, "genero");
+  box.replaceChildren(...(state.sortear?.generos || []).map(name => button(name, () => { state.edits.genero = name; box.hidden = true; renderEdit("genero"); }, name === current)),
+    button("Outro…", () => { box.hidden = true; openTextEntry(label, current, value => { state.edits.genero = value; renderEdit("genero"); }); }),
+    button("Sem gênero", () => { state.edits.genero = ""; box.hidden = true; renderEdit("genero"); }));
+  box.hidden = false; (box.querySelector('[aria-pressed="true"]') || box.querySelector("button"))?.focus();
+}
+$("edit-toggle").onclick = () => {
+  const box = $("edit-fields"); box.hidden = !box.hidden; if (!box.hidden) closeOtherPanels("edit-toggle"); $("edit-toggle").setAttribute("aria-expanded", String(!box.hidden));
+  if (!box.hidden) { renderEdit(); $("edit-list").querySelector("button")?.focus(); }
+};
+$("edit-save").onclick = async () => {
+  const g = state.selected; if (state.busy || !g) return;
+  // Só o que mudou de fato: escolher o mesmo valor não grava nada.
+  const original = f => { const {edits} = state; state.edits = {}; const v = String(editValue(g, f) ?? ""); state.edits = edits; return v; };
+  const campos = Object.fromEntries(Object.entries(state.edits).filter(([f, v]) => v.trim() !== original(f).trim()).map(([f, v]) => [f, v.trim() || null]));
+  if (!Object.keys(campos).length) return report("Nada alterado.", false, "detail-status");
+  if (campos.nome === null || campos.plataforma === null) return report("Nome e plataforma não podem ficar vazios.", true, "detail-status");
+  state.busy = true; report("Salvando…", false, "detail-status");
+  try {
+    if (g.id) await api("/api/library/edit", {id: g.id, campos});
+    else { const r = await api("/api/library/track", {nome: g.name, code: g.code, plataforma: g.platform, fonte: `rom:${g.code}`, campos}); g.id = r.id; }
+    Object.assign(g.tracking, campos);
+    if (campos.nome) { g.name = campos.nome; $("game-title").textContent = g.name; }
+    if (campos.plataforma && !g.wishlist) { g.platform = campos.plataforma; $("game-platform").textContent = g.platform; }
+    state.edits = {}; renderEdit(); render(); report("Dados do jogo salvos.", false, "detail-status");
+  } catch (e) { report(`Não foi salvo: ${e.message}`, true, "detail-status"); }
+  finally { state.busy = false; }
+};
+// 🖼 Capa: busca nas mesmas fontes da web. ROM: bases de ROM (libretro/LaunchBox/ScreenScraper) ou
+// SteamGridDB; Biblioteca: SteamGridDB. Aplicar troca o arquivo da capa, como na web.
+function coverLabel(g) {
+  const fromCover = /\/images\/[^/]+\/([^?]+)/.exec(g.cover || "");
+  if (fromCover) return decodeURIComponent(fromCover[1]).replace(/\.(png|jpg)$/i, "");
+  return state.systems.some(s => s.code === g.code) ? g.romName.replace(/\.[a-z0-9]{2,4}$/i, "") : g.romName;
+}
+function renderCoverSources() {
+  const g = state.selected, sources = g.code ? [["rom", "Bases de ROM"], ["sgdb", "SteamGridDB"]] : [["sgdb", "SteamGridDB"]];
+  $("cover-query").textContent = `Busca: ${state.cover.query}`;
+  $("cover-sources").replaceChildren(...sources.map(([id, label]) => button(label, () => { state.cover.source = id; renderCoverSources(); searchCover(); }, state.cover.source === id)));
+}
+$("cover-toggle").onclick = () => {
+  const box = $("cover-fields"), g = state.selected; box.hidden = !box.hidden; $("cover-toggle").setAttribute("aria-expanded", String(!box.hidden));
+  if (box.hidden) return;
+  closeOtherPanels("cover-toggle");
+  state.cover = {query: g.name, source: g.code ? "rom" : "sgdb"}; renderCoverSources(); searchCover();
+};
+$("cover-query").onclick = () => openTextEntry("Buscar capa", state.cover.query, value => { if (value.length < 2) return; state.cover.query = value; renderCoverSources(); searchCover(); });
+let coverRequest = 0;
+async function searchCover() {
+  const g = state.selected, request = ++coverRequest, box = $("cover-results"), {query, source} = state.cover;
+  box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint", textContent: "Buscando capas… pode levar até um minuto."}));
+  try {
+    const found = source === "rom"
+      ? (await api(`/api/cover/search?${new URLSearchParams({code: g.code, q: query})}`)).map(it => ({url: it.preview, name: it.name, label: {libretro: "libretro-thumbnails", launchbox: "LaunchBox", screenscraper: "ScreenScraper"}[it.source] || it.source, raw: it}))
+      : (await api(`/api/cover/search_sgdb?${new URLSearchParams({q: query})}`)).map(it => ({url: it.url, name: it.nome, label: "SteamGridDB", raw: it}));
+    if (request !== coverRequest || state.selected !== g) return;
+    if (!found.length) return box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint", textContent: "Nada encontrado. Troque a busca ou a fonte."}));
+    box.replaceChildren(...found.slice(0, 24).map(item => {
+      const card = button("", () => applyCover(g, item, source)); card.className = "game cover-choice";
+      const img = document.createElement("img"); img.src = item.url; img.alt = ""; img.loading = "lazy"; img.className = "art";
+      const name = document.createElement("strong"); name.textContent = item.name;
+      const from = document.createElement("small"); from.textContent = item.label;
+      card.append(img, name, from); return card;
+    }));
+  } catch (e) { if (request === coverRequest) box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint error", textContent: `Busca falhou: ${e.message}`})); }
+}
+async function applyCover(g, item, source) {
+  if (state.busy) return; state.busy = true; report("Aplicando capa…", false, "detail-status");
+  try {
+    const label = g.code ? coverLabel(g) : null;
+    if (source === "rom") await api("/api/cover/select", {code: g.code, label, source: item.raw.source, name: item.raw.name, filename: item.raw.filename || "", ss_id: item.raw.ss_id || ""});
+    const r = source === "rom" ? null : await api("/api/cover/apply_url", g.code ? {kind: "rom", code: g.code, label, url: item.url} : {kind: "biblioteca", id: g.id, url: item.url});
+    g.cover = g.code ? `/images/${encodeURIComponent(g.code)}/${encodeURIComponent(label)}.png?v=${Date.now()}` : `/library-images/${r.file.split("/").map(encodeURIComponent).join("/")}?v=${Date.now()}`;
+    $("detail-cover").src = g.cover; $("detail-cover").hidden = false;
+    $("cover-fields").hidden = true; $("cover-toggle").setAttribute("aria-expanded", "false"); $("cover-toggle").focus();
+    render(); report("Capa trocada.", false, "detail-status");
+  } catch (e) { report(`Capa não aplicada: ${e.message}`, true, "detail-status"); }
+  finally { state.busy = false; }
+}
+// Desejados: sair da lista é um jogo por vez, com confirmação (mesmas rotas do ✎ da web).
+for (const [id, action, label] of [["wishlist-bought", "comprado", "✅ Comprado"], ["wishlist-remove", "remove", "🗑 Tirar da lista"]]) $(id).onclick = async () => {
+  const g = state.selected, b = $(id); if (state.busy || !g?.wishlist) return;
+  if (!b.dataset.confirm) { b.dataset.confirm = "yes"; b.textContent = action === "comprado" ? "Confirmar: comprado" : "Confirmar: tirar"; report(action === "comprado" ? `Marcar "${g.name}" como comprado? Sai dos Desejados e entra na Biblioteca.` : `Tirar "${g.name}" da lista de desejos?`, false, "detail-status"); return; }
+  state.busy = true;
+  try {
+    await api(`/api/wishlist/${action}`, {source: g.wishlist, id: g.id});
+    state.items = state.items.filter(x => x !== g); state.busy = false; closeGame(); render();
+    report(action === "comprado" ? `${g.name} entrou na Biblioteca.` : `${g.name} saiu dos Desejados.`);
+  } catch (e) { b.dataset.confirm = ""; b.textContent = label; report(e.message, true, "detail-status"); }
+  finally { state.busy = false; }
+};
 // 💾 Saves do jogo no PC (RetroArch, pasta do sistema e raiz antiga). Só leitura.
+// Saves, edição e capa dividem a ficha: abrir um painel fecha os outros.
+function closeOtherPanels(keep) {
+  for (const [toggle, panel] of [["saves-toggle", "saves-fields"], ["edit-toggle", "edit-fields"], ["cover-toggle", "cover-fields"]])
+    if (toggle !== keep) { $(panel).hidden = true; $(toggle).setAttribute("aria-expanded", "false"); }
+}
 $("saves-toggle").onclick = async () => {
   const g = state.selected, box = $("saves-fields");
-  box.hidden = !box.hidden; $("saves-toggle").setAttribute("aria-expanded", String(!box.hidden));
+  box.hidden = !box.hidden; if (!box.hidden) closeOtherPanels("saves-toggle"); $("saves-toggle").setAttribute("aria-expanded", String(!box.hidden));
   if (box.hidden || !g?.code) return;
   box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint", textContent: "Procurando saves neste PC…"}));
   try {
@@ -656,9 +845,11 @@ function page(direction) {
 }
 document.addEventListener("keydown", e => {
   if (e.target instanceof HTMLInputElement && e.key !== "Escape") return;
-  const key = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
+  const key = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
   if (key) { e.preventDefault(); action(key); }
 });
+// Mouse: o botão "voltar" lateral faz o mesmo que B.
+document.addEventListener("mouseup", e => { if (e.button === 3) { e.preventDefault(); action("back"); } });
 let held = new Set(), repeatAt = new Map(), foreground = true, awaitNeutral = false, noPadSince = null;
 window.addEventListener("blur", () => { foreground = false; held.clear(); awaitNeutral = true; $("spotlight-video").pause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { $("spotlight-video").pause(); $("detail-video").pause(); } else if (state.kind === 'home' && spotlightGame) showSpotlight(spotlightGame); });

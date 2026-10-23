@@ -317,3 +317,22 @@ header{padding:1rem 3vw .5rem}
 
 #controller.warning{color:#ffcf70;font-weight:600}
 :root[data-theme=light] #controller.warning{color:#8a4b00}
+/* Estatísticas, edição e capa na ficha. */
+.stats-heading{grid-column:1/-1;font-size:.95rem;margin:1rem 0 0}
+.stat-card{min-height:150px}
+.stat-card .system-symbol{min-height:70px;font-size:1.6rem}
+.stat-card strong{font-size:1.05rem}
+.panel{padding:0 .8rem .8rem;border-left:2px solid var(--accent);margin:1rem 0}
+.field-list{display:grid;gap:.5rem;margin:.8rem 0}
+.field-list button{text-align:left;font-size:.8rem;overflow-wrap:anywhere}
+#genre-list button{font-size:.75rem;padding:.45rem .8rem}
+#cover-sources{display:inline-flex;gap:.6rem;flex-wrap:wrap}
+#cover-query{font-size:.8rem}
+#cover-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.8rem}
+.cover-choice .art{height:170px}
+.cover-choice strong{font-size:.7rem}
+.cover-choice small{font-size:.6rem}
+#wishlist-actions .primary,#wishlist-actions button{font-size:.85rem}
+/* Mouse e toque: realce ao passar e alvos maiores em tela de toque. */
+@media(hover:hover){.game:hover{border-color:var(--accent)}}
+@media(pointer:coarse){button,a{min-height:48px}.shelf{overscroll-behavior-x:contain}#keyboard button{min-height:52px}}
