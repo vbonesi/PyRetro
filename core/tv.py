@@ -118,7 +118,9 @@ def catalog(cfg, lib, cached, arcade_names=None):
             continue
         if g['id'] in represented:
             continue
+        code = library.rom_code_for_plataforma(g['plataforma'])
+        rom = {'code': code, 'romName': g['nome']} if code and 'rom:' + code in sources else {}
         out.append({'id': g['id'], 'name': g['nome'], 'platform': g['plataforma'],
                     'cover': _library_cover(cfg, g),
-                    'tracking': g, 'local': g['id'] in pc_local})
+                    'tracking': g, 'local': g['id'] in pc_local, **rom})
     return sorted(out, key=lambda g: g['name'].lower())

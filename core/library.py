@@ -1003,6 +1003,43 @@ def get_or_create_for_rom(library: dict, nome: str, code: str, plataforma: str, 
     return game
 
 
+class AmbiguousROM(ValueError):
+    pass
+
+
+def add_mobile_rom(library, cfg, body):
+    """Cadastro explícito, sem exigir arquivo e sem editar progresso existente."""
+    if not isinstance(body, dict) or set(body) != {'nome', 'code'}:
+        raise ValueError('envie somente nome e code')
+    nome, code = body['nome'], body['code']
+    if (not isinstance(nome, str) or not nome.strip() or len(nome) > 240 or
+            any(ord(c) < 32 or ord(c) == 127 or c in '/\\' for c in nome) or
+            nome.strip() in ('.', '..') or not covers_mod.normalize(nome)):
+        raise ValueError('nome de jogo inválido; envie título sem caminho')
+    if not isinstance(code, str):
+        raise ValueError('code inválido')
+    info = {**cfg.get('systems', {}), **cfg.get('heavy_systems', {})}.get(code)
+    if not info:
+        raise ValueError('sistema não configurado')
+    plataforma = info.get('nome') or info.get('capas') or code
+    if rom_code_for_plataforma(plataforma) != code:
+        raise ValueError('sistema sem plataforma de Biblioteca compatível')
+    nome = nome.strip()
+    candidates = [g for g in library['games'] if rom_code_for_plataforma(g['plataforma']) == code]
+    key = covers_mod.normalize(nome)
+    matched = [g for g in candidates if covers_mod.normalize(g['nome']) == key]
+    if not matched:
+        matched = [g for g in candidates if any(covers_mod.normalize(n) == key for n in g.get('nomes_alt', []))]
+    if len(matched) > 1:
+        raise AmbiguousROM('mais de um cadastro compatível; resolva a duplicidade na Biblioteca')
+    source = 'rom:' + code
+    if matched:
+        game = matched[0]
+        if source not in game['fontes']: game['fontes'].append(source)
+        return game, False
+    return get_or_create_for_rom(library, nome, code, plataforma, source), True
+
+
 def _limpa_nome_switch(nome: str) -> str:
     """Nome da pasta sem as tags entre colchetes do formato do dump
     ("[NSP]"/"[NSZ]"/"[XCI]") - elas não fazem parte do nome do jogo."""

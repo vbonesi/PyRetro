@@ -65,6 +65,7 @@ from core import rom_rename as rom_rename_mod
 from core import sanitize as sanitize_mod
 from core import screenscraper as screenscraper_mod
 from core import serials as serials_mod
+from core import game_save_ids
 from core import sortear as sortear_mod
 from core import rename_links as rename_links_mod
 from core import texturas as texturas_mod
@@ -1596,6 +1597,17 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "csrf"]:
             return self._json({"token": CSRF_TOKEN})
 
+        if parts == ['api', 'mobile', 'saves', 'game']:
+            game_id = query.get('id', [''])[0]
+            if not game_id:
+                return self._json({'error': 'id obrigatório'}, 400)
+            cfg = load_config()
+            lib = library_mod.load_library(Path(cfg['pc']['library_root']).expanduser() / 'library.json')
+            game = next((g for g in lib['games'] if g['id'] == game_id), None)
+            if game is None:
+                return self._json({'error': 'jogo não encontrado'}, 404)
+            return self._json(game_save_ids.mapping(cfg, game))
+
         if parts[:3] == ['api','mobile','sync']:
             try:
                 cfg = load_config(); group = query.get('group',[''])[0]
@@ -2490,6 +2502,7 @@ class Handler(BaseHTTPRequestHandler):
     # Caminhos que fazem ler-modificar-gravar no library.json - todos
     # rodam sob _library_lock (ver comentário na declaração dela).
     _ESCRITA_BIBLIOTECA = {
+        ("api", "library", "add-rom"),
         ("api", "library", "update"), ("api", "library", "track"),
         ("api", "library", "edit"), ("api", "library", "cover_upload"),
         ("api", "library", "decompor"),
@@ -2850,6 +2863,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "jogo ou campo desconhecido"}, 400)
             library_mod.save_library(library_path, library)
             return self._json({"ok": True})
+
+        if parts == ["api", "library", "add-rom"]:
+            body = self._read_json_body()
+            cfg = load_config()
+            library_path = Path(cfg['pc']['library_root']).expanduser() / 'library.json'
+            library = library_mod.load_library(library_path)
+            try:
+                game, created = library_mod.add_mobile_rom(library, cfg, body)
+            except library_mod.AmbiguousROM as e:
+                return self._json({'error': str(e)}, 409)
+            except ValueError as e:
+                return self._json({'error': str(e)}, 400)
+            library_mod.save_library(library_path, library)
+            return self._json({'ok': True, 'id': game['id'], 'created': created,
+                               'code': body['code'], 'romName': body['nome'].strip(),
+                               'nome': game['nome'], 'plataforma': game['plataforma'],
+                               'fontes': game['fontes']}, 201 if created else 200)
 
         if parts == ["api", "library", "track"]:
             # Tracking universal (iniciado/finalizado/platinado/nota) pra

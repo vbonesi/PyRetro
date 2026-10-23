@@ -6,6 +6,31 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 — Rodada 2, saves por jogo (Codex)
+
+- `GET /api/mobile/saves/game?id=...`: seriais PSP do cache Redump existente;
+  identificação 3DS por Program ID de cabeçalho NCCH/NCSD local. Sem rede/adb.
+- Resultados separam identificado, candidatos que exigem escolha e desconhecido;
+  filtros nunca inferem extdata, não incluem content/NAND/histórico. Contrato e
+  fontes em `docs/mobile-save-ids.md`. 343 Python e 48 JS aprovados com fixtures.
+
+## 23/10/2026 — Rodada 2, cadastrar ROM do celular (Codex)
+
+- `POST /api/library/add-rom` cria/reaproveita cadastro sem arquivo no PC,
+  com lock, CSRF, preservação de progresso e recusa de correspondência ambígua.
+- Catálogo mantém código/identidade de ROM para cadastro presente só no celular.
+  Formato/erros em `docs/mobile-library.md`. 336 Python e 48 JS aprovados;
+  suíte da instância `localhost:8000` também confirmou 48 aprovados.
+
+## 23/10/2026 — Rodada 2, contrato de saves Drive (Codex)
+
+- `docs/drive-saves.md` e referência pura `core/drive_saves.py`: layout dos seis
+  grupos, comparação de três hashes, identidade da conta/pastas, conflitos
+  explícitos e histórico obrigatório. Sem rede ou escrita em dados reais.
+- Revalidação e recibo de publicação separados: `version` do Drive não é CAS;
+  integração deve manter pendente quando não puder garantir publicação segura.
+- `.fs` FBNeo aceito também no servidor, em paridade com Android.
+
 ## 23/10/2026 (5) — Android 0.10.0: conta Google, downloads em segundo plano, conjuntos de discos
 
 Compilada (code 17), **não instalada**: o celular está com o Victor. Instalar e validar na próxima
