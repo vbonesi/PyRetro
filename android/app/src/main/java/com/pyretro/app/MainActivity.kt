@@ -50,6 +50,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private lateinit var drawShortcut:Button
     private lateinit var statsShortcut:Button
     private val extras by lazy { NotebookExtras(store,filesDir) }
+    private val drive by lazy { GoogleDrive(this,store.prefs) }
+    /** Jogo que esperava a conta Google ser conectada para baixar do Drive. */
+    private var driveAfterConsent:Game?=null
     /** Desejados como cartões (chave "wish:…"); vêm do cache e se atualizam com o notebook online. */
     private var wishGames=emptyList<Game>()
     private var wishItems=emptyMap<String,WishItem>()
@@ -657,7 +660,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         }
         val current=store.prefs.getString("cloud:${game.key}",null)
         if(current!=null && RomSource.parse(current)==null) { enqueueAndStart(game);return }
-        if(!game.downloadable) { if(current!=null)enqueueAndStart(game) else driveSearch(game);return }
+        // Notebook fora do ar e conta Google conectada: vai direto ao Drive.
+        if(!store.online && drive.connected) { driveDirect(game);return }
+        if(!game.downloadable) { if(current!=null)enqueueAndStart(game) else if(drive.connected)driveDirect(game) else driveSearch(game);return }
         message("Consultando o notebook…")
         work.execute { val result=runCatching { RomSource.playable(store.romOptions(game)) { store.accepts(game.code,it) } };runOnUiThread {
             if(isFinishing || isDestroyed)return@runOnUiThread
@@ -667,9 +672,41 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 else -> show(AlertDialog.Builder(this).setTitle("Qual arquivo baixar?").setItems(options.map { "${it.file} · ${bytesLabel(it.size)}" }.toTypedArray()) { _,which -> linkNotebook(game,options[which]) }.setNegativeButton("Voltar",null))
             } }.onFailure { error ->
                 if(current!=null)enqueueAndStart(game)
+                else if(drive.connected)driveDirect(game)
                 else show(AlertDialog.Builder(this).setTitle("Notebook indisponível").setMessage("${error.message ?: "Sem resposta."}\n\nSem o notebook, escolha o arquivo no Drive: ele fica vinculado ao jogo e o download começa em seguida.").setNegativeButton("Voltar",null).setPositiveButton("Procurar no Drive") { _,_ -> driveSearch(game) })
             }
         } }
+    }
+    // --- Conta Google: Drive direto do celular ---
+    private fun connectGoogle(after:Game?=null) {
+        driveAfterConsent=after;message("Abrindo a conta Google…")
+        drive.authorize().addOnSuccessListener { result ->
+            if(result.hasResolution()) runCatching { startIntentSenderForResult(result.pendingIntent!!.intentSender,20,null,0,0,0) }.onFailure(::failure)
+            else googleConnected()
+        }.addOnFailureListener { error -> failure(IllegalStateException("O Google recusou a conexão: ${error.message}. Confira se esta conta está entre os usuários de teste do projeto PyRetro no Google Cloud.",error)) }
+    }
+    private fun googleConnected() {
+        work.execute { val result=runCatching { drive.account() };runOnUiThread {
+            result.onSuccess { email -> message("Conta Google conectada: $email.");driveAfterConsent?.let { game -> driveAfterConsent=null;driveDirect(game) } }.onFailure(::failure)
+        } }
+    }
+    /** Procura a ROM em Jogos/ROMs/<sistema> do Drive da conta e baixa por ela. */
+    private fun driveDirect(game:Game) {
+        message("Procurando ${game.name} no seu Drive…")
+        work.execute {
+            val result=runCatching { DriveSource.candidates(drive.romFiles(game.code),game.romName.ifBlank { game.name }) { store.accepts(game.code,it) } }
+            runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
+                result.onSuccess { found -> when(found.size) {
+                    0 -> show(AlertDialog.Builder(this).setTitle("Não achei no Drive").setMessage("Não há em Jogos/ROMs/${game.code} um arquivo de ${game.name} que o celular abra sozinho (PS1 precisa de CHD ou PBP). Escolha o arquivo manualmente.").setNegativeButton("Voltar",null).setPositiveButton("Procurar no Drive") { _,_ -> driveSearch(game) })
+                    1 -> linkDrive(game,found[0])
+                    else -> show(AlertDialog.Builder(this).setTitle("Qual arquivo baixar?").setItems(found.map { "${it.name} · ${bytesLabel(it.size)}" }.toTypedArray()) { _,which -> linkDrive(game,found[which]) }.setNegativeButton("Voltar",null))
+                } }.onFailure { error -> if(error is GoogleConsentNeeded)connectGoogle(game) else failure(error) }
+            }
+        }
+    }
+    private fun linkDrive(game:Game,ref:DriveRef) {
+        store.prefs.edit().putString("cloud:${game.key}",ref.encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
+        enqueueAndStart(game)
     }
     private fun linkNotebook(game:Game,option:RomOption) {
         store.prefs.edit().putString("cloud:${game.key}",RomRef(game.code,option.file,option.etag,option.size).encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
@@ -714,6 +751,14 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("📁 Pasta RetroArch (saves) · ${folderState("retroarch")}") { pickSyncFolder("retroarch") })
         val server=EditText(this).apply { setSingleLine();setText(store.base());hint="https://endereço-do-pyretro";setTextColor(appForeground);setHintTextColor(Color.LTGRAY) };box.addView(server)
         add(box,button("Salvar endereço e atualizar catálogo") { runCatching { store.setBase(server.text.toString()) }.onFailure { failure(it);return@button };refreshCatalog() })
+        box.addView(text("Conta Google",18f).apply { setTypeface(null,Typeface.BOLD) })
+        if(drive.connected) {
+            box.addView(text("Conectada: ${drive.email.ifBlank { "conta Google" }}. ROMs do Drive (Jogos/ROMs) baixam direto, sem o notebook.",13f))
+            add(box,button("Desconectar conta Google") { drive.disconnect();message("Conta Google desconectada deste app. Para revogar o acesso, use myaccount.google.com → Segurança.");dialog?.dismiss() })
+        } else {
+            box.addView(text("Conecte para baixar ROMs do seu Drive (Jogos/ROMs) mesmo com o notebook desligado.",13f))
+            add(box,button("Conectar conta Google") { dialog?.dismiss();connectGoogle() })
+        }
         box.addView(text("ROMs ficam em Jogos/<sistema>; saves e estados, por sistema na pasta RetroArch. Emuladores e cores são os padrões do PyRetro. O catálogo e o progresso atualizam sozinhos quando o notebook responde.",12f))
         box.addView(text("Uso",18f).apply { setTypeface(null,Typeface.BOLD) })
         add(box,button("Downloads") { downloads() })
@@ -1174,7 +1219,12 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun pickRom(game:Game,cloud:Boolean) { pickingGame=game;pickingCloud=cloud;startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),11) }
     @Deprecated("Compatibilidade com Activity sem dependências extras")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
-        super.onActivityResult(requestCode,resultCode,data);if(resultCode!=RESULT_OK || data==null)return
+        super.onActivityResult(requestCode,resultCode,data)
+        if(requestCode==20) { // consentimento da conta Google
+            if(resultCode!=RESULT_OK) { driveAfterConsent=null;message("Conta Google não conectada.");return }
+            runCatching { drive.resultFromIntent(data) }.onSuccess { googleConnected() }.onFailure(::failure);return
+        }
+        if(resultCode!=RESULT_OK || data==null)return
         if(requestCode in listOf(14,15)) {
             val code=store.prefs.getString("index-picking",null) ?: return
             val uris=if(data.clipData!=null)(0 until data.clipData!!.itemCount).map { data.clipData!!.getItemAt(it).uri } else listOfNotNull(data.data)
