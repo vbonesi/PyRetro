@@ -6,6 +6,14 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 — Rodada 2, saves por jogo (Codex)
+
+- `GET /api/mobile/saves/game?id=...`: seriais PSP do cache Redump existente;
+  identificação 3DS por Program ID de cabeçalho NCCH/NCSD local. Sem rede/adb.
+- Resultados separam identificado, candidatos que exigem escolha e desconhecido;
+  filtros nunca inferem extdata, não incluem content/NAND/histórico. Contrato e
+  fontes em `docs/mobile-save-ids.md`. 343 Python e 48 JS aprovados com fixtures.
+
 ## 23/10/2026 — Rodada 2, cadastrar ROM do celular (Codex)
 
 - `POST /api/library/add-rom` cria/reaproveita cadastro sem arquivo no PC,

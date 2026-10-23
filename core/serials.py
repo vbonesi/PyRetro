@@ -104,6 +104,15 @@ def build_index(force: bool = False) -> dict:
     return index
 
 
+def cached_index() -> dict:
+    """Consulta sem download/escrita; cache ausente ou corrompido é desconhecido."""
+    try:
+        data = json.loads(INDEX_PATH.read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def lookup(console: str, raw_slot_name: str, index: dict) -> str | None:
     """Resolve o nome do jogo pra um nome de slot/pasta cru do memory
     card, ou None se o serial não bater com nenhum jogo conhecido."""
