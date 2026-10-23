@@ -2490,6 +2490,7 @@ class Handler(BaseHTTPRequestHandler):
     # Caminhos que fazem ler-modificar-gravar no library.json - todos
     # rodam sob _library_lock (ver comentário na declaração dela).
     _ESCRITA_BIBLIOTECA = {
+        ("api", "library", "add-rom"),
         ("api", "library", "update"), ("api", "library", "track"),
         ("api", "library", "edit"), ("api", "library", "cover_upload"),
         ("api", "library", "decompor"),
@@ -2850,6 +2851,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "jogo ou campo desconhecido"}, 400)
             library_mod.save_library(library_path, library)
             return self._json({"ok": True})
+
+        if parts == ["api", "library", "add-rom"]:
+            body = self._read_json_body()
+            cfg = load_config()
+            library_path = Path(cfg['pc']['library_root']).expanduser() / 'library.json'
+            library = library_mod.load_library(library_path)
+            try:
+                game, created = library_mod.add_mobile_rom(library, cfg, body)
+            except library_mod.AmbiguousROM as e:
+                return self._json({'error': str(e)}, 409)
+            except ValueError as e:
+                return self._json({'error': str(e)}, 400)
+            library_mod.save_library(library_path, library)
+            return self._json({'ok': True, 'id': game['id'], 'created': created,
+                               'code': body['code'], 'romName': body['nome'].strip(),
+                               'nome': game['nome'], 'plataforma': game['plataforma'],
+                               'fontes': game['fontes']}, 201 if created else 200)
 
         if parts == ["api", "library", "track"]:
             # Tracking universal (iniciado/finalizado/platinado/nota) pra

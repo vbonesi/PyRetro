@@ -6,6 +6,14 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 — Rodada 2, cadastrar ROM do celular (Codex)
+
+- `POST /api/library/add-rom` cria/reaproveita cadastro sem arquivo no PC,
+  com lock, CSRF, preservação de progresso e recusa de correspondência ambígua.
+- Catálogo mantém código/identidade de ROM para cadastro presente só no celular.
+  Formato/erros em `docs/mobile-library.md`. 336 Python e 48 JS aprovados;
+  suíte da instância `localhost:8000` também confirmou 48 aprovados.
+
 ## 23/10/2026 — Rodada 2, contrato de saves Drive (Codex)
 
 - `docs/drive-saves.md` e referência pura `core/drive_saves.py`: layout dos seis
