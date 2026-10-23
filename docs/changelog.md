@@ -14,11 +14,15 @@ Pedido do Victor: apagar saves feitos em testes. Levantamento de tudo alterado d
 - **Removidos** (cópia em `Backups/Saves de teste removidos 2026-10-23/`): `7th Dragon.sav` e
   `.state.auto` no PC (criados 22/10 11:25–11:29, na sessão de teste do melonDS; único save de
   DS) e `The Adventure of Little Ralph.state.auto` no celular (23/10, jogo baixado só para teste).
-- Em seguida o Victor confirmou que nunca jogou esses jogos: removidos também (mesma cópia)
-  Super Mario 64 `.srm` e `.state` no PC e no celular e o save do Pokémon X no celular.
-- **Mantidos:** memory cards PS1/PS2 (compartilhados: Gran Turismo 2, Driver, Yu-Gi-Oh!
-  Forbidden Memories, Toy Story Racer, Guitar Hero III, NFSU2) e o `.ini` de GPU do NFSU2
-  (correção intencional, não é save).
+- Em seguida, removidos também (mesma cópia) o save do Pokémon X no celular (o Victor nunca
+  jogou) e, por engano de entendimento, os do Super Mario 64. O Victor tem save de Mario 64:
+  **restaurados no PC** (`.srm` e `.state`, datas originais, conteúdo idêntico). **No celular a
+  restauração ficou pendente** (desconectado): na próxima conexão, `adb push -a` de
+  `Backups/Saves de teste removidos 2026-10-23/celular/RetroArch/{saves,states}/N64/` para
+  `/sdcard/RetroArch/{saves,states}/N64/`.
+- **Mantidos:** memory cards PS1/PS2 (Gran Turismo 2, Driver, Yu-Gi-Oh! Forbidden Memories,
+  Toy Story Racer, Guitar Hero III, NFSU2 — o Victor confirmou que tem save do NFSU2) e o `.ini`
+  de GPU do NFSU2 (correção intencional, não é save).
 
 ## 23/10/2026 (9) — Pendências 1, 3, 4 e 5: dados reais, CUE/M3U, 3DS e melonDS
 
