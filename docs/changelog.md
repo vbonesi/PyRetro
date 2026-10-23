@@ -6,6 +6,15 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 — Rodada 2, contrato de saves Drive (Codex)
+
+- `docs/drive-saves.md` e referência pura `core/drive_saves.py`: layout dos seis
+  grupos, comparação de três hashes, identidade da conta/pastas, conflitos
+  explícitos e histórico obrigatório. Sem rede ou escrita em dados reais.
+- Revalidação e recibo de publicação separados: `version` do Drive não é CAS;
+  integração deve manter pendente quando não puder garantir publicação segura.
+- `.fs` FBNeo aceito também no servidor, em paridade com Android.
+
 ## 23/10/2026 (5) — Android 0.10.0: conta Google, downloads em segundo plano, conjuntos de discos
 
 Compilada (code 17), **não instalada**: o celular está com o Victor. Instalar e validar na próxima

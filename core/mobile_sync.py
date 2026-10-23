@@ -52,7 +52,7 @@ def accepted(group, relative):
             any(p in ('', '.', '..') or p.startswith('.pyretro-') for p in parts)):
         return False
     if group == 'retro-saves':
-        return PurePosixPath(relative).suffix.lower() in {'.srm','.sav','.rtc','.sra','.eep','.fla','.mcr','.mcd','.dat','.dsv','.nv','.nvm','.mem'}
+        return PurePosixPath(relative).suffix.lower() in {'.srm','.sav','.rtc','.sra','.eep','.fla','.mcr','.mcd','.dat','.dsv','.nv','.nvm','.mem','.fs'}
     if group == 'retro-states':
         return bool(re.search(r'\.state(?:\d+|\.auto)?(?:\.png)?$', relative, re.I))
     if group == 'retro-runtime':
