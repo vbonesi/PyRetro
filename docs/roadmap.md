@@ -38,7 +38,7 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026 (noite).
 | Central Android de situação e conexões | ✅ 0.4.1 instalada; resumos automáticos, permissões e foco corrigidos. Build/lint, 24 JVM e instrumentação retrato/paisagem aprovados; notebook respondeu via Tailscale |
 | Espaço, jogos fixados e fila no Android | ✅ 0.5 instalada; filtros, proteção da ROM e fila sequencial com pausa/retomada/reordenação. Sem serviço em segundo plano |
 | Saves/states/runtime pelo app Android | ✅ Versão 0.2: grupos, SHA-256, conflitos e histórico; sincronização real aguarda uso do usuário |
-| Xbox/PS4 remotos e Switch Lite Wi-Fi | Clientes integrados e sem duplicação; Switch confirmado, sessão PS4/Xbox ainda depende de uso real |
+| Xbox/PS4 remotos e Switch Lite Wi-Fi | ✅ Homologados pelo Victor em 23/10 (sessões PS4/Xbox remotas e Switch) |
 | GUI de capas (galeria, busca, flag/duplicada/renomear/apagar) | ✅ Pronto |
 | Sync de capas PC↔celular via adb (`core/sync.py`) | ✅ Pronto, despriorizado (Drive cobre sistemas leves) |
 | Sanitização de nomes / validação de PNG real | ✅ Pronto |
@@ -77,7 +77,7 @@ arquitetura existente e comprovar previsibilidade no uso diário.
 
 | Frente | Base disponível | Evidência ainda necessária |
 |---|---|---|
-| PC | Biblioteca, modo TV, controle, lançamento, downloads e clientes remotos | Sessões completas com controle físico: abrir, jogar, sair e recuperar foco; Steam Link e PS4/Xbox remoto |
+| PC | Biblioteca, modo TV, controle, lançamento, downloads e clientes remotos | Sessões completas com controle físico: abrir, jogar, sair e recuperar foco (Steam Link e PS4/Xbox remoto ✅ 23/10) |
 | Android | Offline, catálogo, execução local, saves, espaço, fixados, fila e Stream | G8 físico, provedor Drive real, diferentes emuladores e sincronização de saves reais entre as duas pontas |
 
 Testes automatizados e instrumentação sintética aprovados sustentam as regras e
@@ -190,8 +190,8 @@ página inicial/privacidade no Branding) para o token do rclone não vencer.
 
 **Correções abertas (sem mudança):** melonDS e pilha executável (`step_emulator_extras`;
 avaliar `melondsds`), atalhos do 3DS no jogo, avaliar RomM, consolidar o setup
-(`setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`) e homologação física (G8, Steam
-Link, PS4/Xbox remotos).
+(`setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`) e homologação física (G8; Steam
+Link e PS4/Xbox remotos ✅ 23/10).
 
 **Notas práticas:** compilar o APK com
 `JAVA_HOME=~/.cache/pyretro/android-toolchain/jdk ANDROID_HOME=~/.cache/pyretro/android-toolchain/sdk python3 tools/build_android.py`;
@@ -282,7 +282,7 @@ trocar/buscar capa pela ficha do modo TV e identidade visual comum PC/Android
 avaliar `melondsds`), client_id próprio do rclone (agora também serve o download
 do celular), atalhos do 3DS no jogo, Tailscale ligado no celular, avaliar RomM,
 consolidar o setup (`setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`) e a
-homologação física (G8, Drive real, Steam Link, PS4/Xbox remotos).
+homologação física (G8, Drive real; Steam Link e PS4/Xbox remotos ✅ 23/10).
 
 **Notas práticas:** a suíte `status` do celular desliga a atualização automática
 (`MainActivity.automaticUpdates=false`) para não mexer nas preferências reais. Na

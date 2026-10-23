@@ -6,6 +6,17 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (8) — App OAuth publicado; Steam Link e PS4/Xbox remotos homologados
+
+- **Google Cloud (projeto PyRetro):** o Victor preencheu o Branding com as páginas do GitHub
+  Pages (`https://vbonesi.github.io/PyRetro/oauth/`, `privacy.html`, `terms.html`) e publicou
+  o app OAuth (saiu do modo Teste). Com isso, novas autorizações deixam de vencer em 7 dias.
+  O token atual do rclone foi emitido ainda em modo Teste: rodar `rclone config reconnect
+  drive:` uma vez para obter um que não vence. O app Android pode pedir o consentimento de novo
+  na próxima vez (tela "o Google não verificou este app" → Avançado → Acessar PyRetro).
+- **Homologação física pelo Victor:** Steam Link e sessões remotas de PS4 e Xbox validadas em
+  uso real. Continua em aberto: G8 e atalhos do 3DS no jogo.
+
 ## 23/10/2026 (7) — Rodada 3: Android 0.12.1, teste das setas e páginas OAuth
 
 Iniciada pelo Codex (que ficou sem tokens no meio) e concluída pelo Claude.

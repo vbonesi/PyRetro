@@ -33,7 +33,7 @@ Consulta em 23/10/2026. Publicar páginas não publica automaticamente o app OAu
 
 **Ativado em 23/10/2026** (main, `/docs`): https://vbonesi.github.io/PyRetro/oauth/ ·
 https://vbonesi.github.io/PyRetro/oauth/privacy.html · https://vbonesi.github.io/PyRetro/oauth/terms.html
-(conferidas com HTTP 200). Falta: Branding e publicação no Google Cloud (itens 3 e 4).
+(conferidas com HTTP 200). Branding preenchido e app publicado pelo Victor em 23/10.
 
 O repositório `vbonesi/PyRetro` é **público**, então o GitHub Pages é gratuito e serve por HTTPS.
 
