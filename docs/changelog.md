@@ -6,6 +6,17 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (12) — Saves do Azahar (3DS do PC) no Drive
+
+- A pasta `sdmc` do Azahar (`~/.var/app/org.azahar_emu.Azahar/data/azahar-emu/sdmc`) foi movida para
+  `~/Drive/Jogos/Saves/Lime3DS/sdmc`, onde o PyRetro procura os saves de 3DS do PC (grupo
+  `3ds-saves`), e no lugar antigo ficou um link. O Flatpak ganhou acesso só a
+  `~/Drive/Jogos/Saves/Lime3DS` (`flatpak override --user --filesystem`); a leitura e a escrita de dentro do
+  sandbox foram conferidas. Cópia do antes em `Backups/azahar_sdmc_2026-10-23_antes/`.
+- O PC tinha um único save, Poochy & Yoshi's Woolly World (`00040000001a4100`), e o manifesto do PyRetro já o lista.
+  O celular usa a mesma árvore (ID de console só com zeros) e tem outros jogos, sem nenhum em comum.
+  Nada foi sincronizado: isso continua sendo uma ação explícita no app.
+
 ## 23/10/2026 (11) — Organizar a partir dos Downloads (PC e celular); Android 0.14.0
 
 Pedido do Victor: organizar as ROMs baixadas (lote do romsportugues.com e uma ROM hack com capa
