@@ -597,7 +597,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val state=when {
             game.localUri!=null -> "Neste celular"
             waiting -> "Na fila de downloads"
-            rom && (linked(game) || game.downloadable) -> "Pronto para baixar"+(if(game.pcLocal)" do notebook" else if(game.drive)" do Drive" else " do arquivo vinculado")
+            rom && (linked(game) || game.downloadable) -> "Pronto para baixar"+(if(!store.online && drive.connected)" do Drive (conta Google)" else if(game.pcLocal)" do notebook" else if(game.drive)" do Drive" else " do arquivo vinculado")
             stream!=null || viaNotebook -> "Console · transmita do aparelho"
             game.pcLocal -> "Instalado no notebook"
             else -> "Só no catálogo"
@@ -723,11 +723,12 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }
         }
     }
-    /** Android 13+: a notificação do download em segundo plano precisa de permissão (pedida uma vez). */
+    private fun notificationsAllowed()=Build.VERSION.SDK_INT<33 || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)==android.content.pm.PackageManager.PERMISSION_GRANTED
+    /** Android 13+: a notificação do download em segundo plano precisa de permissão. Pede no máximo
+     *  duas vezes (depois disso o próprio Android não mostra mais); Opções tem o atalho permanente. */
     private fun askNotifications() {
-        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED && !store.prefs.getBoolean("asked-notifications",false)) {
-            store.prefs.edit().putBoolean("asked-notifications",true).apply();requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),30)
-        }
+        val asked=store.prefs.getInt("asked-notifications-count",0)
+        if(!notificationsAllowed() && asked<2) { store.prefs.edit().putInt("asked-notifications-count",asked+1).apply();requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),30) }
     }
     private fun linkDrive(game:Game,ref:DriveRef) {
         store.prefs.edit().putString("cloud:${game.key}",ref.encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
@@ -791,6 +792,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             add(box,button("Conectar conta Google") { dialog?.dismiss();connectGoogle() })
         }
         box.addView(text("ROMs ficam em Jogos/<sistema>; saves e estados, por sistema na pasta RetroArch. Emuladores e cores são os padrões do PyRetro. O catálogo e o progresso atualizam sozinhos quando o notebook responde.",12f))
+        if(!notificationsAllowed()) add(box,button("🔔 Permitir notificações de download") {
+            runCatching { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName)) }.onFailure(::failure) })
         box.addView(text("Uso",18f).apply { setTypeface(null,Typeface.BOLD) })
         add(box,button("Downloads") { downloads() })
         add(box,button("Espaço e jogos fixados") { spaceManager() })

@@ -28,7 +28,8 @@ object DownloadNotice {
         return when {
             failed.isNotEmpty() -> DownloadNoticeText("Download falhou: ${failed.first().game.name}",failed.first().error.ifBlank { "Abra Downloads no PyRetro." },null,false)
             paused>0 -> DownloadNoticeText("Downloads pausados","$paused na fila · cópia parcial preservada",null,false)
-            rows.isNotEmpty() && rows.all { it.state==DownloadState.DONE } -> DownloadNoticeText("Downloads concluídos","${rows.size} jogo(s) prontos em Neste celular",null,false)
+            rows.size==1 && rows[0].state==DownloadState.DONE -> DownloadNoticeText("Download concluído","${rows[0].game.name} está pronto em Neste celular",null,false)
+            rows.isNotEmpty() && rows.all { it.state==DownloadState.DONE } -> DownloadNoticeText("Downloads concluídos","${rows.size} jogos prontos em Neste celular",null,false)
             else -> null
         }
     }
@@ -46,6 +47,8 @@ class DownloadService:Service() {
         }
     }
     private val handler=Handler(Looper.getMainLooper())
+    /** Concluídos antes deste acompanhamento: o aviso final fala só do que terminou agora. */
+    private var doneBefore:Set<String>?=null
     private val queue by lazy { DownloadQueue.get(LibraryStore(applicationContext)) }
     private val manager by lazy { getSystemService(NotificationManager::class.java) }
     private fun build(notice:DownloadNoticeText):Notification {
@@ -66,11 +69,13 @@ class DownloadService:Service() {
         if(queue.running) { DownloadNotice.of(rows,true)?.let { manager.notify(ONGOING,build(it)) };handler.postDelayed(this,1000);return }
         // Fila parou: troca a notificação fixa por um aviso do resultado e encerra o serviço.
         stopForeground(STOP_FOREGROUND_REMOVE)
-        DownloadNotice.of(rows,false)?.let { manager.notify(RESULT,build(it)) }
+        DownloadNotice.of(rows.filter { it.game.key !in doneBefore.orEmpty() },false)?.let { manager.notify(RESULT,build(it)) }
+        doneBefore=null
         stopSelf()
     } }
     override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int {
         if(intent?.action==PAUSE)runCatching { queue.pause() }
+        if(doneBefore==null)doneBefore=runCatching { queue.snapshot() }.getOrDefault(emptyList()).filter { it.state==DownloadState.DONE }.map { it.game.key }.toSet()
         val notice=DownloadNotice.of(runCatching { queue.snapshot() }.getOrDefault(emptyList()),true)!!
         if(Build.VERSION.SDK_INT>=29)startForeground(ONGOING,build(notice),ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else startForeground(ONGOING,build(notice))
         handler.removeCallbacks(tick);handler.post(tick)

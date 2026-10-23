@@ -14,7 +14,8 @@ class DownloadNoticeTest {
     @Test fun finishedStatesBecomeResultNotices() {
         assertEquals("Download falhou: B",DownloadNotice.of(listOf(row("A",DownloadState.DONE),row("B",DownloadState.FAILED,error="sem rede")),false)!!.title)
         assertEquals("Downloads pausados",DownloadNotice.of(listOf(row("A",DownloadState.PAUSED)),false)!!.title)
-        assertEquals("1 jogo(s) prontos em Neste celular",DownloadNotice.of(listOf(row("A",DownloadState.DONE)),false)!!.text)
+        assertEquals("A está pronto em Neste celular",DownloadNotice.of(listOf(row("A",DownloadState.DONE)),false)!!.text)
+        assertEquals("2 jogos prontos em Neste celular",DownloadNotice.of(listOf(row("A",DownloadState.DONE),row("B",DownloadState.DONE)),false)!!.text)
         assertNull(DownloadNotice.of(emptyList(),false))
     }
 }

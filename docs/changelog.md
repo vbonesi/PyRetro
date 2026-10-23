@@ -33,6 +33,17 @@ conexão.
 - Também nesta rodada: merge da entrega do Codex, 0.9.1 (busca de capa só aceita a resposta
   mais recente, `LatestRequest`) e 🩺 Diagnóstico em Ferramentas do modo TV.
 - Testes: 59 JVM; Python e JS sem mudança nesta parte.
+- **Validada no celular (23/10, mesma 0.10.0 reinstalada com ajustes):** conta Google conectada
+  (consentimento feito pelo Victor); com o Tailscale desligado, Celeste (GBA, 1 MB) e Paper
+  Mario 64 (N64, 40 MB) baixaram **pelo Drive** (origem `pyretro-gdrive`, md5 conferido);
+  Metal Slug XX (PSP, 464 MB) continuou com o app fora da tela (parcial 339 → 415 MB → fim),
+  serviço em primeiro plano com notificação e Pausar; The Adventure of Little Ralph (PS1, CUE +
+  BIN, 98 MB) baixou como conjunto pelo notebook (Drive via rclone), CUE publicado por último,
+  área temporária limpa. As ROMs de teste foram apagadas do celular depois.
+- **Corrigido na validação:** a permissão de notificação era pedida uma vez só (o pedido caiu
+  quando o app saiu da tela); agora até duas vezes e há **🔔 Permitir notificações de download**
+  em Opções. Ficha diz "Pronto para baixar do Drive (conta Google)" com o notebook fora. O aviso
+  final conta só o que terminou nesta sessão ("<jogo> está pronto em Neste celular").
 
 ## 23/10/2026 (4) — Conjuntos de discos e diagnóstico (Codex)
 
