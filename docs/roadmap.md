@@ -137,16 +137,20 @@ jogados depois de abrir um jogo pelo app e o contador do Situação com uma pend
 | Jogando · Ranking | ✅ · ✅ | Jogando no Início · ✅ (0.8.0) |
 | Sortear | ✅ | ✅ |
 | Progresso, nota, tempo | ✅ | ✅ (0.7.0) |
-| Saves do jogo | leitura | ✅ com sincronização |
-| Texturas | link para a web | ✅ PSP/3DS |
-| Desejados (PSN/Xbox/Steam) | ✅ (ver, Comprado, tirar) | ❌ |
+| Saves do jogo | ✅ cópia, apagar e restaurar (com cópia) | ✅ com sincronização |
+| Texturas | ✅ instalar/remover do catálogo (importar na web) | ✅ PSP/3DS |
+| Desejados (PSN/Xbox/Steam) | ✅ (ver, adicionar, Steam, Comprado, tirar) | ❌ |
 | Estatísticas | ✅ | ❌ |
-| Capas (buscar/trocar/marcar) | ✅ buscar/trocar | ❌ |
+| Capas (buscar/trocar/marcar) | ✅ | ❌ |
 | Editar jogo (gênero, comentário, dados) | ✅ (sem renomear ROM) | ❌ |
 | Organizar ROM nova | ❌ | ❌ |
 | Memory card PS1/PS2, saves PSP via adb | ❌ | ❌ |
 | Renomear/apagar com cascata | ❌ | ❌ |
 | Manutenção, Configurações | ❌ | fica só no PC |
+
+Em 23/10 o uso do dia a dia ficou todo no modo TV. A web ainda é necessária para: renomear
+ROM, importar pacote de textura (arquivo/link), organizar ROM nova, apagar com cascata,
+memory card, saves de PSP via adb, decompor coletânea do Switch, Manutenção e Configurações.
 
 Regra: uma função por vez, primeiro no modo TV, depois no Android quando fizer sentido.
 A web (`/`) só vira diagnóstico quando não tiver nada exclusivo.

@@ -1000,6 +1000,61 @@ teste("modo TV: editar grava só o alterado e capa de ROM usa a fonte escolhida"
   } finally { frame.remove(); }
 });
 
+teste("modo TV: saves com cópia, texturas, marcar capa e adicionar desejado", async () => {
+  let saves = [{name: "Jogo.srm", kind: "save", size: 8192, mtime: 1700000000, legado: false}], streams = [];
+  const {frame, app, doc, posts} = await abrirTV(url => {
+    if (url === "/api/systems") return [{code: "PS", nome: "PlayStation"}];
+    if (url === "/api/covers/PS") return [{label: "Jogo", display_name: "Jogo", file: "Jogo.png", flagged: false, biblioteca: {}}];
+    if (url.startsWith("/api/tv/saves?")) return {items: saves};
+    if (url.startsWith("/api/tv/saves/backups?")) return {items: [{stamp: "2026-10-23_100000", motivo: "cópia", arquivos: [{name: "Jogo.srm"}]}]};
+    if (url === "/api/tv/saves/remove") { saves = []; return {stamp: "x"}; }
+    if (url === "/api/tv/saves/restore") return {restored: 1, safety: null};
+    if (url === "/api/texturas?alvo=pc") return {pacotes: [{id: "ps1-x", sistema: "PS1", id_jogo: "SLUS-1", nome: "Jogo (USA)", tamanho: 1048576, instalado: false, arquivos: 0, tem_rom: true, em_andamento: false}, {id: "ps1-y", sistema: "PS1", id_jogo: "SLUS-2", nome: "Jogo de Outro Nome", tamanho: 1, instalado: false, tem_rom: false}]};
+    if (url === "/api/texturas/instalar") return {job: "tex"};
+    if (url === "/api/cover/flag") return {ok: true};
+    if (url.startsWith("/api/cover/search?")) return [];
+    if (url === "/api/wishlist/sync") return {job: "wish"};
+    if (url === "/api/wishlist") return {steam: [], psn: [], xbox: []};
+  });
+  app.EventSource = class { constructor(u) { streams.push(this); this.url = u; } close() {} };
+  try {
+    await app.load("light"); doc.querySelector("#gallery .game").click();
+    doc.getElementById("saves-toggle").click();
+    await esperar(() => doc.querySelector('[data-save-id="del:save:Jogo.srm"]'), "saves não listados");
+    const del = doc.querySelector('[data-save-id="del:save:Jogo.srm"]'); del.click();
+    igual(posts.length, 0, "apagar pede confirmação"); del.click();
+    await esperar(() => posts.length === 1 && doc.getElementById("saves-fields").textContent.includes("Nenhum save"), "apagar não concluiu");
+    igual(posts[0], {url: "/api/tv/saves/remove", body: {code: "PS", label: "Jogo", name: "Jogo.srm", kind: "save", legado: false}});
+    const res = doc.querySelector('[data-save-id="res:2026-10-23_100000"]'); res.click(); res.click();
+    await esperar(() => posts.length === 2, "restaurar não enviou");
+    igual(posts[1].body, {code: "PS", label: "Jogo", stamp: "2026-10-23_100000"});
+    doc.getElementById("textures-toggle").click();
+    verdade(doc.getElementById("saves-fields").hidden, "texturas fecha saves");
+    await esperar(() => doc.querySelector('[data-texture-id="ps1-x"]'), "pacote não listado");
+    igual(doc.querySelectorAll("[data-texture-id]").length, 1, "só o pacote com o mesmo nome");
+    const install = doc.querySelector('[data-texture-id="ps1-x"]'); install.click(); install.click();
+    await esperar(() => streams.length === 1, "instalação não abriu o job");
+    streams[0].onmessage({data: JSON.stringify({type: "system_done", result: {ok: true, message: "123 texturas instaladas"}})});
+    streams[0].onmessage({data: JSON.stringify({type: "job_done"})});
+    await esperar(() => doc.getElementById("detail-status").textContent === "123 texturas instaladas", "resultado não apareceu");
+    doc.getElementById("cover-toggle").click();
+    await esperar(() => !doc.getElementById("cover-flag").hidden && doc.getElementById("cover-flag").textContent.startsWith("⚑ Marcar"), "botão de marcar ausente");
+    doc.getElementById("cover-flag").click();
+    await esperar(() => posts.some(p => p.url === "/api/cover/flag"), "marcar não enviou");
+    igual(posts.find(p => p.url === "/api/cover/flag").body, {code: "PS", label: "Jogo"});
+    doc.getElementById("close").click();
+    await app.load("wishlist");
+    verdade(!doc.getElementById("wishlist-add-psn").hidden && !doc.getElementById("wishlist-steam").hidden, "botões de desejados ocultos");
+    doc.getElementById("wishlist-add-xbox").click();
+    doc.getElementById("search-input").value = "Halo"; doc.getElementById("search-apply").click();
+    await esperar(() => streams.length === 2, "adicionar não abriu o job");
+    igual(posts.at(-1), {url: "/api/wishlist/sync", body: {source: "xbox", texto: "Halo", apply: true}});
+    streams[1].onmessage({data: JSON.stringify({type: "log", line: "  novo(s): 1   já tinha: 0"})});
+    streams[1].onmessage({data: JSON.stringify({type: "job_done"})});
+    await esperar(() => doc.getElementById("message").textContent.includes("novo(s): 1"), "resumo não apareceu");
+  } finally { frame.remove(); }
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];

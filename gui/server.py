@@ -54,6 +54,7 @@ from core import tv_home as tv_home_mod
 from core import game_actions as game_actions_mod
 from core import playtime as playtime_mod
 from core import tv_media as tv_media_mod
+from core import tv_saves as tv_saves_mod
 from core import mobile_textures as mobile_textures_mod
 from core import mobile_sync as mobile_sync_mod
 from core import mobile_roms as mobile_roms_mod
@@ -1632,6 +1633,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({'items': rom_rename_mod.game_saves(Path(cfg['pc']['saves_root']).expanduser(),
                                                                   Path(cfg['pc']['states_root']).expanduser(), code, label)})
 
+        if parts == ['api', 'tv', 'saves', 'backups']:
+            cfg = load_config(); code = query.get('code', [''])[0]; label = query.get('label', [''])[0]
+            try:
+                return self._json({'items': tv_saves_mod.list_backups(cfg['pc']['backups_root'], code, label)})
+            except ValueError as error:
+                return self._json({'error': str(error)}, 400)
+
         if parts == ['api', 'tv', 'playtime']:
             return self._json({key:playtime_mod.public(value) for key,value in playtime_mod.load(PLAYTIME_PATH).items()})
 
@@ -2560,6 +2568,29 @@ class Handler(BaseHTTPRequestHandler):
                 result = playtime_mod.record(PLAYTIME_PATH, key, minutes * 60, source='manual', event=body.get('event'))
                 return self._json(playtime_mod.public(result))
             except (ValueError, OSError) as error: return self._json({'error':str(error)}, 400)
+
+        if parts[:3] == ['api', 'tv', 'saves'] and len(parts) == 4:
+            # Escrita de saves pela ficha do modo TV: sempre guarda cópia antes
+            # (core/tv_saves.py). Com jogo aberto o emulador regravaria por cima.
+            body = self._read_json_body(); cfg = load_config()
+            code, label = body.get('code', ''), body.get('label', '')
+            if not (cfg['systems'].get(code) or heavy_mod.load_heavy_systems(cfg).get(code)):
+                return self._json({'error': 'sistema desconhecido'}, 404)
+            if PLAY_SESSIONS.status().get('status') == 'running':
+                return self._json({'error': 'feche o jogo aberto antes de mexer nos saves'}, 409)
+            dirs = (Path(cfg['pc']['saves_root']).expanduser(), Path(cfg['pc']['states_root']).expanduser(), cfg['pc']['backups_root'])
+            try:
+                if parts[3] == 'backup':
+                    return self._json(tv_saves_mod.backup(*dirs, code, label))
+                if parts[3] == 'remove':
+                    return self._json(tv_saves_mod.remove(*dirs, code, label, body.get('name', ''), body.get('kind', ''), bool(body.get('legado'))))
+                if parts[3] == 'restore':
+                    return self._json(tv_saves_mod.restore(*dirs, code, label, body.get('stamp', '')))
+            except LookupError as error:
+                return self._json({'error': str(error).strip("'")}, 404)
+            except (ValueError, OSError) as error:
+                return self._json({'error': str(error)}, 400)
+            return self._json({'error': 'ação desconhecida'}, 404)
 
         if parts == ['api', 'tv', 'media']:
             try:

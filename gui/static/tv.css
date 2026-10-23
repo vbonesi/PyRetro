@@ -336,3 +336,7 @@ header{padding:1rem 3vw .5rem}
 /* Mouse e toque: realce ao passar e alvos maiores em tela de toque. */
 @media(hover:hover){.game:hover{border-color:var(--accent)}}
 @media(pointer:coarse){button,a{min-height:48px}.shelf{overscroll-behavior-x:contain}#keyboard button{min-height:52px}}
+/* Linhas com ação (saves, cópias, texturas): texto à esquerda, botão à direita. */
+.save-row{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.5rem 0;font-size:.8rem;overflow-wrap:anywhere}
+.save-row button{flex-shrink:0;font-size:.75rem;padding:.45rem .8rem}
+#textures-fields .hint a{padding:0}

@@ -6,6 +6,35 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 — Modo TV: adicionar desejados, marcar capa, saves com escrita, texturas no PC
+
+Fecha o "uso eventual" que ainda obrigava a abrir a web (pedido do Victor).
+
+- **Desejados:** na coleção, **➕ PSN** e **➕ Xbox** abrem o teclado da tela e adicionam um
+  nome (job `/api/wishlist/sync` com `apply`, que em PSN/Xbox só acrescenta e busca capa e
+  gênero). **🔄 Steam** sincroniza com a lista pública e pede segundo toque, porque quem saiu
+  da Steam sai daqui também. O resumo do job ("novo(s): 1") aparece na mensagem.
+- **Marcar capa:** no painel 🖼 Capa de ROM leve, **⚑ Marcar capa errada ou duplicada** /
+  "Marcada · desmarcar", lendo o estado atual de `/api/covers/<código>` (mesma marca única da
+  galeria da web: `/api/cover/flag` e `/unflag`).
+- **Saves com escrita** (`core/tv_saves.py`, rotas `/api/tv/saves/{backup,remove,restore}`
+  e `GET /api/tv/saves/backups`): **📦 Guardar cópia agora**, **Apagar** um arquivo e
+  **Restaurar** uma cópia. Nada é apagado de vez: tudo vai antes para
+  `Backups/Saves do modo TV/<código>/<jogo>/<data>/` com `manifesto.json` (nome, tipo,
+  pasta antiga). Restaurar guarda primeiro o que está em uso. Recusa com jogo aberto pelo
+  PyRetro (409), arquivo de outro jogo, nomes com caminho e sistema desconhecido. Apagar e
+  Restaurar pedem segundo toque.
+- **🎨 Texturas no PC:** painel na ficha (PS1, PS2, GC, Wii, PSP) com os pacotes do catálogo
+  de mesmo nome (sem região/pontuação) ou serial; só se não houver nenhum, mostra até 6 de
+  nome parecido com aviso. Instalar/remover com confirmação e progresso (Baixando %,
+  Extraindo). Importar arquivo/link e fontes da comunidade continuam na web (link no painel).
+- Um reinício só do `pyretro-gui` (o modo TV estava aberto, sem uso do controle desde 22/10).
+- Testes: 310 Python (3 novos em `test_tv_saves.py`), 46 JS. Ao vivo no navegador embutido:
+  texturas do NFSU2 aparecem instaladas (3085 arquivos), saves do Final Fantasy VI listados e
+  **uma cópia real guardada** (idêntica ao `.srm`), botão de marcar capa e botões de
+  Desejados. Apagar, restaurar, instalar textura, marcar capa e adicionar desejado foram
+  testados só com dados simulados.
+
 ## 22/10/2026 (noite, 5) — Modo TV com Desejados, Estatísticas, editar e capa; Android 0.8.0
 
 Itens 2, 3 e parte do 5 da "Ordem combinada" do roadmap, mais a fila de interface do Android.

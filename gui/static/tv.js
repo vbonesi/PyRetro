@@ -81,6 +81,8 @@ async function load(kind = state.kind, code = "") {
   state.items = []; collectionTabs(); platformTabs(); render();
   $("title").textContent = collections.find(x => x[0] === kind)?.[1] || "Pesquisa";
   $("installed-only").hidden = ["home", "systems", "apps", "draw", "local", "wishlist", "stats"].includes(kind);
+  for (const id of ["wishlist-add-psn", "wishlist-add-xbox", "wishlist-steam"]) { $(id).hidden = kind !== "wishlist"; $(id).dataset.confirm = ""; }
+  $("wishlist-steam").textContent = "🔄 Steam";
   report("Carregando catálogo…");
   try {
     let items;
@@ -420,15 +422,15 @@ function openGame(g, origin = document.activeElement) {
   returnGameKey = origin?.dataset?.key;
   state.draft = {iniciado: !!g.tracking.iniciado, finalizado: !!g.tracking.finalizado, platinado: !!g.tracking.platinado, nota: g.tracking.nota ?? null};
   $("game-title").textContent = g.name; $("game-platform").textContent = g.platform;
-  const textureCode = {PS:'PS1',PS2:'PS2',NGC:'GC',WII:'WII',PSP:'PSP'}[g.code];
-  $("textures-link").hidden = !textureCode;
+  const textureCode = TEXTURE_SYSTEMS[g.code];
+  $("textures-toggle").hidden = !textureCode; $("textures-fields").hidden = true; $("textures-toggle").setAttribute("aria-expanded", "false");
   if (textureCode) $("textures-link").href = '/?'+new URLSearchParams({textures:textureCode,game:g.name});
   $("detail-cover").hidden = !g.cover; if (g.cover) $("detail-cover").src = g.cover;
   $("spotlight-video").pause(); $("time-fields").hidden = true; $("media-fields").hidden = true;
   $("game-time").textContent = g.playtime?.seconds ? `${formatTime(g.playtime.seconds)} em ${g.playtime.sessions} sessão(ões) registrada(s).` : 'Ainda sem tempo registrado neste PC.';
   $("detail-video").pause(); $("detail-video").hidden = !g.media?.video;
   $("detail-video").removeAttribute('src'); if (g.media?.video) $("detail-video").src = g.media.video;
-  $("saves-toggle").hidden = !g.code; $("saves-fields").hidden = true; $("saves-toggle").setAttribute("aria-expanded", "false");
+  $("saves-toggle").hidden = !g.code; $("saves-fields").hidden = true; $("saves-fields").replaceChildren(); $("saves-toggle").setAttribute("aria-expanded", "false");
   state.edits = {}; $("edit-fields").hidden = true; $("cover-fields").hidden = true; $("genre-list").hidden = true;
   $("edit-toggle").setAttribute("aria-expanded", "false"); $("cover-toggle").setAttribute("aria-expanded", "false");
   $("cover-toggle").hidden = !g.code && !g.id; $("edit-toggle").hidden = !g.code && !g.id;
@@ -508,7 +510,7 @@ $("cover-toggle").onclick = () => {
   const box = $("cover-fields"), g = state.selected; box.hidden = !box.hidden; $("cover-toggle").setAttribute("aria-expanded", String(!box.hidden));
   if (box.hidden) return;
   closeOtherPanels("cover-toggle");
-  state.cover = {query: g.name, source: g.code ? "rom" : "sgdb"}; renderCoverSources(); searchCover();
+  state.cover = {query: g.name, source: g.code ? "rom" : "sgdb"}; renderCoverSources(); searchCover(); renderCoverFlag();
 };
 $("cover-query").onclick = () => openTextEntry("Buscar capa", state.cover.query, value => { if (value.length < 2) return; state.cover.query = value; renderCoverSources(); searchCover(); });
 let coverRequest = 0;
@@ -543,6 +545,112 @@ async function applyCover(g, item, source) {
   } catch (e) { report(`Capa não aplicada: ${e.message}`, true, "detail-status"); }
   finally { state.busy = false; }
 }
+// 🎨 Texturas no PC: pacotes do catálogo deste sistema com nome parecido; instalar baixa e
+// extrai como na web (/api/texturas/instalar). Importar arquivo ou link continua na web.
+const TEXTURE_SYSTEMS = {PS: "PS1", PS2: "PS2", NGC: "GC", WII: "WII", PSP: "PSP"};
+const looseName = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\(.*?\)|\[.*?\]/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+// 2 = mesmo nome (sem região/pontuação) ou serial; 1 = um nome começa pelo outro; 0 = outro jogo.
+function textureMatch(pack, g) {
+  const a = looseName(pack.nome), b = looseName(g.name);
+  if (!b) return 0;
+  if (a === b || pack.id_jogo.toLowerCase() === (g.romName || "").toLowerCase().replace(/\.[^.]+$/, "")) return 2;
+  return a.startsWith(b + " ") || b.startsWith(a + " ") ? 1 : 0;
+}
+$("textures-toggle").onclick = () => {
+  const box = $("textures-fields"); box.hidden = !box.hidden; if (!box.hidden) closeOtherPanels("textures-toggle");
+  $("textures-toggle").setAttribute("aria-expanded", String(!box.hidden));
+  if (!box.hidden) renderTextures();
+};
+async function renderTextures(focusId) {
+  const g = state.selected, list = $("textures-list"), system = TEXTURE_SYSTEMS[g.code];
+  list.replaceChildren(hint("Procurando pacotes…"));
+  try {
+    const {pacotes} = await api("/api/texturas?alvo=pc");
+    if (state.selected !== g) return;
+    const scored = pacotes.filter(p => p.sistema === system).map(p => [p, textureMatch(p, g)]);
+    const exact = scored.filter(([, m]) => m === 2).map(([p]) => p), similar = exact.length ? [] : scored.filter(([, m]) => m === 1).map(([p]) => p).slice(0, 6);
+    const found = [...exact, ...similar].sort((a, b) => b.instalado - a.instalado || b.tem_rom - a.tem_rom);
+    const gb = n => n >= 1073741824 ? `${(n/1073741824).toFixed(1)} GB` : `${Math.round(n/1048576)} MB`;
+    list.replaceChildren(...(found.length ? found.map(p => {
+      const row = document.createElement("div"); row.className = "save-row";
+      row.append(Object.assign(document.createElement("span"), {textContent: `${p.nome} [${p.id_jogo}] · ${gb(p.tamanho)}${p.instalado ? ` · instalado (${p.arquivos} arquivos)` : ""}`}));
+      const b = p.instalado ? confirmButton("🗑 Remover", "Confirmar: remover", () => removeTexture(p)) : confirmButton(`⬇ Instalar`, `Confirmar: baixar ${gb(p.tamanho)}`, () => installTexture(p, b));
+      b.disabled = p.em_andamento; b.dataset.textureId = p.id; row.append(b); return row;
+    }) : [hint("Nenhum pacote do catálogo com este nome. Veja as fontes da comunidade na interface completa.")]));
+    if (similar.length) list.prepend(hint("Sem pacote com o mesmo nome. Estes têm nome parecido: confira antes de instalar."));
+    if (focusId) list.querySelector(`[data-texture-id="${CSS.escape(focusId)}"]`)?.focus();
+  } catch (e) { list.replaceChildren(hint(e.message)); }
+}
+async function installTexture(p, b) {
+  b.disabled = true; report(`Baixando texturas de ${p.nome}… pode levar vários minutos.`, false, "detail-status");
+  try {
+    const result = await runJob("/api/texturas/instalar", {id: p.id, alvo: "pc"}, data => {
+      if (data.type === "progress") b.textContent = data.status === "baixando" && data.total ? `Baixando ${Math.floor(100 * data.feito / data.total)}%` : data.status === "extraindo" ? "Extraindo…" : "Instalando…";
+    });
+    report(result.message || (result.ok ? "Texturas instaladas." : "A instalação não terminou."), !result.ok, "detail-status");
+  } catch (e) { report(e.message, true, "detail-status"); }
+  if ($("details").open && !$("textures-fields").hidden) renderTextures(p.id);
+}
+async function removeTexture(p) {
+  try { const r = await api("/api/texturas/remover", {id: p.id, alvo: "pc"}); report(`${r.removidos} arquivos de textura removidos.`, false, "detail-status"); }
+  catch (e) { report(e.message, true, "detail-status"); }
+  renderTextures(p.id);
+}
+// Job do servidor (SSE): devolve o resultado final e repassa cada evento a `progress`.
+async function runJob(url, body, progress = () => {}) {
+  const {job} = await api(url, body);
+  return new Promise(resolve => {
+    const stream = new EventSource(`/api/fetch/stream?job=${encodeURIComponent(job)}`);
+    const result = {ok: true, lines: [], message: ""};
+    stream.onmessage = e => {
+      const data = JSON.parse(e.data); progress(data);
+      if (data.type === "log") result.lines.push(data.line);
+      if (data.type === "system_done") { result.ok = data.result.ok !== false; result.message = data.result.message || ""; }
+      if (data.type === "error") { result.ok = false; result.message = data.message || "falha"; }
+      if (data.type === "job_done") { stream.close(); resolve(result); }
+    };
+    stream.onerror = () => { stream.close(); resolve({...result, ok: false, message: result.message || "A conexão com o servidor caiu; confira o resultado antes de repetir."}); };
+  });
+}
+// ⚑ Marcar capa (só ROM leve, mesmo registro da galeria da web): marcada = errada/duplicada.
+async function renderCoverFlag() {
+  const g = state.selected, b = $("cover-flag");
+  b.hidden = !state.light.some(s => s.code === g.code); if (b.hidden) return;
+  try {
+    const item = (await api(`/api/covers/${encodeURIComponent(g.code)}`)).find(x => x.label === coverLabel(g));
+    if (state.selected !== g) return;
+    g.flagged = !!(item?.flagged || item?.duplicated);
+    b.textContent = g.flagged ? "⚑ Marcada · desmarcar" : "⚑ Marcar capa errada ou duplicada"; b.setAttribute("aria-pressed", String(g.flagged));
+  } catch (_) { b.hidden = true; }
+}
+$("cover-flag").onclick = async () => {
+  const g = state.selected; if (state.busy || !g) return;
+  state.busy = true;
+  try { await api(`/api/cover/${g.flagged ? "unflag" : "flag"}`, {code: g.code, label: coverLabel(g)}); report(g.flagged ? "Marca removida." : "Capa marcada; aparece em \"só marcadas\" na galeria da web.", false, "detail-status"); }
+  catch (e) { report(e.message, true, "detail-status"); }
+  finally { state.busy = false; }
+  await renderCoverFlag(); $("cover-flag").focus();
+};
+// ➕ Desejados pela TV: PSN/Xbox só acrescentam (um nome por vez); Steam sincroniza com a
+// lista pública (pode tirar quem saiu de lá), por isso pede confirmação.
+async function wishlistJob(source, texto) {
+  if (state.busy) return; state.busy = true; report(source === "steam" ? "Sincronizando a lista da Steam…" : `Adicionando "${texto}"…`);
+  try {
+    const result = await runJob("/api/wishlist/sync", {source, texto, apply: true});
+    state.busy = false;
+    await reloadSelection($(source === "steam" ? "wishlist-steam" : `wishlist-add-${source}`));
+    const summary = result.lines.filter(l => /novo|saiu|erro|vazia/.test(l)).join(" · ");
+    report(summary || result.message || "Lista atualizada.", !result.ok || /erro/.test(summary));
+  } catch (e) { report(e.message, true); }
+  finally { state.busy = false; }
+}
+for (const source of ["psn", "xbox"]) $(`wishlist-add-${source}`).onclick = () =>
+  openTextEntry(`Adicionar aos Desejados (${WISHLIST_STORES[source]})`, "", name => { if (name) wishlistJob(source, name); });
+$("wishlist-steam").onclick = () => {
+  const b = $("wishlist-steam");
+  if (!b.dataset.confirm) { b.dataset.confirm = "yes"; b.textContent = "Confirmar: sincronizar Steam"; report("A Steam manda a lista inteira: quem saiu de lá sai daqui também."); return; }
+  b.dataset.confirm = ""; b.textContent = "🔄 Steam"; wishlistJob("steam", "");
+};
 // Desejados: sair da lista é um jogo por vez, com confirmação (mesmas rotas do ✎ da web).
 for (const [id, action, label] of [["wishlist-bought", "comprado", "✅ Comprado"], ["wishlist-remove", "remove", "🗑 Tirar da lista"]]) $(id).onclick = async () => {
   const g = state.selected, b = $(id); if (state.busy || !g?.wishlist) return;
@@ -558,25 +666,64 @@ for (const [id, action, label] of [["wishlist-bought", "comprado", "✅ Comprado
 // 💾 Saves do jogo no PC (RetroArch, pasta do sistema e raiz antiga). Só leitura.
 // Saves, edição e capa dividem a ficha: abrir um painel fecha os outros.
 function closeOtherPanels(keep) {
-  for (const [toggle, panel] of [["saves-toggle", "saves-fields"], ["edit-toggle", "edit-fields"], ["cover-toggle", "cover-fields"]])
+  for (const [toggle, panel] of [["saves-toggle", "saves-fields"], ["edit-toggle", "edit-fields"], ["cover-toggle", "cover-fields"], ["textures-toggle", "textures-fields"]])
     if (toggle !== keep) { $(panel).hidden = true; $(toggle).setAttribute("aria-expanded", "false"); }
 }
-$("saves-toggle").onclick = async () => {
-  const g = state.selected, box = $("saves-fields");
-  box.hidden = !box.hidden; if (!box.hidden) closeOtherPanels("saves-toggle"); $("saves-toggle").setAttribute("aria-expanded", String(!box.hidden));
-  if (box.hidden || !g?.code) return;
-  box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint", textContent: "Procurando saves neste PC…"}));
+$("saves-toggle").onclick = () => {
+  const box = $("saves-fields");
+  box.hidden = !box.hidden; if (!box.hidden) closeOtherPanels("saves-toggle");
+  $("saves-toggle").setAttribute("aria-expanded", String(!box.hidden));
+  if (!box.hidden) renderSaves();
+};
+// 💾 Saves do jogo no PC (RetroArch, pasta do sistema e raiz antiga). Escrever sempre guarda
+// uma cópia antes em Backups/Saves do modo TV (core/tv_saves.py); nada é apagado de vez.
+const hint = text => Object.assign(document.createElement("p"), {className: "hint", textContent: text});
+async function renderSaves(focusId) {
+  const g = state.selected, box = $("saves-fields"); if (!g?.code) return;
+  if (!box.children.length) box.replaceChildren(hint("Procurando saves neste PC…"));
+  const label = g.romName || g.name, query = new URLSearchParams({code: g.code, label});
   try {
-    const {items} = await api('/api/tv/saves?' + new URLSearchParams({code: g.code, label: g.romName || g.name}));
-    if (state.selected !== g) return;
+    const [{items}, {items: copies}] = await Promise.all([api('/api/tv/saves?' + query), api('/api/tv/saves/backups?' + query)]);
+    if (state.selected !== g || box.hidden) return;
     const when = t => new Date(t * 1000).toLocaleString("pt-BR", {dateStyle: "short", timeStyle: "short"});
     const size = n => n >= 1048576 ? `${(n/1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n/1024))} KB`;
-    box.replaceChildren(...(items.length ? items.map(f => Object.assign(document.createElement("p"), {
-      textContent: `${f.kind === "save" ? "💾" : "⏸"} ${f.name} · ${size(f.size)} · ${when(f.mtime)}${f.legado ? " · pasta antiga" : ""}`})) :
-      [Object.assign(document.createElement("p"), {className: "hint", textContent: "Nenhum save ou estado deste jogo no RetroArch do PC."})]),
-      Object.assign(document.createElement("p"), {className: "hint", textContent: "Para trocar saves com o celular, use 💾 Saves no app Android. Feche o emulador antes."}));
-  } catch (error) { box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint", textContent: error.message})); }
-};
+    const rows = items.map(f => {
+      const row = document.createElement("div"); row.className = "save-row";
+      row.append(Object.assign(document.createElement("span"), {textContent: `${f.kind === "save" ? "💾" : "⏸"} ${f.name} · ${size(f.size)} · ${when(f.mtime)}${f.legado ? " · pasta antiga" : ""}`}));
+      const del = confirmButton("Apagar", "Confirmar: apagar", () => saveAction("remove", {name: f.name, kind: f.kind, legado: f.legado}, `${f.name} apagado; a cópia ficou em Backups.`));
+      del.dataset.saveId = `del:${f.kind}:${f.name}`; row.append(del); return row;
+    });
+    const copy = button("📦 Guardar cópia agora", () => saveAction("backup", {}, "Cópia guardada em Backups/Saves do modo TV."));
+    copy.id = "saves-backup"; copy.disabled = !items.length;
+    const restores = copies.slice(0, 8).map(c => {
+      const row = document.createElement("div"); row.className = "save-row";
+      row.append(Object.assign(document.createElement("span"), {textContent: `📦 ${c.stamp.replace(/^(\d{4})-(\d\d)-(\d\d)_(\d\d)(\d\d).*/, "$3/$2/$1 $4:$5")} · ${c.arquivos.length} arquivo(s)${c.motivo && c.motivo !== "cópia" ? " · " + c.motivo : ""}`}));
+      const b = confirmButton("Restaurar", "Confirmar: restaurar", () => saveAction("restore", {stamp: c.stamp}, "Cópia restaurada. O que estava antes também foi guardado."));
+      b.dataset.saveId = `res:${c.stamp}`; row.append(b); return row;
+    });
+    box.replaceChildren(...(rows.length ? rows : [hint("Nenhum save ou estado deste jogo no RetroArch do PC.")]),
+      Object.assign(document.createElement("div"), {className: "actions"}),
+      ...(restores.length ? [hint("Cópias guardadas (mais recentes primeiro):"), ...restores] : []),
+      hint("Feche o emulador antes de mexer nos saves. Para trocar saves com o celular, use 💾 Saves no app Android."));
+    box.querySelector(".actions").append(copy);
+    if (focusId) (box.querySelector(`[data-save-id="${CSS.escape(focusId)}"]`) || copy).focus();
+  } catch (error) { box.replaceChildren(hint(error.message)); }
+}
+// Ação que mexe em arquivo: primeiro toque pede confirmação, o segundo executa.
+function confirmButton(label, confirmLabel, run) {
+  const b = button(label, () => {
+    if (!b.dataset.confirm) { b.dataset.confirm = "yes"; b.textContent = confirmLabel; return; }
+    b.dataset.confirm = ""; b.textContent = label; run();
+  }); return b;
+}
+async function saveAction(kind, extra, done) {
+  const g = state.selected; if (state.busy || !g) return;
+  state.busy = true; report("Gravando…", false, "detail-status");
+  try { await api(`/api/tv/saves/${kind}`, {code: g.code, label: g.romName || g.name, ...extra}); report(done, false, "detail-status"); }
+  catch (e) { report(e.message, true, "detail-status"); }
+  finally { state.busy = false; }
+  await renderSaves("saves-backup");
+}
 $("progress-toggle").onclick = () => {
   $("progress-fields").hidden = !$("progress-fields").hidden;
   $("progress-toggle").setAttribute("aria-expanded", String(!$("progress-fields").hidden));
