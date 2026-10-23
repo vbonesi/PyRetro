@@ -5,11 +5,13 @@ if (window.ResizeObserver) new ResizeObserver(entries => {
   document.documentElement.style.setProperty("--footer-height", `${entries[0].target.getBoundingClientRect().height}px`);
 }).observe(document.querySelector("footer"));
 let csrf;
-async function api(url, body) {
+async function api(url, body, retried = false) {
   const options = body === undefined ? {} : {method: "POST", headers: {
     "Content-Type": "application/json", "X-PyRetro-CSRF": csrf || (csrf = (await api("/api/csrf")).token),
   }, body: JSON.stringify(body)};
   const response = await fetch(url, options);
+  // Servidor reiniciado gera token novo: busca de novo e repete uma vez, sem exigir recarregar a página.
+  if (response.status === 403 && body !== undefined && !retried) { csrf = null; return api(url, body, true); }
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
   return data;
@@ -835,7 +837,7 @@ for (const kind of ['logo','video']) $("media-"+kind).onchange = async event => 
   if (file.size > 64*1024*1024) { report('Escolha um arquivo de até 64 MB.',true,'detail-status'); return; }
   state.busy = true; report('Importando mídia…',false,'detail-status');
   try {
-    csrf = csrf || (await api('/api/csrf')).token;
+    csrf = (await api('/api/csrf')).token; // token atual, mesmo depois de o servidor reiniciar
     const response = await fetch('/api/tv/media?'+new URLSearchParams({key:g.key,kind}),{method:'POST',headers:{'X-PyRetro-CSRF':csrf,'Content-Type':'application/octet-stream'},body:file});
     const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Falha na importação');
     g.media = data; report('Mídia salva neste PC.',false,'detail-status');

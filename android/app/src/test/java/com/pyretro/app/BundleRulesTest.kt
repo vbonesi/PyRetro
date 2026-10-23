@@ -24,4 +24,20 @@ class BundleRulesTest {
         assertThrows(IllegalArgumentException::class.java) { BundleRules.publishOrder(listOf(BundleMember("x.bin",1,"e",false)),"x.cue") }
         assertThrows(IllegalArgumentException::class.java) { BundleRules.publishOrder(listOf(BundleMember("x.cue",1,"e",true),BundleMember("x.cue",1,"e",true)),"x.cue") }
     }
+    @Test fun referencesLikeServer() {
+        assertEquals(listOf("Jogo (Track 1).bin","Jogo (Track 2).bin"),BundleRules.references("FILE \"Jogo (Track 1).bin\" BINARY\n  TRACK 01 MODE2/2352\nFILE \"Jogo (Track 2).bin\" BINARY\n","cue"))
+        assertEquals(listOf("A.cue","B.cue"),BundleRules.references("#EXTM3U\nA.cue\n\nB.cue\n","m3u"))
+        assertEquals(listOf("track01.bin","track 02.raw"),BundleRules.references("2\n1 0 4 2352 track01.bin 0\n2 450 0 2352 \"track 02.raw\" 0\n","gdi"))
+        assertThrows(IllegalArgumentException::class.java) { BundleRules.references("FILE ../x.bin BINARY","cue") }
+    }
+    @Test fun removalKeepsSharedTracksAndRefusesWhenSomethingIsUnreadable() {
+        val files=mapOf("Jogo.m3u" to "D1.cue\nD2.cue","D1.cue" to "FILE \"D1.bin\" BINARY","D2.cue" to "FILE \"D2.bin\" BINARY","Extra.cue" to "FILE \"D2.bin\" BINARY")
+        val inventory=files.keys+setOf("D1.bin","D2.bin","Outro.chd")
+        val plan=BundleRules.removalPlan("Jogo.m3u",inventory) { files.getValue(it) }
+        assertTrue(plan.complete)
+        assertEquals(listOf("Jogo.m3u","D1.cue","D2.cue","D1.bin"),plan.remove)
+        assertEquals(listOf("D2.bin"),plan.preserve)
+        val broken=BundleRules.removalPlan("D1.cue",inventory+"Ruim.cue") { if(it=="Ruim.cue")error("ilegível") else files.getValue(it) }
+        assertFalse(broken.complete);assertTrue(broken.remove.isEmpty())
+    }
 }

@@ -41,7 +41,51 @@ object BundleRules {
         return members.filter { !it.descriptor }+members.filter { it.descriptor && it.file!=entry }+members.filter { it.file==entry }
     }
     private fun dec(value:String)=URLDecoder.decode(value,"UTF-8")
+    /** Referências de um descritor, como `core/rom_bundles.references` (CUE FILE, M3U, GDI). */
+    fun references(text:String,extension:String):List<String> {
+        require(text.toByteArray().size<=1024*1024) { "Descritor grande demais." }
+        val lines=text.removePrefix("\uFEFF").lines()
+        val refs=when(extension.lowercase()) {
+            "cue" -> lines.filter { Regex("^\\s*FILE\\s",RegexOption.IGNORE_CASE).containsMatchIn(it) }.map { line ->
+                val m=Regex("^\\s*FILE\\s+(?:\"([^\"]*)\"|(\\S+))\\s+\\S+\\s*$",RegexOption.IGNORE_CASE).find(line) ?: throw IllegalArgumentException("Referência FILE inválida no CUE.")
+                m.groupValues[1].ifEmpty { m.groupValues[2] } }
+            "m3u" -> lines.map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
+            "gdi" -> { val rows=lines.filter { it.isNotBlank() };val count=rows.firstOrNull()?.trim()?.toIntOrNull() ?: throw IllegalArgumentException("GDI inválido.")
+                rows.drop(1).map { line -> val m=Regex("^\\s*\\d+\\s+\\d+\\s+\\d+\\s+\\d+\\s+(?:\"([^\"]*)\"|(\\S+))\\s+-?\\d+\\s*$").find(line) ?: throw IllegalArgumentException("Faixa GDI inválida.")
+                    m.groupValues[1].ifEmpty { m.groupValues[2] } }.also { require(it.size==count) { "Número de faixas GDI inválido." } } }
+            else -> emptyList()
+        }
+        require(refs.isNotEmpty()) { "Descritor sem arquivos associados." }
+        require(refs.all(::safe)) { "Referência de disco inválida." }
+        return refs.distinct()
+    }
+    private fun join(parent:String,ref:String)=(if(parent.isEmpty())ref else "$parent/$ref").split('/').fold(mutableListOf<String>()) { acc,part -> if(part=="..") { require(acc.isNotEmpty()) { "Referência fora da pasta do sistema." };acc.removeAt(acc.size-1) } else acc.add(part);acc }.joinToString("/")
+    /** Arquivos de um conjunto que existem na pasta (o próprio descritor incluso). `read` devolve o texto
+     *  de um descritor ou falha; ciclo e profundidade acima de 16 são erro. */
+    fun members(entry:String,exists:(String)->Boolean,read:(String)->String):Set<String> {
+        val out=linkedSetOf<String>()
+        fun visit(path:String,depth:Int,active:Set<String>) {
+            require(depth<=16 && path !in active) { "Referência circular ou funda demais." }
+            if(path in out || !exists(path))return
+            out.add(path)
+            if(isDescriptor(path))for(ref in references(read(path),path.substringAfterLast('.')))visit(join(path.substringBeforeLast('/',""),ref),depth+1,active+path)
+        }
+        visit(entry,0,emptySet());return out
+    }
+    /** Prévia de remoção no celular: o que é só deste conjunto sai; o que outro descritor da pasta usa
+     *  fica. Descritor ilegível em qualquer lugar = não dá para provar exclusividade, nada sai. */
+    fun removalPlan(entry:String,inventory:Set<String>,read:(String)->String):BundleRemoval {
+        val mine=members(entry,{ it in inventory },read)
+        val protected=mutableSetOf<String>();var complete=true
+        for(other in inventory.filter { isDescriptor(it) && it !in mine })
+            runCatching { members(other,{ it in inventory },read) }.onSuccess { protected.addAll(it intersect mine) }.onFailure { complete=false }
+        if(!complete)protected.addAll(mine)
+        // Ordem de exclusão: principal primeiro, depois outros descritores, por fim as faixas.
+        val remove=(mine-protected).sortedWith(compareBy({ it!=entry },{ !isDescriptor(it) },{ it }))
+        return BundleRemoval(remove,(mine intersect protected).sorted(),complete)
+    }
 }
+data class BundleRemoval(val remove:List<String>,val preserve:List<String>,val complete:Boolean)
 
 /** Download de um conjunto pelo notebook: cada arquivo para uma área privada (com retomada),
  *  tamanho conferido, colisões verificadas em todos os destinos antes de publicar qualquer um,
@@ -76,6 +120,32 @@ class BundleStore(private val store:LibraryStore,private val storage:SafStorage)
         var current=base
         for(part in parts) current=storage.children(tree,current)[part] ?: if(create)(DocumentsContract.createDocument(store.context.contentResolver,current,DocumentsContract.Document.MIME_TYPE_DIR,part) ?: error("Não foi possível criar a pasta $part.")) else return null
         return current
+    }
+    /** Arquivos da pasta do sistema no celular (caminho relativo → Uri), até 4 níveis, sem ocultos. */
+    private fun inventory(tree:Uri):Map<String,Uri> {
+        val base=storage.folder(tree,false) ?: return emptyMap();val out=linkedMapOf<String,Uri>()
+        fun scan(folder:Uri,prefix:String,depth:Int) {
+            for((name,uri) in storage.children(tree,folder)) {
+                if(name.startsWith("."))continue
+                val isDir=store.context.contentResolver.getType(uri)==DocumentsContract.Document.MIME_TYPE_DIR
+                if(isDir) { if(depth<4)scan(uri,"$prefix$name/",depth+1) } else { require(out.size<20000);out["$prefix$name"]=uri }
+            }
+        }
+        scan(base,"",0);return out
+    }
+    /** Prévia de remoção de um conjunto no celular, refeita do zero a cada chamada. */
+    fun removalPlan(tree:Uri,entryUri:Uri):Pair<String,BundleRemoval> {
+        val files=inventory(tree)
+        val entry=files.entries.firstOrNull { DocumentsContract.getDocumentId(it.value)==DocumentsContract.getDocumentId(entryUri) }?.key ?: error("O arquivo principal não está mais na pasta.")
+        return entry to BundleRules.removalPlan(entry,files.keys) { path -> String(storage.read(files.getValue(path),1024*1024),Charsets.UTF_8) }
+    }
+    /** Remove exatamente a prévia confirmada; se algo mudou na pasta, não apaga nada. */
+    fun remove(tree:Uri,entryUri:Uri,confirmed:BundleRemoval):Int {
+        val (_,now)=removalPlan(tree,entryUri)
+        require(now==confirmed && now.complete) { "A pasta mudou desde a prévia. Nada foi removido; abra a remoção de novo." }
+        val files=inventory(tree);var removed=0
+        for(path in now.remove) { require(DocumentsContract.deleteDocument(store.context.contentResolver,files.getValue(path))) { "Não foi possível remover $path; o resto foi mantido." };removed++ }
+        return removed
     }
     /** Baixa e publica; devolve o Uri do arquivo principal (o que o emulador abre). */
     fun download(key:String,ref:BundleRef,tree:Uri,stop:()->Boolean,progress:(Long)->Unit):Uri {

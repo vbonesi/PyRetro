@@ -20,4 +20,10 @@ class SaveIdRulesTest {
         assertEquals(listOf("psp-saves","psp-states"),SaveIdRules.groups("PSP"))
         assertTrue(SaveIdRules.valid("3DS","0004000000123400"));assertFalse(SaveIdRules.valid("3DS","0004000E00123400"))
     }
+    @Test fun threeDsTreesListedOncePerId0Id1() {
+        val a="Nintendo 3DS/$id0/$id1";val b="Nintendo 3DS/${"2".repeat(32)}/$id1"
+        val paths=listOf("$a/title/00040000/00123400/data/00000001/main","$a/title/00040000/00123400/data/00000001/x","$b/title/00040000/00123400/data/00000001/main","$b/title/00040000/00999900/data/y")
+        assertEquals(listOf(a,b).sorted(),SaveIdRules.trees(paths,"0004000000123400"))
+        assertEquals(listOf(a,b).sorted().take(1),SaveIdRules.trees(paths.take(2),"0004000000123400"))
+    }
 }

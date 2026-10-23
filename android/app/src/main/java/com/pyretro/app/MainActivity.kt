@@ -759,15 +759,32 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         show(AlertDialog.Builder(this).setTitle("Escolher no Drive").setMessage("No seletor, abra o Google Drive e escolha:\nJogos/ROMs/${game.code}/${game.romName.ifBlank { game.name }}\n\nFormatos: $formats. O arquivo fica vinculado a ${game.name} e o download começa em seguida.")
             .setNegativeButton("Voltar",null).setPositiveButton("Abrir seletor") { _,_ -> pickRom(game,true) })
     }
+    /** Mostra o que sai e o que fica (usado por outro descritor) antes de remover um conjunto. */
+    private fun offerBundleRemoval(game:Game) {
+        val tree=store.tree(game.code) ?: return;val entry=game.localUri ?: return
+        message("Conferindo os arquivos de ${game.name}…")
+        work.execute {
+            val result=runCatching { BundleStore(store,SafStorage(store,12L*1024*1024*1024)).removalPlan(tree,entry) }
+            runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
+                result.onFailure(::failure).onSuccess { (_,plan) ->
+                    if(!plan.complete || plan.remove.isEmpty()) { show(AlertDialog.Builder(this).setTitle("Remoção não é segura").setMessage("Algum CUE/M3U da pasta Jogos/${game.code} não pôde ser lido (ou nada é só deste jogo), então não dá para garantir que as faixas não são usadas por outro jogo. Nada foi removido.").setPositiveButton("Voltar") { _,_ -> details(game) });return@onSuccess }
+                    val text="Sai do celular (${plan.remove.size}):\n"+plan.remove.joinToString("\n") { "• $it" }+
+                        (if(plan.preserve.isEmpty())"" else "\n\nFica, porque outro jogo usa (${plan.preserve.size}):\n"+plan.preserve.joinToString("\n") { "• $it" })+
+                        "\n\nProgresso, saves, states, BIOS, texturas e a origem no PC/Drive são preservados."
+                    show(AlertDialog.Builder(this).setTitle("Remover ${game.name} do celular?").setMessage(text).setNegativeButton("Manter") { _,_ -> details(game) }.setPositiveButton("Remover") { _,_ ->
+                        work.execute { val done=runCatching { BundleStore(store,SafStorage(store,12L*1024*1024*1024)).remove(tree,entry,plan) }
+                            runOnUiThread { done.onSuccess { n -> store.prefs.edit().remove("rom:${game.key}").apply();message("${game.name}: $n arquivo(s) removido(s) do celular.");reloadLocal() }.onFailure(::failure) } }
+                    })
+                }
+            }
+        }
+    }
     private fun offerRomRemoval(game:Game) {
         if(SpaceStore(store).pinned(game)) {
             show(AlertDialog.Builder(this).setTitle("Jogo fixado").setMessage("${game.name} está fixado para manter baixado. Desfixe nos detalhes antes de remover a ROM.").setPositiveButton("Voltar") { _,_ -> details(game) });return
         }
-        // Conjunto de discos: apagar só o CUE/M3U deixaria as faixas para trás. A remoção completa
-        // (prévia do notebook + inventário local) ainda não existe no app; por ora, só pela pasta.
-        if(game.localUri?.let { store.displayName(it) }?.let(BundleRules::isDescriptor)==true) {
-            show(AlertDialog.Builder(this).setTitle("Jogo de vários arquivos").setMessage("${game.name} é um conjunto (CUE/M3U com faixas ou discos). O app ainda não remove conjuntos com segurança: apague pela pasta Jogos/${game.code}, conferindo as faixas.").setPositiveButton("Voltar") { _,_ -> details(game) });return
-        }
+        // Conjunto de discos: remove o principal e as faixas/discos que só ele usa (prévia no celular).
+        if(game.localUri?.let { store.displayName(it) }?.let(BundleRules::isDescriptor)==true) { offerBundleRemoval(game);return }
         show(AlertDialog.Builder(this).setTitle("Remover ROM do celular?").setMessage("${game.name}\n\nExcluir apenas a ROM local para liberar espaço? Progresso, saves, states, BIOS, texturas e a origem no PC/Drive serão preservados. Você pode baixar o jogo novamente depois.").setNegativeButton("Manter ROM") { _,_ -> details(game) }.setPositiveButton("Excluir ROM local") { _,_ ->
             message("Removendo somente a ROM local…")
             work.execute { runCatching { store.removeLocal(game);PlaylistStore(store).afterChange(game.code) }.onSuccess { playlist -> runOnUiThread { message("ROM removida do celular. Histórico e saves preservados. $playlist");reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } }
@@ -1198,7 +1215,19 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(game.id.isBlank()) { wholeGroup("${game.name} não está na Biblioteca: mostrando todos os saves do grupo.");return }
         val chosen=store.prefs.getString("save-id-choice:${game.id}",null)
         fun run(titleId:String) { dialog?.dismiss();message("Conferindo saves de ${game.name} ($titleId)…")
-            work.execute { compareSaves(game,SaveIdRules.groups(game.code)) { g,path -> SaveIdRules.matches(g,path,titleId) } } }
+            work.execute {
+                // 3DS: o mesmo jogo pode ter saves em mais de uma árvore ID0/ID1 (outro aparelho/emulador).
+                // Com mais de uma, pergunta qual o emulador usa; nunca mistura as árvores.
+                val trees=if(game.code=="3DS")runCatching { SaveIdRules.trees(sync.local("3ds-saves").keys,titleId) }.getOrDefault(emptyList()) else emptyList()
+                val saved=store.prefs.getString("3ds-tree:${game.id}",null)?.takeIf { it in trees }
+                if(trees.size>1 && saved==null) runOnUiThread {
+                    show(AlertDialog.Builder(this).setTitle("Qual pasta de saves o emulador usa?").setItems(trees.map { "…/"+it.split('/').drop(1).joinToString("/") { p -> p.take(8)+"…" } }.toTypedArray()) { _,which ->
+                        store.prefs.edit().putString("3ds-tree:${game.id}",trees[which]).apply();run(titleId) }.setNegativeButton("Voltar",null))
+                } else {
+                    val tree=saved ?: trees.singleOrNull()
+                    compareSaves(game,SaveIdRules.groups(game.code)) { g,path -> SaveIdRules.matches(g,path,titleId) && (tree==null || path.startsWith("$tree/")) }
+                }
+            } }
         if(chosen!=null && SaveIdRules.valid(game.code,chosen)) { run(chosen);return }
         message("Consultando o ID de ${game.name}…")
         work.execute {

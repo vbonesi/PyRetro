@@ -499,9 +499,18 @@ def validar_settings_paths(updates: dict) -> str | None:
             if not isinstance(key, str) or not isinstance(value, str):
                 return "caminho inválido"
             value = value.strip()
+            if section == "android" and key == "device_serial":
+                # Serial do adb, não caminho; vazio = detectar o aparelho conectado.
+                if value and not re.fullmatch(r"[A-Za-z0-9._:-]{1,64}", value):
+                    return f"serial do celular inválido: {section}.{key}"
+                continue
             if not value or "\x00" in value or "\n" in value or "\r" in value:
                 return f"caminho inválido em {section}.{key}"
-            if section == "pc":
+            if section == "pc" and key == "organizar_dir":
+                # Nome da pasta de entrada dentro de roms_root (ex.: "0-Organizar"), não um caminho.
+                if "/" in value or "\\" in value or value in (".", ".."):
+                    return f"pasta de organizar deve ser só um nome dentro das ROMs: {section}.{key}"
+            elif section == "pc":
                 path = Path(value).expanduser()
                 if not path.is_absolute() or path.resolve() in (Path("/"), home):
                     return f"caminho do PC precisa ser absoluto e específico: {section}.{key}"

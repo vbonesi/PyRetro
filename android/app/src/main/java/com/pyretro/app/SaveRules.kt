@@ -29,6 +29,8 @@ object SaveRules {
 object SaveIdRules {
     fun groups(code:String)=when(code) { "PSP" -> listOf("psp-saves","psp-states");"3DS" -> listOf("3ds-saves");else -> emptyList() }
     fun valid(code:String,titleId:String)=when(code) { "PSP" -> Regex("[A-Z]{4}[0-9]{5}").matches(titleId);"3DS" -> Regex("00040000[0-9a-f]{8}").matches(titleId);else -> false }
+    /** Árvores `Nintendo 3DS/<ID0>/<ID1>` que têm saves do título; mais de uma exige escolha. */
+    fun trees(paths:Collection<String>,titleId:String)=paths.filter { matches("3ds-saves",it,titleId) }.map { it.split('/').take(3).joinToString("/") }.distinct().sorted()
     fun matches(group:String,path:String,titleId:String):Boolean {
         if(!SyncRules.accepted(group,path))return false
         if(group=="psp-saves" || group=="psp-states")return Regex("[A-Z]{4}[0-9]{5}").matches(titleId) && path.take(9).uppercase()==titleId

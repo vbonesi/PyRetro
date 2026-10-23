@@ -106,6 +106,17 @@ class TestValidarSettingsPaths(unittest.TestCase):
         ):
             self.assertIsNotNone(srv.validar_settings_paths(updates), updates)
 
+    def test_pasta_de_organizar_e_um_nome_dentro_das_roms(self):
+        # O config real tem organizar_dir = "0-Organizar"; salvar sem mudar nada não pode falhar.
+        self.assertIsNone(srv.validar_settings_paths({"pc": {"roms_root": "~/Drive/Jogos/ROMs", "organizar_dir": "0-Organizar"}}))
+        for valor in ("../fora", "a/b", ".", ".."):
+            self.assertIsNotNone(srv.validar_settings_paths({"pc": {"organizar_dir": valor}}), valor)
+
+    def test_serial_do_celular_nao_e_caminho(self):
+        self.assertIsNone(srv.validar_settings_paths({"android": {"device_serial": "", "jogos_root": "/storage/emulated/0/Jogos"}}))
+        self.assertIsNone(srv.validar_settings_paths({"android": {"device_serial": "RQCY207RB4N"}}))
+        self.assertIsNotNone(srv.validar_settings_paths({"android": {"device_serial": "x; rm -rf"}}))
+
 
 class TestJogoEhROM(unittest.TestCase):
     """is_rom_backed decide se um jogo da Biblioteca some da listagem
