@@ -6,6 +6,34 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (5) — Android 0.10.0: conta Google, downloads em segundo plano, conjuntos de discos
+
+Compilada (code 17), **não instalada**: o celular está com o Victor. Instalar e validar na próxima
+conexão.
+
+- **Conta Google no app** (prioridade do Victor): Opções → Conectar conta Google, pelo Play
+  Services (`play-services-auth` 21.2.0, cliente OAuth Android do projeto PyRetro, escopo do
+  Drive; em modo Teste, a conta precisa estar entre os usuários de teste). Com o notebook fora
+  do ar, **⬇ Baixar** procura a ROM em `Jogos/ROMs/<sistema>` do Drive (mesmo caminho do
+  rclone), escolhe só nome exato/sem extensão e formatos que o celular abre (mais de um vira
+  escolha), confere tamanho e md5 do Drive e retoma com Range (`GoogleDrive.kt`,
+  `DriveSource` testável). Saves pela nuvem ficam para a fase 2, sobre o contrato do Codex.
+- **Downloads em segundo plano:** sair do app não pausa mais a fila. `DownloadService`
+  (serviço em primeiro plano, tipo dataSync) mostra o progresso com **Pausar** e, no fim, uma
+  notificação de concluído/falhou/pausado (`DownloadNotice` testável). Permissão de
+  notificação pedida uma vez (Android 13+). Se o Android encerrar o app, a fila não recomeça
+  sozinha (decisão mantida).
+- **CUE/M3U pelo manifesto do Codex** (`BundleStore`, `BundleRules`): quando o notebook só tem
+  descritor, a ficha oferece o conjunto (M3U antes de CUE) com número de arquivos e tamanho.
+  Cada arquivo vai para área privada com retomada; colisões são conferidas em **todos** os
+  destinos antes de publicar (igual é reaproveitado, diferente cancela sem substituir nada);
+  publica faixas/discos, depois descritores e o principal por último; `id` do conjunto
+  conferido. Remover pelo app um jogo de vários arquivos fica **bloqueado** com aviso, até a
+  remoção completa (prévia + inventário local) existir.
+- Também nesta rodada: merge da entrega do Codex, 0.9.1 (busca de capa só aceita a resposta
+  mais recente, `LatestRequest`) e 🩺 Diagnóstico em Ferramentas do modo TV.
+- Testes: 59 JVM; Python e JS sem mudança nesta parte.
+
 ## 23/10/2026 (4) — Conjuntos de discos e diagnóstico (Codex)
 
 - Servidor: manifesto completo de CUE/M3U/GDI no PC ou Drive, ordem de dependências,

@@ -178,7 +178,7 @@ A web (`/`) só vira diagnóstico quando não tiver nada exclusivo.
 1. **Conferir a 0.7.0 no celular** (acima).
 2. ✅ **Desejados e Estatísticas no modo TV** e **Ranking no Android** (22/10, noite 5).
 3. ✅ **Editar jogo e capas no modo TV** (22/10, noite 5; testar aplicar capa de verdade).
-4. **Conta Google no app:** ROMs e **saves pela nuvem** sem o notebook (cliente OAuth
+4. **Conta Google no app** (fase 1 na 0.10.0: login e ROMs do Drive; falta saves pela nuvem): ROMs e **saves pela nuvem** sem o notebook (cliente OAuth
    Android criado no projeto PyRetro; escopo amplo do Drive, ok em modo Teste). Rodada própria.
 5. **Mouse/toque no modo TV** (1º passo em 22/10: botão direito, voltar, alvos) e
    identidade visual comum PC/Android.

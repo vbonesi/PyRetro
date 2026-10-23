@@ -138,6 +138,10 @@ notebook, download com falha, pasta ilegível ou conflito de save).
 Comprado e Tirar da lista. **📊 Estatísticas** fica ao lado de Sortear. Na ficha, **Mais
 opções** traz **✎ Editar dados** e **🖼 Trocar capa**; os três precisam do notebook online.
 
+**Conta Google** (0.10.0, em Opções): com ela conectada, ROMs do seu Drive (`Jogos/ROMs`) baixam
+sem o notebook. Os downloads continuam com o app em segundo plano, com notificação e Pausar.
+Jogos em CUE/M3U baixam o conjunto inteiro pelo notebook; removê-los é pela pasta, por ora.
+
 As barras de coleções e ações têm rolagem horizontal. A dica de controle some em
 paisagem; a tela **Aparência** saiu na 0.6 (preferências antigas continuam
 valendo). Erros operacionais continuam visíveis. Na ficha, **Progresso e tempo**

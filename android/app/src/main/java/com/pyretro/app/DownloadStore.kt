@@ -50,6 +50,7 @@ class DownloadStore(private val store:LibraryStore) {
         job.remove("stage");save(job)
     }
     fun discard(key:String)=exclusive {
+        BundleStore(store,storage).discard(key)
         val file=record(key);if(file.exists())cleanStage(JSONObject(file.readText()))
         require(!part(key).exists() || part(key).delete());require(!file.exists() || file.delete())
     }
@@ -90,6 +91,15 @@ class DownloadStore(private val store:LibraryStore) {
     private fun copy(game:Game,sourceOverride:Uri?,treeOverride:Uri?,cancelled:()->Boolean,onSize:(Long?)->Unit,progress:(Long)->Unit):Uri {
         paused.set(false)
         val sourceText=sourceOverride?.toString() ?: store.prefs.getString("cloud:${game.key}",null) ?: error("Vincule a ROM ou indexe a nuvem primeiro.")
+        BundleRules.parse(sourceText)?.let { bundle -> // conjunto de discos (CUE/M3U): vários arquivos, entry por último
+            require(bundle.code==game.code) { "Origem pertence a outro sistema." }
+            val tree=treeOverride ?: store.tree(game.code) ?: error("Escolha uma pasta local de ${game.code}.")
+            require(tree.authority=="com.android.externalstorage.documents")
+            require(store.accepts(game.code,bundle.entry.substringAfterLast('/'))) { "Este sistema não abre ${bundle.entry.substringAfterLast('.')} no celular." }
+            onSize(bundle.size)
+            val entry=BundleStore(store,storage).download(game.key,bundle,tree,{ paused.get() || cancelled() },progress)
+            require(store.prefs.edit().putString("rom:${game.key}",entry.toString()).commit());return entry
+        }
         val remote=RomSource.parse(sourceText);val drive=DriveSource.parse(sourceText);val source=Uri.parse(sourceText)
         require(remote!=null || drive!=null || source.scheme=="content") { "Escolha um arquivo pelo seletor Android." }
         require(remote==null || remote.code==game.code) { "Origem pertence a outro sistema." }

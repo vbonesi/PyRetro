@@ -667,7 +667,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         work.execute { val result=runCatching { RomSource.playable(store.romOptions(game)) { store.accepts(game.code,it) } };runOnUiThread {
             if(isFinishing || isDestroyed)return@runOnUiThread
             result.onSuccess { options -> when(options.size) {
-                0 -> show(AlertDialog.Builder(this).setTitle("Formato que o celular não abre").setMessage("O notebook tem ${game.name}, mas não num arquivo único que o celular abra (PS1 precisa de CHD ou PBP; CUE/BIN depende das faixas). Converta no PC ou escolha outro arquivo no Drive.").setNegativeButton("Voltar",null).setPositiveButton("Procurar no Drive") { _,_ -> driveSearch(game) })
+                0 -> offerBundle(game)
                 1 -> linkNotebook(game,options[0])
                 else -> show(AlertDialog.Builder(this).setTitle("Qual arquivo baixar?").setItems(options.map { "${it.file} · ${bytesLabel(it.size)}" }.toTypedArray()) { _,which -> linkNotebook(game,options[which]) }.setNegativeButton("Voltar",null))
             } }.onFailure { error ->
@@ -676,6 +676,25 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 else show(AlertDialog.Builder(this).setTitle("Notebook indisponível").setMessage("${error.message ?: "Sem resposta."}\n\nSem o notebook, escolha o arquivo no Drive: ele fica vinculado ao jogo e o download começa em seguida.").setNegativeButton("Voltar",null).setPositiveButton("Procurar no Drive") { _,_ -> driveSearch(game) })
             }
         } }
+    }
+    /** Sem arquivo único: se o notebook tem um CUE/M3U que o sistema abre, oferece o conjunto inteiro. */
+    private fun offerBundle(game:Game) {
+        work.execute {
+            val result=runCatching {
+                val entries=store.romOptions(game).filter { BundleRules.isDescriptor(it.file) && store.accepts(game.code,it.file.substringAfterLast('/')) }
+                    .sortedBy { if(it.file.endsWith(".m3u",true))0 else 1 } // M3U (todos os discos) antes do CUE de um disco só
+                entries.map { option -> val (id,members)=BundleStore(store,SafStorage(store)).manifest(game.code,option.file);Triple(option.file,id,members) }
+            }
+            runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
+                val bundles=result.getOrElse { emptyList() }
+                if(bundles.isEmpty()) { show(AlertDialog.Builder(this).setTitle("Formato que o celular não abre").setMessage("O notebook tem ${game.name}, mas nem num arquivo único que o celular abra nem num CUE/M3U completo (${result.exceptionOrNull()?.message ?: "PS1 precisa de CHD, PBP ou CUE com todas as faixas"}). Converta no PC ou escolha outro arquivo no Drive.").setNegativeButton("Voltar",null).setPositiveButton("Procurar no Drive") { _,_ -> driveSearch(game) });return@runOnUiThread }
+                show(AlertDialog.Builder(this).setTitle("Baixar o conjunto de discos").setItems(bundles.map { (entry,_,members) -> "${entry.substringAfterLast('/')} · ${members.size} arquivos · ${bytesLabel(members.sumOf { it.size })}" }.toTypedArray()) { _,which ->
+                    val (entry,id,members)=bundles[which]
+                    store.prefs.edit().putString("cloud:${game.key}",BundleRef(game.code,entry,id,members.sumOf { it.size }).encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
+                    enqueueAndStart(game)
+                }.setNegativeButton("Voltar",null))
+            }
+        }
     }
     // --- Conta Google: Drive direto do celular ---
     private fun connectGoogle(after:Game?=null) {
@@ -704,6 +723,12 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }
         }
     }
+    /** Android 13+: a notificação do download em segundo plano precisa de permissão (pedida uma vez). */
+    private fun askNotifications() {
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED && !store.prefs.getBoolean("asked-notifications",false)) {
+            store.prefs.edit().putBoolean("asked-notifications",true).apply();requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),30)
+        }
+    }
     private fun linkDrive(game:Game,ref:DriveRef) {
         store.prefs.edit().putString("cloud:${game.key}",ref.encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
         enqueueAndStart(game)
@@ -723,6 +748,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 else -> { helper.remove(game.key);helper.enqueue(game) }
             }
             if(!helper.running)helper.start()
+            askNotifications()
         }.onSuccess { dialog?.dismiss();message("⬇ ${game.name}: baixando. O andamento aparece no topo; o jogo fica pronto em Neste celular.") }
             .onFailure { error -> show(AlertDialog.Builder(this).setTitle("Downloads").setMessage(error.message ?: "Não foi possível iniciar o download.").setNegativeButton("Voltar",null).setPositiveButton("Abrir fila") { _,_ -> downloads() }) }
     }
@@ -734,6 +760,11 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun offerRomRemoval(game:Game) {
         if(SpaceStore(store).pinned(game)) {
             show(AlertDialog.Builder(this).setTitle("Jogo fixado").setMessage("${game.name} está fixado para manter baixado. Desfixe nos detalhes antes de remover a ROM.").setPositiveButton("Voltar") { _,_ -> details(game) });return
+        }
+        // Conjunto de discos: apagar só o CUE/M3U deixaria as faixas para trás. A remoção completa
+        // (prévia do notebook + inventário local) ainda não existe no app; por ora, só pela pasta.
+        if(game.localUri?.let { store.displayName(it) }?.let(BundleRules::isDescriptor)==true) {
+            show(AlertDialog.Builder(this).setTitle("Jogo de vários arquivos").setMessage("${game.name} é um conjunto (CUE/M3U com faixas ou discos). O app ainda não remove conjuntos com segurança: apague pela pasta Jogos/${game.code}, conferindo as faixas.").setPositiveButton("Voltar") { _,_ -> details(game) });return
         }
         show(AlertDialog.Builder(this).setTitle("Remover ROM do celular?").setMessage("${game.name}\n\nExcluir apenas a ROM local para liberar espaço? Progresso, saves, states, BIOS, texturas e a origem no PC/Drive serão preservados. Você pode baixar o jogo novamente depois.").setNegativeButton("Manter ROM") { _,_ -> details(game) }.setPositiveButton("Excluir ROM local") { _,_ ->
             message("Removendo somente a ROM local…")
@@ -1092,7 +1123,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun downloads() {
         val box=column();box.addView(text("Downloads",22f))
-        help(box,"Como funciona a fila","Um arquivo por vez, na ordem escolhida. Ao sair do app, a fila solicita pausa e não inicia o próximo. Abrir novamente não retoma sozinho. Retirar um item não descarta o parcial; descartá-lo exige uma ação separada. Na retomada, todo o prefixo é conferido e pode ser relido pelo provedor. A publicação final de um arquivo já conferido pode terminar durante a pausa. Não abre jogos automaticamente e não tem serviço em segundo plano.")
+        help(box,"Como funciona a fila","Um arquivo por vez, na ordem escolhida. Ao sair do app, a fila continua em segundo plano com uma notificação de progresso, que tem Pausar; ao terminar, avisa o resultado. Se o Android encerrar o app, a fila não recomeça sozinha: abra Downloads e continue. Retirar um item não descarta o parcial; descartá-lo exige uma ação separada. Na retomada, todo o prefixo é conferido e pode ser relido pelo provedor. A publicação final de um arquivo já conferido pode terminar durante a pausa. Não abre jogos automaticamente.")
         val progress=text("",14f);box.addView(progress)
         val start=button("Iniciar / continuar fila") { queueAction { queue().start() } };add(box,start)
         val pause=button("Pausar fila") { queueAction { queue().pause();DownloadStore.pause() } };add(box,pause)
@@ -1352,7 +1383,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         automaticUpdate(force)
     }
     override fun onPause() {
-        queueHandler.removeCallbacks(queueTick);runCatching { queue().pause() }
+        // Downloads continuam com o app em segundo plano: o serviço mostra o progresso e o Pausar.
+        queueHandler.removeCallbacks(queueTick);if(runCatching { queue().running }.getOrDefault(false))DownloadService.follow(this)
         if(::gridScroll.isInitialized) {
             restoredScroll=gridScroll.scrollY;restoredPage=page;restorePosition=true
             val selected=(currentFocus?.tag as? Game)?.key ?: lastSelectedKey
