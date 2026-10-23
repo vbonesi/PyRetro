@@ -79,8 +79,13 @@ class DriveSaves(private val store:LibraryStore,private val drive:GoogleDrive,pr
         require(sync.tree(group)!=null) { "Escolha a pasta ${sync.groups[group]} no celular." }
         val id=identity(group);val baseline=JSONObject(prefs.getString("baseline:$id","{}")!!)
         val (remote,pending)=remote(group,root(group,false));val local=sync.local(group)
+        val sent=JSONObject(prefs.getString("sent:$id","{}")!!)
         val rows=(local.keys+remote.keys+baseline.keys().asSequence().toList()).distinct().filter { only==null || only(it) }.sorted().map { path ->
-            val left=local[path];val right=remote[path];val previous=baseline.optString(path).takeIf { it.isNotBlank() }
+            val left=local[path];val right=remote[path]
+            // Envio pendente que já saiu da fila (o PC aplicou ou manteve o dele): a versão enviada
+            // passa a ser a base, então uma mudança posterior no PC desce sem falso conflito.
+            val delivered=sent.optString(path).takeIf { it.isNotBlank() && it==left?.sha256 && it !in pending[path].orEmpty() }
+            val previous=delivered ?: baseline.optString(path).takeIf { it.isNotBlank() }
             val direction=SyncRules.direction(left?.sha256,right?.getString("sha256"),previous)
             SyncRow(path,left,right,if(direction!="same" && left!=null && left.sha256 in pending[path].orEmpty())"pending" else direction)
         }
@@ -109,11 +114,16 @@ class DriveSaves(private val store:LibraryStore,private val drive:GoogleDrive,pr
                 val made=drive.create(parent,parts.last(),temp)
                 // Criação concorrente (outro aparelho/Insync): se agora há dois, o nosso vira pendência.
                 if(drive.children(parent).count { it.getString("name")==parts.last() }==1 && made.optString("sha256Checksum")==source.sha256)return true
-                drive.move(made.getString("id"),parent,drive.folder(listOf(DriveSaveRules.PENDING)+parts,true,root),DriveSaveRules.pendingName(System.currentTimeMillis(),null));return false
+                drive.move(made.getString("id"),parent,drive.folder(listOf(DriveSaveRules.PENDING)+parts,true,root),DriveSaveRules.pendingName(System.currentTimeMillis(),null))
+                remember(group,row.path,source.sha256);return false
             }
             drive.create(drive.folder(listOf(DriveSaveRules.PENDING)+parts,true,root),DriveSaveRules.pendingName(System.currentTimeMillis(),row.remote?.getString("sha256")),temp)
-            return false
+            remember(group,row.path,source.sha256);return false
         } finally { temp.delete() }
+    }
+    private fun remember(group:String,path:String,sha:String) {
+        val id=identity(group);val sent=JSONObject(prefs.getString("sent:$id","{}")!!).put(path,sha)
+        prefs.edit().putString("sent:$id",sent.toString()).apply()
     }
     fun apply(plan:SyncPlan,progress:(String)->Unit):String {
         require(identity(plan.group)==plan.identity) { "Conta, pasta do Drive ou pasta do celular mudou. Analise de novo." }

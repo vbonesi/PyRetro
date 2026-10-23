@@ -863,6 +863,11 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         line("💾 Saves",if(sync.retroarchTree()==null)"Pasta RetroArch ainda não escolhida." else if(observations.isEmpty())"Ainda não comparados com o notebook." else
             "Última comparação: ${versionDate(observations.maxOf { it.getLong("at") })}${if(conflicts>0)" · $conflicts conflito(s) adiado(s)" else ""}. Use 💾 Saves na ficha de cada jogo.")
         if(sync.retroarchTree()==null)add(box,button("Escolher pasta RetroArch") { pickSyncFolder("retroarch") })
+        // Escolha antiga (antes da 0.6.1) em RetroArch/saves: os saves do RetroArch não aparecem.
+        else sync.retroarchTree()?.let { SaveRules.retroarchFolderProblem(DocumentsContract.getTreeDocumentId(it)) }?.let { problem ->
+            box.addView(text("⚠ $problem",14f).apply { setTextColor(Color.rgb(255,207,112)) })
+            add(box,button("Escolher a pasta RetroArch de novo") { pickSyncFolder("retroarch") })
+        }
         val technical=expandable(box,"Detalhes técnicos")
         val contact=text(StatusStore(store).connectionSummary(::versionDate),13f);technical.addView(contact)
         val partials=text("Consultando cópias parciais…",13f);technical.addView(partials)
@@ -1217,7 +1222,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun addToLibrary(game:Game) {
         if(!needsNotebook())return
         val name=GameLogic.fileLabel(game.romName.substringAfterLast('/').ifBlank { game.name })
-        message("Cadastrando ${game.name} na Biblioteca…")
+        dialog?.dismiss();message("Cadastrando ${game.name} na Biblioteca…")
         work.execute {
             val result=runCatching { val response=extras.addRom(name,game.code);response to store.refresh() }
             runOnUiThread { result.onSuccess { (response,fresh) ->
@@ -1249,7 +1254,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 if(row.kind=="conflict")add(box,button("$direction · ${row.path.substringAfterLast('/')}") {
                     val options=mutableListOf("Adiar" to "conflict")
                     if(row.local!=null)options.add("Usar a do celular (${bytesLabel(row.local.size)})" to "upload")
-                    if(row.remote!=null)options.add("Usar a do notebook (${bytesLabel(row.remote.getLong("size"))})" to "download")
+                    if(row.remote!=null)options.add((if(ready.firstOrNull()?.rootTag?.startsWith("drive:")==true)"Usar a do Drive" else "Usar a do notebook")+" (${bytesLabel(row.remote.getLong("size"))})" to "download")
                     show(AlertDialog.Builder(this).setTitle(row.path).setItems(options.map { it.first }.toTypedArray()) { _,which -> row.choice=options[which].second;reviewGameSaves(game,local,plans) }.setNegativeButton("Voltar") { _,_ -> reviewGameSaves(game,local,plans) })
                 }) else box.addView(text("$direction · ${row.path.substringAfterLast('/')}",13f))
             }
@@ -1300,7 +1305,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             if(row.kind=="conflict")add(box,button("$direction · ${row.path}") {
                 val options=mutableListOf("Adiar" to "conflict")
                 if(row.local!=null)options.add("Usar versão do celular (${row.local.size} B)" to "upload")
-                if(row.remote!=null)options.add("Usar versão do notebook (${row.remote.getLong("size")} B)" to "download")
+                if(row.remote!=null)options.add((if(plan.rootTag.startsWith("drive:"))"Usar versão do Drive" else "Usar versão do notebook")+" (${row.remote.getLong("size")} B)" to "download")
                 show(AlertDialog.Builder(this).setTitle(row.path).setItems(options.map { it.first }.toTypedArray()) { _,which -> row.choice=options[which].second;reviewSync(plan) }.setNegativeButton("Voltar") { _,_ -> reviewSync(plan) })
             }) else box.addView(text("$direction · ${row.path}",13f))
         }

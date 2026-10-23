@@ -23,6 +23,18 @@ Compiladas, **não instaladas** (celular com o Victor).
 - **PC:** `core/drive_pending.py` + Ferramentas → **☁ Saves enviados pelo celular** aplica as
   pendências com `mobile_sync.receive` (condicional, com histórico); conflito pede escolha.
 - Testes: 347 Python (4 novos em `test_drive_pending.py`), 48 JS, 63 JVM.
+- **Validada no celular (23/10, 0.12.0):** saves PSP por título no Naruto Shippuden - Ultimate
+  Ninja Impact (escolha USA `ULUS10582`, a pasta que já existia no celular; só os arquivos dele;
+  "iguais"); Adicionar à Biblioteca com uma ROM falsa (cadastro criado e ligado ao arquivo);
+  **saves pela nuvem** com uma pasta falsa `ULUS10582PYTEST` e o Tailscale desligado: arquivo
+  novo criado no Drive, alteração no celular virou pendência (Drive manteve a v1), o **Insync
+  trouxe `.pyretro-pending` para o PC em ~10 s**, a ferramenta ☁ aplicou (v1 no histórico,
+  `.applied`), alteração no PC desceu para o celular com a anterior preservada. Tudo de teste
+  foi apagado depois (celular, PC/Drive e o cadastro; `library.json` voltou a 2.985 jogos).
+- **Corrigido na validação:** a ficha fecha na hora ao cadastrar; conflitos do Drive dizem
+  "Usar a do Drive"; envio pendente que saiu da fila vira a base (sem falso conflito quando o
+  PC muda depois); a Situação avisa quando a Pasta RetroArch está em `saves` (caso real do
+  celular do Victor: escolha anterior à 0.6.1, os saves do RetroArch não apareciam).
 
 ## 23/10/2026 — Rodada 2, saves por jogo (Codex)
 
