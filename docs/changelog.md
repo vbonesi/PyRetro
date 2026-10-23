@@ -6,6 +6,18 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 — Rodada 2, identidade TV e navegação por mouse/toque (Codex)
+
+- Paleta, ficha e selos alinhados ao Android; Progresso e tempo agrupados,
+  ações identificam o PC, capas sem recorte e tema claro preservado.
+- Fileiras com setas, roda horizontal com saída nas bordas, zoom preservado,
+  toque nativo e alvos de 48 px. Coleções não comprimem/sobrepõem os nomes.
+- 💾 depende de consulta explícita bem-sucedida, sem varredura na abertura.
+  Duas regressões JS novas cobrem rolagem/limites/390 px e evidência dos selos.
+- 343 Python e 50 JS aprovados no worktree sobre `77d8198`; instância principal
+  em `localhost:8000/tests/test_app.html` confirmou 48 JS antes da integração TV.
+  Prévia conferida com jogos fictícios. Serviço principal não foi reiniciado por
+  esta entrega; nenhum Android/adb, ROM ou save real foi alterado.
 ## 23/10/2026 (6) — Rodada 2 do Codex no main; Android 0.11.0 e 0.12.0 (saves pelo Drive)
 
 Compiladas, **não instaladas** (celular com o Victor).

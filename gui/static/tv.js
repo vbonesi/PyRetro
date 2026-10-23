@@ -164,6 +164,35 @@ function render() {
   if (state.kind === "draw") return report(items.length ? "Sorteado! Escolha jogar, transmitir ou ver o progresso nos detalhes." : "Escolha grupo e gênero, depois sorteie.");
   report(items.length ? `${items.length} jogos · escolha uma capa` : state.kind === "favorites" ? "Escolha um jogo e pressione X para guardar nos favoritos." : "Nenhum jogo nesta seleção.");
 }
+const observedSaves = new Map();
+const badgeKey = g => g.key || (g.code ? `${g.code}:${g.romName}` : `pc:${g.id}`);
+function gameBadges(g) {
+  const t = g.tracking || {}, badges = [];
+  if (t.platinado) badges.push(['🏆 Platinado', 'Jogo platinado']);
+  else if (t.finalizado) badges.push(['✓ Finalizado', 'Jogo finalizado']);
+  else if (t.iniciado) badges.push(['▶ Jogando', 'Jogo iniciado']);
+  if (t.nota != null) badges.push([`★ ${String(t.nota).replace('.', ',')}`, 'Nota']);
+  const minutes = Math.floor((g.playtime?.seconds || 0) / 60);
+  if (minutes > 0) badges.push([minutes >= 60 ? `⏱ ${Math.floor(minutes/60)}h${String(minutes%60).padStart(2,'0')}` : `⏱ ${minutes}min`, 'Tempo registrado neste PC']);
+  if (observedSaves.get(badgeKey(g))) badges.push(['💾', 'Save encontrado neste PC na última consulta']);
+  return badges;
+}
+function fillBadges(target, g) {
+  target.replaceChildren();
+  for (const [label, title] of gameBadges(g)) {
+    const badge = document.createElement('span'); badge.className = 'badge';
+    badge.textContent = label; badge.title = title; badge.setAttribute('aria-label', `${title}: ${label}`);
+    target.append(badge);
+  }
+  target.hidden = !target.children.length;
+}
+function refreshBadges(g) {
+  for (const card of document.querySelectorAll('.game')) {
+    const item = cardGames.get(card);
+    if (item && badgeKey(item) === badgeKey(g)) fillBadges(card.querySelector('.badges'), g);
+  }
+  if (state.selected === g) fillBadges($('game-badges'), g);
+}
 function gameCard(g) {
     const card = button("", () => openGame(g, card)); card.className = "game";
     cardGames.set(card, g); card.dataset.key = g.key || (g.id ? `pc:${g.id}` : `${g.code}:${g.romName}`);
@@ -173,16 +202,17 @@ function gameCard(g) {
     if (g.cover) { const img = document.createElement("img"); img.src = g.cover; img.alt = ""; img.loading = "lazy"; img.className = "art"; card.append(img); }
     else { const art = document.createElement("div"); art.className = "art placeholder"; art.textContent = "✦"; card.append(art); }
     const title = document.createElement("strong"); title.textContent = (g.favorite ? "★ " : "") + g.name;
-    const meta = document.createElement("small"); const t = g.tracking;
-    meta.textContent = [g.platform, g.downloadName && !g.local ? "Só no Drive" : g.local ? "No PC" : "", t.platinado ? "🏆 Platinado" : t.finalizado ? "✓ Finalizado" : t.iniciado ? "▶ Iniciado" : "", t.nota != null ? `★ ${t.nota}` : "", g.playtime?.seconds ? `◷ ${formatTime(g.playtime.seconds)}` : ""].filter(Boolean).join(" · ");
-    card.append(title, meta); return card;
+    const meta = document.createElement("small");
+    meta.textContent = [g.platform, g.downloadName && !g.local ? "No Drive" : g.local ? "Neste PC" : ""].filter(Boolean).join(" · ");
+    const badges = document.createElement('span'); badges.className = 'badges'; fillBadges(badges, g);
+    card.append(title, meta, badges); return card;
 }
 function showSpotlight(g) {
   spotlightGame = g;
   $("spotlight-title").textContent = g.name;
   $("spotlight-meta").textContent = [g.platform, g.local ? "Pronto neste PC" : g.downloadName ? "Disponível no Drive" : "Na sua biblioteca", g.tracking.genero, g.favorite ? "★ Favorito" : ""].filter(Boolean).join(" · ");
   $("spotlight-art").style.backgroundImage = g.cover ? `url(${JSON.stringify(g.cover)})` : "none";
-  $("spotlight-open").textContent = g.local ? "Abrir jogo" : "Ver jogo";
+  $("spotlight-open").textContent = "Ver jogo";
   const logo = $("spotlight-logo"), video = $("spotlight-video");
   logo.hidden = !g.media?.logo; if (g.media?.logo) logo.src = g.media.logo;
   const source = g.media?.video || "";
@@ -191,8 +221,33 @@ function showSpotlight(g) {
   if (source && !document.hidden && !document.querySelector('dialog[open]') && !matchMedia('(prefers-reduced-motion: reduce)').matches) video.play().catch(() => {});
 }
 function formatTime(seconds) { const minutes = Math.floor(seconds / 60); return minutes >= 60 ? `${Math.floor(minutes/60)} h ${minutes%60} min` : minutes ? `${minutes} min` : `${Math.floor(seconds)} s`; }
+function shelfControls(row, title) {
+  const controls = document.createElement('div'); controls.className = 'shelf-controls';
+  const move = direction => row.scrollBy({left: direction * Math.max(160, row.clientWidth * .8), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+  const previous = button('‹', () => move(-1)), next = button('›', () => move(1));
+  previous.setAttribute('aria-label', `Voltar na fileira: ${title}`);
+  next.setAttribute('aria-label', `Avançar na fileira: ${title}`);
+  const update = () => {
+    previous.disabled = row.scrollLeft <= 1;
+    next.disabled = row.scrollLeft >= row.scrollWidth - row.clientWidth - 1;
+  };
+  row.addEventListener('scroll', update, {passive:true});
+  row.addEventListener('wheel', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+    const delta = event.deltaY * (event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? row.clientWidth : 1);
+    const end = row.scrollWidth - row.clientWidth;
+    if (delta > 0 ? row.scrollLeft >= end - 1 : row.scrollLeft <= 1) return;
+    event.preventDefault(); row.scrollLeft = Math.max(0, Math.min(end, row.scrollLeft + delta)); update();
+  }, {passive:false});
+  // ResizeObserver reage também à troca de largura do painel, não só à janela.
+  const observer = new ResizeObserver(update); observer.observe(row);
+  shelfObservers.push(observer);
+  requestAnimationFrame(update); controls.append(previous, next); return controls;
+}
+const shelfObservers = [];
 $("spotlight-open").onclick = () => { if (spotlightGame) openGame(spotlightGame); };
 function renderHome() {
+  shelfObservers.splice(0).forEach(observer => observer.disconnect());
   const box = $("home"); box.replaceChildren();
   const home = state.home; $("spotlight").hidden = !home;
   if (!home) return;
@@ -209,7 +264,9 @@ function renderHome() {
     const heading = document.createElement("h3"); heading.textContent = title;
     const row = document.createElement("div"); row.className = "shelf"; row.setAttribute("aria-label", title);
     for (const game of games) row.append(gameCard(game));
-    section.append(heading, row); box.append(section);
+    const head = document.createElement('div'); head.className = 'shelf-heading';
+    head.append(heading, shelfControls(row, title));
+    section.append(head, row); box.append(section);
   }
   const all = [home.recent, home.continue, home.favorites, home.installed, home.ready, home.mostPlayed].flatMap(g => g || []);
   const featured = all.find(g => spotlightGame?.key && g.key === spotlightGame.key) || all[0];
@@ -319,7 +376,7 @@ function renderStats() {
     tile("✓", s.zerados, "finalizados", () => load("library")),
     tile("🏆", s.platinados, "platinados", () => load("library")),
     tile("★", s.nota_media == null ? "—" : s.nota_media.toFixed(2).replace(".", ","), `nota média · ${s.com_nota} com nota`, () => load("ranking")),
-    tile("◷", formatHours(s.tempo_total_horas), "de jogo registrado", () => load("library")),
+    tile("⏱", formatHours(s.tempo_total_horas), "de jogo registrado", () => load("library")),
     tile("♡", s.desejados, "nos Desejados", () => load("wishlist")));
   const top = (field, title, filter) => {
     const counts = new Map(); for (const g of s.library) if (g[field]) counts.set(g[field], (counts.get(g[field]) || 0) + 1);
@@ -425,6 +482,7 @@ function openGame(g, origin = document.activeElement) {
   returnGameKey = origin?.dataset?.key;
   state.draft = {iniciado: !!g.tracking.iniciado, finalizado: !!g.tracking.finalizado, platinado: !!g.tracking.platinado, nota: g.tracking.nota ?? null};
   $("game-title").textContent = g.name; $("game-platform").textContent = g.platform;
+  fillBadges($('game-badges'), g);
   const textureCode = TEXTURE_SYSTEMS[g.code];
   $("textures-toggle").hidden = !textureCode; $("textures-fields").hidden = true; $("textures-toggle").setAttribute("aria-expanded", "false");
   if (textureCode) $("textures-link").href = '/?'+new URLSearchParams({textures:textureCode,game:g.name});
@@ -447,7 +505,7 @@ function openGame(g, origin = document.activeElement) {
   for (const id of ["wishlist-bought", "wishlist-remove"]) { $(id).dataset.confirm = ""; $(id).textContent = id === "wishlist-bought" ? "✅ Comprado" : "🗑 Tirar da lista"; }
   updateFavoriteButton(g); $("progress-fields").hidden = true; $("progress-toggle").setAttribute("aria-expanded", "false");
   report("", false, "detail-status"); renderTracking();
-  $("download").hidden = !g.downloadName; $("download").textContent = "Baixar para o PC"; $("download").dataset.confirm = "";
+  $("download").hidden = !g.downloadName; $("download").textContent = "⬇ Baixar para este PC"; $("download").dataset.confirm = "";
   $("download").disabled = !!state.download;
   $("details").showModal(); $("close").focus();
   if (g.wishlist) { $("play-actions").replaceChildren(); $("play-hint").textContent = `Na sua lista de desejos (${WISHLIST_STORES[g.wishlist]}). Comprou? Marque abaixo e ele entra na Biblioteca.`; }
@@ -687,11 +745,13 @@ $("saves-toggle").onclick = () => {
 const hint = text => Object.assign(document.createElement("p"), {className: "hint", textContent: text});
 async function renderSaves(focusId) {
   const g = state.selected, box = $("saves-fields"); if (!g?.code) return;
+  observedSaves.delete(badgeKey(g)); refreshBadges(g);
   if (!box.children.length) box.replaceChildren(hint("Procurando saves neste PC…"));
   const label = g.romName || g.name, query = new URLSearchParams({code: g.code, label});
   try {
     const [{items}, {items: copies}] = await Promise.all([api('/api/tv/saves?' + query), api('/api/tv/saves/backups?' + query)]);
     if (state.selected !== g || box.hidden) return;
+    observedSaves.set(badgeKey(g), items.some(item => item.kind === 'save')); refreshBadges(g);
     const when = t => new Date(t * 1000).toLocaleString("pt-BR", {dateStyle: "short", timeStyle: "short"});
     const size = n => n >= 1048576 ? `${(n/1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n/1024))} KB`;
     const rows = items.map(f => {
@@ -766,7 +826,7 @@ $("media-toggle").onclick = () => { $("media-fields").hidden = !$("media-fields"
 $("time-save").onclick = async () => {
   const g = state.selected; if (state.busy || !g?.key) return;
   state.busy = true;
-  try { g.playtime = await api('/api/tv/playtime', {key:g.key,minutes:Number($("time-minutes").value)}); $("game-time").textContent = `${formatTime(g.playtime.seconds)} em ${g.playtime.sessions} sessão(ões) registrada(s).`; report('Tempo registrado.',false,'detail-status'); await refreshHomeAfterPlay(); }
+  try { g.playtime = await api('/api/tv/playtime', {key:g.key,minutes:Number($("time-minutes").value)}); $("game-time").textContent = `${formatTime(g.playtime.seconds)} em ${g.playtime.sessions} sessão(ões) registrada(s).`; refreshBadges(g); report('Tempo registrado.',false,'detail-status'); await refreshHomeAfterPlay(); }
   catch(error) { report(error.message,true,'detail-status'); }
   finally { state.busy = false; }
 };
@@ -793,7 +853,7 @@ $("save").onclick = async () => {
   report("Salvando…", false, "detail-status");
   try {
     await api(g.id ? "/api/library/edit" : "/api/library/track", g.id ? {id: g.id, campos} : {nome: g.name, code: g.code, plataforma: g.platform, fonte: `rom:${g.code}`, campos});
-    Object.assign(g.tracking, campos); render(); report("Progresso salvo.", false, "detail-status");
+    Object.assign(g.tracking, campos); render(); refreshBadges(g); report("Progresso salvo.", false, "detail-status");
   } catch (e) { report(`Não foi salvo: ${e.message}`, true, "detail-status"); }
   finally { state.busy = false; $("details").querySelectorAll("button").forEach(b => { b.disabled = b.dataset.unavailable === "true"; }); $("download").disabled = !!state.download; $("save").focus(); }
 };
@@ -809,7 +869,7 @@ async function downloadGame(playAfter) {
     const {job} = await api("/api/heavy/download", {code: g.code, name: g.downloadName});
     const stream = new EventSource(`/api/fetch/stream?job=${encodeURIComponent(job)}`);
     let success = false, failure = "";
-    function finish(message, error) { stream.close(); state.download = null; report(message, error, "download-status"); b.disabled = false; b.hidden = !state.selected?.downloadName; b.textContent = "Baixar para o PC"; b.dataset.confirm = ""; if (state.selected === g) report(message, error, "detail-status"); }
+    function finish(message, error) { stream.close(); state.download = null; report(message, error, "download-status"); b.disabled = false; b.hidden = !state.selected?.downloadName; b.textContent = "⬇ Baixar para este PC"; b.dataset.confirm = ""; if (state.selected === g) report(message, error, "detail-status"); }
     stream.onmessage = e => {
       const data = JSON.parse(e.data);
       if (data.type === "system_done") { success = data.result.ok; if (!success) failure = data.result.message || "falha no download"; }
@@ -823,7 +883,7 @@ async function downloadGame(playAfter) {
     };
     stream.onerror = () => finish("A conexão com o download foi interrompida. Confira o resultado na coleção antes de tentar novamente.", true);
     if (state.selected === g) report("Download em andamento. Você pode voltar e navegar pelo acervo.", false, "detail-status");
-  } catch (e) { state.download = null; b.disabled = false; b.dataset.confirm = ""; b.textContent = "Baixar para o PC"; report(e.message, true, "download-status"); }
+  } catch (e) { state.download = null; b.disabled = false; b.dataset.confirm = ""; b.textContent = "⬇ Baixar para este PC"; report(e.message, true, "download-status"); }
 }
 let playRequest = 0, sessionTimer, sessionGame, emulatorRunning = false;
 async function refreshPlayOptions(g) {
@@ -846,7 +906,7 @@ async function refreshPlayOptions(g) {
       }, g.emulator === emulator.id));
     }
     for (const option of options) {
-      const b = button(options.length === 1 ? "Jogar" : `Jogar: ${option.name}`, () => startGame(g, option.name));
+      const b = button(options.length === 1 ? "▶ Jogar neste PC" : `▶ Jogar: ${option.name}`, () => startGame(g, option.name));
       b.disabled = !!option.error; b.dataset.unavailable = String(!!option.error); box.append(b);
     }
     const broken = options.filter(o => o.error);
@@ -854,8 +914,8 @@ async function refreshPlayOptions(g) {
     if ((broken.length || !options.length) && g.driveName) {
       g.downloadName = g.driveName;
       $("download").hidden = false; $("download").disabled = !!state.download;
-      $("download").textContent = g.local ? "Completar download" : "Baixar para o PC";
-      box.append(button("Baixar e jogar", () => { $("download").dataset.confirm = ""; downloadGame(true); $("download").focus(); }));
+      $("download").textContent = g.local ? "⬇ Completar download" : "⬇ Baixar para este PC";
+      box.append(button("⬇ Baixar e jogar", () => { $("download").dataset.confirm = ""; downloadGame(true); $("download").focus(); }));
     }
     if ($("details").open && [document.body, $("close")].includes(document.activeElement)) {
       const play = [...box.querySelectorAll("button:not(:disabled)")].find(b => !b.hasAttribute("aria-pressed"));
@@ -875,7 +935,7 @@ async function refreshPcOption(g, request) {
       box.querySelector("button")?.classList.add("primary");
       if ($("details").open && [document.body, $("close")].includes(document.activeElement)) box.querySelector("button")?.focus();
     } else if (data.available) {
-      box.append(button(`Jogar (${data.store === "steam" ? "Steam" : "Heroic"})`, () => startPcGame(g)));
+      box.append(button(`▶ Jogar neste PC · ${data.store === "steam" ? "Steam" : "Heroic"}`, () => startPcGame(g)));
       $("play-hint").textContent = "Abre pela loja instalada neste PC; depois registre o progresso aqui.";
       box.querySelector("button")?.classList.add("primary");
       if ($("details").open && [document.body, $("close")].includes(document.activeElement)) box.querySelector("button")?.focus();

@@ -599,7 +599,7 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
     await esperar(() => doc.querySelectorAll("#gallery .game").length === 2, "sorteio não mostrou o jogo");
     igual(consultas, ["/api/sortear?system=biblioteca&genero=RPG"]);
     verdade(doc.querySelectorAll("#gallery .game")[1].textContent.includes("Sorteado"));
-    await esperar(() => doc.getElementById('details').open && doc.activeElement.textContent.includes('Jogar (Steam)'), 'sorteio não sugeriu jogar');
+    await esperar(() => doc.getElementById('details').open && doc.activeElement.textContent.includes('Jogar neste PC · Steam'), 'sorteio não sugeriu jogar');
     doc.getElementById('close').click();
     falha = true; doc.querySelector("#gallery .draw").click();
     await esperar(() => doc.getElementById("message").textContent.includes("Não foi possível sortear"), "falha do sorteio ficou invisível");
@@ -638,7 +638,7 @@ teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", asy
   try {
     await esperar(() => doc.querySelector("#gallery .game"), "TV não carregou");
     doc.querySelector("#gallery .game").click();
-    await esperar(() => doc.getElementById("play-actions").textContent.includes("Jogar (Steam)"), "não ofereceu abrir pela Steam");
+    await esperar(() => doc.getElementById("play-actions").textContent.includes("Jogar neste PC · Steam"), "não ofereceu abrir pela Steam");
     doc.querySelector("#play-actions button").click();
     await esperar(() => doc.getElementById("play-status").textContent.includes("aberto pela loja"), "abertura não foi confirmada");
     igual(posts, [{id: "pc-1"}]);
@@ -769,7 +769,7 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
     igual(posts.filter(p => p.url === "/api/tv/favorite").length, 1, "segurar X repetiu favorito");
     pad.buttons[2].pressed = false;
     await app.load("favorites"); doc.querySelector("#gallery .game").click();
-    await esperar(() => doc.activeElement.textContent.includes("Jogar (Steam)"), "card não priorizou Jogar");
+    await esperar(() => doc.activeElement.textContent.includes("Jogar neste PC · Steam"), "card não priorizou Jogar");
     verdade(doc.getElementById("progress-fields").hidden, "edição de progresso deveria ser uma escolha separada");
     doc.getElementById("close").click(); verdade(doc.activeElement.classList.contains("game"));
     pad.buttons[9].pressed = true;
@@ -880,7 +880,9 @@ teste('TV: tempo manual, mais jogados e mídia local em detalhes a 390 px', asyn
   const script=doc.createElement('script');script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
   try {
     await esperar(()=>doc.getElementById('spotlight-open').textContent==='Ver jogo','início não carregou');
-    doc.getElementById('spotlight-open').click();doc.getElementById('time-toggle').click();
+    doc.getElementById('spotlight-open').click();
+    verdade(doc.getElementById('progress-fields').hidden,'progresso deveria começar recolhido');
+    doc.getElementById('progress-toggle').click();doc.getElementById('time-toggle').click();
     doc.getElementById('time-minutes').value='30';doc.getElementById('time-save').click();
     await esperar(()=>doc.getElementById('game-time').textContent.includes('30 min'),'tempo não atualizou');
     igual(posts[0],{key:'pc:time',minutes:30});
@@ -1116,6 +1118,61 @@ teste("modo TV: ferramentas organizam, salvam só o alterado, desregistram card 
     streams[0].onmessage({data: JSON.stringify({type: "job_done"})});
     await esperar(() => doc.getElementById("tool-log").textContent.includes("modo simulação"), "registro vazio");
     btn("Aplicar").click(); igual(streams.length, 1, "aplicar pede confirmação");
+  } finally { frame.remove(); }
+});
+
+teste("TV: fileiras têm setas, roda horizontal sem prender página/zoom e alvos de toque", async () => {
+  const games = Array.from({length:15}, (_,i) => ({key:`SFC:Game${i}`, code:'SFC', romName:`Game${i}`, name:`Game ${i}`, platform:'Super Nintendo', local:true, tracking:{}}));
+  const {frame, app, doc, posts} = await abrirTV(url => {
+    if (url === '/api/tv/home') return {ready:games, apps:[], counts:{local:15}};
+  });
+  try {
+    await esperar(() => doc.querySelector('.shelf'), 'fileira ausente');
+    const row = doc.querySelector('.shelf'), controls = doc.querySelectorAll('.shelf-controls button');
+    await esperar(() => controls[0].disabled && !controls[1].disabled, 'limites iniciais incorretos');
+    const wheel = (delta, options={}) => { const event = new app.WheelEvent('wheel', {deltaY:delta,bubbles:true,cancelable:true,...options}); row.dispatchEvent(event); return event; };
+    verdade(wheel(150).defaultPrevented); verdade(row.scrollLeft > 0, 'roda não moveu horizontalmente');
+    const position = row.scrollLeft;
+    verdade(!wheel(150,{ctrlKey:true}).defaultPrevented, 'zoom foi interceptado'); igual(row.scrollLeft,position);
+    verdade(!wheel(150,{deltaX:200}).defaultPrevented, 'trackpad horizontal interceptado');
+    row.scrollLeft = row.scrollWidth;
+    verdade(!wheel(150).defaultPrevented, 'borda prendeu rolagem vertical da página');
+    const end = row.scrollLeft; controls[0].click();
+    await esperar(() => row.scrollLeft < end, 'seta não moveu fileira');
+    igual(posts.length,0,'rolagem acionou jogo ou gravou preferências');
+    frame.style.width='390px'; await new Promise(resolve=>app.requestAnimationFrame(resolve));
+    verdade(doc.documentElement.scrollWidth<=390,'fileira transbordou no celular');
+    for (const b of doc.querySelectorAll('#collections button')) verdade(b.scrollWidth<=b.clientWidth,'nome da coleção sobrepôs o botão seguinte');
+    for(const b of controls) { const rect=b.getBoundingClientRect(); verdade(rect.width>=48 && rect.height>=48,'alvo pequeno'); }
+    const touch = app.getComputedStyle(row).touchAction;
+    verdade(['auto','manipulation'].includes(touch) || touch.includes('pan-x'),`toque horizontal indisponível: ${touch}`);
+  } finally { frame.remove(); }
+});
+
+teste("TV: selos comuns, nota decimal e save somente após consulta explícita", async () => {
+  const game = {key:'SFC:Game',code:'SFC',romName:'Game',name:'Game',platform:'Super Nintendo',local:true,tracking:{iniciado:true,nota:8.5},playtime:{seconds:3660,sessions:2}};
+  let saves = [{kind:'save',name:'Game.srm',size:8192,mtime:1700000000}], reads=0;
+  const {frame,app,doc,posts} = await abrirTV(url => {
+    if(url==='/api/tv/home')return {ready:[game],apps:[],counts:{local:1}};
+    if(url.startsWith('/api/play/options?')) return {launcher:true,options:[{name:'Game.sfc'}]};
+    if(url.startsWith('/api/tv/saves?')) { reads++;return {items:saves}; }
+    if(url.startsWith('/api/tv/saves/backups?')) return {items:[]};
+  });
+  try {
+    await esperar(()=>doc.querySelector('.shelf .game'),'card ausente');
+    const card = doc.querySelector('.shelf .game');
+    for(const text of ['▶ Jogando','★ 8,5','⏱ 1h01'])verdade(card.textContent.includes(text),`selo ausente: ${text}`);
+    igual(reads,0,'início consultou saves sem pedido');verdade(!card.textContent.includes('💾'),'save foi inferido');
+    card.click();await esperar(()=>doc.getElementById('play-actions').textContent.includes('▶ Jogar neste PC'),'ação inconsistente');
+    doc.getElementById('saves-toggle').click();
+    await esperar(()=>doc.getElementById('game-badges').textContent.includes('💾'),'consulta não mostrou selo');
+    verdade(card.textContent.includes('💾'),'card não recebeu evidência');
+    doc.getElementById('saves-toggle').click();saves=[];doc.getElementById('saves-toggle').click();
+    await esperar(()=>reads===2 && doc.getElementById('saves-fields').textContent.includes('Nenhum save'),'reconsulta pendente');
+    verdade(!card.textContent.includes('💾'),'save ausente manteve selo');
+    igual(posts.length,0,'conferir selos escreveu dados');
+    app.applyPreferences({theme:'light',favorites:[]});
+    verdade(app.getComputedStyle(doc.querySelector('.badge')).color!=='rgb(140, 220, 200)','tema claro não adaptou contraste');
   } finally { frame.remove(); }
 });
 

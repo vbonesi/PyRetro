@@ -2,7 +2,7 @@
   color-scheme:dark;
   font:20px system-ui,sans-serif;
   background:#0b1220;
-  color:#eef4ff;
+  color:#edf4fd;
   --accent:#81e1ca
 }
 *{
@@ -47,11 +47,14 @@ a{
 button{
   font:inherit;
   color:inherit;
-  background:#1c2c42;
-  border:1px solid #ffffff24;
+  background:#1a2b3f;
+  border:1px solid #3c5166;
   border-radius:.6rem;
   padding:.7rem 1rem;
-  cursor:pointer
+  cursor:pointer;
+  min-height:48px;
+  min-width:48px;
+  touch-action:manipulation
 }
 [hidden]{display:none!important}
 input{font:inherit;width:100%;padding:.8rem;border:1px solid #54708a;border-radius:.6rem;background:#0b1220;color:inherit}
@@ -72,7 +75,7 @@ button[aria-pressed=true],.primary{
 }
 button:disabled{
   opacity:.45;
-  cursor:wait
+  cursor:default
 }
 :focus-visible,button:focus,a:focus{
   outline:4px solid var(--accent);
@@ -87,7 +90,8 @@ nav{
   margin:.3rem 0
 }
 nav button{
-  white-space:nowrap
+  white-space:nowrap;
+  flex-shrink:0
 }
 main{
   padding:.5rem 3vw 9rem
@@ -238,7 +242,7 @@ main {
   color: var(--accent);
 }
 /* A tela inicial usa fileiras de capas e deixa o jogo selecionado em destaque. */
-:root{--panel:#152438;--text:#edf4fd;--muted:#9fb3c9;--edge:#ffffff1c}
+:root{--panel:#1a2b3f;--text:#edf4fd;--muted:#9fb3c9;--edge:#3c5166;--badge:#8cdcc8}
 header{padding:1rem 3vw .5rem}
 .brand,.console-status{display:flex;align-items:center;gap:1rem}
 .brand-mark{display:grid;place-items:center;background:var(--accent);color:#102b30;border-radius:50%;width:2.1rem;height:2.1rem}
@@ -265,9 +269,9 @@ header{padding:1rem 3vw .5rem}
 .quick-access [data-app=chiaki]{border-color:#719df0}
 .quick-access [data-app=sysdvr]{border-color:#ef777e}
 .home-section h3{font-size:.95rem;margin:.6rem 0 .3rem;letter-spacing:-.02em}
-.shelf{display:flex;gap:1rem;overflow-x:auto;padding:.6rem .35rem 1rem;scroll-snap-type:x proximity;scrollbar-width:thin}
+.shelf{display:flex;gap:1rem;overflow-x:auto;padding:.6rem .35rem 1rem;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x pan-y pinch-zoom}
 .shelf .game{flex:0 0 clamp(165px,17vw,245px);scroll-snap-align:start;transition:transform .12s,border-color .12s;background:var(--panel)}
-.shelf .art{height:220px;object-fit:cover;object-position:top}
+.shelf .art{height:220px;object-fit:contain;object-position:center}
 .shelf .game:focus{transform:translateY(-3px);outline:3px solid var(--accent);outline-offset:3px}
 .game strong{line-height:1.25}
 .detail-heading{display:flex;align-items:center;gap:1.2rem}
@@ -278,7 +282,7 @@ header{padding:1rem 3vw .5rem}
 #progress-toggle{font-size:.85rem}
 #progress-fields{padding:0 .8rem .8rem;border-left:2px solid var(--accent);margin:1rem 0}
 #play-actions .primary{font-size:1.2rem;min-width:180px}
-:root[data-theme=light]{color-scheme:light;background:#e9edf0;color:#192b3e;--accent:#007a70;--panel:#fff;--text:#192b3e;--muted:#54697c;--edge:#173b5928}
+:root[data-theme=light]{color-scheme:light;background:#e9edf0;color:#192b3e;--accent:#007a70;--panel:#fff;--text:#192b3e;--muted:#54697c;--edge:#173b5928;--badge:#006b5d}
 :root[data-theme=light] body{background:radial-gradient(ellipse at top right,#d5e5e9,transparent 60%)}
 :root[data-theme=light] button{background:#f5f8fa;color:#203247;border-color:#9db4c0}
 :root[data-theme=light] button:hover{background:#dce8eb}
@@ -351,3 +355,16 @@ header{padding:1rem 3vw .5rem}
 :root[data-theme=light] #tool-log{background:#fff}
 #tool-status{min-height:1.2rem;font-size:.8rem}
 #rom-delete{border-color:#ffb4ad}
+/* Vocabulário visual compartilhado com o Android, incluindo tema claro acessível. */
+.badges{display:flex;flex-wrap:wrap;gap:.3rem;color:var(--badge);font-size:.65rem;line-height:1.5}
+.game>.badges{padding:0 .7rem .7rem;margin-top:auto}
+.game small{padding-bottom:0;margin-bottom:.6rem}
+.badge{border:1px solid var(--edge);border-radius:.35rem;padding:.1rem .3rem;white-space:nowrap}
+#game-badges{margin:.5rem 0 .8rem}
+.detail-heading>div{min-width:0}
+.shelf-heading{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.shelf-heading h3{min-width:0;overflow-wrap:anywhere}
+.shelf-controls{display:flex;gap:.4rem;flex-shrink:0}
+.shelf-controls button{padding:.1rem .55rem;min-width:48px;min-height:48px;font-size:1.4rem}
+#collections button[aria-pressed=true]{box-shadow:inset 0 -3px 0 var(--accent)}
+@media(max-width:600px){#keyboard{grid-template-columns:repeat(5,minmax(0,1fr))}}
