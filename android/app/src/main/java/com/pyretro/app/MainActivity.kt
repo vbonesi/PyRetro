@@ -1212,39 +1212,56 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun titleSaves(game:Game,group:String) {
         val sync=FileSync(store)
         fun wholeGroup(reason:String) { message(reason);syncGroup(group,sync.groups.getValue(group)) }
-        if(game.id.isBlank()) { wholeGroup("${game.name} não está na Biblioteca: mostrando todos os saves do grupo.");return }
-        val chosen=store.prefs.getString("save-id-choice:${game.id}",null)
+        val saveKey=game.id.ifBlank { game.key } // escolhas guardadas por jogo, com ou sem cadastro
+        val chosen=store.prefs.getString("save-id-choice:$saveKey",null)
         fun run(titleId:String) { dialog?.dismiss();message("Conferindo saves de ${game.name} ($titleId)…")
             work.execute {
                 // 3DS: o mesmo jogo pode ter saves em mais de uma árvore ID0/ID1 (outro aparelho/emulador).
                 // Com mais de uma, pergunta qual o emulador usa; nunca mistura as árvores.
                 val trees=if(game.code=="3DS")runCatching { SaveIdRules.trees(sync.local("3ds-saves").keys,titleId) }.getOrDefault(emptyList()) else emptyList()
-                val saved=store.prefs.getString("3ds-tree:${game.id}",null)?.takeIf { it in trees }
+                val saved=store.prefs.getString("3ds-tree:$saveKey",null)?.takeIf { it in trees }
                 if(trees.size>1 && saved==null) runOnUiThread {
                     show(AlertDialog.Builder(this).setTitle("Qual pasta de saves o emulador usa?").setItems(trees.map { "…/"+it.split('/').drop(1).joinToString("/") { p -> p.take(8)+"…" } }.toTypedArray()) { _,which ->
-                        store.prefs.edit().putString("3ds-tree:${game.id}",trees[which]).apply();run(titleId) }.setNegativeButton("Voltar",null))
+                        store.prefs.edit().putString("3ds-tree:$saveKey",trees[which]).apply();run(titleId) }.setNegativeButton("Voltar",null))
                 } else {
                     val tree=saved ?: trees.singleOrNull()
                     compareSaves(game,SaveIdRules.groups(game.code)) { g,path -> SaveIdRules.matches(g,path,titleId) && (tree==null || path.startsWith("$tree/")) }
                 }
             } }
         if(chosen!=null && SaveIdRules.valid(game.code,chosen)) { run(chosen);return }
+        if(game.id.isBlank()) {
+            // Sem cadastro: o notebook não tem como dizer o ID. No 3DS, o cabeçalho da ROM do celular diz.
+            val local3ds=if(game.code=="3DS")game.localUri?.let { uri -> runCatching { read3dsId(uri) }.getOrNull() } else null
+            if(local3ds!=null) { store.prefs.edit().putString("save-id-choice:$saveKey",local3ds).apply();run(local3ds) }
+            else wholeGroup("${game.name} não está na Biblioteca: mostrando todos os saves do grupo.")
+            return
+        }
         message("Consultando o ID de ${game.name}…")
         work.execute {
             val data=runCatching { extras.saveIds(game.id) }.getOrElse { extras.cachedSaveIds(game.id) }
             runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
                 val ids=data?.optJSONArray("titleIds")?.let { a -> (0 until a.length()).map(a::getString) }.orEmpty().filter { SaveIdRules.valid(game.code,it) }
                 val candidates=data?.optJSONArray("candidates")?.let { a -> (0 until a.length()).map(a::getJSONObject) }.orEmpty().filter { SaveIdRules.valid(game.code,it.optString("titleId")) }
+                // 3DS sem ID no notebook (ROM só no Drive/celular): lê o cabeçalho da ROM deste celular.
+                val local3ds=if(game.code=="3DS" && ids.isEmpty() && candidates.isEmpty())game.localUri?.let { uri -> runCatching { read3dsId(uri) }.getOrNull() } else null
                 when {
+                    local3ds!=null -> { store.prefs.edit().putString("save-id-choice:$saveKey",local3ds).apply();run(local3ds) }
                     data==null -> wholeGroup("Sem o notebook e sem ID guardado: mostrando todos os saves do grupo.")
                     data.optString("status")=="identified" && ids.size==1 -> run(ids[0])
                     data.optString("status")=="needs-choice" && candidates.isNotEmpty() -> show(AlertDialog.Builder(this).setTitle("Qual versão de ${game.name}?")
                         .setItems(candidates.map { "${it.optString("name")} · ${it.getString("titleId")}" }.toTypedArray()) { _,which ->
-                            val id=candidates[which].getString("titleId");store.prefs.edit().putString("save-id-choice:${game.id}",id).apply();run(id) }
+                            val id=candidates[which].getString("titleId");store.prefs.edit().putString("save-id-choice:$saveKey",id).apply();run(id) }
                         .setNegativeButton("Ver o grupo inteiro") { _,_ -> syncGroup(group,sync.groups.getValue(group)) })
                     else -> wholeGroup("ID de ${game.name} desconhecido (${data.optString("status","sem resposta")}): mostrando todos os saves do grupo.")
                 }
             }
+        }
+    }
+    /** Program ID da ROM 3DS deste celular (lê só os cabeçalhos, sem copiar o arquivo). */
+    private fun read3dsId(uri:Uri):String = contentResolver.openFileDescriptor(uri,"r")!!.use { fd ->
+        java.io.FileInputStream(fd.fileDescriptor).channel.use { channel ->
+            SaveIdRules.programId(channel.size()) { offset -> val buffer=java.nio.ByteBuffer.allocate(512);channel.position(offset)
+                while(buffer.hasRemaining() && channel.read(buffer)>0) {};require(!buffer.hasRemaining()) { "Cabeçalho truncado." };buffer.array() }
         }
     }
     /** ROM que só existe no celular ganha cadastro na Biblioteca do notebook; favorito, tempo e

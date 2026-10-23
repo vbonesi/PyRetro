@@ -6,6 +6,35 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (9) — Pendências 1, 3, 4 e 5: dados reais, CUE/M3U, 3DS e melonDS
+
+Android **0.13.0 (code 21), instalada e validada no celular.**
+
+- **Testes com dados reais (tudo desfeito depois):**
+  - Modo TV: Organizar (ROM falsa em `0-Organizar` → GB), aplicar capa (ScreenScraper),
+    renomear (ROM + capa), apagar (ROM + capa), Manutenção → backup de configs aplicado (90
+    arquivos; pasta do teste removida), Configurações salvas sem mudança (`config.toml`
+    idêntico), marcar/desmarcar capa (registro idêntico), textura instalada e removida (36
+    arquivos, Spider-Man 2). Registro de capas e `library.json` conferidos iguais aos de antes.
+  - App: Tirar da lista, Comprado, salvar edição (só o comentário) e aplicar capa (SteamGridDB)
+    num desejado de teste criado pela lista PSN; cadastro e capa apagados no fim.
+- **Defeitos achados e corrigidos:** salvar Configurações sempre falhava (`organizar_dir` é nome
+  de pasta dentro das ROMs; `device_serial` vazio = detectar); o modo TV perdia o token CSRF
+  quando o servidor reiniciava (agora repete com token novo; o envio de mídia busca token
+  atual); a busca inicial do SteamGridDB esperava só 15 s (agora 45 s).
+- **CUE/M3U (3):** remover pelo app com prévia montada no celular (lê CUE/M3U/GDI como o
+  servidor; faixa usada por outro descritor fica; descritor ilegível bloqueia; refaz a análise
+  antes de apagar; principal sai primeiro). Validado: prévia do Diablo (2 arquivos; mantido) e
+  remoção real da Little Ralph baixada para o teste.
+- **3DS (4):** com saves do mesmo título em mais de uma árvore `ID0/ID1`, o app pergunta qual o
+  emulador usa e guarda por jogo; e lê o Program ID no cabeçalho NCSD/NCCH da ROM do celular
+  quando o notebook não sabe (ROM só no Drive ou jogo sem cadastro), espelhando
+  `read_3ds_id`. Validado no Pokémon X (`0004000000055d00`) com uma árvore falsa, apagada depois.
+  Observação real: o PC ainda não tem os 2 saves do Pokémon X do celular (não sincronizado).
+- **melonDS (5):** o lançador `bonisarch-emulator` (setup `6e5700e`) corrige sozinho o core com
+  pilha executável antes de cada jogo de DS; o resto do `PENDENTE-CONSOLIDAR` exige instalação limpa.
+- Testes: 349 Python, 50 JS, 70 JVM; setup 154.
+
 ## 23/10/2026 (8) — App OAuth publicado; Steam Link e PS4/Xbox remotos homologados
 
 - **Google Cloud (projeto PyRetro):** o Victor preencheu o Branding com as páginas do GitHub

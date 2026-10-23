@@ -26,4 +26,15 @@ class SaveIdRulesTest {
         assertEquals(listOf(a,b).sorted(),SaveIdRules.trees(paths,"0004000000123400"))
         assertEquals(listOf(a,b).sorted().take(1),SaveIdRules.trees(paths.take(2),"0004000000123400"))
     }
+    private fun ncch(title:Long):ByteArray { val h=ByteArray(512);"NCCH".toByteArray().copyInto(h,0x100)
+        h[0x104]=4 // 4 unidades de 512
+        for(i in 0 until 8)h[0x118+i]=((title ushr (8*i)) and 0xff).toByte();return h }
+    @Test fun programIdFromNcchAndNcsd() {
+        val id=0x0004000000055D00L
+        assertEquals("0004000000055d00",SaveIdRules.programId(4096) { ncch(id) })
+        val ncsd=ByteArray(512);"NCSD".toByteArray().copyInto(ncsd,0x100);ncsd[0x120]=2;ncsd[0x124]=6
+        assertEquals("0004000000055d00",SaveIdRules.programId(8*512L) { off -> if(off==0L)ncsd else { assertEquals(1024L,off);ncch(id) } })
+        assertThrows(IllegalArgumentException::class.java) { SaveIdRules.programId(4096) { ncch(0x0004000E00055D00L) } }
+        assertThrows(IllegalArgumentException::class.java) { SaveIdRules.programId(100) { ByteArray(512) } }
+    }
 }

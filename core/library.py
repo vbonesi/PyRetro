@@ -1289,7 +1289,8 @@ def search_covers_steamgriddb(termo: str, api_key: str, max_jogos: int = 6,
     capa "oficial" que o usuário quer."""
     headers = {"Authorization": f"Bearer {api_key}", "User-Agent": _BROWSER_USER_AGENT}
     search_url = f"https://www.steamgriddb.com/api/v2/search/autocomplete/{urllib.parse.quote(termo)}"
-    with urllib.request.urlopen(urllib.request.Request(search_url, headers=headers), timeout=15) as r:
+    # O autocomplete do SteamGridDB chegou a levar ~60 s em 23/10; 15 s derrubava a busca toda.
+    with urllib.request.urlopen(urllib.request.Request(search_url, headers=headers), timeout=45) as r:
         jogos = (json.loads(r.read()).get("data") or [])[:max_jogos]
 
     def grades(jogo):
