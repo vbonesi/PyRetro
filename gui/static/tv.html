@@ -21,26 +21,28 @@
 <dialog id="search-dialog" aria-labelledby="search-title"><h2 id="search-title">Pesquisar jogos</h2><label for="search-input" id="search-label">Nome do jogo</label><input id="search-input" type="search" autocomplete="off" maxlength="120"><p class="hint" id="search-hint">Use o direcional e A no teclado abaixo. X apaga; Menu pesquisa; B cancela.</p><div id="keyboard"></div><div class="actions"><button id="search-apply" class="primary">Pesquisar</button><button id="search-clear">Limpar busca</button><button id="search-close">Voltar</button></div></dialog>
 <dialog id="tool-dialog" aria-labelledby="tool-title"><h2 id="tool-title"></h2><p id="tool-status" role="status" aria-live="polite"></p><pre id="tool-log" hidden></pre><div id="tool-body"></div><div class="actions"><button id="tool-close">Voltar</button></div></dialog>
 <dialog id="details" aria-labelledby="game-title">
-  <div class="detail-heading"><img id="detail-cover" alt="" hidden><div><h2 id="game-title"></h2><p id="game-platform"></p><button id="favorite" aria-pressed="false">☆ Favoritar</button></div></div>
+  <div class="detail-heading"><img id="detail-cover" alt="" hidden><div><h2 id="game-title"></h2><p id="game-platform"></p><div id="game-badges" class="badges" hidden></div><button id="favorite" aria-pressed="false">☆ Favoritar</button></div></div>
   <div id="play-actions" class="actions"></div>
   <p id="play-hint" class="hint" role="status"></p>
   <p id="game-time" class="hint"></p><video id="detail-video" controls playsinline preload="none" hidden></video>
-  <div class="actions"><button id="time-toggle">Registrar tempo</button><button id="media-toggle">Personalizar mídia</button><button id="saves-toggle" aria-expanded="false" hidden>💾 Saves</button><button id="edit-toggle" aria-expanded="false">✎ Editar jogo</button><button id="cover-toggle" aria-expanded="false">🖼 Capa</button><button id="textures-toggle" aria-expanded="false" hidden>🎨 Texturas</button></div>
+  <div class="actions"><button id="media-toggle">Personalizar mídia</button><button id="saves-toggle" aria-expanded="false" hidden>💾 Saves</button><button id="edit-toggle" aria-expanded="false">✎ Editar jogo</button><button id="cover-toggle" aria-expanded="false">🖼 Capa</button><button id="textures-toggle" aria-expanded="false" hidden>🎨 Texturas</button></div>
   <div id="saves-fields" hidden></div>
   <div id="textures-fields" class="panel" hidden><div id="textures-list"></div><p class="hint">Importar um pacote baixado ou um link avulso continua na <a id="textures-link">interface completa</a>.</p></div>
   <div id="wishlist-actions" class="actions" hidden><button id="wishlist-bought">✅ Comprado</button><button id="wishlist-remove">🗑 Tirar da lista</button></div>
   <div id="edit-fields" class="panel" hidden><p class="hint">Escolha um campo para alterar; o teclado da tela serve ao controle. Só os campos alterados são gravados.</p><div id="edit-list" class="field-list"></div><div class="actions"><button id="rom-rename" hidden>Renomear arquivo…</button><button id="decompose" hidden>⧉ Decompor coletânea</button></div><div id="genre-list" class="actions" hidden></div><button id="edit-save" class="primary">Salvar alterações</button></div>
   <div id="cover-fields" class="panel" hidden><div class="actions"><button id="cover-query"></button><span id="cover-sources"></span></div><div id="cover-results"></div><div class="actions"><button id="cover-flag" hidden></button></div></div>
-  <div id="time-fields" hidden><p class="hint">Emuladores abertos pelo PyRetro contam o tempo da sessão, incluindo pausas. Para Steam, Heroic e transmissões, informe quanto jogou.</p><label>Minutos jogados <input id="time-minutes" type="number" min="1" max="1440" value="30"></label><button id="time-save">Adicionar sessão</button></div>
   <div id="media-fields" hidden><p class="hint">Escolha mídia deste jogo. Os arquivos ficam neste PC, separados do acervo. Até 64 MB por arquivo; a prévia no início é silenciosa.</p><label>Logo (PNG, JPEG ou WebP) <input id="media-logo" type="file" accept="image/png,image/jpeg,image/webp"></label><label>Vídeo (MP4 ou WebM) <input id="media-video" type="file" accept="video/mp4,video/webm"></label></div>
-  <button id="progress-toggle" aria-expanded="false">Progresso e nota</button>
+  <button id="progress-toggle" aria-expanded="false">Progresso e tempo</button>
   <div id="progress-fields" hidden>
   <div id="tracking"></div>
   <div class="rating"><button id="rating-down" aria-label="Diminuir nota">−</button><output id="rating" aria-live="polite"></output><button id="rating-up" aria-label="Aumentar nota">+</button><button id="rating-fine-down" aria-label="Diminuir nota em um décimo">−0,1</button><button id="rating-fine-up" aria-label="Aumentar nota em um décimo">+0,1</button><button id="rating-clear">Sem nota</button></div>
   <p class="hint">Nota de 0 a 11 · +/− ajustam 1 ponto; +0,1/−0,1 refinam a nota</p>
-  <button id="save" class="primary">Salvar progresso</button></div>
+  <button id="save" class="primary">Salvar progresso</button>
+  <button id="time-toggle">⏱ Registrar tempo</button>
+  <div id="time-fields" hidden><p class="hint">Emuladores abertos pelo PyRetro contam o tempo da sessão, incluindo pausas. Para Steam, Heroic e transmissões, informe quanto jogou.</p><label>Minutos jogados <input id="time-minutes" type="number" min="1" max="1440" value="30"></label><button id="time-save">Adicionar sessão</button></div>
+  </div>
   <p id="detail-status" role="status" aria-live="polite"></p>
-  <div class="actions"><button id="download">Baixar para o PC</button><button id="rom-delete" hidden>🗑 Apagar ROM</button><button id="close">Voltar</button></div>
+  <div class="actions"><button id="download">⬇ Baixar para este PC</button><button id="rom-delete" hidden>🗑 Apagar ROM</button><button id="close">Voltar</button></div>
 </dialog>
 </body>
 </html>

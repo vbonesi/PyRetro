@@ -28,6 +28,20 @@ Os filtros de plataforma, gênero e Só neste PC são botões navegáveis.
 A busca na tela inicial usa todo o catálogo; nas coleções, filtra a seleção atual.
 Atualizar relê o disco/cache, sem sincronizar posse ou atualizar o Drive.
 
+Mouse/toque: as fileiras têm setas com alvos de 48 px e rolagem nativa por toque
+ou trackpad. A roda vertical sobre a fileira move as capas horizontalmente;
+nas bordas volta a rolar a página. Ctrl/Meta + roda preserva zoom. As coleções
+também rolam horizontalmente, sem sobrepor nomes. O teclado virtual se adapta à
+largura; o tema claro e a navegação por controle permanecem disponíveis.
+
+Identidade compartilhada com Android: fundo `#0b1220`, texto `#edf4fd`, superfícies
+`#1a2b3f`, destaque `#81e1ca` e seleção `#235e57`. Ficha/capas mostram selos
+✓ Finalizado, ▶ Jogando, ★ nota e ⏱ tempo **deste PC**. 💾 indica save encontrado
+na última consulta explícita a Saves durante esta sessão da página; abrir a
+galeria não varre saves. Uma nova consulta sem save ou com erro retira o selo.
+Não significa sincronização nem compatibilidade com o Android. Capas mantêm a
+proporção sem cortar arte. O destaque abre **Ver jogo**, sem iniciar a partida.
+
 **X** guarda/remove o jogo em foco nos favoritos; dentro da busca, continua apagando
 uma letra. **Menu** abre opções: tema escuro/claro, tela cheia e volta ao início ou à
 interface completa. O relógio usa o fuso do navegador e a bateria aparece quando
@@ -41,13 +55,16 @@ conferido na instalação final para evitar ações duplicadas de mouse/teclado.
 
 Biblioteca e Jogando oferecem filtros por plataforma. ROMs leves e pesadas oferecem
 seleção por sistema. Cada capa abre os detalhes, priorizando **Jogar** quando disponível.
-**Progresso e nota** expande a edição de iniciado, finalizado, platinado e
+**Progresso e tempo** expande a edição de iniciado, finalizado, platinado e
 nota entre 0 e 11, com ajustes de 1 ou 0,1. **Salvar progresso** aplica todas as
 mudanças juntas; Voltar descarta alterações não salvas. A cascata mantém platinado
 como finalizado e iniciado; desmarcar iniciado desmarca os dois seguintes.
+O mesmo painel oferece **⏱ Registrar tempo**. A ação primária é **▶ Jogar neste PC**
+(com nome da loja quando aplicável); Favoritar, Saves, Editar jogo, Capa e Texturas
+usam os mesmos nomes do Android.
 
 O catálogo pesado reaproveita o cache do Drive da GUI. Jogos só na nuvem aparecem
-com **Baixar para o PC**, seguido de confirmação explícita. Durante o download é
+com **⬇ Baixar para este PC**, seguido de confirmação explícita. Durante o download é
 possível voltar e navegar; o rodapé informa o resultado. O backend atual informa
 início e resultado, sem percentual ou velocidade. Não recarregue a página durante
 o download: o acompanhamento fica na sessão da página. Se a conexão cair, confira
