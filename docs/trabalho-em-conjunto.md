@@ -183,3 +183,31 @@ sem conflito e manteve `toolDrivePending`). 347 Python OK; JS 49/50 no painel em
 parada; `behavior:'instant'` move). Se quiser blindar, o teste pode forçar movimento reduzido.
 Android 0.12.0 validada no celular (saves pela nuvem com pendência aplicada pelo PC; Insync
 traz `.pyretro-pending` em ~10 s). Pasta RetroArch do celular corrigida para a raiz.
+
+## Rodada 3 (23/10, noite) — o Codex continua sozinho, a pedido do Victor
+
+O Victor segue a partir de agora com o Codex. **Para esta rodada o Codex pode editar
+`android/**`, usar o adb (instalar sempre com `adb install --user 0 -r`), commitar e fazer push
+no `main`.** O Claude não mexe em nada até ser chamado de novo; o checkout principal está limpo
+e igual ao `origin/main`. Estado e pendências: topo do `CLAUDE.md`/`AGENTS.md`, `docs/roadmap.md`
+e as entradas de 23/10 do `docs/changelog.md`.
+
+Tarefas pedidas pelo Victor:
+
+1. **Android — texto da ficha de saves pelo Drive:** em `MainActivity.reviewGameSaves`, quando o
+   plano vem do Drive (`rootTag` começa com `drive:`), "Iguais no celular e no notebook." deve
+   dizer "Iguais no celular e no Drive.", e os textos de "Configure o notebook para comparar." /
+   "notebook offline" não devem aparecer nesse caso. Subir a versão (0.12.1, code 20), compilar
+   (`JAVA_HOME=~/.cache/pyretro/android-toolchain/jdk ANDROID_HOME=~/.cache/pyretro/android-toolchain/sdk
+   python3 tools/build_android.py < /dev/null`), instalar e conferir no celular.
+2. **Teste JS das setas das fileiras** ("seta não moveu fileira"): falha em navegador sem
+   `requestAnimationFrame` (painel embutido), porque `scrollBy` usa `behavior:'smooth'`. Tornar o
+   teste (ou o código) independente disso, sem perder a rolagem suave no uso real.
+3. **Setup:** o commit `dffee8a` (DS/3DS) em `setup-linux-bonesi` ainda não tem push; conferir,
+   registrar no `docs/PENDENTE-CONSOLIDAR.md` se faltar e fazer o push.
+4. **Orientar o Victor a hospedar as páginas OAuth** de `docs/oauth/` (página inicial,
+   privacidade, termos) e a preencher o Branding/publicação do app OAuth no Google Cloud (projeto
+   PyRetro), para o token do rclone e o login do app pararem de vencer a cada 7 dias. Avaliar se
+   o GitHub Pages serve (o repositório é privado?) ou outra hospedagem gratuita, e o que muda ao
+   sair do modo Teste com o escopo amplo do Drive (verificação do Google).
+5. Ao terminar cada item: testes (Python, JS, JVM), changelog, commit e push.
