@@ -340,3 +340,14 @@ header{padding:1rem 3vw .5rem}
 .save-row{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.5rem 0;font-size:.8rem;overflow-wrap:anywhere}
 .save-row button{flex-shrink:0;font-size:.75rem;padding:.45rem .8rem}
 #textures-fields .hint a{padding:0}
+/* Ferramentas: diálogo largo, escolhas como botões e registro do job. */
+#tool-dialog{width:min(1000px,96vw)}
+#tool-body h3{font-size:.9rem;margin:.4rem 0}
+#tool-body .panel{margin:.8rem 0}
+.choice{margin:.5rem 0;gap:.5rem}
+.choice button{font-size:.75rem;padding:.4rem .75rem}
+#tool-body>button{display:block;width:100%;text-align:left;font-size:.75rem;margin:.35rem 0;overflow-wrap:anywhere}
+#tool-log{max-height:220px;overflow:auto;background:#0b1220;border:1px solid #ffffff24;border-radius:.5rem;padding:.6rem;font-size:.7rem;white-space:pre-wrap}
+:root[data-theme=light] #tool-log{background:#fff}
+#tool-status{min-height:1.2rem;font-size:.8rem}
+#rom-delete{border-color:#ffb4ad}

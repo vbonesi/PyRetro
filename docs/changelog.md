@@ -6,6 +6,42 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (2) — Modo TV com 🛠 Ferramentas: a web vira só diagnóstico
+
+O que ainda só existia na interface completa agora está no modo TV, pelas mesmas rotas
+(nenhuma mudança no servidor nesta rodada).
+
+- **Ficha:** **Renomear arquivo…** (ROM leve com capa ou pesada no PC; cascata de ROM,
+  capa e saves pelas rotas da web, e o cadastro da Biblioteca segue o nome novo),
+  **🗑 Apagar ROM** (segundo toque, aviso de que não tem volta e sugestão de guardar os
+  saves antes) e **⧉ Decompor coletânea** (jogos da Biblioteca, com a sugestão lida da
+  pasta do Switch e lista editável pelo teclado da tela). O resultado da cascata aparece
+  na mensagem.
+- **Coleção 🛠 Ferramentas**, cada uma num diálogo próprio:
+  - **Organizar ROMs novas:** itens da pasta de organizar com um botão por sistema
+    candidato (confirmação), e o resultado da capa.
+  - **Memory cards PS1/PS2:** exportar, transferir entre cards, apagar (confirmação),
+    importar save por arquivo, adicionar card (existente ou em branco) e desregistrar.
+  - **Saves do celular (PSP):** lista do PPSSPP pelo adb e "Baixar para o PC".
+  - **Texturas HD:** catálogo completo com alvo PC ou celular, sistema, busca, "só jogos
+    que tenho", instalar/remover e importar por arquivo da pasta de importação ou link.
+  - **Biblioteca:** atualizar Heroic/Steam/Switch, buscar capas e adicionar jogos (presets
+    da web ou plataforma/fonte livres).
+  - **Capas dos sistemas:** busca de capas das ROMs leves (normal, LaunchBox,
+    ScreenScraper), catálogo e capas das pesadas, capas nos emuladores.
+  - **Manutenção:** backup de configs, backup de saves do Dolphin, sanitizar nomes,
+    reconstruir playlist e sincronizar saves de emulador.
+  - **Configurações:** pastas do PC e do Android; só os campos alterados mudam.
+  - Jobs têm **Simular** e **Aplicar** (com confirmação); status e registro ficam no topo
+    do diálogo. Escolhas viram botões (o controle não abre `<select>`).
+- Corrigido antes de publicar: uma resposta atrasada de uma ferramenta podia redesenhar a
+  ferramenta aberta em seguida (agora cada abertura usa um corpo novo).
+- Testes: 310 Python, 48 JS. Ao vivo no navegador embutido: as 8 ferramentas abrem com os
+  dados reais (memory cards, saves do PSP lidos do celular pelo cabo, texturas, pastas) e
+  a simulação do backup de configs rodou ("modo simulação - nada foi copiado"). Mover,
+  apagar, renomear, aplicar jobs e salvar configurações foram testados só com dados
+  simulados.
+
 ## 23/10/2026 — Modo TV: adicionar desejados, marcar capa, saves com escrita, texturas no PC
 
 Fecha o "uso eventual" que ainda obrigava a abrir a web (pedido do Victor).

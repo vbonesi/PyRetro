@@ -138,19 +138,19 @@ jogados depois de abrir um jogo pelo app e o contador do Situação com uma pend
 | Sortear | ✅ | ✅ |
 | Progresso, nota, tempo | ✅ | ✅ (0.7.0) |
 | Saves do jogo | ✅ cópia, apagar e restaurar (com cópia) | ✅ com sincronização |
-| Texturas | ✅ instalar/remover do catálogo (importar na web) | ✅ PSP/3DS |
+| Texturas | ✅ ficha e Ferramentas (catálogo, importar, alvo celular) | ✅ PSP/3DS |
 | Desejados (PSN/Xbox/Steam) | ✅ (ver, adicionar, Steam, Comprado, tirar) | ❌ |
 | Estatísticas | ✅ | ❌ |
 | Capas (buscar/trocar/marcar) | ✅ | ❌ |
-| Editar jogo (gênero, comentário, dados) | ✅ (sem renomear ROM) | ❌ |
-| Organizar ROM nova | ❌ | ❌ |
-| Memory card PS1/PS2, saves PSP via adb | ❌ | ❌ |
-| Renomear/apagar com cascata | ❌ | ❌ |
-| Manutenção, Configurações | ❌ | fica só no PC |
+| Editar jogo (gênero, comentário, dados) | ✅ (renomear ROM na ficha) | ❌ |
+| Organizar ROM nova | ✅ (Ferramentas) | ❌ |
+| Memory card PS1/PS2, saves PSP via adb | ✅ (Ferramentas) | ❌ |
+| Renomear/apagar com cascata | ✅ (ficha) | ❌ |
+| Manutenção, Configurações | ✅ (Ferramentas) | fica só no PC |
 
-Em 23/10 o uso do dia a dia ficou todo no modo TV. A web ainda é necessária para: renomear
-ROM, importar pacote de textura (arquivo/link), organizar ROM nova, apagar com cascata,
-memory card, saves de PSP via adb, decompor coletânea do Switch, Manutenção e Configurações.
+Em 23/10 o modo TV passou a cobrir tudo o que a web faz (ficha + 🛠 Ferramentas); a web
+fica como diagnóstico e reserva. **Próximo: o Android**, com o celular conectado para validar:
+Desejados e Estatísticas (leitura, com o notebook online), editar jogo e capa pela ficha.
 
 Regra: uma função por vez, primeiro no modo TV, depois no Android quando fizer sentido.
 A web (`/`) só vira diagnóstico quando não tiver nada exclusivo.

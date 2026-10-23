@@ -1055,6 +1055,70 @@ teste("modo TV: saves com cópia, texturas, marcar capa e adicionar desejado", a
   } finally { frame.remove(); }
 });
 
+teste("modo TV: renomear e apagar ROM pela ficha, com confirmação e cascata", async () => {
+  const {frame, app, doc, posts} = await abrirTV(url => {
+    if (url === "/api/systems") return [{code: "FC", nome: "NES"}];
+    if (url === "/api/covers/FC") return [{label: "Velho", display_name: "Velho", file: "Velho.png", biblioteca: {}}];
+    if (url === "/api/cover/rename") return {ok: true, new_label: "Novo", cascade: {rom: {status: "renomeado"}, saves: ["a"], states: [], flat_skipped: false}};
+    if (url === "/api/cover/delete") return {ok: true, cascade: {rom: {status: "apagado"}, capa: ["x"], saves: [], states: [], flat_skipped: false}};
+  });
+  try {
+    await app.load("light"); doc.querySelector("#gallery .game").click();
+    verdade(!doc.getElementById("rom-rename").hidden && !doc.getElementById("rom-delete").hidden, "botões ausentes");
+    doc.getElementById("rom-rename").click();
+    igual(doc.getElementById("search-input").value, "Velho");
+    doc.getElementById("search-input").value = "Novo"; doc.getElementById("search-apply").click();
+    await esperar(() => doc.getElementById("message").textContent.includes("1 save(s) renomeado(s)"), "cascata não informada");
+    igual(posts[0], {url: "/api/cover/rename", body: {code: "FC", label: "Velho", new_label: "Novo"}});
+    doc.querySelector("#gallery .game").click();
+    doc.getElementById("rom-delete").click();
+    igual(posts.length, 1, "apagar pede confirmação");
+    doc.getElementById("rom-delete").click();
+    await esperar(() => doc.getElementById("message").textContent.includes("ROM apagada · capa apagada"), "apagar não concluiu");
+    igual(posts[1], {url: "/api/cover/delete", body: {code: "FC", label: "Velho"}});
+  } finally { frame.remove(); }
+});
+
+teste("modo TV: ferramentas organizam, salvam só o alterado, desregistram card e simulam antes de aplicar", async () => {
+  let streams = [];
+  const {frame, app, doc, posts} = await abrirTV(url => {
+    if (url === "/api/organize/pending") return {staging_dir: "0-Organizar", items: posts.some(p => p.url === "/api/organize/move") ? [] : [{name: "jogo.gba", size: 1048576, is_dir: false, candidates: [{code: "GBA", nome: "Game Boy Advance"}]}]};
+    if (url === "/api/organize/move") return {ok: true, cover: "exact"};
+    if (url === "/api/settings") return {pc: {roms_root: "~/ROMs", capas_root: "~/Capas"}, android: {roms_root: "/sd"}};
+    if (url === "/api/memcards") return [{console: "PS1", label: "Slot 1", key: "ps1:Slot 1", tool_ok: false}];
+    if (url === "/api/memcards/remove") return {ok: true};
+    if (url === "/api/emu_sync/sources") return [];
+    if (url.startsWith("/api/backup_config?")) return {job: "j"};
+  });
+  app.EventSource = class { constructor() { streams.push(this); } close() {} };
+  const tool = async name => { [...doc.querySelectorAll("#gallery .game")].find(c => c.textContent.includes(name)).click(); await esperar(() => doc.getElementById("tool-body").querySelector("button"), `${name} não abriu`); };
+  const btn = text => [...doc.querySelectorAll("#tool-body button")].find(b => b.textContent.startsWith(text));
+  try {
+    await app.load("tools");
+    await tool("Organizar"); btn("→ GBA").click(); igual(posts.length, 0); btn("Mover para GBA").click();
+    await esperar(() => doc.getElementById("tool-status").textContent.includes("Capa baixada"), "mover não concluiu");
+    igual(posts[0], {url: "/api/organize/move", body: {name: "jogo.gba", code: "GBA"}});
+    app.closeTool();
+    await tool("Configurações"); btn("capas_root").click();
+    doc.getElementById("search-input").value = "~/NovasCapas"; doc.getElementById("search-apply").click();
+    btn("Salvar").click(); btn("Confirmar: salvar").click();
+    await esperar(() => posts.length === 2, "configurações não salvas");
+    igual(posts[1].body, {pc: {roms_root: "~/ROMs", capas_root: "~/NovasCapas"}, android: {roms_root: "/sd"}});
+    app.closeTool();
+    await tool("Memory cards"); btn("✕ Tirar").click(); btn("Confirmar: só").click();
+    await esperar(() => posts.length === 3, "card não desregistrado");
+    igual(posts[2].body, {console: "ps1", label: "Slot 1"});
+    app.closeTool();
+    await tool("Manutenção"); btn("Simular").click();
+    await esperar(() => streams.length === 1, "simulação não rodou");
+    igual(posts[3].url, "/api/backup_config?target=all&apply=0");
+    streams[0].onmessage({data: JSON.stringify({type: "log", line: "(modo simulação - nada foi copiado)"})});
+    streams[0].onmessage({data: JSON.stringify({type: "job_done"})});
+    await esperar(() => doc.getElementById("tool-log").textContent.includes("modo simulação"), "registro vazio");
+    btn("Aplicar").click(); igual(streams.length, 1, "aplicar pede confirmação");
+  } finally { frame.remove(); }
+});
+
 // --- execução --------------------------------------------------------
 let ok = 0;
 const falhas = [];
