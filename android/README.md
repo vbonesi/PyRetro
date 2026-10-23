@@ -134,6 +134,10 @@ trocar de coleção. A ficha mostra a capa grande no topo, o tempo no celular e 
 o botão **Situação** ganha um número quando algo pede atenção (progresso esperando o
 notebook, download com falha, pasta ilegível ou conflito de save).
 
+**Desejados** (0.9.0) mostra as listas da Steam, PSN e Xbox (guardadas para ver offline), com
+Comprado e Tirar da lista. **📊 Estatísticas** fica ao lado de Sortear. Na ficha, **Mais
+opções** traz **✎ Editar dados** e **🖼 Trocar capa**; os três precisam do notebook online.
+
 As barras de coleções e ações têm rolagem horizontal. A dica de controle some em
 paisagem; a tela **Aparência** saiu na 0.6 (preferências antigas continuam
 valendo). Erros operacionais continuam visíveis. Na ficha, **Progresso e tempo**

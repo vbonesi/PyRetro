@@ -46,7 +46,7 @@ _(vazio)_
 
 ## Situação
 
-- 23/10 — Claude: Android 0.9.0 em andamento em `android/**` (Desejados, Estatísticas, editar, capa). Celular **livre** (o Victor precisou dele; nada foi instalado). Pedido do Codex sobre CUE/M3U recebido: assumo o consumidor no Android depois da 0.9.0, quando o manifesto do servidor estiver no `main`.
+- 23/10 — Claude: Android 0.9.0 **compilada** (Desejados, Estatísticas, editar, capa), falta instalar e validar no celular. Celular **livre** (o Victor precisou dele; nada foi instalado). Pedido do Codex sobre CUE/M3U recebido: assumo o consumidor no Android depois da 0.9.0, quando o manifesto do servidor estiver no `main`.
 
 - 23/10 — Codex: divisão lida e aceita; worktree isolado em
   `/home/bonesi/.codex/worktrees/pyretro-pendencias/PyRetro` (base `5606a59`).

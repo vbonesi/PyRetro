@@ -38,7 +38,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     companion object {
         /** Catálogo e progresso atualizam sozinhos quando o notebook responde; a instrumentação desliga. */
         @Volatile var automaticUpdates=true
-        private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","favorites" to "Favoritos","ranking" to "Ranking","kept" to "Fixados","stream" to "Stream")
+        private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","kept" to "Fixados","stream" to "Stream")
     }
     private lateinit var store:LibraryStore
     private lateinit var pageRoot:LinearLayout
@@ -48,6 +48,11 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private lateinit var counter:TextView
     private lateinit var pagingBar:View
     private lateinit var drawShortcut:Button
+    private lateinit var statsShortcut:Button
+    private val extras by lazy { NotebookExtras(store,filesDir) }
+    /** Desejados como cartões (chave "wish:…"); vêm do cache e se atualizam com o notebook online. */
+    private var wishGames=emptyList<Game>()
+    private var wishItems=emptyMap<String,WishItem>()
     private lateinit var statusButton:Button
     private lateinit var filterButton:Button
     private var filterPlatform=""
@@ -195,6 +200,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         for((id,label) in COLLECTIONS)add(collections,button(label) { selectCollection(id) }.also { tab -> collectionButtons[id]=tab;tab.setOnFocusChangeListener { _,focused -> tab.background=shape(focused || collection==id) } })
         horizontal(pageRoot,collections)
         drawShortcut=button("🎲 Sortear") { draw() };add(collections,drawShortcut)
+        statsShortcut=button("📊 Estatísticas") { statsDialog() };add(collections,statsShortcut)
         search=EditText(this).apply { hint="Y · Pesquisar nome, plataforma ou gênero";setHintTextColor(Color.LTGRAY);setTextColor(appForeground);isSingleLine=true;minHeight=dp(48);background=shape();setPadding(dp(12),0,dp(12),0);setText(store.prefs.getString("ui:query","")!!.take(256)) }
         search.addTextChangedListener(object:TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){};override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){page=0;render()};override fun afterTextChanged(s:Editable?){} })
         // Filtro por plataforma/gênero ao lado da busca; vale para a coleção aberta.
@@ -208,6 +214,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val paging=row();add(paging,button("LB · Anterior") { changePage(-1) });counter=text("",13f);add(paging,counter,1f);add(paging,button("Próxima · RB") { changePage(1) });pageRoot.addView(paging);pagingBar=paging
         controlHint=text("Galileo G8: direcional/analógico · A abrir · B voltar · X favorito · Y buscar · Menu opções",11f);pageRoot.addView(controlHint)
         setContentView(pageRoot);adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal();probeNotebook()
+        if(collection=="wishlist")loadWishlist()
         // Ligar o Tailscale (VPN) troca a rede padrão: sonda de novo sem esperar o usuário sair e voltar.
         networkCallback=object:ConnectivityManager.NetworkCallback() { override fun onAvailable(network:Network) { queueHandler.postDelayed({ if(!isFinishing && !isDestroyed)probeNotebook(force=true) },2_000) } }
         runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).registerDefaultNetworkCallback(networkCallback!!) }
@@ -239,6 +246,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         refreshStatusButton()
         pagingBar.visibility=if(streaming)View.GONE else View.VISIBLE
         drawShortcut.visibility=if(streaming)View.GONE else View.VISIBLE
+        statsShortcut.visibility=drawShortcut.visibility
         controlHint.visibility=if(streaming || resources.configuration.orientation==2 || !store.prefs.getBoolean("ui:show-hint",true))View.GONE else View.VISIBLE
         if(streaming) { renderStream();return }
         val home=collection=="home" && search.text.isBlank()
@@ -248,7 +256,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
         val query=GameLogic.normalized(search.text.toString())
         val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
-        val base=games.filter { game -> (collection!="cell" || game.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${game.key}",false)) && (collection!="kept" || pinned(game)) && (query.isBlank() || GameLogic.normalized(game.name+game.platform+game.genre).contains(query)) }
+        val base=(if(collection=="wishlist")wishGames else games).filter { game -> (collection!="cell" || game.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${game.key}",false)) && (collection!="kept" || pinned(game)) && (query.isBlank() || GameLogic.normalized(game.name+game.platform+game.genre).contains(query)) }
         val entries=gridEntries(base)
         val ordered=if(collection=="ranking") { val byKey=base.associateBy { it.key };GridRules.ranking(entries).mapNotNull(byKey::get) } else base
         val allowed=GridRules.filter(entries,filterPlatform,filterGenre).map { it.key }.toSet()
@@ -264,7 +272,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(gameCard(game,compact),params)
         }
         if(visible.isEmpty() && base.isNotEmpty() && (filterPlatform.isNotBlank() || filterGenre.isNotBlank()))grid.addView(text("Nenhum jogo com este filtro. Toque em Filtro para limpar.",17f))
-        else if(visible.isEmpty())grid.addView(text(when(collection) { "cell" -> "Escolha a pasta Jogos em Opções. Jogos do Catálogo podem ser baixados direto pela ficha do jogo.";"kept" -> "Fixe jogos nos detalhes para encontrá-los aqui e proteger as ROMs contra remoção.";"ranking" -> "Dê nota aos jogos da Biblioteca em Progresso e tempo, na ficha. O ranking mostra a maior nota primeiro.";else -> "Carregue o catálogo uma vez ou marque seus favoritos. Sem conexão, o cache continua disponível." },17f))
+        else if(visible.isEmpty())grid.addView(text(when(collection) { "cell" -> "Escolha a pasta Jogos em Opções. Jogos do Catálogo podem ser baixados direto pela ficha do jogo.";"kept" -> "Fixe jogos nos detalhes para encontrá-los aqui e proteger as ROMs contra remoção.";"wishlist" -> if(store.online)"Nenhum jogo nos Desejados." else "Os Desejados vêm do notebook. Conecte uma vez (Tailscale ligado) e eles ficam guardados para ver offline.";"ranking" -> "Dê nota aos jogos da Biblioteca em Progresso e tempo, na ficha. O ranking mostra a maior nota primeiro.";else -> "Carregue o catálogo uma vez ou marque seus favoritos. Sem conexão, o cache continua disponível." },17f))
         if(focusedKey!=null) {
             val next=(0 until grid.childCount).map { grid.getChildAt(it) }.firstOrNull { (it.tag as? Game)?.key==focusedKey } ?: grid.getChildAt(0)
             next?.requestFocus()
@@ -341,8 +349,112 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val conflicts=runCatching { FileSync(store).let { sync -> sync.groups.keys.mapNotNull(sync::observation).sumOf { it.getInt("conflicts") } } }.getOrDefault(0)
         statusButton.text=GridRules.statusLabel(GridRules.attention(store.pending(),failed,localProblems.size,conflicts))
     }
+    // --- Desejados, Estatísticas, editar e capa (precisam do notebook; leitura fica em cache) ---
+    private fun needsNotebook():Boolean { if(store.online)return true;message("Esta função precisa do notebook online. Ligue o Tailscale e tente de novo.");return false }
+    private fun loadWishlist() {
+        fun apply(items:List<WishItem>) { wishItems=items.associateBy(ExtrasRules::wishKey)
+            wishGames=items.map { Game(it.id,ExtrasRules.wishKey(it),it.name,ExtrasRules.STORES.getValue(it.source),cover=it.cover,genre=it.genre) } }
+        if(wishGames.isEmpty())apply(extras.wishlist(false))
+        if(!store.online)return
+        work.execute { runCatching { extras.wishlist(true) }.onSuccess { items -> runOnUiThread { apply(items);if(collection=="wishlist")render() } } }
+    }
+    private fun wishDetails(game:Game) {
+        val item=wishItems[game.key] ?: return
+        val box=column()
+        val cover=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER;visibility=View.GONE }
+        box.addView(cover,LinearLayout.LayoutParams(-1,dp(200)))
+        images.execute { val bitmap=runCatching { store.cover(game) }.getOrNull()?.let { BitmapFactory.decodeFile(it.path) };if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap);cover.visibility=View.VISIBLE } }
+        box.addView(text(item.name,22f).apply { setTypeface(null,Typeface.BOLD) })
+        box.addView(text(listOf(ExtrasRules.STORES.getValue(item.source),item.genre).filter { it.isNotBlank() }.joinToString(" · ")+" · na sua lista de desejos",14f))
+        val actions=row();horizontal(box,actions)
+        fun leave(bought:Boolean) {
+            if(!needsNotebook())return
+            show(AlertDialog.Builder(this).setMessage(if(bought)"Marcar \"${item.name}\" como comprado? Sai dos Desejados e entra na Biblioteca." else "Tirar \"${item.name}\" da lista de desejos?")
+                .setPositiveButton(if(bought)"Comprado" else "Tirar") { _,_ -> work.execute { runCatching { extras.leaveWishlist(item,bought) }.onSuccess { items -> runOnUiThread {
+                    wishGames=wishGames.filter { it.key!=game.key };message(if(bought)"${item.name} entrou na Biblioteca." else "${item.name} saiu dos Desejados.");render()
+                    if(bought)refreshCatalog(silent=true)
+                } }.onFailure { runOnUiThread { failure(it) } } } }.setNegativeButton("Voltar",null))
+        }
+        add(actions,button("✅ Comprado") { leave(true) });add(actions,button("🗑 Tirar da lista") { leave(false) })
+        box.addView(text("Para adicionar jogos aos Desejados, use o modo TV ou a interface do notebook.",12f))
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+    }
+    private fun statsDialog() {
+        val box=column();box.addView(text("📊 Estatísticas",23f))
+        val body=text(if(store.online)"Consultando o notebook…" else "",15f);box.addView(body)
+        val actions=row();horizontal(box,actions)
+        add(actions,button("Ranking") { dialog?.dismiss();selectCollection("ranking") });add(actions,button("Desejados") { dialog?.dismiss();selectCollection("wishlist") })
+        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+        fun fill(stats:JSONObject?,fresh:Boolean) {
+            if(dialog!==opened)return
+            if(stats==null) { body.text="As estatísticas vêm do notebook. Conecte uma vez e elas ficam guardadas para ver offline.";return }
+            val media=if(stats.isNull("nota_media"))"—" else "%.2f".format(java.util.Locale("pt","BR"),stats.getDouble("nota_media"))
+            body.text=listOf("🎮 ${stats.getInt("total")} jogos na Biblioteca","▶ ${stats.getInt("jogando")} jogando agora","✓ ${stats.getInt("zerados")} finalizados · 🏆 ${stats.getInt("platinados")} platinados",
+                "★ nota média $media · ${stats.getInt("com_nota")} com nota","◷ ${ExtrasRules.hours(stats.getDouble("tempo_total_horas"))} de jogo registrado","♡ ${wishGames.size.takeIf { it>0 } ?: extras.wishlist(false).size} nos Desejados",
+                if(fresh)"" else "Offline · dados de ${store.prefs.getLong("stats-at",0).takeIf { it>0 }?.let(::versionDate) ?: "—"}.").filter { it.isNotBlank() }.joinToString("\n")
+        }
+        fill(extras.stats(false),false)
+        if(store.online)work.execute { val result=runCatching { extras.stats(true) };runOnUiThread { result.onSuccess { fill(it,true) }.onFailure { fill(extras.stats(false),false) } } }
+    }
+    private fun editGame(game:Game) {
+        if(!needsNotebook())return
+        message("Lendo os dados de ${game.name}…")
+        work.execute {
+            val result=runCatching { extras.record(game.id) to extras.genres() }
+            runOnUiThread { result.onFailure(::failure).onSuccess { (record,genres) ->
+                if(record==null) { message("Este jogo não está mais na Biblioteca do notebook.");return@onSuccess }
+                val fields=listOf("genero" to "Gênero","data_final" to "Data que finalizou (aaaa-mm-dd)","tempo" to "Tempo jogado (ex.: 31:40:00)","observacoes" to "Comentário")
+                val before=fields.associate { (field,_) -> field to (record.optString(field).takeUnless { record.isNull(field) } ?: "") }
+                val box=column();box.addView(text("✎ ${game.name}",21f).apply { setTypeface(null,Typeface.BOLD) })
+                val options=(listOf("") + genres + listOf(before.getValue("genero"))).distinct()
+                box.addView(text("Gênero",15f))
+                val genre=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,options.map { it.ifBlank { "Sem gênero" } });setSelection(options.indexOf(before.getValue("genero")).coerceAtLeast(0)) }
+                box.addView(genre)
+                val inputs=fields.drop(1).associate { (field,label) -> box.addView(text(label,15f))
+                    field to EditText(this).apply { setText(before.getValue(field));setTextColor(appForeground);background=shape();setPadding(dp(12),dp(8),dp(12),dp(8));if(field=="observacoes") { minLines=3 } else isSingleLine=true }.also { box.addView(it,LinearLayout.LayoutParams(-1,-2)) } }
+                show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null).setPositiveButton("Salvar") { _,_ ->
+                    val after=mapOf("genero" to options[genre.selectedItemPosition])+inputs.mapValues { it.value.text.toString() }
+                    val changes=ExtrasRules.changes(before,after)
+                    if(changes.isEmpty()) { message("Nada alterado.");return@setPositiveButton }
+                    work.execute { runCatching { extras.edit(game.id,changes) }.onSuccess { runOnUiThread { message("Dados de ${game.name} salvos no notebook.");refreshCatalog(silent=true) } }.onFailure { runOnUiThread { failure(it) } } }
+                })
+            } }
+        }
+    }
+    private fun coverSearch(game:Game,target:CoverTarget) {
+        if(!needsNotebook())return
+        val box=column();box.addView(text("🖼 Capa de ${game.name}",21f).apply { setTypeface(null,Typeface.BOLD) })
+        val query=EditText(this).apply { setText(game.name);setTextColor(appForeground);isSingleLine=true;background=shape();setPadding(dp(12),dp(8),dp(12),dp(8)) }
+        box.addView(query,LinearLayout.LayoutParams(-1,-2))
+        val status=text("",13f);val results=GridLayout(this).apply { columnCount=3 }
+        lateinit var search:()->Unit
+        add(box,button("Buscar no SteamGridDB") { search() });box.addView(status);box.addView(results)
+        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
+        search={
+            val term=query.text.toString().trim()
+            if(term.length>=2) {
+                status.text="Buscando… pode levar até um minuto.";results.removeAllViews()
+                work.execute { val found=runCatching { extras.searchCovers(term) };runOnUiThread { if(dialog!==opened)return@runOnUiThread
+                    found.onFailure { status.text=it.message ?: "Busca falhou." }.onSuccess { list ->
+                        status.text=if(list.isEmpty())"Nada encontrado. Troque o termo." else "Toque numa capa para usar."
+                        for((url,name) in list.take(12)) {
+                            val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=name;isFocusable=true;isClickable=true;background=shape();setPadding(dp(4),dp(4),dp(4),dp(4))
+                                setOnFocusChangeListener { _,focused -> background=shape(focused) }
+                                setOnClickListener { show(AlertDialog.Builder(this@MainActivity).setMessage("Usar esta capa para ${game.name}? A capa atual no notebook é substituída.").setNegativeButton("Voltar",null).setPositiveButton("Usar") { _,_ ->
+                                    message("Aplicando a capa…")
+                                    work.execute { runCatching { extras.applyCover(target,url) }.onSuccess { runOnUiThread { message("Capa trocada. Atualizando o catálogo…");refreshCatalog(silent=true) } }.onFailure { runOnUiThread { failure(it) } } }
+                                }) } }
+                            results.addView(image,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { width=0;height=dp(170);setMargins(dp(3),dp(3),dp(3),dp(3)) })
+                            images.execute { val bitmap=runCatching { extras.thumbnail(url) }.getOrNull();if(bitmap!=null)runOnUiThread { image.setImageBitmap(bitmap) } }
+                        }
+                    } } }
+            }
+        }
+        search()
+    }
     private fun selectCollection(id:String) {
         if(id!=collection) { filterPlatform="";filterGenre="" }
+        if(id=="wishlist")loadWishlist()
         collection=id;page=0;restorePosition=false;restoredPage=null;render();gridScroll.scrollTo(0,0)
     }
     private fun renderStream() {
@@ -453,6 +565,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun queued(game:Game)=runCatching { queue().contains(game.key) }.getOrDefault(false)
     /** Onde o jogo está e o que dá para fazer com ele, em poucas palavras (cartão e ficha). */
     private fun where(game:Game)=when {
+        game.key.startsWith("wish:") -> "♡ Desejado"
         game.localUri!=null -> "▶ Neste celular"
         game.code in store.folders && (linked(game) || game.downloadable) -> "⬇ Baixar"
         GameLogic.remotePackage(game.platform)!=null || GameLogic.streamedThroughNotebook(game.platform) -> "📡 Stream"
@@ -461,6 +574,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun primary(box:LinearLayout,label:String,action:()->Unit)=button(label,action).apply { textSize=18f;setTypeface(null,Typeface.BOLD);minHeight=dp(56) }.also { add(box,it) }
     private fun details(game:Game) {
+        if(game.key.startsWith("wish:")) { wishDetails(game);return }
         lastSelectedKey=game.key
         val box=column()
         // Capa grande no topo (some se o jogo não tiver capa no cache).
@@ -523,6 +637,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             add(more,button("Escolher o arquivo no Drive") { driveSearch(game) })
         }
         if(game.code in setOf("PS","PSP","3DS"))add(more,button("Texturas HD deste sistema") { textures(game) })
+        if(game.id.isNotBlank())add(more,button("✎ Editar dados (gênero, comentário…)") { editGame(game) })
+        ExtrasRules.coverTarget(game.id,game.cover)?.let { target -> add(more,button("🖼 Trocar capa") { coverSearch(game,target) }) }
         if(game.localUri!=null)add(more,button("Remover ROM deste celular") { offerRomRemoval(game) })
         help(more,"Voltar ao PyRetro","Use Recentes → PyRetro para retornar; coleção, busca e posição ficam guardadas. Para encerrar o jogo, use o menu do emulador.")
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
@@ -1174,6 +1290,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val text=status.text.toString()
         if(text.startsWith("Offline") || text.startsWith("Modo offline") || text.startsWith("Online ·"))
             message(if(catalog.isEmpty())"Online · notebook conectado. Buscando o catálogo…" else "Online · notebook conectado. Catálogo de ${updated ?: "data desconhecida"}.")
+        if(collection=="wishlist")loadWishlist()
         if(collection!="stream")render() // capas que faltavam no cache agora podem ser baixadas
         automaticUpdate(force)
     }

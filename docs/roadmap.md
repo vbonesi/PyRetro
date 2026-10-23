@@ -139,18 +139,18 @@ jogados depois de abrir um jogo pelo app e o contador do Situação com uma pend
 | Progresso, nota, tempo | ✅ | ✅ (0.7.0) |
 | Saves do jogo | ✅ cópia, apagar e restaurar (com cópia) | ✅ com sincronização |
 | Texturas | ✅ ficha e Ferramentas (catálogo, importar, alvo celular) | ✅ PSP/3DS |
-| Desejados (PSN/Xbox/Steam) | ✅ (ver, adicionar, Steam, Comprado, tirar) | ❌ |
-| Estatísticas | ✅ | ❌ |
-| Capas (buscar/trocar/marcar) | ✅ | ❌ |
-| Editar jogo (gênero, comentário, dados) | ✅ (renomear ROM na ficha) | ❌ |
+| Desejados (PSN/Xbox/Steam) | ✅ (ver, adicionar, Steam, Comprado, tirar) | ✅ ver, Comprado, tirar (0.9.0) |
+| Estatísticas | ✅ | ✅ (0.9.0) |
+| Capas (buscar/trocar/marcar) | ✅ | ✅ trocar pelo SteamGridDB (0.9.0) |
+| Editar jogo (gênero, comentário, dados) | ✅ (renomear ROM na ficha) | ✅ (0.9.0) |
 | Organizar ROM nova | ✅ (Ferramentas) | ❌ |
 | Memory card PS1/PS2, saves PSP via adb | ✅ (Ferramentas) | ❌ |
 | Renomear/apagar com cascata | ✅ (ficha) | ❌ |
 | Manutenção, Configurações | ✅ (Ferramentas) | fica só no PC |
 
 Em 23/10 o modo TV passou a cobrir tudo o que a web faz (ficha + 🛠 Ferramentas); a web
-fica como diagnóstico e reserva. **Próximo: o Android**, com o celular conectado para validar:
-Desejados e Estatísticas (leitura, com o notebook online), editar jogo e capa pela ficha.
+fica como diagnóstico e reserva. Android 0.9.0 (23/10) compilada com Desejados, Estatísticas,
+editar e capa: **instalar e validar no celular** na próxima conexão (com o Tailscale ligado).
 
 Regra: uma função por vez, primeiro no modo TV, depois no Android quando fizer sentido.
 A web (`/`) só vira diagnóstico quando não tiver nada exclusivo.

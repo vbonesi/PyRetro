@@ -6,6 +6,26 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (3) — Android 0.9.0: Desejados, Estatísticas, editar jogo e capa
+
+Compilada, **não instalada**: o celular foi desconectado (o Victor precisou dele). Instalar e
+validar no aparelho na próxima conexão.
+
+- **Desejados:** coleção nova com as três lojas juntas por nome (`/api/wishlist`), filtro por
+  loja/gênero e cache em `wishlist.json` para abrir offline. Ficha com capa, **✅ Comprado** e
+  **🗑 Tirar da lista** (confirmação; precisa do notebook). Adicionar fica no modo TV/web.
+- **📊 Estatísticas** (atalho ao lado de Sortear): os mesmos números do modo TV
+  (`/api/estatisticas`), cache em `stats.json` com a data quando offline, e atalhos para
+  Ranking e Desejados.
+- **Ficha → Mais opções:** **✎ Editar dados** (gênero da lista existente, data que finalizou,
+  tempo, comentário; lê o registro atual e envia só o alterado por `/api/library/edit`) e
+  **🖼 Trocar capa** (busca no SteamGridDB, grade de miniaturas, confirmação, aplica por
+  `/api/cover/apply_url`; capa de ROM vai para o arquivo `/images/<código>/<label>`, a da
+  Biblioteca para o cadastro). As duas exigem o notebook online e atualizam o catálogo depois.
+- Regras sem Android em `ExtrasRules` (ordem dos desejados, horas, destino da capa, campos
+  alterados); "1 dia" no singular também no modo TV.
+- Testes: 310 Python, 48 JS, 50 JVM.
+
 ## 23/10/2026 (2) — Modo TV com 🛠 Ferramentas: a web vira só diagnóstico
 
 O que ainda só existia na interface completa agora está no modo TV, pelas mesmas rotas

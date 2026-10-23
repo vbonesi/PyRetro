@@ -299,7 +299,7 @@ function renderApps() {
 const WISHLIST_STORES = {steam: "Steam", psn: "PlayStation", xbox: "Xbox"};
 function formatHours(hours) {
   const total = Math.round(hours), days = Math.floor(total / 24);
-  return days ? `${days} dias e ${total % 24} h (${total.toLocaleString("pt-BR")} h)` : `${total} h`;
+  return days ? `${days} ${days === 1 ? "dia" : "dias"} e ${total % 24} h (${total.toLocaleString("pt-BR")} h)` : `${total} h`;
 }
 // Estatísticas: os números da web em cartões; cada um leva à coleção que explica o número.
 function renderStats() {
