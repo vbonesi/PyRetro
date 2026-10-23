@@ -1178,7 +1178,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun compareSaves(game:Game,groups:List<String>,mine:(String,String)->Boolean) {
         val sync=FileSync(store)
         val local=runCatching { groups.flatMap { g -> sync.local(g).filterKeys { mine(g,it) }.map { (path,file) -> path to file.size } } }
-        val plans=if(store.base().isBlank())null else runCatching { groups.map { g -> sync.analyze(g) { mine(g,it) } } }
+        // Notebook fora do ar e conta Google conectada: compara com Jogos/Saves no Drive.
+        val plans=if(!store.online && drive.connected)runCatching { groups.map { g -> DriveSaves(store,drive,sync).analyze(g) { mine(g,it) } } }
+            else if(store.base().isBlank())null else runCatching { groups.map { g -> sync.analyze(g) { mine(g,it) } } }
         runOnUiThread { if(!isFinishing && !isDestroyed)reviewGameSaves(game,local,plans) }
     }
     /** PSP/3DS: o notebook diz o ID do título do jogo (Redump para PSP, cabeçalho da ROM para 3DS).
@@ -1234,7 +1236,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             box.addView(text(if(files.isEmpty())"Nenhum save ou estado deste jogo no celular." else files.joinToString("\n") { (path,size) -> "${path.substringAfterLast('/')} · ${bytesLabel(size)}" },14f))
         }.onFailure { box.addView(text("Não foi possível ler a pasta RetroArch: ${it.message}",13f)) }
         val ready=plans?.getOrNull()
-        message(when { ready!=null -> "Saves de ${game.name} conferidos.";plans==null -> "Saves de ${game.name}: notebook não configurado.";else -> "Saves de ${game.name}: notebook offline, só os do celular." })
+        message(when { ready!=null -> "Saves de ${game.name} conferidos"+(if(ready.firstOrNull()?.rootTag?.startsWith("drive:")==true)" com o Drive." else ".");plans==null -> "Saves de ${game.name}: notebook não configurado.";else -> "Saves de ${game.name}: notebook offline, só os do celular." })
         if(ready==null) box.addView(text(if(plans==null)"Configure o notebook para comparar." else "Notebook offline: comparação indisponível. Os arquivos acima continuam valendo no celular.",13f))
         else {
             val rows=ready.flatMap { plan -> plan.rows.filter { it.kind!="same" }.map { plan to it } }
@@ -1242,7 +1244,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             if(rows.any { it.second.choice=="download" } && local.getOrNull().isNullOrEmpty())
                 box.addView(text("O celular não tem nenhum save deste jogo nesta pasta. Se você já jogou aqui, confira em Opções se a pasta RetroArch escolhida é a raiz (não saves/states) antes de baixar.",12f))
             for((_,row) in rows) {
-                val direction=when(row.choice) { "upload" -> "Celular → notebook";"download" -> "Notebook → celular";else -> "Escolher versão" }
+                val drive=ready.firstOrNull()?.rootTag?.startsWith("drive:")==true
+                val direction=when(row.choice) { "upload" -> if(drive)"Celular → Drive" else "Celular → notebook";"download" -> if(drive)"Drive → celular" else "Notebook → celular";"pending" -> "Enviado, aguardando o notebook aplicar";else -> "Escolher versão" }
                 if(row.kind=="conflict")add(box,button("$direction · ${row.path.substringAfterLast('/')}") {
                     val options=mutableListOf("Adiar" to "conflict")
                     if(row.local!=null)options.add("Usar a do celular (${bytesLabel(row.local.size)})" to "upload")
@@ -1252,19 +1255,26 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }
             if(rows.any { it.second.choice in setOf("upload","download") })add(box,button("Sincronizar este jogo") {
                 dialog?.dismiss();message("Sincronizando saves de ${game.name}… feche o emulador nas duas pontas.")
-                work.execute { runCatching { ready.joinToString("\n") { FileSync(store).apply(it) { status -> runOnUiThread { message(status) } }.lineSequence().first() } }
+                work.execute { runCatching { ready.joinToString("\n") { applyPlan(it) { status -> runOnUiThread { message(status) } }.lineSequence().first() } }
                     .onSuccess { result -> runOnUiThread { message("Saves de ${game.name}: $result") } }.onFailure { runOnUiThread { failure(it) } } }
             })
             box.addView(text("Versões substituídas ficam no histórico das duas pontas. Feche o emulador antes de sincronizar.",12f))
         }
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> details(game) })
     }
+    /** Plano do notebook ou do Drive (rootTag "drive:…"): cada um aplica pela sua ponta. */
+    private fun applyPlan(plan:SyncPlan,progress:(String)->Unit):String=
+        if(plan.rootTag.startsWith("drive:"))DriveSaves(store,drive,FileSync(store)).apply(plan,progress) else FileSync(store).apply(plan,progress)
     private fun syncGroup(group:String,label:String) {
         val sync=FileSync(store)
         val item=column();item.addView(text(label,22f));item.addView(text(if(sync.tree(group)==null)"Escolha a pasta local para continuar." else "Pasta local definida. Notebook via HTTPS/Tailscale; jogar continua disponível offline.",14f))
         add(item,button("Escolher pasta deste grupo") { pickSyncFolder(group) })
         add(item,button("Versões deste celular") { localVersions(group) })
         add(item,button("Versões do notebook") { remoteVersions(group) })
+        if(drive.connected)add(item,button("Analisar com o Drive (conta Google)") {
+            dialog?.dismiss();message("Comparando $label com o Drive…")
+            work.execute { runCatching { DriveSaves(store,drive,sync).analyze(group) }.onSuccess { plan -> runOnUiThread { reviewSync(plan) } }.onFailure { error -> runOnUiThread { if(error is GoogleConsentNeeded)connectGoogle() else failure(error) } } }
+        })
         add(item,button("Analisar sem copiar") {
             dialog?.dismiss();message("Comparando arquivos de $label…")
             work.execute { runCatching { sync.analyze(group) }.onSuccess { plan -> runOnUiThread { reviewSync(plan) } }.onFailure { runOnUiThread { failure(it) } } }
@@ -1285,7 +1295,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val actions=plan.rows.count { it.choice in setOf("upload","download") };val conflicts=plan.rows.count { it.kind=="conflict" && it.choice=="conflict" }
         box.addView(text("$actions transferência(s) escolhida(s) · $conflicts conflito(s) adiado(s) · ${plan.rows.count { it.kind=="same" }} arquivo(s) iguais. Versões anteriores são preservadas. Feche os emuladores antes de aplicar.",14f))
         for(row in plan.rows.filter { it.kind!="same" }) {
-            val direction=when(row.choice) { "upload" -> "Celular → notebook";"download" -> "Notebook → celular";else -> "Conferir conflito" }
+            val drive=plan.rootTag.startsWith("drive:")
+            val direction=when(row.choice) { "upload" -> if(drive)"Celular → Drive" else "Celular → notebook";"download" -> if(drive)"Drive → celular" else "Notebook → celular";"pending" -> "Enviado, aguardando o notebook aplicar";else -> "Conferir conflito" }
             if(row.kind=="conflict")add(box,button("$direction · ${row.path}") {
                 val options=mutableListOf("Adiar" to "conflict")
                 if(row.local!=null)options.add("Usar versão do celular (${row.local.size} B)" to "upload")
@@ -1296,7 +1307,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("Aplicar escolhas e registrar comparação") {
             show(AlertDialog.Builder(this).setTitle("Aplicar sincronização?").setMessage("$actions transferência(s). Feche os emuladores no celular e no notebook. Cada arquivo será conferido novamente; conflitos adiados ficam preservados. Versões diferentes substituídas ficam no histórico da pasta.").setNegativeButton("Voltar") { _,_ -> reviewSync(plan) }.setPositiveButton("Aplicar") { _,_ ->
                 message("Sincronizando arquivos…")
-                work.execute { runCatching { FileSync(store).apply(plan) { status -> runOnUiThread { message(status) } } }.onSuccess { result -> runOnUiThread { message(result.lineSequence().first());show(AlertDialog.Builder(this).setTitle("Resultado").setMessage(result).setPositiveButton("Fechar",null)) } }.onFailure { runOnUiThread { failure(it) } } }
+                work.execute { runCatching { applyPlan(plan) { status -> runOnUiThread { message(status) } } }.onSuccess { result -> runOnUiThread { message(result.lineSequence().first());show(AlertDialog.Builder(this).setTitle("Resultado").setMessage(result).setPositiveButton("Fechar",null)) } }.onFailure { runOnUiThread { failure(it) } } }
             })
         })
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))

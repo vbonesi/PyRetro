@@ -142,6 +142,12 @@ opções** traz **✎ Editar dados** e **🖼 Trocar capa**; os três precisam d
 sem o notebook. Os downloads continuam com o app em segundo plano, com notificação e Pausar.
 Jogos em CUE/M3U baixam o conjunto inteiro pelo notebook; removê-los é pela pasta, por ora.
 
+**Saves pela nuvem** (0.12.0): com o notebook fora e a conta conectada, 💾 Saves compara com
+`Jogos/Saves` no Drive. O que vem do Drive é gravado com histórico; o que o celular manda não
+sobrescreve nada no Drive: vira uma pendência que o notebook aplica (modo TV → Ferramentas →
+☁ Saves enviados pelo celular). PSP/3DS usam o ID do título de cada jogo (0.11.0); uma ROM só
+do celular pode ser cadastrada na Biblioteca pela ficha.
+
 As barras de coleções e ações têm rolagem horizontal. A dica de controle some em
 paisagem; a tela **Aparência** saiu na 0.6 (preferências antigas continuam
 valendo). Erros operacionais continuam visíveis. Na ficha, **Progresso e tempo**

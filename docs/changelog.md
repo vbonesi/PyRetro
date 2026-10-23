@@ -6,6 +6,24 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (6) — Rodada 2 do Codex no main; Android 0.11.0 e 0.12.0 (saves pelo Drive)
+
+Compiladas, **não instaladas** (celular com o Victor).
+
+- **Merge** das entregas 2a–2c do Codex (contrato de saves pelo Drive, `POST /api/library/add-rom`,
+  `GET /api/mobile/saves/game` com title IDs). 343 Python OK; servidor reiniciado.
+- **Android 0.11.0:** 💾 Saves de PSP/3DS por ID do título (identificado filtra só o jogo;
+  vários candidatos viram escolha guardada por jogo, como no Patapon 2 Europa/EUA; sem ID seguro
+  abre o grupo inteiro), `SaveIdRules` espelhando `core/game_save_ids.matches`; ROM só do celular
+  ganha **📚 Adicionar à Biblioteca**, com favorito/tempo/fixação migrados para a chave do cadastro.
+- **Android 0.12.0 — saves pela nuvem (fase 2 da conta Google):** `DriveSaves.kt` compara com
+  `Jogos/Saves` do Drive quando o notebook está fora (na ficha e por grupo, "Analisar com o
+  Drive"); Drive → celular grava com histórico; celular → Drive cria arquivo novo ou deixa
+  **pendência** (o Drive não tem gravação condicional). Detalhes em `docs/drive-saves.md`.
+- **PC:** `core/drive_pending.py` + Ferramentas → **☁ Saves enviados pelo celular** aplica as
+  pendências com `mobile_sync.receive` (condicional, com histórico); conflito pede escolha.
+- Testes: 347 Python (4 novos em `test_drive_pending.py`), 48 JS, 63 JVM.
+
 ## 23/10/2026 — Rodada 2, saves por jogo (Codex)
 
 - `GET /api/mobile/saves/game?id=...`: seriais PSP do cache Redump existente;

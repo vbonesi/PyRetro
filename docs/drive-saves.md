@@ -108,3 +108,28 @@ público não deve incluir tokens, contas, IDs ou nomes privados.
 
 Fontes oficiais: [recurso Files (nomes, IDs e version)](https://developers.google.com/workspace/drive/api/reference/rest/v3/files)
 e [atualizações parciais](https://developers.google.com/workspace/drive/api/guides/performance).
+
+## Implementação 23/10 (Claude): envio do celular como pendência aplicada pelo PC
+
+Seguindo o item 5 acima, o app (0.12.0, `DriveSaves.kt`) **nunca sobrescreve** um arquivo
+ativo no Drive:
+
+- **Drive → celular:** confere o `sha256Checksum` do Drive logo antes, baixa, confere bytes e
+  hash e grava pelo `FileSync.install` (versão anterior preservada no celular). Avança a base.
+- **Celular → Drive, arquivo novo** (sem versão no Drive e sem base): cria o arquivo e relista a
+  pasta; se surgiu um homônimo (criação concorrente), move o próprio envio para pendência.
+- **Celular → Drive, arquivo existente** (ou conflito resolvido como "usar o do celular"): cria
+  `<grupo>/.pyretro-pending/<caminho>/<ms>-<base>.pending`, onde base é o SHA-256 da versão do
+  Drive que o celular viu (`none` se não havia). Não avança a base. A análise seguinte mostra a
+  linha como "Enviado, aguardando o notebook aplicar" enquanto a pendência existir.
+- **No PC** (`core/drive_pending.py`, Ferramentas → ☁ Saves enviados pelo celular; rotas
+  `GET /api/drive_pending`, `POST /api/drive_pending/apply|reject`): o Insync traz a pendência
+  para a pasta local; aplicar usa `mobile_sync.receive` com `expected=base` (gravação
+  condicional, versão anterior em `.pyretro-history`). PC mudou depois → conflito, nada é
+  substituído; o usuário escolhe "Usar o do celular" (força, PC vai para o histórico) ou
+  "Manter o do PC" (a pendência vai para o histórico como `.rejected`). Aplicada vira `.applied`.
+- Identidade da análise: `DriveSaveRules.identity` reproduz `identity()` (teste com os mesmos
+  valores de referência), com o `permissionId` da conta como identificador estável.
+
+A homologar com Drive/Insync reais: se o Insync sincroniza pastas `.pyretro-*` (ocultas) nos dois
+sentidos, latência até a pendência chegar ao PC e o fluxo com o emulador fechado nas duas pontas.

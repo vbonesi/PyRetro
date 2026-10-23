@@ -59,6 +59,7 @@ from core import mobile_textures as mobile_textures_mod
 from core import mobile_sync as mobile_sync_mod
 from core import mobile_roms as mobile_roms_mod
 from core import diagnostics as diagnostics_mod
+from core import drive_pending as drive_pending_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -1631,6 +1632,10 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "play", "status"]:
             return self._json(PLAY_SESSIONS.status())
 
+        if parts == ['api', 'drive_pending']:
+            # Saves enviados pelo celular ao Drive que esperam o PC aplicar (core/drive_pending.py).
+            return self._json({'items': drive_pending_mod.scan(load_config())})
+
         if parts == ['api', 'diagnostics']:
             try:
                 cfg = load_config()
@@ -2601,6 +2606,25 @@ class Handler(BaseHTTPRequestHandler):
                 result = playtime_mod.record(PLAYTIME_PATH, key, minutes * 60, source='manual', event=body.get('event'))
                 return self._json(playtime_mod.public(result))
             except (ValueError, OSError) as error: return self._json({'error':str(error)}, 400)
+
+        if parts[:2] == ['api', 'drive_pending'] and len(parts) == 3 and parts[2] in ('apply', 'reject'):
+            body = self._read_json_body(); cfg = load_config()
+            args = (cfg, body.get('group'), body.get('path'), body.get('pending'))
+            if body.get('group') not in mobile_sync_mod.GROUPS or not isinstance(body.get('path'), str) or not isinstance(body.get('pending'), str):
+                return self._json({'error': 'pendência inválida'}, 400)
+            if PLAY_SESSIONS.status().get('status') == 'running':
+                return self._json({'error': 'feche o jogo aberto antes de mexer nos saves'}, 409)
+            try:
+                if parts[2] == 'apply':
+                    return self._json({'ok': True, **drive_pending_mod.apply(*args, force=bool(body.get('force')))})
+                drive_pending_mod.reject(*args)
+                return self._json({'ok': True})
+            except LookupError as error:
+                return self._json({'error': str(error).strip("'")}, 404)
+            except mobile_sync_mod.Conflict as error:
+                return self._json({'error': str(error)}, 409)
+            except (ValueError, OSError) as error:
+                return self._json({'error': str(error)}, 400)
 
         if parts[:3] == ['api', 'tv', 'saves'] and len(parts) == 4:
             # Escrita de saves pela ficha do modo TV: sempre guarda cópia antes

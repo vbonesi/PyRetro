@@ -84,30 +84,64 @@ class GoogleDrive(private val context:Context,private val prefs:android.content.
             return JSONObject(text)
         } finally { connection.disconnect() }
     }
-    private fun list(query:String):List<JSONObject> {
+    private fun list(query:String,fields:String="id,name,size,md5Checksum,mimeType"):List<JSONObject> {
         val out=mutableListOf<JSONObject>();var page=""
         do {
-            val data=json("https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files(id,name,size,md5Checksum,mimeType)&q=${URLEncoder.encode(query,"UTF-8")}"+(if(page.isEmpty())"" else "&pageToken=$page"))
+            val data=json("https://www.googleapis.com/drive/v3/files?pageSize=1000&fields=nextPageToken,files($fields)&q=${URLEncoder.encode(query,"UTF-8")}"+(if(page.isEmpty())"" else "&pageToken=$page"))
             val files=data.optJSONArray("files") ?: JSONArray();for(i in 0 until files.length())out.add(files.getJSONObject(i))
             page=data.optString("nextPageToken")
         } while(page.isNotEmpty())
         return out
     }
     private val folders=mutableMapOf<String,String>()
-    private fun folder(path:List<String>):String {
-        var parent="root"
+    /** Pasta por caminho a partir da raiz do Drive. Nome repetido nunca é resolvido pelo primeiro. */
+    fun folder(path:List<String>,create:Boolean=false,from:String="root"):String {
+        var parent=from
         for((i,name) in path.withIndex()) {
-            val key=path.take(i+1).joinToString("/")
-            parent=folders[key] ?: list(DriveSource.childQuery(parent,name,folder=true)).singleOrNull()?.getString("id")?.also { folders[key]=it }
-                ?: error("Pasta ${path.take(i+1).joinToString("/")} não encontrada (ou repetida) no Drive desta conta.")
+            val key=from+":"+path.take(i+1).joinToString("/")
+            val found=folders[key] ?: list(DriveSource.childQuery(parent,name,folder=true)).let { rows ->
+                require(rows.size<=1) { "Pasta ${path.take(i+1).joinToString("/")} repetida no Drive; resolva antes de sincronizar." }
+                rows.singleOrNull()?.getString("id")
+            } ?: if(create)createFolder(parent,name) else null
+            parent=(found ?: error("Pasta ${path.take(i+1).joinToString("/")} não encontrada no Drive desta conta.")).also { folders[key]=it }
         }
         return parent
     }
+    fun folderOrNull(path:List<String>,from:String):String?=runCatching { folder(path,false,from) }.getOrNull()
+    /** Filhos de uma pasta com o SHA-256 que o Drive calcula sobre os bytes. */
+    fun children(parent:String):List<JSONObject> = list("${DriveSource.quoted(parent)} in parents and trashed = false","id,name,size,mimeType,sha256Checksum")
+    private fun send(method:String,url:String,body:ByteArray?,type:String="application/json; charset=UTF-8"):HttpURLConnection {
+        val connection=open(url);connection.requestMethod=method
+        if(body!=null) { connection.doOutput=true;connection.setRequestProperty("Content-Type",type);connection.setFixedLengthStreamingMode(body.size);connection.outputStream.use { it.write(body) } }
+        return connection
+    }
+    private fun created(connection:HttpURLConnection):JSONObject = try {
+        val status=connection.responseCode;val text=(if(status in 200..299)connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+        require(status in 200..299) { runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrDefault("Drive recusou (HTTP $status).") }
+        JSONObject(text)
+    } finally { connection.disconnect() }
+    private fun createFolder(parent:String,name:String):String = created(send("POST","https://www.googleapis.com/drive/v3/files?fields=id",
+        JSONObject().put("name",name).put("mimeType","application/vnd.google-apps.folder").put("parents",JSONArray().put(parent)).toString().toByteArray())).getString("id")
+    /** Envia um arquivo novo (upload retomável numa sessão só); nunca substitui um existente. */
+    fun create(parent:String,name:String,file:java.io.File):JSONObject {
+        val start=send("POST","https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,size,sha256Checksum",
+            JSONObject().put("name",name).put("parents",JSONArray().put(parent)).toString().toByteArray())
+        val location=try { require(start.responseCode==200) { "Drive recusou o envio (HTTP ${start.responseCode})." };requireNotNull(start.getHeaderField("Location")) } finally { start.disconnect() }
+        val upload=URL(location).openConnection() as HttpURLConnection
+        upload.requestMethod="PUT";upload.doOutput=true;upload.connectTimeout=15000;upload.readTimeout=120000;upload.setFixedLengthStreamingMode(file.length())
+        upload.setRequestProperty("Authorization","Bearer ${token()}");upload.outputStream.use { out -> file.inputStream().use { it.copyTo(out,1024*1024) } }
+        return created(upload)
+    }
+    /** Move para outra pasta com outro nome (usado para tirar do caminho um envio que duplicou). */
+    fun move(id:String,from:String,to:String,name:String) { created(send("PATCH","https://www.googleapis.com/drive/v3/files/${URLEncoder.encode(id,"UTF-8")}?addParents=$to&removeParents=$from&fields=id",
+        JSONObject().put("name",name).toString().toByteArray())) }
+    fun accountId():String=json("https://www.googleapis.com/drive/v3/about?fields=user(permissionId)").getJSONObject("user").getString("permissionId")
     fun account():String { val email=json("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)").getJSONObject("user").getString("emailAddress")
         prefs.edit().putBoolean("google:connected",true).putString("google:email",email).apply();return email }
     /** Arquivos da pasta do sistema no Drive (Jogos/ROMs/<código>). */
     fun romFiles(code:String):List<DriveRef> = list(DriveSource.childQuery(folder(DriveSource.ROMS+code),folder=false))
         .map { DriveRef(it.getString("id"),it.getString("name"),it.optString("size","0").toLongOrNull() ?: 0,it.optString("md5Checksum")) }
+    fun file(id:String):JSONObject=json("https://www.googleapis.com/drive/v3/files/${URLEncoder.encode(id,"UTF-8")}?fields=id,name,size,trashed,sha256Checksum")
     fun metadata(id:String):DriveRef { val it=json("https://www.googleapis.com/drive/v3/files/${URLEncoder.encode(id,"UTF-8")}?fields=id,name,size,md5Checksum,trashed")
         require(!it.optBoolean("trashed")) { "O arquivo foi para a lixeira do Drive." }
         return DriveRef(it.getString("id"),it.getString("name"),it.optString("size","0").toLong(),it.optString("md5Checksum")) }
