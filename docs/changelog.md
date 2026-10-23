@@ -6,6 +6,19 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (10) — Saves criados por testes removidos (com cópia)
+
+Pedido do Victor: apagar saves feitos em testes. Levantamento de tudo alterado desde 15/10 em
+`RetroArch/saves|states`, PPSSPP, 3DS SDMC e memory cards (celular) e em `~/Drive/Jogos/Saves` (PC):
+
+- **Removidos** (cópia em `Backups/Saves de teste removidos 2026-10-23/`): `7th Dragon.sav` e
+  `.state.auto` no PC (criados 22/10 11:25–11:29, na sessão de teste do melonDS; único save de
+  DS) e `The Adventure of Little Ralph.state.auto` no celular (23/10, jogo baixado só para teste).
+- **Mantidos:** Pokémon X no celular (save de 26/06/2026, progresso real; o PC não tem porque a
+  pasta `Saves/Lime3DS/sdmc` nunca foi sincronizada — nenhum save de 3DS está no PC); Super Mario
+  64 `.srm` (existe desde 15/10, só regravado ao abrir nos testes); memory cards PS1/PS2
+  (compartilhados) e o `.ini` de GPU do NFSU2 (correção intencional).
+
 ## 23/10/2026 (9) — Pendências 1, 3, 4 e 5: dados reais, CUE/M3U, 3DS e melonDS
 
 Android **0.13.0 (code 21), instalada e validada no celular.**
