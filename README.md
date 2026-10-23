@@ -99,6 +99,10 @@ hardware medido e como desfazer: [`docs/emuladores-graficos.md`](docs/emuladores
 
 ## Testes
 
+Para conferir componentes do notebook e baixar um relatório sem dados privados,
+abra `http://127.0.0.1:8000/diagnostics`. A verificação é explícita e não testa rede,
+login, emuladores ou controle; não lê o conteúdo de ROMs/saves nem inclui logs.
+
 ```bash
 python3 -m unittest discover -s tests -v
 ```

@@ -5,6 +5,23 @@ achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
 pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026 (noite).
 
+## Entrega de backend e apoio — 23/10/2026
+
+- **Concluído no servidor:** manifesto CUE/M3U/GDI, envio de membros com revalidação e
+  prévia conservadora de remoção no PC. [Contrato](mobile-rom-bundles.md).
+  **Pendente no produto:** consumidor Android/SAF e homologação; não liberar o
+  formato pelo simples fato de o manifesto existir. Não há exclusão automática.
+- **Concluído:** diagnóstico acessível em `/diagnostics`, com relatório exportável
+  sem dados privados. Detecta presença de pastas/programas; rede e uso real são
+  verificados separadamente.
+- **Concluído:** [avaliação documental do RomM](avaliacao-romm.md).
+- **Preparado:** [homepage, privacidade e condições OAuth](oauth/README.md).
+  Publicar em domínio próprio/verificado e alterar Google Cloud continuam pendentes.
+- **Setup conferido parcialmente:** auxiliar DS/3DS idempotente no notebook e
+  melonDS atual sem pilha executável. Migração para melonDS DS exige cuidado com
+  states incompatíveis; provisionamento limpo e controles físicos seguem pendentes
+  em `setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`.
+
 ## Status atual
 
 | Área | Status |

@@ -6,6 +6,29 @@ Pra "o que está pronto hoje" e "o que vem a seguir", ver
 [`docs/roadmap.md`](roadmap.md) - este arquivo é o registro, não o
 plano.
 
+## 23/10/2026 (4) — Conjuntos de discos e diagnóstico (Codex)
+
+- Servidor: manifesto completo de CUE/M3U/GDI no PC ou Drive, ordem de dependências,
+  deduplicação, limites e recusa de ciclos, faixas ausentes e caminhos externos.
+  Download de cada membro exige identidade do manifesto e ETag; alterações durante
+  a análise/retomada são recusadas. Identidade é de metadados, não checksum das ROMs.
+- Prévia de remoção **somente do PC**, sem excluir nada: dependências usadas por
+  outro descritor permanecem; leitura incerta bloqueia a proposta. Contrato e
+  obrigações do cliente em `docs/mobile-rom-bundles.md`. Integração Android/SAF
+  fica com Claude; isto não libera CUE/M3U no APK por si só.
+- `/diagnostics`: verificação explícita de pastas/executáveis e download de relatório
+  JSON por lista permitida, sem nomes de jogos, caminhos, contas, endereços ou logs.
+  `/api/diagnostics` não consulta rede, executa programas nem lê conteúdo do acervo.
+  Encontrar executável não comprova login; encontrar pasta não comprova escrita.
+- Pesquisa RomM concluída em `docs/avaliacao-romm.md`; páginas OAuth preparadas em
+  `docs/oauth/`, sem publicação de site ou mudança no Google Cloud.
+- 323 testes Python e 48 JS aprovados com fixtures; diagnóstico conferido no navegador
+  com acervo sintético. Nenhum save/ROM real alterado, nenhum jogo ou adb executado.
+- Setup: auxiliar DS/3DS em simulação e `--apply` sem mudanças necessárias, cinco
+  testes isolados aprovados; melonDS instalado com pilha RW (sem E). Avaliação do
+  melonDS DS concluída: states antigos incompatíveis, migração não aplicada.
+  Provisionamento limpo e homologação física continuam pendentes no setup.
+
 ## 23/10/2026 (3) — Android 0.9.0: Desejados, Estatísticas, editar jogo e capa
 
 Compilada, **não instalada**: o celular foi desconectado (o Victor precisou dele). Instalar e
