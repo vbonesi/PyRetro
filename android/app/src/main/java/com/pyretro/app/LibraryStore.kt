@@ -118,8 +118,9 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         saveCatalog(games)
         prefs.edit().putLong("updated",System.currentTimeMillis()).apply();online=true;return games
     }
-    private fun migrateAliases(data:JSONObject) {
-        val aliases=data.keys().asSequence().associateWith { data.getString(it) }
+    private fun migrateAliases(data:JSONObject)=migrateKeys(data.keys().asSequence().associateWith { data.getString(it) })
+    /** Favorito, tempo, fixação e pendências seguem a chave nova (ROM renomeada ou cadastrada). */
+    fun migrateKeys(aliases:Map<String,String>) {
         if(aliases.isEmpty())return
         synchronized(SpaceStore.mutationLock) {
             val plan=KeyAliases.plan(prefs.all,aliases) { raw,key -> JSONObject(raw).put("key",key).toString() }

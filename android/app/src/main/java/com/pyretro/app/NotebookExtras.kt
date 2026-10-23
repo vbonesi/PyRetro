@@ -74,6 +74,13 @@ class NotebookExtras(private val store:LibraryStore,private val dir:File) {
         val list=runCatching { JSONArray(raw) }.getOrElse { throw IllegalArgumentException(JSONObject(raw).optString("error","Busca falhou.")) }
         return (0 until list.length()).map { list.getJSONObject(it) }.map { it.getString("url") to it.optString("nome") }
     }
+    /** ROM que só existe no celular vira cadastro da Biblioteca (`docs/mobile-library.md`). */
+    fun addRom(name:String,code:String):JSONObject = JSONObject(store.request("/api/library/add-rom",JSONObject().put("nome",name).put("code",code)))
+    /** ID do título dos saves PSP/3DS (`docs/mobile-save-ids.md`); guardado para uso offline. */
+    fun saveIds(id:String):JSONObject {
+        val raw=store.request("/api/mobile/saves/game?id=${Uri.encode(id)}");store.prefs.edit().putString("save-ids:$id",raw).apply();return JSONObject(raw)
+    }
+    fun cachedSaveIds(id:String)=store.prefs.getString("save-ids:$id",null)?.let { runCatching { JSONObject(it) }.getOrNull() }
     fun applyCover(target:CoverTarget,url:String) {
         val body=JSONObject().put("kind",target.kind).put("url",url)
         if(target.kind=="rom")body.put("code",target.code).put("label",target.label) else body.put("id",target.id)

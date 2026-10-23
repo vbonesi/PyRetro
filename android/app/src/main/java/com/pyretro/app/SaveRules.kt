@@ -23,3 +23,17 @@ object SaveRules {
         return if(extension in extensions)fileName.substringBeforeLast('.') else fileName
     }
 }
+
+/** Saves de PSP/3DS por jogo, pelo ID do título (contrato `docs/mobile-save-ids.md`, espelho de
+ *  `core/game_save_ids.matches`). Extdata do 3DS nunca entra: é outro identificador. */
+object SaveIdRules {
+    fun groups(code:String)=when(code) { "PSP" -> listOf("psp-saves","psp-states");"3DS" -> listOf("3ds-saves");else -> emptyList() }
+    fun valid(code:String,titleId:String)=when(code) { "PSP" -> Regex("[A-Z]{4}[0-9]{5}").matches(titleId);"3DS" -> Regex("00040000[0-9a-f]{8}").matches(titleId);else -> false }
+    fun matches(group:String,path:String,titleId:String):Boolean {
+        if(!SyncRules.accepted(group,path))return false
+        if(group=="psp-saves" || group=="psp-states")return Regex("[A-Z]{4}[0-9]{5}").matches(titleId) && path.take(9).uppercase()==titleId
+        if(group=="3ds-saves" && Regex("00040000[0-9a-f]{8}").matches(titleId))
+            return path.lowercase().split('/').drop(3).take(4)==listOf("title",titleId.take(8),titleId.drop(8),"data")
+        return false
+    }
+}

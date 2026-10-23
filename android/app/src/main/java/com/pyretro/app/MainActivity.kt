@@ -624,6 +624,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             runCatching { SpaceStore(store).setPinned(game,!SpaceStore(store).pinned(game));render();details(game) }.onFailure(::failure)
         })
         if(rom)add(quick,button("💾 Saves") { gameSaves(game) })
+        if(game.id.isBlank() && game.key.startsWith("local:") && game.localUri!=null)add(quick,button("📚 Adicionar à Biblioteca") { addToLibrary(game) })
         val progress=expandable(box,"Progresso e tempo",expandedTrackingKey==game.key) { expandedTrackingKey=if(it)game.key else null }
         val tracking=store.tracking(game)
         for((field,label) in listOf("iniciado" to "Iniciado","finalizado" to "Finalizado","platinado" to "Platinado"))add(progress,button((if(tracking.optBoolean(field))"✓ " else "○ ")+label) {
@@ -1160,7 +1161,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun gameSaves(game:Game) {
         val sync=FileSync(store)
         val group=when(game.code) { "PSP" -> "psp-saves";"3DS" -> "3ds-saves";else -> null }
-        if(group!=null) { syncGroup(group,sync.groups.getValue(group));return } // PSP/3DS usam IDs do jogo, não o nome da ROM
+        if(group!=null) { titleSaves(game,group);return } // PSP/3DS: pelo ID do título, não pelo nome da ROM
         val wrongFolder=sync.retroarchTree()?.let { SaveRules.retroarchFolderProblem(DocumentsContract.getTreeDocumentId(it)) }
         if(sync.tree("retro-saves")==null || wrongFolder!=null) {
             show(AlertDialog.Builder(this).setTitle("Saves de ${game.name}").setMessage((wrongFolder?.let { "$it\n\n" } ?: "")+"Escolha uma vez a pasta RetroArch do celular (normalmente RetroArch, no armazenamento interno; não entre em saves). Depois os saves de cada jogo aparecem aqui.")
@@ -1170,9 +1171,61 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         work.execute {
             val label=SaveRules.label(game.localUri?.let { runCatching { store.displayName(it) }.getOrNull() } ?: game.romName.substringAfterLast('/').ifBlank { game.name },store.extensionsFor(game.code))
             val mine={ path:String -> SaveRules.belongs(path,game.code,label) }
-            val local=runCatching { listOf("retro-saves","retro-states").flatMap { g -> sync.local(g).filterKeys(mine).map { (path,file) -> path to file.size } } }
-            val plans=if(store.base().isBlank())null else runCatching { listOf("retro-saves","retro-states").map { sync.analyze(it,mine) } }
-            runOnUiThread { if(!isFinishing && !isDestroyed)reviewGameSaves(game,local,plans) }
+            compareSaves(game,listOf("retro-saves","retro-states")) { _,path -> mine(path) }
+        }
+    }
+    /** Lista e compara (com o notebook) os saves de um jogo nos grupos dados; roda fora da tela. */
+    private fun compareSaves(game:Game,groups:List<String>,mine:(String,String)->Boolean) {
+        val sync=FileSync(store)
+        val local=runCatching { groups.flatMap { g -> sync.local(g).filterKeys { mine(g,it) }.map { (path,file) -> path to file.size } } }
+        val plans=if(store.base().isBlank())null else runCatching { groups.map { g -> sync.analyze(g) { mine(g,it) } } }
+        runOnUiThread { if(!isFinishing && !isDestroyed)reviewGameSaves(game,local,plans) }
+    }
+    /** PSP/3DS: o notebook diz o ID do título do jogo (Redump para PSP, cabeçalho da ROM para 3DS).
+     *  Sem ID seguro (ou jogo sem cadastro), abre o grupo inteiro como antes. Vários candidatos
+     *  viram escolha, guardada por jogo; nunca copia todos. */
+    private fun titleSaves(game:Game,group:String) {
+        val sync=FileSync(store)
+        fun wholeGroup(reason:String) { message(reason);syncGroup(group,sync.groups.getValue(group)) }
+        if(game.id.isBlank()) { wholeGroup("${game.name} não está na Biblioteca: mostrando todos os saves do grupo.");return }
+        val chosen=store.prefs.getString("save-id-choice:${game.id}",null)
+        fun run(titleId:String) { dialog?.dismiss();message("Conferindo saves de ${game.name} ($titleId)…")
+            work.execute { compareSaves(game,SaveIdRules.groups(game.code)) { g,path -> SaveIdRules.matches(g,path,titleId) } } }
+        if(chosen!=null && SaveIdRules.valid(game.code,chosen)) { run(chosen);return }
+        message("Consultando o ID de ${game.name}…")
+        work.execute {
+            val data=runCatching { extras.saveIds(game.id) }.getOrElse { extras.cachedSaveIds(game.id) }
+            runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
+                val ids=data?.optJSONArray("titleIds")?.let { a -> (0 until a.length()).map(a::getString) }.orEmpty().filter { SaveIdRules.valid(game.code,it) }
+                val candidates=data?.optJSONArray("candidates")?.let { a -> (0 until a.length()).map(a::getJSONObject) }.orEmpty().filter { SaveIdRules.valid(game.code,it.optString("titleId")) }
+                when {
+                    data==null -> wholeGroup("Sem o notebook e sem ID guardado: mostrando todos os saves do grupo.")
+                    data.optString("status")=="identified" && ids.size==1 -> run(ids[0])
+                    data.optString("status")=="needs-choice" && candidates.isNotEmpty() -> show(AlertDialog.Builder(this).setTitle("Qual versão de ${game.name}?")
+                        .setItems(candidates.map { "${it.optString("name")} · ${it.getString("titleId")}" }.toTypedArray()) { _,which ->
+                            val id=candidates[which].getString("titleId");store.prefs.edit().putString("save-id-choice:${game.id}",id).apply();run(id) }
+                        .setNegativeButton("Ver o grupo inteiro") { _,_ -> syncGroup(group,sync.groups.getValue(group)) })
+                    else -> wholeGroup("ID de ${game.name} desconhecido (${data.optString("status","sem resposta")}): mostrando todos os saves do grupo.")
+                }
+            }
+        }
+    }
+    /** ROM que só existe no celular ganha cadastro na Biblioteca do notebook; favorito, tempo e
+     *  fixação passam para a chave do cadastro. */
+    private fun addToLibrary(game:Game) {
+        if(!needsNotebook())return
+        val name=GameLogic.fileLabel(game.romName.substringAfterLast('/').ifBlank { game.name })
+        message("Cadastrando ${game.name} na Biblioteca…")
+        work.execute {
+            val result=runCatching { val response=extras.addRom(name,game.code);response to store.refresh() }
+            runOnUiThread { result.onSuccess { (response,fresh) ->
+                val id=response.getString("id");val registered=fresh.firstOrNull { it.id==id }
+                if(registered!=null && registered.key!=game.key)runCatching { store.migrateKeys(mapOf(game.key to registered.key)) }
+                registered?.let { store.prefs.edit().putString("rom:${it.key}",game.localUri.toString()).apply() }
+                catalog=fresh;dialog?.dismiss()
+                message(if(response.optBoolean("created"))"${game.name} entrou na Biblioteca." else "${game.name} já estava na Biblioteca; agora está ligado a este arquivo.")
+                reloadLocal()
+            }.onFailure(::failure) }
         }
     }
     private fun reviewGameSaves(game:Game,local:Result<List<Pair<String,Long>>>,plans:Result<List<SyncPlan>>?) {
