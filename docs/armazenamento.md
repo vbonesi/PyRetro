@@ -85,3 +85,12 @@ remover só deste celular, Drive à lixeira): etapa F do plano.
 Enquanto nada foi desmarcado no Insync, o acervo original continua intacto: basta não apontar os
 consumidores para o novo caminho. Depois de desmarcar, reconciliar saves antes de voltar, sem
 sobrescrever um save novo com um snapshot antigo.
+
+## Remoção local/Drive (etapa F, regras prontas)
+
+`core/removal.py`: prévia e aplicação de três ações (`local`, `drive` = lixeira do Drive, `both`),
+com proteção (iniciado/fixado/em execução), arquivos compartilhados preservados, aviso de última
+cópia, token de revalidação, frase de confirmação com local e Drive por extenso e resultado por
+item. Saves, estados, texturas, capa e cadastro nunca são tocados. **Ainda não está ligado ao
+servidor nem à interface** e o Drive só funciona depois de reconectar o rclone com permissão de
+escrita (hoje é somente leitura, e a prévia bloqueia a ação com essa explicação).
