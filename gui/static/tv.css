@@ -388,3 +388,9 @@ header{padding:1rem 3vw .5rem}
 .plat-icon::before{content:attr(data-short)}
 .plat-icon[data-len="4"]{font-size:.6em}.plat-icon[data-len="5"],.plat-icon[data-len="6"]{font-size:.5em}
 .system-symbol{font-size:3rem}.system-symbol .plat-icon{margin:0}
+
+footer{flex-direction:row;align-items:center}
+#hints-more{font-size:.65rem;padding:.15rem .5rem}
+#hints-extra{flex-basis:100%}
+body.filters-collapsed #platforms,body.filters-collapsed #genres{display:none}
+#filters-toggle{white-space:nowrap}

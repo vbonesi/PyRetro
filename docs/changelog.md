@@ -4243,3 +4243,13 @@ filtros unificados).
 - Zelda Molblins (DS): o erro "something bad happened while trying to write to your cart" some com
   um `.sav` em branco de 512 KB em `Saves/saves/NDS/` (o melonDS não tem tipo de save para essa ROM de
   fã). Criado esse arquivo; confirmar jogando.
+
+## 28/10/2026 — modo TV: rodapé compacto, filtros recolhíveis e glifos do controle (etapa A)
+
+- Rodapé com uma linha de atalhos e "Mais atalhos" expansível; avisos de fim de sessão somem ao
+  trocar de coleção.
+- Plataforma e gênero ficam atrás de um botão "Filtros (n) ▾/▴" (lembrado entre sessões); o Sortear
+  continua sempre aberto.
+- Glifos: Xbox (A/B/X/Y, LB/RB, LT/RT), PlayStation (✕/○/□/△, L1/R1, L2/R2) ou Automático pelo
+  controle conectado; o botão "Botões" nas opções escolhe manualmente. Os bindings não mudam.
+  Conferido no navegador; sem teste automatizado novo (as funções vivem no escopo do `tv.js`).

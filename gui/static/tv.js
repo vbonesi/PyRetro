@@ -17,6 +17,31 @@ async function api(url, body, retried = false) {
   return data;
 }
 const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "home", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null, preferences: {favorites: [], theme: "dark"}, home: null};
+// --- glifos do controle: Xbox (A/B/X/Y), PlayStation (✕/○/□/△) ou automático pelo controle conectado ---
+const GLIFOS = {xbox: {A: "A", B: "B", X: "X", Y: "Y", L: "LB", R: "RB", LT: "LT", RT: "RT"}, ps: {A: "✕", B: "○", X: "□", Y: "△", L: "L1", R: "R1", LT: "L2", RT: "R2"}};
+const GLIFO_NOMES = {auto: "Automático", xbox: "Xbox", ps: "PlayStation"};
+let glifoPref = "auto", glifoDetectado = "xbox";
+try { glifoPref = localStorage.getItem("pyretro-glifos") || "auto"; } catch (_) {}
+function padFamily(id = "") { return /054c|sony|dualshock|dualsense|wireless controller/i.test(id) ? "ps" : "xbox"; }
+function glifos() { return GLIFOS[glifoPref === "auto" ? glifoDetectado : glifoPref] || GLIFOS.xbox; }
+function applyGlyphs() {
+  const g = glifos();
+  $("hints").textContent = `✚ Navegar · ${g.A} Escolher · ${g.B} Voltar · ☰ Opções`;
+  $("hints-extra").textContent = `${g.X} Favoritar · ${g.Y} Pesquisar · ${g.L}/${g.R} Página · ${g.LT}/${g.RT} Coleção · Mouse: botão direito favorita`;
+  $("search-open").textContent = `${g.Y} · Pesquisar`;
+  $("glyphs-cycle").textContent = `Botões: ${GLIFO_NOMES[glifoPref]}`;
+}
+// Filtros secundários (plataforma e gênero) recolhíveis: mais área para os jogos.
+let filtrosRecolhidos = true;
+try { filtrosRecolhidos = localStorage.getItem("pyretro-filtros") !== "aberto"; } catch (_) {}
+function updateFilters() {
+  const toggle = $("filters-toggle"), available = !["home", "systems", "apps", "stats", "tools", "draw"].includes(state.kind);
+  const active = (state.filter ? 1 : 0) + (state.genre ? 1 : 0);
+  toggle.hidden = !available;
+  toggle.textContent = `Filtros${active ? ` (${active})` : ""} ${filtrosRecolhidos ? "▾" : "▴"}`;
+  toggle.setAttribute("aria-expanded", String(!filtrosRecolhidos));
+  document.body.classList.toggle("filters-collapsed", available && filtrosRecolhidos);
+}
 const collections = [["home", "Início"], ["local", "Neste PC"], ["favorites", "Favoritos"], ["systems", "Sistemas"], ["library", "Biblioteca"], ["playing", "Jogando"], ["ranking", "Ranking"], ["wishlist", "Desejados"], ["stats", "Estatísticas"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["tools", "🛠 Ferramentas"], ["apps", "Apps"]];
 const cardGames = new WeakMap();
 let spotlightGame, settingsReturnFocus;
@@ -37,7 +62,7 @@ function drawTabs() {
   for (const name of ["", ...state.sortear.generos]) genres.append(button(name || "Qualquer gênero", () => { state.draw.genre = name; drawTabs(); genres.querySelector(`[aria-pressed="true"]`)?.focus(); }, state.draw.genre === name));
 }
 function platformTabs() {
-  drawTabs();
+  drawTabs(); updateFilters();
   const nav = $("platforms"); if (state.kind === "draw") return; nav.replaceChildren();
   const genres = $("genres");
   const names = [...new Set(state.items.map(g => g.tracking?.genero).filter(Boolean))].sort();
@@ -80,6 +105,7 @@ function romItem(kind, c, sys, g) {
 }
 async function load(kind = state.kind, code = "") {
   const request = ++state.request;
+  if (/^(Sessão encerrada|O emulador encerrou)/.test($("play-status").textContent)) report("", false, "play-status");
   if (kind !== state.kind && kind !== "search") state.query = "";
   state.kind = kind; state.filter = ""; state.genre = "";
   const systems = kind === "heavy" ? state.systems : state.light;
@@ -172,7 +198,7 @@ function render() {
     for (const g of ranked.slice(3)) gallery.append(gameCard(g));
   } else for (const g of items) gallery.append(gameCard(g));
   if (state.kind === "draw") return report(items.length ? "Sorteado! Escolha jogar, transmitir ou ver o progresso nos detalhes." : "Escolha grupo e gênero, depois sorteie.");
-  report(items.length ? `${items.length} jogos · escolha uma capa` : state.kind === "favorites" ? "Escolha um jogo e pressione X para guardar nos favoritos." : "Nenhum jogo nesta seleção.");
+  report(items.length ? `${items.length} jogos · escolha uma capa` : state.kind === "favorites" ? `Escolha um jogo e pressione ${glifos().X} para guardar nos favoritos.` : "Nenhum jogo nesta seleção.");
 }
 // Top 3 da seleção atual (depois de filtro e busca); 2-1-3 em tela larga, 1-2-3 em retrato (CSS).
 function podium(ranked) {
@@ -1422,6 +1448,7 @@ function pollGamepad(now) {
   const pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false && p.buttons.length >= 10);
   const pad = pads.find(p => p.mapping === "standard") || pads[0];
   if (pad) {
+    const family = padFamily(pad.id); if (family !== glifoDetectado) { glifoDetectado = family; applyGlyphs(); }
     $("controller").textContent = `Controle conectado: ${pad.id}`; noPadSince = null; $("controller").classList.remove("warning");
     const pressed = i => pad.buttons[i]?.pressed;
     const keys = new Set();
@@ -1469,3 +1496,16 @@ async function init() {
 }
 requestAnimationFrame(pollGamepad); init();
 api("/api/play/status").then(watchSession).catch(() => {});
+
+$("hints-more").onclick = () => { const open = $("hints-extra").hidden; $("hints-extra").hidden = !open; $("hints-more").setAttribute("aria-expanded", String(open)); $("hints-more").textContent = open ? "Menos atalhos" : "Mais atalhos"; };
+$("filters-toggle").onclick = () => {
+  filtrosRecolhidos = !filtrosRecolhidos;
+  try { localStorage.setItem("pyretro-filtros", filtrosRecolhidos ? "recolhido" : "aberto"); } catch (_) {}
+  updateFilters(); if (!filtrosRecolhidos) ($("platforms").querySelector("button") || $("genres").querySelector("button"))?.focus();
+};
+$("glyphs-cycle").onclick = () => {
+  const order = ["auto", "xbox", "ps"]; glifoPref = order[(order.indexOf(glifoPref) + 1) % order.length];
+  try { localStorage.setItem("pyretro-glifos", glifoPref); } catch (_) {}
+  applyGlyphs(); report(`Botões: ${GLIFO_NOMES[glifoPref]}.`, false, "settings-status");
+};
+applyGlyphs(); updateFilters();
