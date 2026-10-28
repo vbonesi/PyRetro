@@ -162,9 +162,28 @@ function render() {
   const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre) && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || ["local", "draw"].includes(state.kind) || g.local) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
   const gallery = $("gallery"); gallery.replaceChildren();
   if (state.kind === "draw") gallery.append(drawPanel(items.length > 0));
-  for (const g of items) gallery.append(gameCard(g));
+  if (state.kind === "ranking" && items.length) {
+    const ranked = [...items].sort((a, b) => (b.tracking.nota ?? -1) - (a.tracking.nota ?? -1) || norm(a.name).localeCompare(norm(b.name), "pt-BR") || (a.platform || "").localeCompare(b.platform || "", "pt-BR") || String(a.id ?? a.key ?? "").localeCompare(String(b.id ?? b.key ?? "")));
+    gallery.append(podium(ranked));
+    for (const g of ranked.slice(3)) gallery.append(gameCard(g));
+  } else for (const g of items) gallery.append(gameCard(g));
   if (state.kind === "draw") return report(items.length ? "Sorteado! Escolha jogar, transmitir ou ver o progresso nos detalhes." : "Escolha grupo e gênero, depois sorteie.");
   report(items.length ? `${items.length} jogos · escolha uma capa` : state.kind === "favorites" ? "Escolha um jogo e pressione X para guardar nos favoritos." : "Nenhum jogo nesta seleção.");
+}
+// Top 3 da seleção atual (depois de filtro e busca); 2-1-3 em tela larga, 1-2-3 em retrato (CSS).
+function podium(ranked) {
+  const section = document.createElement("section"); section.className = "podium"; section.setAttribute("aria-label", "Top 3 desta seleção");
+  const title = document.createElement("h3"); title.textContent = "Top 3 desta seleção";
+  const row = document.createElement("div"); row.className = "podium-row";
+  ranked.slice(0, 3).forEach((g, i) => { const card = gameCard(g); card.classList.add("podium-place", `place-${i + 1}`); card.dataset.place = String(i + 1); row.append(card); });
+  section.append(title, row);
+  const last = ranked[2]?.tracking.nota, tied = ranked.filter(g => g.tracking.nota === last).length;
+  if (ranked.length > 3 && tied > 1 && ranked[3].tracking.nota === last) {
+    const note = document.createElement("p"); note.className = "podium-note";
+    note.textContent = `Empate na nota ${String(last).replace(".", ",")}: a ordem entre empatados é alfabética, não de preferência.`;
+    section.append(note);
+  }
+  return section;
 }
 function drawPanel(hasResult) {
   const group = state.sortear?.grupos.find(g => g.code === state.draw.group)?.label || "Tudo";
@@ -181,7 +200,7 @@ function gameBadges(g) {
   if (t.platinado) badges.push(['🏆 Platinado', 'Jogo platinado']);
   else if (t.finalizado) badges.push(['✓ Finalizado', 'Jogo finalizado']);
   else if (t.iniciado) badges.push(['▶ Jogando', 'Jogo iniciado']);
-  if (t.nota != null) badges.push([`★ ${String(t.nota).replace('.', ',')}`, 'Nota']);
+  if (t.nota != null) badges.push([`${notaEspecial(t.nota) ? '✦' : '★'} ${String(t.nota).replace('.', ',')}`, notaEspecial(t.nota) ? 'Nota: jogo muito especial' : 'Nota', notaColor(t.nota)]);
   const minutes = Math.floor((g.playtime?.seconds || 0) / 60);
   if (minutes > 0) badges.push([minutes >= 60 ? `⏱ ${Math.floor(minutes/60)}h${String(minutes%60).padStart(2,'0')}` : `⏱ ${minutes}min`, 'Tempo registrado neste PC']);
   if (observedSaves.get(badgeKey(g))) badges.push(['💾', 'Save encontrado neste PC na última consulta']);
@@ -189,8 +208,9 @@ function gameBadges(g) {
 }
 function fillBadges(target, g) {
   target.replaceChildren();
-  for (const [label, title] of gameBadges(g)) {
+  for (const [label, title, color] of gameBadges(g)) {
     const badge = document.createElement('span'); badge.className = 'badge';
+    if (color) { badge.style.color = color; badge.style.borderColor = color; }
     badge.textContent = label; badge.title = title; badge.setAttribute('aria-label', `${title}: ${label}`);
     target.append(badge);
   }
@@ -813,11 +833,12 @@ function renderTracking() {
     fields.forEach(([field], i) => { if (value ? i <= index : i >= index) state.draft[field] = value; });
     renderTracking(); $("tracking").children[index].focus();
   }, state.draft[key])));
-  $("rating").textContent = state.draft.nota == null ? "Sem nota" : state.draft.nota.toFixed(1);
+  const rating = $("rating"); rating.textContent = state.draft.nota == null ? "Sem nota" : notaEspecial(state.draft.nota) ? "11 ✦" : state.draft.nota.toFixed(1).replace(".", ",");
+  rating.style.color = notaColor(state.draft.nota) || "";
 }
 function adjustRating(delta) {
   if (state.busy) return;
-  state.draft.nota = Math.max(0, Math.min(11, Math.round(((state.draft.nota ?? 0) + delta) * 10) / 10)); renderTracking();
+  state.draft.nota = notaPasso(state.draft.nota, delta); renderTracking();
 }
 $("rating-down").onclick = () => adjustRating(-1);
 $("rating-up").onclick = () => adjustRating(1);

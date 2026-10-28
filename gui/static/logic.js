@@ -12,16 +12,38 @@
 // (só 11 visto na coleção real, nota "fora da escala") usa --warn
 // (dourado/âmbar, já é a cor de destaque do tema). Sem nota, sem cor
 // (não decide nada por quem ainda não avaliou).
+// Escala de cor da nota (mesmas amostras no Android, ver NotaRules.kt): vermelho em 0-1,
+// laranja em 4, amarelo em 6,5, já verde em 7 e verde pleno em 10. Só a nota 11 exata é
+// dourada ("jogo muito especial"); não existe 10,x - qualquer valor entre 10 e 11 que já
+// esteja gravado continua visível e usa o verde de 10, sem ser regravado.
+const NOTA_PARADAS = [[1, [237, 106, 106]], [4, [233, 155, 86]], [6.5, [212, 188, 99]], [7, [149, 200, 120]], [10, [102, 210, 155]]];
+const NOTA_DOURADA = "#f1c75b";
+function notaEspecial(nota) { return nota !== null && nota !== undefined && nota !== "" && Number(nota) === 11; }
 function notaColor(nota) {
   if (nota === null || nota === undefined || nota === "") return null;
   const n = Number(nota);
   if (Number.isNaN(n)) return null;
-  if (n > 10) return "#e0a52c"; // --warn
-  const t = Math.max(0, Math.min(1, (n - 1) / 9)); // 1 -> 0, 10 -> 1
-  const from = [224, 92, 92];   // --err
-  const to = [76, 175, 125];    // --ok
-  const rgb = from.map((c, i) => Math.round(c + (to[i] - c) * t));
-  return `rgb(${rgb.join(",")})`;
+  if (n === 11) return NOTA_DOURADA;
+  if (n <= NOTA_PARADAS[0][0]) return `rgb(${NOTA_PARADAS[0][1].join(",")})`;
+  for (let i = 1; i < NOTA_PARADAS.length; i++) {
+    const [x1, c1] = NOTA_PARADAS[i];
+    if (n <= x1 || i === NOTA_PARADAS.length - 1) {
+      const [x0, c0] = NOTA_PARADAS[i - 1];
+      const t = Math.max(0, Math.min(1, (n - x0) / (x1 - x0)));
+      return `rgb(${c0.map((c, k) => Math.round(c + (c1[k] - c) * t)).join(",")})`;
+    }
+  }
+}
+// Passo do editor de nota: entre 10 e 11 não há degrau intermediário (10 -> 11 e 11 -> 10).
+function notaPasso(atual, delta) {
+  const base = atual === null || atual === undefined || atual === "" ? 0 : Number(atual);
+  const novo = Math.round(Math.min(11, Math.max(0, base + delta)) * 10) / 10;
+  return novo > 10 && novo < 11 ? (delta > 0 ? 11 : 10) : novo;
+}
+// Nota digitada: 0 a 11 com uma casa; o que cair entre 10 e 11 vai para o mais próximo.
+function notaDigitada(valor) {
+  const n = Math.round(valor * 10) / 10;
+  return n > 10 && n < 11 ? (n >= 10.5 ? 11 : 10) : n;
 }
 
 function notaTexto(nota) {
@@ -166,7 +188,7 @@ function libraryMatchesFilters(g, fonte, noCover, mostrarOcultos, status) {
 // Deixa acessível pros testes (e pro app.js, que roda no mesmo escopo
 // global do navegador).
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { notaColor, notaTexto, fonteLabel, libraryGroupsFor,
+  module.exports = { notaColor, notaEspecial, notaPasso, notaDigitada, notaTexto, fonteLabel, libraryGroupsFor,
                      libraryTabGroupsFor, libraryMatchesFilters, stemOf, formatGB,
                      formatTempoTotal, FONTE_LABELS, GROUP_TAB_ALIASES, TAB_NAO_AGRUPA };
 }

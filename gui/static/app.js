@@ -311,9 +311,7 @@ function buildNotaBox(nota, onChange) {
 
   box.querySelectorAll(".nota-step").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const base = atual === null || atual === undefined || atual === "" ? 0 : Number(atual);
-      const novo = Math.round(Math.min(11, Math.max(0, base + Number(btn.dataset.d) * 0.1)) * 10) / 10;
-      grava(novo);
+      grava(notaPasso(atual, Number(btn.dataset.d) * 0.1));
     });
   });
   valor.addEventListener("click", () => {
@@ -323,7 +321,7 @@ function buildNotaBox(nota, onChange) {
     if (limpo === "") return grava(null);
     const n = parseFloat(limpo);
     if (Number.isNaN(n) || n < 0 || n > 11) return alert("nota precisa ser um número entre 0 e 11");
-    grava(Math.round(n * 10) / 10);
+    grava(notaDigitada(n));
   });
 
   pinta();

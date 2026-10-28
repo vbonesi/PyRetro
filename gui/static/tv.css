@@ -372,3 +372,14 @@ header{padding:1rem 3vw .5rem}
 .draw-panel{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:1rem 1.5rem;padding:1rem 1.2rem;border:1px solid var(--edge);border-radius:12px;background:var(--panel)}
 .draw-summary{margin:0;flex:1 1 220px;font-size:1rem;overflow-wrap:anywhere}
 .draw-panel .draw{display:inline-flex;align-items:center;justify-content:center;min-height:56px;padding:.8rem 1.8rem;font-size:1.1rem;text-align:center;line-height:1.2}
+
+.podium{grid-column:1/-1;margin-bottom:.6rem}
+.podium h3{margin:0 0 .8rem;font-size:1.1rem}
+.podium-row{display:flex;justify-content:center;align-items:flex-end;gap:1.2rem}
+.podium-place{flex:0 1 clamp(150px,18vw,230px)}
+.podium-place.place-1{order:2;flex-basis:clamp(180px,22vw,280px);border-color:var(--accent)}
+.podium-place.place-2{order:1}
+.podium-place.place-3{order:3}
+.podium-note{margin:.8rem 0 0;font-size:.8rem;color:var(--muted);text-align:center}
+@media(max-width:700px){.podium-row{flex-direction:column;align-items:stretch}.podium-place,.podium-place.place-1{order:0;flex-basis:auto}}
+.badge[style*="border-color"]{font-weight:600}

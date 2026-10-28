@@ -54,17 +54,26 @@ teste("sem nota não tem cor", () => {
   igual(notaColor(""), null);
   igual(notaColor(undefined), null);
 });
-teste("nota 1 é o vermelho do tema e 10 o verde", () => {
-  igual(notaColor(1), "rgb(224,92,92)");
-  igual(notaColor(10), "rgb(76,175,125)");
+teste("amostras de referência da escala (mesmas do Android)", () => {
+  igual(notaColor(0), "rgb(237,106,106)");
+  igual(notaColor(1), "rgb(237,106,106)");
+  igual(notaColor(4), "rgb(233,155,86)");
+  igual(notaColor(6.5), "rgb(212,188,99)");
+  igual(notaColor(7), "rgb(149,200,120)");
+  igual(notaColor(10), "rgb(102,210,155)");
 });
-teste("nota acima de 10 é dourada", () => {
-  igual(notaColor(11), "#e0a52c");
+teste("só a nota 11 exata é dourada; entre 10 e 11 usa o verde de 10", () => {
+  igual(notaColor(11), "#f1c75b");
+  verdade(notaEspecial(11) && !notaEspecial(10.5) && !notaEspecial(10) && !notaEspecial(null));
+  igual(notaColor(10.5), notaColor(10));
 });
-teste("nota no meio interpola", () => {
-  const c = notaColor(5.5);
-  verdade(c.startsWith("rgb("), "devia ser rgb interpolado");
-  verdade(c !== notaColor(1) && c !== notaColor(10));
+teste("escala é gradual: 6,4 e 6,9 têm cores diferentes", () => {
+  verdade(notaColor(6.4) !== notaColor(6.9)); verdade(notaColor(6.9) !== notaColor(7));
+});
+teste("passo da nota pula de 10 para 11 e de 11 para 10", () => {
+  igual(notaPasso(10, 0.1), 11); igual(notaPasso(11, -0.1), 10); igual(notaPasso(9.9, 0.1), 10);
+  igual(notaPasso(null, 0.1), 0.1); igual(notaPasso(11, 0.1), 11); igual(notaPasso(0, -0.1), 0);
+  igual(notaDigitada(10.4), 10); igual(notaDigitada(10.6), 11); igual(notaDigitada(7.14), 7.1);
 });
 teste("nota inválida não quebra", () => {
   igual(notaColor("abc"), null);
