@@ -368,3 +368,7 @@ header{padding:1rem 3vw .5rem}
 .shelf-controls button{padding:.1rem .55rem;min-width:48px;min-height:48px;font-size:1.4rem}
 #collections button[aria-pressed=true]{box-shadow:inset 0 -3px 0 var(--accent)}
 @media(max-width:600px){#keyboard{grid-template-columns:repeat(5,minmax(0,1fr))}}
+
+.draw-panel{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:1rem 1.5rem;padding:1rem 1.2rem;border:1px solid var(--edge);border-radius:12px;background:var(--panel)}
+.draw-summary{margin:0;flex:1 1 220px;font-size:1rem;overflow-wrap:anywhere}
+.draw-panel .draw{display:inline-flex;align-items:center;justify-content:center;min-height:56px;padding:.8rem 1.8rem;font-size:1.1rem;text-align:center;line-height:1.2}

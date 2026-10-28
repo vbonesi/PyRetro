@@ -161,10 +161,18 @@ function render() {
   const norm = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const items = state.items.filter(g => (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre) && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || ["local", "draw"].includes(state.kind) || g.local) && (state.kind !== "playing" || (g.tracking.iniciado && !g.tracking.finalizado)));
   const gallery = $("gallery"); gallery.replaceChildren();
-  if (state.kind === "draw") gallery.append(Object.assign(button("🎲 Sortear", drawGame), {className: "game draw"}));
+  if (state.kind === "draw") gallery.append(drawPanel(items.length > 0));
   for (const g of items) gallery.append(gameCard(g));
   if (state.kind === "draw") return report(items.length ? "Sorteado! Escolha jogar, transmitir ou ver o progresso nos detalhes." : "Escolha grupo e gênero, depois sorteie.");
   report(items.length ? `${items.length} jogos · escolha uma capa` : state.kind === "favorites" ? "Escolha um jogo e pressione X para guardar nos favoritos." : "Nenhum jogo nesta seleção.");
+}
+function drawPanel(hasResult) {
+  const group = state.sortear?.grupos.find(g => g.code === state.draw.group)?.label || "Tudo";
+  const panel = document.createElement("section"); panel.className = "draw-panel"; panel.setAttribute("aria-label", "Sortear jogo");
+  const summary = document.createElement("p"); summary.className = "draw-summary";
+  summary.textContent = `${group} · ${state.draw.genre || "Qualquer gênero"}`;
+  const go = Object.assign(button(hasResult ? "🎲 Sortear novamente" : "🎲 Sortear jogo", drawGame), {className: "draw primary"});
+  panel.append(summary, go); return panel;
 }
 const observedSaves = new Map();
 const badgeKey = g => g.key || (g.code ? `${g.code}:${g.romName}` : `pc:${g.id}`);
@@ -472,7 +480,7 @@ async function drawGame() {
     }
     if (request !== state.request || state.kind !== "draw") return;
     state.items = [item]; render();
-    const card = $("gallery").querySelector(".game:not(.draw)");
+    const card = $("gallery").querySelector(".game");
     card?.focus();
     if (!document.querySelector('dialog[open]')) openGame(item, card);
   } catch (e) { report(`Não foi possível sortear: ${e.message}`, true); }

@@ -596,11 +596,13 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
     [...doc.querySelectorAll("#platforms button")].find(b => b.textContent.includes("Biblioteca")).click();
     [...doc.querySelectorAll("#genres button")].find(b => b.textContent === "RPG").click();
     doc.querySelector("#gallery .draw").click();
-    await esperar(() => doc.querySelectorAll("#gallery .game").length === 2, "sorteio não mostrou o jogo");
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 1, "sorteio não mostrou o jogo");
     igual(consultas, ["/api/sortear?system=biblioteca&genero=RPG"]);
-    verdade(doc.querySelectorAll("#gallery .game")[1].textContent.includes("Sorteado"));
+    verdade(doc.querySelectorAll("#gallery .game")[0].textContent.includes("Sorteado"));
     await esperar(() => doc.getElementById('details').open && doc.activeElement.textContent.includes('Jogar neste PC · Steam'), 'sorteio não sugeriu jogar');
     doc.getElementById('close').click();
+    verdade(doc.querySelector("#gallery .draw").textContent.includes("novamente"), "botão deveria virar Sortear novamente");
+    verdade(doc.querySelector(".draw-summary").textContent.includes("RPG"), "resumo do filtro ausente");
     falha = true; doc.querySelector("#gallery .draw").click();
     await esperar(() => doc.getElementById("message").textContent.includes("Não foi possível sortear"), "falha do sorteio ficou invisível");
     await app.load("library");
