@@ -4206,3 +4206,12 @@ filtros unificados).
   do registro. Series S, G8 e WGP16 estão cadastrados, mas **ainda não medidos** (precisam estar
   conectados). 379 testes Python.
 - Teste do Insync feito pelo Victor: desmarcar uma pasta apaga a cópia local (ver `armazenamento.md`).
+
+## 28/10/2026 — migração de armazenamento, etapa (a): cópia verificada de ROMs e BIOS
+
+- `core.storage.copy_verified/copy_items` + `python3 -m core.storage --copy roms,bios`: copia para
+  arquivo parcial, confere SHA-256 na origem e no destino, recusa origem alterada durante a cópia,
+  nunca sobrescreve nem apaga a origem, é idempotente e grava recibo.
+- Rodada real: 1.915 arquivos, 41,7 GB (44.787.416.639 bytes), 0 erros; contagem e bytes conferem
+  com o Drive. Insync não foi tocado. Setup: (b) lançador com duas raízes e (c) overrides do
+  Flatpak preparados (`ed0ef33` no setup); (d) caminhos dos emuladores em andamento.

@@ -1,6 +1,10 @@
 # Armazenamento do PC: acervo local sob demanda (etapa E, 28/10/2026)
 
-Estado: **só modelo e prévia**. Nenhum arquivo foi copiado, movido ou desmarcado no Insync. O que
+Estado (28/10, noite): **etapa (a) feita**: ROMs (sem NSW) e BIOS copiados para `~/Games/PyRetro`
+com SHA-256 conferido na origem e no destino (1.915 arquivos, 41,7 GB, 0 erros; recibo em
+`~/Games/PyRetro/.pyretro/receipts/`). O Drive está intacto e **nada foi desmarcado no Insync**.
+NSW, Saves, Capas, Biblioteca e Backups ainda não foram copiados. Copiar de novo:
+`python3 -m core.storage --copy roms,bios` (idempotente, nunca sobrescreve). O que
 existe: `core/storage.py` (resolvedor de destinos `Layout` e `plan`) e `tests/test_storage.py`.
 Plano completo: [`plano-melhorias-2026-10-28.md`](plano-melhorias-2026-10-28.md), seções 5 a 8.
 

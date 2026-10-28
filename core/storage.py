@@ -12,10 +12,13 @@ Duas partes, ambas sem escrita:
 A migração é SEMPRE cópia verificada, nunca `mv`: apagar de dentro do Insync apaga a cópia da
 nuvem. Só depois da verificação o Victor desmarca a pasta no Insync.
 """
+import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -267,6 +270,87 @@ def find_consumers(old_root, home=None):
     return found
 
 
+CHUNK = 4 * 1024 * 1024
+PART = '.pyretro-part'
+
+
+def _sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for block in iter(lambda: stream.read(CHUNK), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def copy_verified(source, target):
+    """Copia `source` para `target` sem nunca sobrescrever nem apagar a origem.
+
+    Grava em arquivo parcial, confere o SHA-256 lendo a origem durante a cópia e o destino
+    depois dela, e só então renomeia. Origem que mudou durante a cópia invalida o arquivo.
+    Devolve ('copiado'|'igual', sha256); destino diferente do que existe levanta FileExistsError."""
+    source, target = Path(source), Path(target)
+    before = source.stat()
+    if target.exists():
+        if target.stat().st_size == before.st_size and _sha256(target) == (digest := _sha256(source)):
+            return 'igual', digest
+        raise FileExistsError(f'o destino já existe e é diferente: {target}')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    part = target.with_name(target.name + PART)
+    digest = hashlib.sha256()
+    try:
+        with open(source, 'rb') as src, open(part, 'wb') as dst:
+            for block in iter(lambda: src.read(CHUNK), b''):
+                digest.update(block); dst.write(block)
+            dst.flush(); os.fsync(dst.fileno())
+        after = source.stat()
+        if (after.st_size, after.st_mtime_ns) != (before.st_size, before.st_mtime_ns):
+            raise OSError(f'a origem mudou durante a cópia: {source}')
+        if _sha256(part) != digest.hexdigest():
+            raise OSError(f'a cópia não confere com a origem: {source}')
+        shutil.copystat(source, part)
+        os.rename(part, target)
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+    return 'copiado', digest.hexdigest()
+
+
+def copy_items(items, categories, games_root, log=print, now=time.time):
+    """Copia as categorias pedidas do plano para o destino, arquivo a arquivo, e grava um recibo
+    em `<games_root>/.pyretro/receipts/`. Nada é apagado na origem. Falhas não interrompem o
+    lote: ficam no recibo e no resultado (`errors`)."""
+    receipt = {'started': now(), 'categories': sorted(categories), 'files': [], 'errors': []}
+    copied = same = nbytes = 0
+    for item in items:
+        if item['category'] not in categories or not isinstance(item['source'], str):
+            continue
+        source, target = Path(item['source']), Path(item['target'])
+        for root, dirs, names in os.walk(source):
+            dirs[:] = [d for d in dirs if not Path(root, d).is_symlink()]
+            for name in names:
+                path = Path(root) / name
+                if path.is_symlink() or name.endswith(PART):
+                    continue
+                destination = target / path.relative_to(source)
+                try:
+                    state, digest = copy_verified(path, destination)
+                except (OSError, FileExistsError) as error:
+                    receipt['errors'].append({'source': str(path), 'target': str(destination), 'error': str(error)})
+                    log(f'ERRO {path}: {error}'); continue
+                size = destination.stat().st_size
+                receipt['files'].append({'source': str(path), 'target': str(destination), 'bytes': size, 'sha256': digest, 'state': state})
+                copied += state == 'copiado'; same += state == 'igual'; nbytes += size
+                if state == 'copiado' and size > 256 * 1024 * 1024:
+                    log(f'{state}: {destination} ({humanize(size)})')
+    receipt.update(finished=now(), copied=copied, identical=same, bytes=nbytes)
+    folder = Path(games_root).expanduser() / '.pyretro' / 'receipts'
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / time.strftime('copia-%Y%m%d-%H%M%S.json', time.localtime(receipt['started']))
+    path.write_text(json.dumps(receipt, ensure_ascii=False, indent=1), encoding='utf-8')
+    receipt['receipt'] = str(path)
+    return receipt
+
+
 def humanize(size):
     for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
         if size < 1024 or unit == 'TB':
@@ -295,6 +379,13 @@ if __name__ == '__main__':
     parser.add_argument('--games-root', default=str(DEFAULT_GAMES_ROOT))
     parser.add_argument('--nsw-root', default=str(DEFAULT_NSW_ROOT))
     parser.add_argument('--json', action='store_true')
+    parser.add_argument('--copy', metavar='CATEGORIAS', help='copia e verifica (ex.: roms,bios); sem isso só mostra a prévia')
     args = parser.parse_args()
     outcome = plan(retrosync.load_config(), args.games_root, args.nsw_root)
+    if args.copy:
+        if outcome['issues']['blocking']:
+            raise SystemExit('Há bloqueios na prévia; nada foi copiado:\n' + '\n'.join(outcome['issues']['blocking']))
+        result = copy_items(outcome['items'], set(args.copy.split(',')), args.games_root)
+        print(f"Copiados {result['copied']}, já iguais {result['identical']}, {humanize(result['bytes'])}; erros: {len(result['errors'])}. Recibo: {result['receipt']}")
+        raise SystemExit(1 if result['errors'] else 0)
     print(json.dumps(outcome, ensure_ascii=False, indent=1) if args.json else report(outcome))

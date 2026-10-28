@@ -1,4 +1,5 @@
 """Modelo de armazenamento: resolvedor de destinos e prévia de migração (somente leitura)."""
+import os
 import shutil
 import tempfile
 import unittest
@@ -95,6 +96,71 @@ class TestStorage(unittest.TestCase):
             found = storage.find_consumers(self.jogos, home)
         self.assertEqual({(c["kind"]) for c in found}, {"lançador", "retroarch"})
         self.assertEqual([c["detail"] for c in found if c["kind"] == "retroarch"], ["savefile_directory"])
+
+
+class TestCopyVerified(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.src = self.tmp / "src"; self.dst = self.tmp / "dst"
+        (self.src / "SFC").mkdir(parents=True)
+        (self.src / "SFC/Jogo.sfc").write_bytes(b"jogo" * 1000)
+        (self.src / "SFC/leia.txt").write_text("oi")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def items(self):
+        return [{"category": "roms", "source": str(self.src / "SFC"), "target": str(self.dst / "SFC")},
+                {"category": "capas", "source": str(self.src), "target": str(self.dst / "outra")}]
+
+    def test_copies_verifies_keeps_source_and_writes_receipt(self):
+        result = storage.copy_items(self.items(), {"roms"}, self.dst, log=lambda m: None)
+        self.assertEqual((result["copied"], result["identical"], result["errors"]), (2, 0, []))
+        self.assertEqual((self.dst / "SFC/Jogo.sfc").read_bytes(), b"jogo" * 1000)
+        self.assertTrue((self.src / "SFC/Jogo.sfc").exists())
+        self.assertFalse((self.dst / "outra").exists())
+        self.assertFalse(list(self.dst.rglob("*.pyretro-part")))
+        self.assertTrue(Path(result["receipt"]).is_file())
+        self.assertEqual(len(result["files"][0]["sha256"]), 64)
+
+    def test_rerun_is_idempotent_and_never_overwrites_a_different_file(self):
+        storage.copy_items(self.items(), {"roms"}, self.dst, log=lambda m: None)
+        again = storage.copy_items(self.items(), {"roms"}, self.dst, log=lambda m: None)
+        self.assertEqual((again["copied"], again["identical"]), (0, 2))
+        (self.dst / "SFC/leia.txt").write_text("alterado")
+        third = storage.copy_items(self.items(), {"roms"}, self.dst, log=lambda m: None)
+        self.assertEqual(len(third["errors"]), 1)
+        self.assertEqual((self.dst / "SFC/leia.txt").read_text(), "alterado")
+
+    def test_corrupt_copy_is_removed_and_reported(self):
+        real = storage._sha256
+        calls = []
+        def broken(path):
+            calls.append(path); return "0" * 64
+        with mock.patch.object(storage, "_sha256", broken):
+            result = storage.copy_items(self.items(), {"roms"}, self.dst, log=lambda m: None)
+        self.assertEqual(len(result["errors"]), 2)
+        self.assertFalse((self.dst / "SFC/Jogo.sfc").exists())
+        self.assertFalse(list(self.dst.rglob("*.pyretro-part")))
+        self.assertTrue((self.src / "SFC/Jogo.sfc").exists())
+
+    def test_source_changed_during_copy_is_refused(self):
+        source = self.src / "SFC/Jogo.sfc"
+        original = Path.stat
+        calls = []
+
+        def stat(path, *args, **kwargs):
+            result = original(path, *args, **kwargs)
+            if path == source:
+                calls.append(1)
+                if len(calls) >= 2:  # a leitura depois da cópia vê outro mtime
+                    return mock.Mock(st_size=result.st_size, st_mtime_ns=result.st_mtime_ns + 1)
+            return result
+        with mock.patch.object(Path, "stat", stat):
+            with self.assertRaisesRegex(OSError, "origem mudou"):
+                storage.copy_verified(source, self.dst / "x.sfc")
+        self.assertFalse((self.dst / "x.sfc").exists())
+        self.assertFalse(list(self.dst.rglob("*.pyretro-part")))
 
 
 if __name__ == "__main__":
