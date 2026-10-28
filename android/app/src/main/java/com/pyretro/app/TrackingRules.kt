@@ -12,7 +12,7 @@ object TrackingRules {
         val x=a.takeUnless { it==JSONObject.NULL };val y=b.takeUnless { it==JSONObject.NULL }
         return if(x is Number && y is Number)x.toDouble()==y.toDouble() else x==y
     }
-    /** Mesmo passo do modo TV: ±1 e ±0,1, uma casa decimal, entre 0 e 11. */
-    fun adjust(current:Double?,delta:Double):Double=(Math.round(((current ?: 0.0)+delta)*10)/10.0).coerceIn(0.0,11.0)
+    /** Mesmo passo do modo TV: ±1 e ±0,1, uma casa decimal, entre 0 e 11, sem 10,x (ver NotaRules). */
+    fun adjust(current:Double?,delta:Double):Double=NotaRules.adjust(current,delta)
     fun label(nota:Double?):String=nota?.let { "%.1f".format(java.util.Locale("pt","BR"),it) } ?: "Sem nota"
 }

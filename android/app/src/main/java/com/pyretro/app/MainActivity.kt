@@ -96,7 +96,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     val rows=helper.snapshot();val active=rows.firstOrNull { it.state==DownloadState.RUNNING }
                     queueBanner.visibility=if(rows.any { it.state!=DownloadState.DONE })View.VISIBLE else View.GONE
                     queueBanner.text=if(active!=null)"↓ ${active.game.name} · ${bytesLabel(active.bytes)}" else "Downloads · ${rows.count { it.state!=DownloadState.DONE }} pendente(s) · abrir fila"
-                    for(row in rows)downloadBadges[row.game.key]?.let { badge -> badge.text=badges(row.game,row.takeIf { it.state!=DownloadState.DONE });badge.visibility=if(badge.text.isEmpty())View.GONE else View.VISIBLE }
+                    for(row in rows)downloadBadges[row.game.key]?.let { badge -> badge.text=coloredBadges(row.game,row.takeIf { it.state!=DownloadState.DONE });badge.visibility=if(badge.text.isEmpty())View.GONE else View.VISIBLE }
                     updateQueueStatus?.invoke();refreshStatusButton()
                 }
                 if(helper.completedAt>seenQueueCompletion) {
@@ -139,7 +139,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private val accent=Color.rgb(129,225,202)
     private fun dp(value:Int)=(value*resources.displayMetrics.density).toInt()
     private fun shape(selected:Boolean=false)=GradientDrawable().apply { cornerRadius=dp(12).toFloat();setColor(if(selected)Color.rgb(35,94,87) else Color.rgb(26,43,63));setStroke(dp(if(selected)3 else 1),if(selected)accent else Color.rgb(60,81,102)) }
-    private fun text(value:String,size:Float=16f)=TextView(this).apply { text=value;textSize=size;setTextColor(appForeground);setPadding(dp(4),dp(4),dp(4),dp(4)) }
+    private fun text(value:CharSequence,size:Float=16f)=TextView(this).apply { text=value;textSize=size;setTextColor(appForeground);setPadding(dp(4),dp(4),dp(4),dp(4)) }
     private fun button(value:String,action:()->Unit)=Button(this).apply { text=value;isAllCaps=false;minHeight=dp(48);setTextColor(appForeground);background=shape();setPadding(dp(12),dp(6),dp(12),dp(6));setOnClickListener { action() };setOnFocusChangeListener { _,focused -> background=shape(focused) } }
     private fun row()=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL }
     private fun column()=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(8),dp(12),dp(8)) }
@@ -266,12 +266,22 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val visible=ordered.filter { it.key in allowed }
         filterButton.text=listOf(filterPlatform,filterGenre).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Filtro" }.let { if(it=="Filtro") it else "Filtro: $it" }
         filterButton.background=shape(filterPlatform.isNotBlank() || filterGenre.isNotBlank())
-        val count=((visible.size+23)/24).coerceAtLeast(1);pageCount=count;page=page.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos"
+        val podium=if(collection=="ranking")visible.take(3) else emptyList()
+        val listed=visible.drop(podium.size)
+        val count=((listed.size+23)/24).coerceAtLeast(1);pageCount=count;page=page.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos"
         if(restorePosition && localScanAt>0 && restoredPage!=null) { page=restoredPage!!.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos" }
         val compact=resources.configuration.orientation==2
         grid.removeAllViews();downloadBadges.clear();cardQueue=runCatching { queue().snapshot() }.getOrDefault(emptyList());val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
         val columns=if(width>=900)4 else if(width>=600)3 else 2;grid.columnCount=columns
-        for(game in visible.drop(page*24).take(24)) {
+        if(podium.isNotEmpty() && page==0) {
+            grid.addView(text("Top 3 desta seleção",18f).apply { setTypeface(null,Typeface.BOLD) },GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,columns),GridLayout.spec(GridLayout.UNDEFINED,columns)).apply { this.width=-1 })
+            val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+            val byKey=podium.associateBy { it.key }
+            for(key in GridRules.podiumOrder(podium.map { it.key }))row.addView(gameCard(byKey.getValue(key),true),LinearLayout.LayoutParams(0,-2,if(key==podium.first().key)1.2f else 1f).apply { setMargins(dp(4),dp(4),dp(4),dp(4)) })
+            grid.addView(row,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1),GridLayout.spec(0,columns)).apply { this.width=-1 })
+            GridRules.tieNote(visible.map { g -> entries.first { it.key==g.key } })?.let { grid.addView(text(it,12f),GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1),GridLayout.spec(0,columns)).apply { this.width=-1 }) }
+        }
+        for(game in listed.drop(page*24).take(24)) {
             val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(gameCard(game,compact),params)
         }
         if(visible.isEmpty() && base.isNotEmpty() && (filterPlatform.isNotBlank() || filterGenre.isNotBlank()))grid.addView(text("Nenhum jogo com este filtro. Toque em Filtro para limpar.",17f))
@@ -289,12 +299,20 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
         card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
         card.addView(text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END })
-        val badges=text(badges(game),12f).apply { maxLines=1;setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
+        val badges=text(coloredBadges(game),12f).apply { maxLines=1;setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
         card.addView(badges);downloadBadges[game.key]=badges
         images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
         return card
     }
     /** Selos do cartão: progresso, nota, tempo no celular, save e download em andamento. */
+    /** Os mesmos selos, com a nota na cor da escala comum (dourada no 11). */
+    private fun coloredBadges(game:Game,download:QueuedDownload?=null):CharSequence {
+        val plain=badges(game,download);val nota=TrackingRules.value(store.tracking(game),"nota") as Double?
+        val color=NotaRules.color(nota) ?: return plain
+        val label=NotaRules.symbol(nota)+" "+TrackingRules.label(nota);val at=plain.indexOf(label)
+        if(at<0)return plain
+        return android.text.SpannableString(plain).apply { setSpan(android.text.style.ForegroundColorSpan(color),at,at+label.length,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
+    }
     private fun badges(game:Game,download:QueuedDownload?=null):String {
         val tracking=store.tracking(game);val minutes=store.prefs.getLong("time:${game.key}",0)/60
         val label=game.romName.substringAfterLast('/').let { SaveRules.label(it,store.extensionsFor(game.code)) }
@@ -302,7 +320,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val row=download ?: cardQueue.firstOrNull { it.game.key==game.key && it.state!=DownloadState.DONE }
         return listOfNotNull(
             when { tracking.optBoolean("platinado") -> "🏆";tracking.optBoolean("finalizado") -> "✓ Finalizado";tracking.optBoolean("iniciado") -> "▶ Jogando";else -> null },
-            (TrackingRules.value(tracking,"nota") as Double?)?.let { "★ "+TrackingRules.label(it) },
+            (TrackingRules.value(tracking,"nota") as Double?)?.let { NotaRules.symbol(it)+" "+TrackingRules.label(it) },
             minutes.takeIf { it>0 }?.let { if(it>=60)"⏱ ${it/60}h${"%02d".format(it%60)}" else "⏱ ${it}min" },
             "💾".takeIf { saved },
             row?.let { when(it.state) { DownloadState.FAILED -> "⬇ falhou";DownloadState.PAUSED -> "⬇ pausado";else -> "⬇ "+(it.total?.takeIf { t -> t>0 }?.let { t -> "${it.bytes*100/t}%" } ?: bytesLabel(it.bytes)) } }
@@ -633,7 +651,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         })
         if(game.id.isNotBlank()) { // nota só vale para jogo da Biblioteca; ROM solta não cria cadastro
             val nota=TrackingRules.value(tracking,"nota") as Double?
-            progress.addView(text("Nota (0–11): ${TrackingRules.label(nota)}",16f).apply { setTypeface(null,Typeface.BOLD) })
+            progress.addView(text("Nota (0–11): ${if(NotaRules.special(nota))"✦ " else ""}${TrackingRules.label(nota)}",16f).apply { setTypeface(null,Typeface.BOLD);NotaRules.color(nota)?.let { setTextColor(it) } })
             val rating=row();horizontal(progress,rating)
             for((label,delta) in listOf("−1" to -1.0,"−0,1" to -0.1,"+0,1" to 0.1,"+1" to 1.0))add(rating,button(label) { store.setNota(game,TrackingRules.adjust(nota,delta));details(game) })
             if(nota!=null)add(rating,button("Limpar") { store.setNota(game,null);details(game) })

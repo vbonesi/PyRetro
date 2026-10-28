@@ -4159,3 +4159,19 @@ filtros unificados).
   A colisão de id de duas entradas de *Life is Strange: True Colors* segue
   sem mudança: é uma decisão de modelagem/dado já pendente com o usuário,
   não algo seguro de resolver automaticamente durante a auditoria.
+
+## 28/10/2026 — auditoria (AUD28-01 a 04), Sortear, cor da nota e pódio
+
+- **Auditoria:** hostname do tailnet trocado por exemplo neutro (com teste `test_public_docs.py` que
+  barra novas ocorrências); save inicial do celular sem versão anterior agora é aplicado
+  (`drive_pending.apply` manda `'-'`); Organizar recusa CUE com faixa faltando e recusa nomes que
+  colidem depois da limpeza, antes de mover qualquer coisa, e publica o `.cue` por último.
+  363 testes Python. O histórico do Git ainda contém o hostname antigo (etapa separada).
+- **Modo TV:** Sortear com painel próprio (resumo de grupo/gênero, Sortear jogo / Sortear novamente).
+- **Nota:** escala comum (vermelho 0–1, laranja 4, amarelo 6,5, verde 7→10; só a nota 11 é
+  dourada, "jogo muito especial"). Não existe 10,x: o editor pula de 10 para 11 e de 11 para 10;
+  valores já gravados entre 10 e 11 continuam visíveis com o verde de 10. Web, modo TV e Android
+  (0.15.0, code 23, selos coloridos, ficha e testes JVM com as mesmas amostras).
+- **Ranking:** Top 3 da seleção em pódio 2–1–3 (modo TV e Android), aviso de empate alfabético.
+  Pódio conferido no modo TV; no celular só instalado (sem Tailscale, o cache não tinha notas).
+- Testes: 363 Python, 51 JS, JVM com `NotaRulesTest`.
