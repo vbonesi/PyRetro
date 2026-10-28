@@ -63,15 +63,63 @@ def qt_edit(text, section, values):
     return ''.join(lines[:start] + block + lines[end:])
 
 
-def azahar_guid(home):
-    """GUID do Xbox como o SDL do sandbox do Azahar o vê (ver tools/sdl_probe.py)."""
+REGISTRY = Path(__file__).resolve().parent.parent / 'assets/controllers/controllers.json'
+
+
+def load_registry(path=REGISTRY):
+    return json.loads(Path(path).read_text(encoding='utf-8'))
+
+
+def pick_controller(registry, controller_id=None):
+    wanted = controller_id or registry['primary']
+    for entry in registry['controllers']:
+        if entry['id'] == wanted:
+            return entry
+    raise SystemExit('Controle desconhecido: ' + wanted + '. Opções: ' + ', '.join(c['id'] for c in registry['controllers']))
+
+
+def dolphin_device(controller):
+    """Nome do dispositivo no Dolphin; o Dolphin só encontra o controle pelo nome do SDL."""
+    if not controller.get('sdl_name'):
+        raise SystemExit(f"{controller['label']} ainda não foi medido: conecte só ele e rode --learn {controller['id']}")
+    return 'SDL/0/' + controller['sdl_name']
+
+
+def probe_pads():
+    """Controles como o SDL do sandbox do Azahar os vê (ver tools/sdl_probe.py)."""
     probe = Path(__file__).with_name('sdl_probe.py')
     result = subprocess.run(['flatpak', 'run', '--filesystem=' + str(probe.parent) + ':ro', '--command=python3',
                              'org.azahar_emu.Azahar', str(probe)], capture_output=True, text=True, timeout=60)
-    pads = [json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
-    xbox = [pad for pad in pads if 'xbox' in pad['name'].lower() and pad['controller']]
-    guid = xbox[0]['guid'] if xbox else ''
+    return [json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
+
+
+def choose_pad(pads, controller):
+    """Controle do SDL que corresponde ao perfil: pelo nome medido ou, sem medida, o primeiro Xbox."""
+    usable = [pad for pad in pads if pad['controller']]
+    if controller.get('sdl_name'):
+        usable = [pad for pad in usable if pad['name'] == controller['sdl_name']]
+    else:
+        usable = [pad for pad in usable if 'xbox' in pad['name'].lower()]
+    guid = usable[0]['guid'] if usable else ''
     return guid if len(guid) == 32 else None
+
+
+def azahar_guid(home, controller=None):
+    """GUID do controle como o SDL do sandbox do Azahar o vê; o do registro tem prioridade."""
+    controller = controller or {}
+    if controller.get('guid'):
+        return controller['guid']
+    return choose_pad(probe_pads(), controller)
+
+
+def learn(registry, controller_id, pads, today):
+    """Grava no registro o nome SDL e o GUID do único controle conectado."""
+    entry = pick_controller(registry, controller_id)
+    usable = [pad for pad in pads if pad['controller']]
+    if len(usable) != 1:
+        raise SystemExit(f'Conecte somente o {entry["label"]} (o SDL vê {len(usable)} controles) e rode de novo.')
+    entry.update(sdl_name=usable[0]['name'], guid=usable[0]['guid'], measured=today)
+    return entry
 
 
 # SDL_GameController: botões e eixos (iguais em SDL2/SDL3 para o Xbox).
@@ -108,7 +156,7 @@ PAD = dict(Up='DPadUp', Down='DPadDown', Left='DPadLeft', Right='DPadRight',
            RLeft='-RightX', RRight='+RightX')
 
 
-def planned(home):
+def planned(home, controller=None):
     out = {}
     def change(path, section, values, append=False):
         path = path.resolve()
@@ -148,7 +196,7 @@ def planned(home):
             raise ValueError('perfil SDL oficial do Dolphin ausente')
         values = {line.split('=', 1)[0].strip(): line.split('=', 1)[1].strip()
                   for line in profile.read_text().splitlines() if '=' in line}
-        values['Device'] = 'SDL/0/Xbox One S Controller'
+        values['Device'] = dolphin_device(controller or pick_controller(load_registry()))
         # O perfil oficial preserva a disposição A/B/X/Y do Xbox.
         change(dolphin / 'GCPadNew.ini', 'GCPad1', values)
         keys = {'Save State/Save to Selected Slot': 'Shoulder L',
@@ -187,7 +235,7 @@ def planned(home):
         change(psp, 'ControlMapping', values)
     azahar = home / '.var/app/org.azahar_emu.Azahar/config/azahar-emu/qt-config.ini'
     if azahar.is_file():
-        guid = azahar_guid(home)
+        guid = azahar_guid(home, controller)
         if guid is None:
             print('Azahar: ligue o controle Xbox e rode de novo (o GUID vem do SDL do Azahar).')
         else:
@@ -210,11 +258,26 @@ def planned(home):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--controller', help='id do controle no registro (padrão: o principal, Xbox One)')
+    parser.add_argument('--learn', metavar='ID', help='mede o controle conectado e grava no registro')
+    parser.add_argument('--detect', action='store_true', help='lista os controles que o SDL vê e o que já está medido')
     args = parser.parse_args()
+    registry = load_registry()
+    if args.detect or args.learn:
+        pads = probe_pads()
+        if args.detect:
+            known = {c['sdl_name']: c['id'] for c in registry['controllers'] if c.get('sdl_name')}
+            for pad in pads:
+                print(f"{pad['index']}: {pad['name']} guid={pad['guid']} -> {known.get(pad['name'], 'não medido')}")
+            return
+        entry = learn(registry, args.learn, pads, datetime.now().strftime('%Y-%m-%d'))
+        REGISTRY.write_text(json.dumps(registry, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+        print(f"Medido: {entry['label']} = {entry['sdl_name']} ({entry['guid']})")
+        return
     for name in ('retroarch', 'pcsx2-qt', 'dolphin-emu', 'duckstation-qt', 'PPSSPPSDL', 'azahar'):
         if subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0:
             raise SystemExit('Feche o emulador antes de configurar: ' + name)
-    changes = planned(Path.home())
+    changes = planned(Path.home(), pick_controller(registry, args.controller))
     backup = Path(__file__).resolve().parent.parent / 'auditoria' / ('controle-xbox-' + datetime.now().strftime('%Y%m%d-%H%M%S'))
     for index, (path, text) in enumerate(changes.items()):
         old = path.read_text(encoding='utf-8') if path.is_file() else ''

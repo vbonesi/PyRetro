@@ -50,9 +50,9 @@ O código do PyRetro (`~/Drive/Jogos/PyRetro`) **não** muda de lugar. Outras pa
   aponta para a pasta antiga. Os dois são Flatpak (`~/.var/app/...`). RetroArch, DuckStation e
   Dolphin guardam caminhos de ROMs, saves e BIOS; as playlists `.lpl` do RetroArch têm caminhos
   absolutos e serão regeneradas pelo PyRetro (com backup) na etapa de religar os emuladores.
-- Teste pendente do Victor: o que o Insync faz com os arquivos locais ao desmarcar uma pasta,
-  usando uma pasta pequena e descartável (`insync pause`, `insync selective-sync`). Nenhuma
-  categoria real antes disso.
+- **Teste do Insync (Victor, 28/10): desmarcar uma pasta APAGA a cópia local** (a nuvem fica). É o
+  comportamento "só nuvem" esperado, e por isso a cópia verificada em `~/Games/PyRetro` vem
+  sempre antes de desmarcar qualquer categoria.
 
 ## Celular
 

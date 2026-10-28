@@ -4198,3 +4198,11 @@ filtros unificados).
 - Nenhum consumidor foi religado e nada foi copiado. Detalhes e ordem da migração em
   [`armazenamento.md`](armazenamento.md). Pedido de ajustes (lançador, overrides do Flatpak,
   Insync) enviado à conversa do setup. 375 testes Python.
+
+## 28/10/2026 — perfis de controle (Series S, G8 e WGP16 ao lado do Xbox One)
+
+- Registro `assets/controllers/controllers.json` (principal: Xbox One). `tools/configure_xbox.py`
+  ganhou `--detect`, `--learn <id>` e `--controller <id>`; o nome do Dolphin e o GUID do Azahar vêm
+  do registro. Series S, G8 e WGP16 estão cadastrados, mas **ainda não medidos** (precisam estar
+  conectados). 379 testes Python.
+- Teste do Insync feito pelo Victor: desmarcar uma pasta apaga a cópia local (ver `armazenamento.md`).

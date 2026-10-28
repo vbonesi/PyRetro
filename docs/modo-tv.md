@@ -190,6 +190,16 @@ bindings de teclado do PCSX2/PPSSPP e opções gráficas/saves. Usa o perfil SDL
 do Dolphin para GameCube; Wii fica com Nunchuk no analógico esquerdo, ponteiro no
 direito e sacudir no RB. Wii pode exigir ajuste específico de movimento/Classic Controller.
 
+### Outros controles
+
+O controle principal é o Xbox One; o registro `assets/controllers/controllers.json` também lista
+Xbox Series S, Galileo G8 (no notebook) e WGP16 Nova II. Só o Dolphin (nome do dispositivo) e o
+Azahar (GUID) dependem do modelo; PCSX2, DuckStation, RetroArch e PPSSPP usam o mapeamento
+padrão do SDL. Com o controle conectado (e só ele): `python3 tools/configure_xbox.py --detect`
+lista o que o SDL vê, `--learn <id>` mede e grava no registro, e
+`python3 tools/configure_xbox.py --controller <id> [--apply]` reaplica o perfil para ele
+(emuladores fechados). Entrada sem medida recusa em vez de chutar o nome.
+
 | Combinação Xbox | Ação |
 |---|---|
 | Back + LB | Salvar estado no slot selecionado |
