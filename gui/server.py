@@ -427,6 +427,10 @@ def _organize_trash(cfg: dict):
     return lambda path: organize_mod._trash(path, fallback=fallback)
 
 
+# Cada gravação da Biblioteca agenda um snapshot na nuvem (se [cloud] estiver configurado).
+library_mod.AFTER_SAVE.append(lambda _path: cloud_sync_mod.schedule_library_snapshot(lambda: load_config()))
+
+
 def _removal_plan(cfg: dict, scope: str, code: str, entry: str) -> dict:
     """Prévia de remover um jogo (core/removal.py): arquivos exclusivos no PC, cópias no Drive,
     proteções e permissões. A escrita no Drive só vale com `[rclone] can_write = true` (o rclone
@@ -2127,6 +2131,18 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "emu_sync", "sources"]:
             return self._json([{"code": k, "nome": v["nome"]} for k, v in emu_sync_mod.SOURCES.items()])
 
+        if parts == ["api", "cloud", "snapshots"]:
+            cfg = load_config()
+            if not cloud_sync_mod.enabled(cfg):
+                return self._json({"enabled": False})
+            try:
+                store = cloud_sync_mod.storage(cfg)
+                return self._json({"enabled": True, "latest": cloud_sync_mod.snapshots_mod.latest(store, "library"),
+                                   "versions": cloud_sync_mod.snapshots_mod.versions(store, "library")[:30],
+                                   "last_run": dict(cloud_sync_mod.LAST_SNAPSHOT)})
+            except (ValueError, OSError) as error:
+                return self._json({"error": str(error)}, 400)
+
         if parts == ["api", "cloud", "saves", "status"]:
             cfg = load_config()
             if not cloud_sync_mod.enabled(cfg):
@@ -2770,6 +2786,15 @@ class Handler(BaseHTTPRequestHandler):
                 result = playtime_mod.record(PLAYTIME_PATH, key, minutes * 60, source='manual', event=body.get('event'))
                 return self._json(playtime_mod.public(result))
             except (ValueError, OSError) as error: return self._json({'error':str(error)}, 400)
+
+        if parts == ['api', 'cloud', 'snapshots', 'publish']:
+            cfg = load_config()
+            if not cloud_sync_mod.enabled(cfg):
+                return self._json({'error': 'nuvem não configurada'}, 400)
+            try:
+                return self._json({'ok': True, **cloud_sync_mod.publish_snapshots(cfg)})
+            except (ValueError, OSError) as error:
+                return self._json({'error': str(error)}, 400)
 
         if parts in (['api', 'cloud', 'saves', 'sync'], ['api', 'cloud', 'saves', 'resolve']):
             cfg = load_config(); body = self._read_json_body()

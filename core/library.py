@@ -162,6 +162,11 @@ def load_library(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+# Ganchos chamados depois de cada gravação do library.json (ex.: snapshot na nuvem, ver core/cloud_sync).
+# Um gancho que falha nunca atrapalha a gravação.
+AFTER_SAVE: list = []
+
+
 def save_library(path: Path, library: dict) -> None:
     """Grava de forma ATÔMICA: escreve num temporário do lado e só
     então troca pelo arquivo final (`os.replace`, que é atômico no
@@ -187,6 +192,11 @@ def save_library(path: Path, library: dict) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(library, indent=1, ensure_ascii=False))
     tmp.replace(path)
+    for hook in list(AFTER_SAVE):
+        try:
+            hook(path)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def import_sheet_csv(library: dict, csv_path: Path) -> dict:
