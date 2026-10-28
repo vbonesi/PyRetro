@@ -184,3 +184,33 @@ class DevicesOnRcloneLocal(Devices):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCloudSync(unittest.TestCase):
+    """cloud_sync a partir da configuração, com armazenamento em memória."""
+
+    def setUp(self):
+        from core import cloud_sync
+        self.cs = cloud_sync
+        self.tmp = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.tmp)
+        (self.tmp / "saves/SFC").mkdir(parents=True); (self.tmp / "runtime-logs").mkdir()
+        (self.tmp / "saves/SFC/Jogo.srm").write_bytes(b"v1"); (self.tmp / "runtime-logs/x.lrtl").write_bytes(b"log")
+        self.cfg = {"pc": {"saves_root": str(self.tmp / "saves")}, "cloud": {"remote": "x", "device": "pc"}}
+        self.store = cloud.MemoryStorage()
+
+    def test_disabled_without_cloud_section_and_logs_are_never_uploaded(self):
+        self.assertFalse(self.cs.enabled({"pc": {}}))
+        with self.assertRaises(ValueError):
+            self.cs.storage({"pc": {}})
+        status = self.cs.status(self.cfg, self.store)
+        self.assertEqual(status["counts"], {"push": 1})
+        out = self.cs.sync(self.cfg, self.store)
+        self.assertEqual((out["errors"], out["conflicts"]), ([], []))
+        self.assertFalse(any("runtime-logs" in p for p in self.store.files))
+        self.assertEqual(self.cs.status(self.cfg, self.store)["counts"], {})
+
+    def test_hash_cache_skips_rehashing_unchanged_files(self):
+        self.cs.sync(self.cfg, self.store)
+        from unittest import mock
+        with mock.patch.object(cloud_saves, "sha256_file", side_effect=AssertionError("não devia reler")):
+            self.assertEqual(self.cs.status(self.cfg, self.store)["counts"], {})

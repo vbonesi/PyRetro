@@ -59,6 +59,7 @@ from core import mobile_textures as mobile_textures_mod
 from core import mobile_sync as mobile_sync_mod
 from core import mobile_roms as mobile_roms_mod
 from core import removal as removal_mod
+from core import cloud_sync as cloud_sync_mod
 from core import diagnostics as diagnostics_mod
 from core import drive_pending as drive_pending_mod
 from core import recent as recent_mod
@@ -2126,6 +2127,15 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "emu_sync", "sources"]:
             return self._json([{"code": k, "nome": v["nome"]} for k, v in emu_sync_mod.SOURCES.items()])
 
+        if parts == ["api", "cloud", "saves", "status"]:
+            cfg = load_config()
+            if not cloud_sync_mod.enabled(cfg):
+                return self._json({"enabled": False})
+            try:
+                return self._json({"enabled": True, **cloud_sync_mod.status(cfg)})
+            except (ValueError, OSError) as error:
+                return self._json({"error": str(error)}, 400)
+
         if parts == ["api", "storage", "removal-plan"]:
             try:
                 return self._json(_removal_plan(load_config(), query.get("scope", [""])[0], query.get("code", [""])[0], query.get("entry", [""])[0]))
@@ -2760,6 +2770,19 @@ class Handler(BaseHTTPRequestHandler):
                 result = playtime_mod.record(PLAYTIME_PATH, key, minutes * 60, source='manual', event=body.get('event'))
                 return self._json(playtime_mod.public(result))
             except (ValueError, OSError) as error: return self._json({'error':str(error)}, 400)
+
+        if parts in (['api', 'cloud', 'saves', 'sync'], ['api', 'cloud', 'saves', 'resolve']):
+            cfg = load_config(); body = self._read_json_body()
+            if not cloud_sync_mod.enabled(cfg):
+                return self._json({'error': 'nuvem não configurada'}, 400)
+            if PLAY_SESSIONS.status().get('status') == 'running':
+                return self._json({'error': 'feche o jogo aberto antes de sincronizar os saves'}, 409)
+            try:
+                if parts[-1] == 'sync':
+                    return self._json({'ok': True, **cloud_sync_mod.sync(cfg)})
+                return self._json({'ok': True, **cloud_sync_mod.resolve(cfg, body.get('path'), body.get('choice'), body.get('sha'))})
+            except (ValueError, OSError) as error:
+                return self._json({'error': str(error)}, 400)
 
         if parts == ['api', 'storage', 'removal-apply']:
             try:

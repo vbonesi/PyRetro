@@ -2,9 +2,37 @@
  "primary": "xbox-one",
  "note": "Só o Dolphin (nome do dispositivo) e o Azahar (GUID) dependem do modelo; PCSX2, DuckStation, RetroArch e PPSSPP usam o mapeamento padrão do SDL e já servem a qualquer controle reconhecido. Entradas com sdl_name vazio ainda não foram medidas: conecte o controle e rode `python3 tools/configure_xbox.py --learn <id>`.",
  "controllers": [
-  {"id": "xbox-one", "label": "Xbox One (Bluetooth)", "layout": "xbox", "sdl_name": "Xbox One S Controller", "guid": null, "measured": "2026-10-20"},
-  {"id": "xbox-series-s", "label": "Xbox Series S", "layout": "xbox", "sdl_name": null, "guid": null, "measured": null},
-  {"id": "galileo-g8", "label": "Galileo G8 (no notebook)", "layout": "xbox", "sdl_name": null, "guid": null, "measured": null},
-  {"id": "wgp16-nova-ii", "label": "WGP16 Nova II", "layout": "xbox", "sdl_name": null, "guid": null, "measured": null}
+  {
+   "id": "xbox-one",
+   "label": "Xbox One (Bluetooth)",
+   "layout": "xbox",
+   "sdl_name": "Xbox One S Controller",
+   "guid": null,
+   "measured": "2026-10-20"
+  },
+  {
+   "id": "xbox-series-s",
+   "label": "Xbox Series S",
+   "layout": "xbox",
+   "sdl_name": null,
+   "guid": null,
+   "measured": null
+  },
+  {
+   "id": "galileo-g8",
+   "label": "Galileo G8 (no notebook)",
+   "layout": "xbox",
+   "sdl_name": null,
+   "guid": null,
+   "measured": null
+  },
+  {
+   "id": "wgp16-nova-ii",
+   "label": "WGP16 Nova II",
+   "layout": "xbox",
+   "sdl_name": "Sony Interactive Entertainment Wireless Controller",
+   "guid": "0300d0424c050000cc09000011810000",
+   "measured": "2026-10-28"
+  }
  ]
 }

@@ -73,10 +73,11 @@ def decide(local, baseline, heads):
 
 
 class CloudSaves:
-    def __init__(self, storage, device, root, group='saves', state_path=None, now=time.time):
+    def __init__(self, storage, device, root, group='saves', state_path=None, now=time.time, exclude=()):
         if not device or '/' in device or device.startswith('.'):
             raise ValueError('nome de dispositivo inválido')
         self.storage, self.device, self.root, self.group, self.now = storage, device, Path(root), group, now
+        self.exclude = set(exclude)  # pastas de topo que nunca sobem (ex.: runtime-logs)
         self.state_path = Path(state_path) if state_path else self.root / '.pyretro-cloud' / f'{group}.json'
 
     # --- estado local -------------------------------------------------------------------
@@ -93,14 +94,35 @@ class CloudSaves:
         os.replace(temporary, self.state_path)
 
     def local_files(self):
-        found = {}
+        """{caminho: sha256} do disco. O hash só é refeito quando tamanho ou data mudam (cache ao lado
+        do estado); um save que mudou sem mudar tamanho nem data, caso raro, só é visto na próxima edição."""
+        cache_path = self.state_path.with_name(self.state_path.stem + '.hashes.json')
+        try:
+            cache = json.loads(cache_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            cache = {}
+        found, fresh = {}, {}
         for current, dirs, names in os.walk(self.root):
-            dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not Path(current, d).is_symlink()]
+            here = Path(current)
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not (here / d).is_symlink()
+                       and not (here == self.root and d in self.exclude)]
             for name in names:
-                path = Path(current) / name
+                path = here / name
                 if path.is_symlink() or name.endswith(PART):
                     continue
-                found[path.relative_to(self.root).as_posix()] = sha256_file(path)
+                rel = path.relative_to(self.root).as_posix()
+                stat = path.stat()
+                known = cache.get(rel)
+                if known and known[0] == stat.st_size and known[1] == stat.st_mtime_ns:
+                    sha = known[2]
+                else:
+                    sha = sha256_file(path)
+                found[rel] = sha; fresh[rel] = [stat.st_size, stat.st_mtime_ns, sha]
+        if fresh != cache:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = cache_path.with_name(cache_path.name + PART)
+            temporary.write_text(json.dumps(fresh, sort_keys=True), encoding='utf-8')
+            os.replace(temporary, cache_path)
         return found
 
     # --- nuvem --------------------------------------------------------------------------
