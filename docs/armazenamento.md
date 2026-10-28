@@ -19,10 +19,12 @@ Plano completo: [`plano-melhorias-2026-10-28.md`](plano-melhorias-2026-10-28.md)
   ROMs que já não existem em lugar nenhum; ficaram como estão.
 - **Emuladores abertos pelo caminho novo** (lançador, 28/10): SNES, DS, PS1, PSP, GameCube, 3DS e PS2
   iniciaram e ficaram rodando. Isso prova abrir, não o ciclo de save de cada um.
-- **NSW travado:** `~/Downloads` é um link para `~/Drive/Temp`, então `~/Downloads/NSW` seria
-  sincronizado pelo Insync. A prévia agora bloqueia isso (resolve links). Falta decidir a pasta do NSW.
-- Antes de desmarcar `ROMs` no Insync: a pasta local `ROMs/NSW` (1 título, 3,5 GB) ainda não foi
-  copiada e seria removida do disco (a nuvem fica).
+- **NSW em `~/Games/PyRetro/NSW`** (decisão do Victor): `~/Downloads` é um link para `~/Drive/Temp`,
+  então `~/Downloads/NSW` seria sincronizado pelo Insync; a prévia agora bloqueia isso (resolve
+  links). O título local (3 arquivos, 3,5 GB) foi copiado e verificado por hash, e `nsw` entrou em
+  `migrated`.
+- **Pronto para desmarcar no Insync, só pelo Victor: `ROMs` e `BIOS`** (cada uma, nunca `Jogos`).
+  Tudo que elas tinham está em `~/Games/PyRetro` com hash conferido.
 
 ## Ver a prévia (somente leitura)
 

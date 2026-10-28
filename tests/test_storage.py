@@ -71,8 +71,8 @@ class TestStorage(unittest.TestCase):
     def test_roots_inside_drive_or_overlapping_are_blocking(self):
         self.games = self.jogos / "Games"
         self.assertTrue(any("dentro do Drive" in m or "fica dentro do Drive" in m for m in self.plan()["issues"]["blocking"]))
-        self.games = self.tmp / "G"; self.nsw = self.games / "NSW"
-        self.assertTrue(any("se conter" in m for m in self.plan()["issues"]["blocking"]))
+        self.games = self.tmp / "G" / "PyRetro"; self.nsw = self.tmp / "G"
+        self.assertTrue(any("não pode ficar dentro" in m for m in self.plan()["issues"]["blocking"]))
 
     def test_root_reached_through_a_symlink_into_drive_is_blocking(self):
         link = self.tmp / "Downloads"; link.symlink_to(self.tmp / "Drive")

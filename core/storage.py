@@ -25,7 +25,7 @@ from pathlib import Path
 from core import rom_bundles
 
 DEFAULT_GAMES_ROOT = Path.home() / 'Games' / 'PyRetro'
-DEFAULT_NSW_ROOT = Path.home() / 'Downloads' / 'NSW'
+DEFAULT_NSW_ROOT = DEFAULT_GAMES_ROOT / 'NSW'
 NSW_CODE = 'NSW'
 TAGS = re.compile(r'\s*[\[(][^\])]*[\])]')
 
@@ -235,8 +235,8 @@ def plan(cfg, games_root=DEFAULT_GAMES_ROOT, nsw_root=DEFAULT_NSW_ROOT, walker=_
     for root, label in ((games_root, 'a raiz de jogos'), (nsw_root, 'a raiz do NSW')):
         if any(_inside(root, drive) for drive in drive_roots):
             blocking.append(f'{label} ({root}) fica dentro do Drive, direto ou por link, e o Insync a sincronizaria')
-    if _inside(nsw_root, games_root) or _inside(games_root, nsw_root):
-        blocking.append('as raízes de jogos e NSW não podem se conter')
+    if _inside(games_root, nsw_root):  # o NSW pode ser uma subpasta da raiz de jogos, não o contrário
+        blocking.append('a raiz de jogos não pode ficar dentro (nem ser igual) à raiz do NSW')
     seen = {}
     for item in items:
         key = str(item['target']).casefold()

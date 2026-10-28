@@ -4226,3 +4226,10 @@ filtros unificados).
 - Reteste dos emuladores pelo caminho novo (SNES, DS, PS1, PSP, GC, 3DS, PS2): abrem e rodam; os
   saves/estados gerados pelos testes foram removidos (lista de arquivos igual à original).
   Zelda Molblins (DS) mostra um erro de gravação do próprio jogo; pendente. 388 testes Python.
+
+## 28/10/2026 — NSW em ~/Games/PyRetro/NSW, ROMs e BIOS prontas para desmarcar
+
+- NSW fora do Drive: padrão `~/Games/PyRetro/NSW` (a raiz do NSW pode ser subpasta da de jogos).
+  Título local copiado e verificado; `[storage] migrated` do Victor agora é roms, bios e nsw.
+- Etapa F: `core/removal.py` (prévia/aplicação de remoção local, Drive e ambos) com testes; ainda
+  sem servidor/interface, e o Drive espera o rclone com escrita. 396 testes Python.
