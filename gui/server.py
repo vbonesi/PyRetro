@@ -68,6 +68,7 @@ from core import screenscraper as screenscraper_mod
 from core import serials as serials_mod
 from core import game_save_ids
 from core import sortear as sortear_mod
+from core import storage as storage_mod
 from core import rename_links as rename_links_mod
 from core import texturas as texturas_mod
 from core import capas_emuladores as capas_emu_mod
@@ -336,7 +337,7 @@ def load_config() -> dict:
     if not CONFIG_PATH.exists():
         sys.exit(f"config.toml não encontrado - copie config.example.toml para {CONFIG_PATH}")
     with open(CONFIG_PATH, "rb") as f:
-        return tomllib.load(f)
+        return storage_mod.apply_config(tomllib.load(f))
 
 
 def search_cover_candidates(code: str, query: str, cfg: dict) -> list:

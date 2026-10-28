@@ -32,6 +32,7 @@ from core import covers as covers_mod
 from core import emu_sync as emu_sync_mod
 from core import file_lock as file_lock_mod
 from core import generos as generos_mod
+from core import storage as storage_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import library as library_mod
@@ -60,7 +61,7 @@ def load_config() -> dict:
     if not CONFIG_PATH.exists():
         sys.exit(f"config.toml não encontrado - copie config.example.toml para {CONFIG_PATH}")
     with open(CONFIG_PATH, "rb") as f:
-        return tomllib.load(f)
+        return storage_mod.apply_config(tomllib.load(f))
 
 
 def cmd_fetch_covers(args) -> None:

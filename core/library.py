@@ -1088,6 +1088,13 @@ def nomes_dentro_da_colecao(entradas: list) -> list:
     return saida
 
 
+def pasta_nsw(roms_root: Path, cfg: dict | None = None) -> Path:
+    """Pasta local do NSW: `[pc] nsw_root` quando a migração de armazenamento a definiu
+    (core/storage.py), senão `roms_root/NSW` como sempre."""
+    custom = (cfg or {}).get("pc", {}).get("nsw_root")
+    return Path(custom).expanduser() if custom else roms_root / "NSW"
+
+
 def mapa_pastas_switch(roms_root: Path, cfg: dict | None = None) -> dict:
     """{nome limpo: nome real da pasta} - ex: {"Portal Companion
     Collection": "Portal Companion Collection [NSP]"}. Precisa existir
@@ -1100,7 +1107,7 @@ def mapa_pastas_switch(roms_root: Path, cfg: dict | None = None) -> dict:
         for item in _heavy.list_drive_items("NSW", cfg):
             if item["is_dir"]:
                 mapa[_limpa_nome_switch(item["name"])] = item["name"]
-    switch_dir = roms_root / "NSW"
+    switch_dir = pasta_nsw(roms_root, cfg)
     if switch_dir.is_dir():
         for entrada in switch_dir.iterdir():
             if entrada.is_dir():
@@ -1112,7 +1119,7 @@ def conteudo_da_pasta_switch(pasta_real: str, roms_root: Path, cfg: dict | None 
     """Nomes dos itens DENTRO de uma pasta de jogo do Switch (local se
     existir, senão Drive). Uma chamada só de rclone, na pasta
     específica - listar a NSW inteira leva minutos e não serve aqui."""
-    local = roms_root / "NSW" / pasta_real
+    local = pasta_nsw(roms_root, cfg) / pasta_real
     if local.is_dir():
         return [{"name": e.name} for e in sorted(local.iterdir())]
     if not cfg:
@@ -1156,7 +1163,7 @@ def read_switch_library(roms_root: Path, cfg: dict | None = None) -> list:
     usuário, "não daria pra separar, paciência")."""
     nomes = set()
 
-    switch_dir = roms_root / "NSW"
+    switch_dir = pasta_nsw(roms_root, cfg)
     if switch_dir.is_dir():
         for entry in switch_dir.iterdir():
             if entry.is_dir():

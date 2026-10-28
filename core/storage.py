@@ -82,6 +82,41 @@ class Layout:
         return self.saves / kind
 
 
+MIGRATABLE = {'roms', 'nsw', 'saves', 'capas', 'biblioteca', 'backups', 'bios'}
+
+
+def apply_config(cfg):
+    """Aplica `[storage]` à configuração carregada: `games_root`, `nsw_root` e `migrated` (lista
+    das categorias já migradas e validadas). Só as categorias listadas passam para o layout novo;
+    o resto continua onde está. Sem `[storage]`, devolve a configuração intacta.
+
+    Com `roms` migrado e `nsw` não, o NSW local continua na pasta antiga (`pc.nsw_root`)."""
+    section = cfg.get('storage') or {}
+    migrated = set(section.get('migrated') or [])
+    if not section.get('games_root') or not migrated:
+        return cfg
+    unknown = migrated - MIGRATABLE
+    if unknown:
+        raise ValueError('categorias desconhecidas em [storage] migrated: ' + ', '.join(sorted(unknown)))
+    current = Layout.current(cfg)
+    target = Layout.target(section['games_root'], section.get('nsw_root') or DEFAULT_NSW_ROOT)
+    pc = dict(cfg['pc'])
+    if 'roms' in migrated:
+        pc['roms_root'] = str(target.roms)
+    pc['nsw_root'] = str(target.nsw if 'nsw' in migrated else current.nsw)
+    if 'capas' in migrated:
+        pc['capas_root'] = str(target.capas)
+    if 'saves' in migrated:
+        pc['saves_root'] = str(target.saves / 'saves')
+        pc['states_root'] = str(target.saves / 'states')
+        pc['runtime_logs_root'] = str(target.saves / 'runtime-logs')
+    if 'biblioteca' in migrated:
+        pc['library_root'] = str(target.biblioteca)
+    if 'backups' in migrated:
+        pc['backups_root'] = str(target.backups)
+    return {**cfg, 'pc': pc}
+
+
 def nsw_title(name):
     """Nome da pasta de um título NSW a partir do nome de um arquivo/pasta: sem extensão, tags
     `[...]`/`(...)` de versão e ID, e sem separadores. Vazio se não sobrar nada."""
@@ -130,7 +165,8 @@ def _bundle_problems(folder):
 
 
 def _inside(child, parent):
-    child, parent = Path(os.path.abspath(child)), Path(os.path.abspath(parent))
+    """`child` está em `parent`, resolvendo links (ex.: ~/Downloads aponta para ~/Drive/Temp)."""
+    child, parent = Path(os.path.realpath(child)), Path(os.path.realpath(parent))
     return child == parent or parent in child.parents
 
 
@@ -193,11 +229,12 @@ def plan(cfg, games_root=DEFAULT_GAMES_ROOT, nsw_root=DEFAULT_NSW_ROOT, walker=_
         if source.is_dir():
             items.append(_item(category, source, destination, walker))
 
+    drive_roots = [jogos, Path.home() / 'Drive', *[p for p in jogos.parents if p.name == 'Drive']]
     blocking, warnings = [], []
     games_root, nsw_root = _path(games_root), _path(nsw_root)
     for root, label in ((games_root, 'a raiz de jogos'), (nsw_root, 'a raiz do NSW')):
-        if _inside(root, jogos) or _inside(root, Path.home() / 'Drive'):
-            blocking.append(f'{label} não pode ficar dentro do Drive (o Insync a sincronizaria)')
+        if any(_inside(root, drive) for drive in drive_roots):
+            blocking.append(f'{label} ({root}) fica dentro do Drive, direto ou por link, e o Insync a sincronizaria')
     if _inside(nsw_root, games_root) or _inside(games_root, nsw_root):
         blocking.append('as raízes de jogos e NSW não podem se conter')
     seen = {}
@@ -374,6 +411,8 @@ def report(result):
 if __name__ == '__main__':
     import argparse
     import json
+    import tomllib
+
     import retrosync
     parser = argparse.ArgumentParser(description='Prévia somente leitura da migração de armazenamento.')
     parser.add_argument('--games-root', default=str(DEFAULT_GAMES_ROOT))
@@ -381,7 +420,8 @@ if __name__ == '__main__':
     parser.add_argument('--json', action='store_true')
     parser.add_argument('--copy', metavar='CATEGORIAS', help='copia e verifica (ex.: roms,bios); sem isso só mostra a prévia')
     args = parser.parse_args()
-    outcome = plan(retrosync.load_config(), args.games_root, args.nsw_root)
+    with open(retrosync.CONFIG_PATH, 'rb') as stream:  # configuração bruta: sem aplicar [storage]
+        outcome = plan(tomllib.load(stream), args.games_root, args.nsw_root)
     if args.copy:
         if outcome['issues']['blocking']:
             raise SystemExit('Há bloqueios na prévia; nada foi copiado:\n' + '\n'.join(outcome['issues']['blocking']))

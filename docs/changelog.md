@@ -4215,3 +4215,14 @@ filtros unificados).
 - Rodada real: 1.915 arquivos, 41,7 GB (44.787.416.639 bytes), 0 erros; contagem e bytes conferem
   com o Drive. Insync não foi tocado. Setup: (b) lançador com duas raízes e (c) overrides do
   Flatpak preparados (`ed0ef33` no setup); (d) caminhos dos emuladores em andamento.
+
+## 28/10/2026 — PyRetro religado às ROMs em ~/Games/PyRetro
+
+- `core.storage.apply_config`: `[storage]` (`games_root`, `nsw_root`, `migrated`) troca as raízes
+  por categoria na configuração carregada (`retrosync.load_config` e o servidor); `pc.nsw_root`
+  mantém o NSW antigo até ele migrar (`library.pasta_nsw`). `config.toml` do Victor: roms e bios migrados.
+- Playlists do RetroArch regeneradas (`rebuild-playlist`) pelo layout novo, com backup.
+- A prévia resolve links: `~/Downloads` é `~/Drive/Temp`, então NSW em `~/Downloads/NSW` é bloqueado.
+- Reteste dos emuladores pelo caminho novo (SNES, DS, PS1, PSP, GC, 3DS, PS2): abrem e rodam; os
+  saves/estados gerados pelos testes foram removidos (lista de arquivos igual à original).
+  Zelda Molblins (DS) mostra um erro de gravação do próprio jogo; pendente. 388 testes Python.

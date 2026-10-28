@@ -70,9 +70,14 @@ class TestStorage(unittest.TestCase):
 
     def test_roots_inside_drive_or_overlapping_are_blocking(self):
         self.games = self.jogos / "Games"
-        self.assertTrue(any("dentro do Drive" in m for m in self.plan()["issues"]["blocking"]))
+        self.assertTrue(any("dentro do Drive" in m or "fica dentro do Drive" in m for m in self.plan()["issues"]["blocking"]))
         self.games = self.tmp / "G"; self.nsw = self.games / "NSW"
         self.assertTrue(any("se conter" in m for m in self.plan()["issues"]["blocking"]))
+
+    def test_root_reached_through_a_symlink_into_drive_is_blocking(self):
+        link = self.tmp / "Downloads"; link.symlink_to(self.tmp / "Drive")
+        self.nsw = link / "NSW"
+        self.assertTrue(any("fica dentro do Drive" in m for m in self.plan()["issues"]["blocking"]))
 
     def test_existing_target_is_checked_not_overwritten_and_symlinks_are_reported(self):
         (self.games / "ROMs/SFC").mkdir(parents=True)
@@ -165,3 +170,27 @@ class TestCopyVerified(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestApplyConfig(unittest.TestCase):
+    cfg = {"pc": {"roms_root": "/d/Jogos/ROMs", "saves_root": "/d/Jogos/Saves/saves", "states_root": "/d/Jogos/Saves/states",
+                  "capas_root": "/d/Jogos/Capas", "library_root": "/d/Jogos/Biblioteca", "backups_root": "/d/Jogos/Backups"}}
+
+    def test_without_storage_section_nothing_changes(self):
+        self.assertIs(storage.apply_config(self.cfg), self.cfg)
+        empty = {**self.cfg, "storage": {"games_root": "/g", "migrated": []}}
+        self.assertIs(storage.apply_config(empty), empty)
+
+    def test_only_listed_categories_move_and_nsw_stays_until_migrated(self):
+        cfg = storage.apply_config({**self.cfg, "storage": {"games_root": "/g/PyRetro", "migrated": ["roms"]}})
+        self.assertEqual(cfg["pc"]["roms_root"], "/g/PyRetro/ROMs")
+        self.assertEqual(cfg["pc"]["nsw_root"], "/d/Jogos/ROMs/NSW")
+        self.assertEqual(cfg["pc"]["saves_root"], "/d/Jogos/Saves/saves")
+        self.assertEqual(self.cfg["pc"]["roms_root"], "/d/Jogos/ROMs", "a configuração original não é alterada")
+
+    def test_saves_nsw_and_unknown_category(self):
+        cfg = storage.apply_config({**self.cfg, "storage": {"games_root": "/g/PyRetro", "nsw_root": "/dl/NSW", "migrated": ["saves", "nsw"]}})
+        self.assertEqual((cfg["pc"]["saves_root"], cfg["pc"]["states_root"], cfg["pc"]["nsw_root"]),
+                         ("/g/PyRetro/Saves/saves", "/g/PyRetro/Saves/states", "/dl/NSW"))
+        with self.assertRaises(ValueError):
+            storage.apply_config({**self.cfg, "storage": {"games_root": "/g", "migrated": ["roms", "xyz"]}})

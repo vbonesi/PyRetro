@@ -8,6 +8,22 @@ NSW, Saves, Capas, Biblioteca e Backups ainda não foram copiados. Copiar de nov
 existe: `core/storage.py` (resolvedor de destinos `Layout` e `plan`) e `tests/test_storage.py`.
 Plano completo: [`plano-melhorias-2026-10-28.md`](plano-melhorias-2026-10-28.md), seções 5 a 8.
 
+## Situação em 28/10 (noite)
+
+- **ROMs e BIOS religados.** `[storage]` no `config.toml` (`games_root`, `migrated = ["roms", "bios"]`)
+  faz `retrosync.load_config()` e o servidor usarem `~/Games/PyRetro/ROMs`; saves, capas,
+  biblioteca e backups seguem no Drive. `pc.nsw_root` aponta para o NSW antigo enquanto ele não migrar.
+  Cópia privada da configuração anterior em `auditoria/config-antes-storage-*.toml`.
+- **Playlists do RetroArch regeneradas** pelo layout novo (13 sistemas); cópia das antigas em
+  `Backups/playlists-antes-storage-*`. Dreamcast, Saturn e Neo Geo (CD) têm entradas antigas de
+  ROMs que já não existem em lugar nenhum; ficaram como estão.
+- **Emuladores abertos pelo caminho novo** (lançador, 28/10): SNES, DS, PS1, PSP, GameCube, 3DS e PS2
+  iniciaram e ficaram rodando. Isso prova abrir, não o ciclo de save de cada um.
+- **NSW travado:** `~/Downloads` é um link para `~/Drive/Temp`, então `~/Downloads/NSW` seria
+  sincronizado pelo Insync. A prévia agora bloqueia isso (resolve links). Falta decidir a pasta do NSW.
+- Antes de desmarcar `ROMs` no Insync: a pasta local `ROMs/NSW` (1 título, 3,5 GB) ainda não foi
+  copiada e seria removida do disco (a nuvem fica).
+
 ## Ver a prévia (somente leitura)
 
 ```bash

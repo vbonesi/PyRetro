@@ -287,3 +287,11 @@ core_name = "Sega - Game Gear (Genesis Plus GX)"
 [cores.PCE]
 core_path = "mednafen_pce_libretro_android.so"
 core_name = "NEC - PC Engine / SuperGrafx / CD (Beetle PCE)"
+
+# Migração de armazenamento (core/storage.py, docs/armazenamento.md). Opcional: sem esta seção
+# tudo continua em [pc]. `migrated` lista as categorias já copiadas e validadas (roms, bios,
+# nsw, saves, capas, biblioteca, backups); só elas passam para a raiz nova.
+# [storage]
+# games_root = "~/Games/PyRetro"
+# nsw_root = "~/Games/PyRetro/NSW"   # nunca dentro do Drive (~/Downloads é link para Drive/Temp)
+# migrated = ["roms", "bios"]
