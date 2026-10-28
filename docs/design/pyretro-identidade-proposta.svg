@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">PyRetro — proposta de identidade</title>
+  <desc id="desc">Estudo de monograma PR com play em negativo, assinatura horizontal, aplicações clara e escura e escala de notas. Proposta ainda não aplicada.</desc>
+  <defs>
+    <g id="mark"><path d="M28 23H62Q80 23 80 41V45Q80 63 62 63H46V85H28ZM58 60H77L88 85H68Z" fill="currentColor"/><path d="M46 33L66 43L46 53Z" fill="#11212E"/></g>
+    <linearGradient id="grades"><stop offset="0" stop-color="#ED6A6A"/><stop offset="33.33%" stop-color="#E99B56"/><stop offset="61.11%" stop-color="#D4BC63"/><stop offset="66.67%" stop-color="#95C878"/><stop offset="100%" stop-color="#66D29B"/></linearGradient>
+  </defs>
+  <rect width="1200" height="760" fill="#0B1220"/>
+  <g font-family="DejaVu Sans,Arial,sans-serif">
+    <text x="48" y="49" font-size="16" letter-spacing="2" fill="#A7BBD1">PYRETRO / ESTUDO DE IDENTIDADE</text>
+    <text x="1152" y="49" text-anchor="end" font-size="15" fill="#A7BBD1">PROPOSTA · 28 OUT 2026</text>
+    <rect x="48" y="85" width="1104" height="300" rx="20" fill="#11212E"/>
+    <g transform="translate(82 124) scale(2.1)" color="#81E1CA"><use xlink:href="#mark"/></g>
+    <text x="365" y="239" font-size="82" font-weight="bold" letter-spacing="-4" fill="#EDF4FD">PyRetro</text>
+    <text x="370" y="285" font-size="22" fill="#A7BBD1">PR + play em negativo</text>
+    <text x="370" y="327" font-size="17" fill="#81E1CA">Uma marca para web, TV, PC e celular.</text>
+    <text x="48" y="427" font-size="15" letter-spacing="1" fill="#A7BBD1">APLICAÇÕES</text>
+    <rect x="48" y="450" width="475" height="128" rx="14" fill="#EDF4FD"/>
+    <rect x="72" y="474" width="80" height="80" rx="19" fill="#11212E"/>
+    <g transform="translate(72 474) scale(.74074)" color="#81E1CA"><use xlink:href="#mark"/></g>
+    <text x="174" y="525" font-size="40" font-weight="bold" fill="#11212E">PyRetro</text>
+    <rect x="551" y="450" width="601" height="128" rx="14" fill="#182A3C"/>
+    <g transform="translate(579 476)"><rect width="80" height="80" rx="19" fill="#11212E"/><g transform="scale(.74074)" color="#81E1CA"><use xlink:href="#mark"/></g></g>
+    <g transform="translate(687 484)"><circle cx="32" cy="32" r="32" fill="#11212E"/><g transform="translate(-.4 -.4) scale(.6)" color="#81E1CA"><use xlink:href="#mark"/></g></g>
+    <g transform="translate(781 492)"><rect width="48" height="48" rx="11" fill="#11212E"/><g transform="scale(.44444)" color="#81E1CA"><use xlink:href="#mark"/></g></g>
+    <g transform="translate(859 500)"><rect width="32" height="32" rx="7" fill="#11212E"/><g transform="scale(.2963)" color="#81E1CA"><use xlink:href="#mark"/></g></g>
+    <text x="924" y="508" font-size="16" fill="#EDF4FD">Uma origem vetorial</text>
+    <text x="924" y="535" font-size="15" fill="#A7BBD1">Vários formatos</text>
+    <text x="48" y="627" font-size="15" letter-spacing="1" fill="#A7BBD1">NOTAS / VERDE ENTRE 6,5 E 7</text>
+    <rect x="48" y="648" width="850" height="16" rx="8" fill="url(#grades)"/>
+    <g fill="#EDF4FD" font-size="18"><text x="48" y="697">1</text><text x="330" y="697">4</text><text x="550" y="697">6,5</text><text x="611" y="697">7</text><text x="877" y="697">10</text></g>
+    <rect x="954" y="639" width="198" height="55" rx="12" fill="#F1C75B"/>
+    <text x="1053" y="675" text-anchor="middle" font-size="23" font-weight="bold" fill="#11212E">★ 11</text>
+    <text x="1152" y="735" text-anchor="end" font-size="14" fill="#A7BBD1">Estudo visual · ícones instalados preservados</text>
+  </g>
+</svg>
