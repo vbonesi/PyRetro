@@ -105,3 +105,23 @@ class TestFiltrarPorGenero(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPoolLeveComDrive(unittest.TestCase):
+    """Sorteio de ROM leve vê o que está no Drive, não só o que está no PC."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name); (self.root / "SFC").mkdir()
+        (self.root / "SFC" / "Local.sfc").write_bytes(b"x")
+        self.cfg = {"systems": {"SFC": {"exts": ["sfc"]}}, "heavy_systems": {"PS": {"exts": ["cue"]}}}
+        self.catalog = {"SFC": [{"name": "Local.sfc", "size": 1, "is_dir": False}, {"name": "Só no Drive.sfc", "size": 2, "is_dir": False}],
+                        "PS": [{"name": "Disco.cue", "size": 3, "is_dir": False}]}
+
+    def test_light_pool_is_local_plus_drive_without_duplicates_and_heavy_stays_heavy(self):
+        pool = sortear_mod.build_pool(self.cfg, self.root, self.catalog, None)
+        self.assertEqual(sorted(p for p in pool if p[2] == "leve"), [("SFC", "Local.sfc", "leve"), ("SFC", "Só no Drive.sfc", "leve")])
+        self.assertEqual([p for p in pool if p[2] == "pesado"], [("PS", "Disco.cue", "pesado")])
+        self.assertEqual(len(sortear_mod.build_pool(self.cfg, self.root, self.catalog, "SFC")), 2)
+        self.assertEqual(len(sortear_mod.build_pool(self.cfg, self.root, self.catalog, "leve")), 2)

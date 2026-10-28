@@ -825,9 +825,8 @@ def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
 
     try:
         cfg = load_config()
-        heavy = heavy_mod.load_heavy_systems(cfg)
-        if code not in heavy:
-            emit({"type": "error", "message": f"sistema pesado desconhecido: {code}"})
+        if code not in heavy_mod.downloadable_systems(cfg):
+            emit({"type": "error", "message": f"sistema desconhecido: {code}"})
             return
         roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
 

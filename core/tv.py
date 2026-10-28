@@ -96,18 +96,22 @@ def catalog(cfg, lib, cached, arcade_names=None):
         drive = {g['name']: g for g in cached.get(code, [])}
         exts = {'.' + e.lower().lstrip('.') for e in info.get('exts', [])}
         # Sistemas pesados usam o catálogo, não a coleção maior de capas.
-        labels = set(drive) | {g['romName'] for g in local if g['code'] == code} if code in cfg.get('heavy_systems', {}) else set(names)
+        heavy_code = code in cfg.get('heavy_systems', {})
+        # Sistemas leves: o nome do jogo é o stem; guarda o arquivo real do Drive para baixar.
+        drive_files = {Path(n).stem: n for n, g in drive.items() if not g.get('is_dir') and Path(n).suffix.lower() in exts}
+        labels = set(drive) | {g['romName'] for g in local if g['code'] == code} if heavy_code else set(names) | set(drive_files)
         for name in sorted(labels):
             label = Path(name).stem if name in drive and not drive[name].get('is_dir') and Path(name).suffix.lower() in exts else name
             key = (code, label)
             if key in by_key:
                 continue
+            file_name = name if name in drive else (drive_files.get(label) if not heavy_code else None)
             shown = (covers.arcade_display_name(label, arcade_names) or label) if code == 'ARCADE' and arcade_names else label
             registered = library.find_for_rom(index, shown, code)
             by_key[key] = {'name': shown, 'platform': info.get('nome') or info.get('capas') or code,
                            'code': code, 'romName': name, 'cover': _versioned(f'/images/{quote(code)}/{quote(names[label])}', cover_dir / names[label]) if label in names else None,
                            'tracking': library.rom_tracking_info(index, shown, code) or {}, 'local': False,
-                           'downloadName': name if name in drive else None, 'driveName': name if name in drive else None,
+                           'downloadName': file_name, 'driveName': file_name,
                            **({'id': registered['id']} if registered else {})}
     pc_local = {g['id'] for g in local_pc(cfg, lib)}
     out = list(by_key.values())

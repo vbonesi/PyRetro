@@ -153,9 +153,14 @@ async function load(kind = state.kind, code = "") {
     } else {
       if (!state.code) { report("Nenhum sistema configurado."); return; }
       const c = state.code;
-      const data = await api(kind === "heavy" ? `/api/heavy/roms/${encodeURIComponent(c)}` : `/api/covers/${encodeURIComponent(c)}`);
-      const sys = systems.find(s => s.code === c);
-      items = (kind === "heavy" ? data.items : data).map(g => romItem(kind, c, sys, g));
+      if (kind === "light") {
+        // Sistemas leves: o catálogo junta o que está no PC e o que está no Drive (baixável sob demanda).
+        items = (await api("/api/tv/catalog")).filter(g => g.code === c);
+      } else {
+        const data = await api(`/api/heavy/roms/${encodeURIComponent(c)}`);
+        const sys = systems.find(s => s.code === c);
+        items = data.items.map(g => romItem(kind, c, sys, g));
+      }
     }
     if (["library", "playing", "heavy", "light"].includes(kind)) {
       const metadata = await api("/api/tv/catalog");

@@ -34,6 +34,19 @@ class TestHeavyDownload(unittest.TestCase):
     def download(self, name, code='PS'):
         return heavy.download_from_drive(code, name, self.root, self.cfg)
 
+    def test_light_systems_download_too_and_unknown_systems_are_refused(self):
+        self.cfg['systems'] = {'SFC': {'exts': ['sfc', 'smc']}}
+        self.remote['Jogo Leve.sfc'] = b'rom leve'
+        self.assertTrue(self.download('Jogo Leve.sfc', code='SFC')[0])
+        self.assertEqual((self.root / 'SFC' / 'Jogo Leve.sfc').read_bytes(), b'rom leve')
+        ok, message = self.download('x.sfc', code='NAOEXISTE')
+        self.assertFalse(ok); self.assertIn('desconhecido', message)
+
+    def test_staging_goes_inside_games_root_when_storage_is_configured(self):
+        self.assertEqual(heavy.download_staging(self.cfg), self.base / 'staging')
+        self.cfg['storage'] = {'games_root': str(self.base / 'Games')}
+        self.assertEqual(heavy.download_staging(self.cfg), self.base / 'Games' / '.pyretro' / 'staging')
+
     def test_cue_download_includes_referenced_tracks(self):
         self.assertTrue(self.download('Jogo.cue')[0])
         for name, data in self.remote.items():

@@ -31,7 +31,7 @@ def refresh_heavy_catalog(cfg: dict) -> dict:
     inteiro (não só o nome) pra GUI poder mostrar tamanho sem precisar
     de outra chamada ao Drive - achado 27/08: só nome perdia o tamanho
     de tudo que ainda não foi baixado pro PC."""
-    heavy = heavy_mod.load_heavy_systems(cfg)
+    heavy = heavy_mod.downloadable_systems(cfg)  # pesados e leves: tudo que dá para baixar do Drive
     catalog = {}
     for code, sysinfo in heavy.items():
         exts_lower = {e.lower().lstrip(".") for e in sysinfo.get("exts", [])}
@@ -100,6 +100,13 @@ def _pool_biblioteca(library: dict, rom_names_by_code: dict, subgrupo: str | Non
     return pool
 
 
+def _light_names(code: str, roms_root: Path, info: dict, catalog: dict) -> list:
+    """Nomes sorteáveis de um sistema leve: o que está no PC mais o que está no Drive (baixável)."""
+    names = set(playlist_mod.list_local_names(code, roms_root, info["exts"]))
+    names.update(item["name"] for item in catalog.get(code, []) if not item["is_dir"])
+    return sorted(names)
+
+
 def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
                library: dict | None = None, rom_names_by_code: dict | None = None,
                rom_index: dict | None = None, genero: str | None = None) -> list:
@@ -142,11 +149,11 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
                 fontes = light if chave == "leve" else heavy
                 for c, info in fontes.items():
                     if chave == "leve":
-                        pool += [(c, n, "leve") for n in playlist_mod.list_local_names(c, roms_root, info["exts"])]
+                        pool += [(c, n, "leve") for n in _light_names(c, roms_root, info, catalog)]
                     else:
                         pool += [(c, item["name"], "pesado") for item in catalog.get(c, [])]
         elif code in light:
-            names = playlist_mod.list_local_names(code, roms_root, light[code]["exts"])
+            names = _light_names(code, roms_root, light[code], catalog)
             pool = [(code, n, "leve") for n in names]
         elif code in heavy:
             pool = [(code, item["name"], "pesado") for item in catalog.get(code, [])]
@@ -155,9 +162,9 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
     else:
         pool = []
         for code, info in light.items():
-            pool += [(code, n, "leve") for n in playlist_mod.list_local_names(code, roms_root, info["exts"])]
-        for code, items in catalog.items():
-            pool += [(code, item["name"], "pesado") for item in items]
+            pool += [(code, n, "leve") for n in _light_names(code, roms_root, info, catalog)]
+        for code in heavy:
+            pool += [(code, item["name"], "pesado") for item in catalog.get(code, [])]
         if library is not None:
             pool += _pool_biblioteca(library, rom_names_by_code or {})
 

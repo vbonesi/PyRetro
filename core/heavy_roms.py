@@ -208,6 +208,21 @@ def list_drive_items(code: str, cfg: dict) -> list:
     ]
 
 
+def downloadable_systems(cfg: dict) -> dict:
+    """Sistemas que o PyRetro baixa do Drive sob demanda: pesados e leves (todos têm a mesma
+    pasta `<drive_roms_root>/<código>/` e as extensões em `exts`)."""
+    return {**cfg.get("systems", {}), **load_heavy_systems(cfg)}
+
+
+def download_staging(cfg: dict) -> Path:
+    """Pasta temporária dos downloads. Com `[storage] games_root` fica dentro dele (mesmo disco do
+    destino, fora do Drive); senão usa `[rclone] staging_dir`, como antes."""
+    games_root = (cfg.get("storage") or {}).get("games_root")
+    if games_root:
+        return Path(games_root).expanduser() / ".pyretro" / "staging"
+    return Path(_rclone_cfg(cfg)["staging_dir"]).expanduser()
+
+
 def download_from_drive(code: str, name: str, roms_root: Path, cfg: dict) -> tuple[bool, str]:
     """Baixa para staging exclusivo e publica somente arquivos completos.
 
@@ -215,8 +230,8 @@ def download_from_drive(code: str, name: str, roms_root: Path, cfg: dict) -> tup
     já existe localmente mas faltam as faixas. Não substitui arquivos existentes.
     """
     try:
-        if not isinstance(code, str) or code not in load_heavy_systems(cfg):
-            raise ValueError("sistema pesado desconhecido")
+        if not isinstance(code, str) or code not in downloadable_systems(cfg):
+            raise ValueError("sistema desconhecido")
         rel = play_mod.safe_relative(name)
         if len(rel.parts) != 1:
             raise ValueError("selecione um item do catálogo, sem subpastas")
@@ -232,7 +247,7 @@ def download_from_drive(code: str, name: str, roms_root: Path, cfg: dict) -> tup
 def _download_item(code, name, root, cfg):
     rc = _rclone_cfg(cfg)
     remote = f"{rc['remote']}:{rc['drive_roms_root']}/{code}"
-    staging = Path(rc["staging_dir"]).expanduser()
+    staging = download_staging(cfg)
     # Downloads não podem ser escritos dentro da árvore sincronizada.
     if staging.resolve().is_relative_to(root.parent.resolve()):
         raise ValueError("staging precisa ficar fora da pasta de ROMs")

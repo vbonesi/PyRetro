@@ -37,6 +37,23 @@ class TestTVCatalog(BaseAPI):
         self.assertEqual(cloud['downloadName'], 'Bomba Patch.iso')
         self.assertFalse(next(g for g in items if g['name'] == 'Só capa')['local'])
 
+    def test_light_system_games_in_the_drive_cache_are_downloadable_without_a_local_rom(self):
+        import json as _json
+        from test_api import srv as _srv
+        catalog = _json.loads(_srv.HEAVY_CATALOG_PATH.read_text())
+        original = _json.dumps(catalog)
+        catalog['systems']['SFC'] = [{'name': 'Só no Drive.sfc', 'size': 10, 'is_dir': False},
+                                     {'name': 'Chrono Trigger.sfc', 'size': 3, 'is_dir': False}]
+        _srv.HEAVY_CATALOG_PATH.write_text(_json.dumps(catalog))
+        self.addCleanup(_srv.HEAVY_CATALOG_PATH.write_text, original)
+        with patch.object(pc_games, 'installed_indexes', return_value={k: {} for k in ('steam', 'legendary', 'gog', 'nile')}):
+            status, items = self.pedir('/api/tv/catalog')
+        self.assertEqual(status, 200)
+        remote = next(g for g in items if g['name'] == 'Só no Drive')
+        self.assertEqual((remote['local'], remote['downloadName'], remote['code']), (False, 'Só no Drive.sfc', 'SFC'))
+        chrono = next(g for g in items if g['name'] == 'Chrono Trigger' and g['code'] == 'SFC')
+        self.assertTrue(chrono['local'])
+
     def test_catalog_cover_url_changes_when_cover_file_changes(self):
         import os
         capa = self.capas_dir / 'Só capa.png'
