@@ -4291,3 +4291,9 @@ filtros unificados).
   (saves por manifestos por dispositivo, sem escrita condicional; conflito explícito; histórico).
   21 testes, inclusive contra o remoto local do rclone. Plano em [`nuvem.md`](nuvem.md). Ainda não
   está ligado ao lançador nem ao Android.
+
+## 28/10/2026 — limpeza das ROMs locais (só em andamento; o resto sob demanda)
+
+- PC: 20 arquivos (20,5 GB: ROMs pesadas e NSW) apagados após `rclone check` com cópia idêntica no
+  Drive; ROMs leves mantidas até o download sob demanda delas existir no PC.
+- Celular: 12 ROMs (3,5 GB) apagadas após MD5 igual ao do Drive; saves e dados dos emuladores intactos.

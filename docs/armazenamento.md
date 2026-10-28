@@ -109,3 +109,17 @@ item. Saves, estados, texturas, capa e cadastro nunca são tocados. **Rotas no s
 escrita. **Reconectado em 28/10** (`scope = drive`; gravar e mandar à lixeira testados com um arquivo
 descartável; o `deletefile` vai para a lixeira, não apaga de vez) e `[rclone] can_write = true` no
 `config.toml`: a prévia do Drive já lista as cópias reais. Sem a escrita a prévia bloqueia a ação.
+
+## Política de espaço (Victor, 28/10): só os jogos em andamento ficam; o resto sob demanda
+
+- **PC, feito em 28/10:** apagadas as ROMs pesadas (PS, PS2, GameCube, Wii, PSP, 3DS) e o NSW de
+  `~/Games/PyRetro`, só depois de `rclone check` provar cópia idêntica (hash) no Drive: 20 arquivos,
+  20,5 GB. Ficaram as 4 pesadas dos jogos em andamento (Gran Turismo 2, Toy Story Racer, Guitar Hero
+  III, NFS Underground 2). O PyRetro continua listando os apagados para baixar.
+- **PC, pendente:** as ROMs **leves** (FC, SFC, GB/GBC/GBA, N64, NDS, MD, SMS, GG, PCE, Arcade; ~16 GB)
+  ficaram, porque hoje o catálogo e o download do Drive no PC só cobrem os sistemas pesados; depois
+  de estender isso aos leves elas também podem sair (todas já conferidas no Drive).
+- **Celular, feito:** 12 ROMs apagadas de `/sdcard/Jogos` depois de MD5 igual ao do Drive (3,9 GB → 0,4 GB,
+  o resto é dado de emulador). Ficaram FF VI, Super Mario 64 (em andamento) e o Zelda Molblins.
+- "O que foi sorteado" não é registrado em lugar nenhum; ficaram os jogos em andamento (biblioteca) e o
+  Molblins. O último jogo aberto no PC (Kirby's Adventure, FC) é leve e também ficou.
