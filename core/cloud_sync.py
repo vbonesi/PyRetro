@@ -32,6 +32,11 @@ def saves_root(cfg):
     return Path(cfg['pc']['saves_root']).expanduser().parent
 
 
+def auto(cfg):
+    """Sincronizar sozinho ao abrir e ao fechar um jogo (`[cloud] auto = true`; desligado por padrão)."""
+    return enabled(cfg) and bool((cfg.get('cloud') or {}).get('auto'))
+
+
 def saves(cfg, store=None):
     section = cfg.get('cloud') or {}
     return cloud_saves_mod.CloudSaves(store or storage(cfg), section.get('device') or 'pc', saves_root(cfg),

@@ -4332,3 +4332,7 @@ filtros unificados).
   pelo `FileSync`) e botão "☁ Saves na nuvem (novo)" em Situação. 85 testes JVM (9 de nuvem). Compilado e
   validado por lint; **não instalado nem testado no aparelho** (desconectado). O sync antigo continua.
 - PC: o motor envia os blobs em paralelo (8); o primeiro envio ficava em ~4 objetos/minuto.
+
+- Lançador: `Sessions(before, after)` — com `[cloud] auto = true` o PyRetro baixa/envia os saves antes de abrir
+  (até 30 s) e depois de fechar o jogo; falha na nuvem nunca impede de jogar. Desligado por padrão até os
+  caminhos dos emuladores migrarem. 434 testes Python.

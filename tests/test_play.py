@@ -27,6 +27,24 @@ class TestPlay(unittest.TestCase):
         path.write_bytes(data)
         return path
 
+    def test_before_and_after_hooks_run_around_the_game_and_never_break_it(self):
+        rom = self.file('PS2/Jogo.iso')
+        calls = []
+        process = Mock(); process.poll.return_value = None
+        def boom(*args):
+            calls.append('antes'); raise RuntimeError('nuvem fora do ar')
+        with patch.object(subprocess, 'Popen', return_value=process), patch.object(play, 'restore_tv_focus'):
+            sessions = play.Sessions(before=boom, after=lambda: calls.append('depois'))
+            self.assertEqual(sessions.start(self.cfg, 'PS2', rom.name)['status'], 'running')
+            self.assertEqual(calls, ['antes'])  # o jogo abriu mesmo com a falha
+            process.poll.return_value = 0
+            self.assertEqual(sessions.status()['status'], 'finished')
+        import time
+        for _ in range(50):
+            if 'depois' in calls: break
+            time.sleep(.02)
+        self.assertEqual(calls, ['antes', 'depois'])
+
     def test_exact_candidates_and_argv_without_shell(self):
         rom = self.file('PS2/Jogo; $(false).iso')
         options = play.candidates(self.cfg, 'PS2', rom.name)

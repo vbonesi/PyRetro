@@ -175,7 +175,11 @@ def prepare(cfg, code, name, emulator=''):
 
 class Sessions:
     """Uma sessão por servidor. O estado pode ser retomado após recarregar a TV."""
-    def __init__(self, record=None):
+    def __init__(self, record=None, before=None, after=None):
+        # before(cfg, code, name): roda antes de abrir o jogo (ex.: baixar o save mais recente da nuvem);
+        # after(): roda numa thread quando o jogo fecha (ex.: enviar os saves). Falha neles nunca impede
+        # de jogar nem derruba o servidor.
+        self.before, self.after = before, after
         self.lock = threading.Lock()
         self.process = None
         self.state = {'status': 'idle'}
@@ -194,7 +198,16 @@ class Sessions:
                     except (OSError, ValueError) as error:
                         self.state['timeError'] = str(error)
                 restore_tv_focus()
+                if self.after:
+                    threading.Thread(target=self._safe, args=(self.after,), daemon=True).start()
         return dict(self.state)
+
+    @staticmethod
+    def _safe(function, *args):
+        try:
+            function(*args)
+        except Exception:  # noqa: BLE001
+            pass
 
     def status(self):
         with self.lock:
@@ -205,6 +218,8 @@ class Sessions:
             if self._poll()['status'] == 'running':
                 raise ValueError('já existe um jogo aberto pelo PyRetro')
             cmd = prepare(cfg, code, name, emulator)
+            if self.before:
+                self._safe(self.before, cfg, code, name)
             # Sem shell e sem herdar stdin; os erros do lançador vão para o journal.
             process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, close_fds=True)
             self.process = process

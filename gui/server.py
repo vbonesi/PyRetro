@@ -97,7 +97,22 @@ def _record_emulator_time(session, seconds):
                             source='emulator', event=session['session'])
 
 
-PLAY_SESSIONS = play_mod.Sessions(record=_record_emulator_time)
+def _cloud_before_play(cfg, code, name):
+    """Antes de abrir o jogo: traz da nuvem o que mudou em outros dispositivos (só pulls e pushes; conflito
+    fica para a tela). Limitado a ~30 s para a nuvem lenta não segurar o jogo."""
+    if not cloud_sync_mod.auto(cfg):
+        return
+    worker = threading.Thread(target=lambda: cloud_sync_mod.sync(cfg), daemon=True)
+    worker.start(); worker.join(30)
+
+
+def _cloud_after_play():
+    cfg = load_config()
+    if cloud_sync_mod.auto(cfg):
+        cloud_sync_mod.sync(cfg)
+
+
+PLAY_SESSIONS = play_mod.Sessions(record=_record_emulator_time, before=_cloud_before_play, after=_cloud_after_play)
 
 COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
 CSRF_TOKEN = secrets.token_urlsafe(32)
