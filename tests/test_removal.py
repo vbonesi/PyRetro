@@ -110,6 +110,16 @@ class TestRemovalServer(unittest.TestCase):
         self.assertTrue(outcome["ok"])
         self.assertEqual(sorted(trashed), ["Disco.bin", "Disco.cue"])
 
+    def test_catalog_style_stem_resolves_to_the_descriptor_file(self):
+        import sys
+        sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent / "gui"))
+        import server as srv
+        self.assertEqual(srv._removal_entry(self.cfg, "PS", "Disco"), "Disco.cue")
+        self.assertEqual(srv._removal_entry(self.cfg, "PS", "Disco.cue"), "Disco.cue")
+        self.assertEqual(srv._removal_entry(self.cfg, "PS", "Nada"), "Nada")
+        plan = srv._removal_plan(self.cfg, "local", "PS", "Disco")
+        self.assertEqual(sorted(plan["local"]), ["Disco.bin", "Disco.cue"])
+
     def test_drive_scope_is_blocked_while_rclone_is_read_only_and_wrong_token_is_refused(self):
         import sys
         sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent / "gui"))

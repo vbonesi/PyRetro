@@ -20,6 +20,7 @@ import re
 import secrets
 import shutil
 import subprocess
+from glob import escape as glob_escape
 import sys
 import threading
 import tomllib
@@ -59,6 +60,7 @@ from core import mobile_textures as mobile_textures_mod
 from core import mobile_sync as mobile_sync_mod
 from core import mobile_roms as mobile_roms_mod
 from core import removal as removal_mod
+from core import rom_bundles as rom_bundles_mod
 from core import cloud_sync as cloud_sync_mod
 from core import diagnostics as diagnostics_mod
 from core import drive_pending as drive_pending_mod
@@ -431,10 +433,46 @@ def _organize_trash(cfg: dict):
 library_mod.AFTER_SAVE.append(lambda _path: cloud_sync_mod.schedule_library_snapshot(lambda: load_config()))
 
 
+def _removal_entry(cfg: dict, code: str, entry: str) -> str:
+    """O catálogo identifica a ROM pelo nome sem extensão; a remoção precisa do arquivo. Resolve o
+    arquivo no PC (descritor de disco primeiro); sem arquivo local devolve `entry` como veio."""
+    info = heavy_mod.downloadable_systems(cfg).get(code) or {}
+    root = Path(cfg["pc"]["roms_root"]).expanduser() / code
+    if (root / entry).is_file():
+        return entry
+    exts = {"." + e.lower().lstrip(".") for e in info.get("exts", [])}
+    matches = sorted((p for p in root.glob(glob_escape(entry) + ".*") if p.is_file() and p.suffix.lower() in exts),
+                     key=lambda p: (p.suffix.lower() not in (".cue", ".m3u", ".gdi"), p.name))
+    return matches[0].name if matches else entry
+
+
+def _drive_files_for(cfg: dict, code: str, entry: str, local: dict | None) -> list:
+    """Arquivos do conjunto no Drive: os do plano local quando há cópia no PC; senão o próprio item e,
+    se for descritor de disco, as faixas que ele cita (lidas do Drive)."""
+    relatives = [*local["remove"], *local["preserve"]] if local else [entry]
+    if not local and Path(entry).suffix.lower() in rom_bundles_mod.DESCRIPTORS:
+        try:
+            text = subprocess.run(["rclone", "cat", mobile_roms_mod._drive_remote(cfg, code, entry)],
+                                  capture_output=True, text=True, timeout=120).stdout
+            relatives += [r for r in rom_bundles_mod.references(text, Path(entry).suffix.lower())]
+        except (ValueError, OSError, subprocess.SubprocessError):
+            pass
+    rows = []
+    for relative in relatives:
+        try:
+            row = mobile_roms_mod._rclone_json(["lsjson", "--stat", mobile_roms_mod._drive_remote(cfg, code, relative)])
+        except (ValueError, OSError):
+            row = None
+        if isinstance(row, dict) and not row.get("IsDir"):
+            rows.append({"path": mobile_roms_mod._drive_remote(cfg, code, relative), "id": row.get("ID", ""), "size": row.get("Size", 0)})
+    return rows
+
+
 def _removal_plan(cfg: dict, scope: str, code: str, entry: str) -> dict:
     """Prévia de remover um jogo (core/removal.py): arquivos exclusivos no PC, cópias no Drive,
     proteções e permissões. A escrita no Drive só vale com `[rclone] can_write = true` (o rclone
     deste PC foi configurado somente leitura)."""
+    entry = _removal_entry(cfg, code, entry)
     try:
         local = mobile_roms_mod.removal_plan(cfg, code, entry)
     except (ValueError, LookupError, OSError):
@@ -447,16 +485,7 @@ def _removal_plan(cfg: dict, scope: str, code: str, entry: str) -> dict:
             if library_mod.rom_code_for_plataforma(record.get("plataforma")) == code and record.get("iniciado") and not record.get("finalizado"):
                 protected.append(f"jogo iniciado e não finalizado: {record.get('nome')}")
     can_write = bool(cfg.get("rclone", {}).get("can_write"))
-    drive_list = None
-    if scope in ("drive", "both") and can_write and local:
-        drive_list = []
-        for relative in [*local["remove"], *local["preserve"]]:
-            try:
-                row = mobile_roms_mod._rclone_json(["lsjson", "--stat", mobile_roms_mod._drive_remote(cfg, code, relative)])
-            except (ValueError, OSError):
-                row = None
-            if isinstance(row, dict) and not row.get("IsDir"):
-                drive_list.append({"path": mobile_roms_mod._drive_remote(cfg, code, relative), "id": row.get("ID", ""), "size": row.get("Size", 0)})
+    drive_list = _drive_files_for(cfg, code, entry, local) if scope in ("drive", "both") and can_write else None
     return removal_mod.plan(scope, code, entry, local_plan=local, drive_list=drive_list, protected=protected,
                             can_write_drive=can_write, running=PLAY_SESSIONS.status().get("status") == "running")
 

@@ -567,6 +567,7 @@ function openGame(g, origin = document.activeElement) {
   $("rom-rename").hidden = !g.code || !(light ? g.cover : g.local); $("rom-delete").hidden = !g.code || !(light || g.local);
   $("decompose").hidden = !g.id || !!g.code || !!g.wishlist;
   $("rom-delete").dataset.confirm = ""; $("rom-delete").textContent = "🗑 Apagar ROM";
+  $("rom-remove").hidden = !g.code || !(g.local || g.downloadName || g.driveName);
   // Desejado ainda não é seu: sem favorito, tempo, mídia ou progresso.
   for (const id of ["favorite", "time-toggle", "media-toggle", "progress-toggle", "game-time"]) $(id).hidden = !!g.wishlist;
   for (const id of ["wishlist-bought", "wishlist-remove"]) { $(id).dataset.confirm = ""; $(id).textContent = id === "wishlist-bought" ? "✅ Comprado" : "🗑 Tirar da lista"; }
@@ -1109,6 +1110,42 @@ $("rom-delete").onclick = async () => {
   try { const r = await api(light ? "/api/cover/delete" : "/api/heavy/delete", {code: g.code, label: coverLabel(g)}); await afterFileChange(`${g.name}: ${describeCascade(r.cascade, "apagado(s)")}`); }
   catch (e) { state.busy = false; b.dataset.confirm = ""; b.textContent = "🗑 Apagar ROM"; report(e.message, true, "detail-status"); }
 };
+// --- 🗑 Remover…: deste PC, do Drive (lixeira) ou dos dois, sempre com prévia (core/removal.py) ---
+const fmtBytes = n => n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(0)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
+$("rom-remove").onclick = () => {
+  const g = state.selected; if (!g?.code) return; closeGame();
+  const entry = g.driveName || g.romName;
+  const scopes = [["local", "Só deste PC (continua no Drive)"], ["drive", "Só do Drive (vai para a lixeira)"], ["both", "Dos dois"]];
+  openTool(`🗑 Remover: ${g.name}`, async body => {
+    let scope = g.local ? "local" : "drive";
+    const draw = async () => {
+      const buttons = scopes.map(([key, label]) => button(label, () => { scope = key; draw(); }, scope === key));
+      body.replaceChildren(hint("Saves, estados, texturas, capa, cadastro, nota e tempo ficam. Tudo o que sai vai para a lixeira (PC: do sistema; Drive: recuperável por 30 dias)."), actions(...buttons), hint("Conferindo o que seria removido…"));
+      let plan;
+      try { plan = await api(`/api/storage/removal-plan?${new URLSearchParams({scope, code: g.code, entry})}`); }
+      catch (e) { body.append(hint(e.message)); return toolStatus(e.message, true); }
+      body.replaceChildren(hint("Saves, estados, texturas, capa, cadastro, nota e tempo ficam. Tudo o que sai vai para a lixeira (PC: do sistema; Drive: recuperável por 30 dias)."), actions(...buttons));
+      if (plan.local.length) body.append(heading(`Neste PC (${plan.local.length})`), ...plan.local.map(f => row(f)));
+      if (plan.drive.length) body.append(heading(`No Drive (${plan.drive.length} · ${fmtBytes(plan.bytes_drive)})`), ...plan.drive.map(f => row(f.path.split("/").slice(-1)[0], Object.assign(document.createElement("small"), {textContent: fmtBytes(f.size)}))));
+      if (plan.preserved.length) body.append(hint(`Preservados (usados por outro jogo): ${plan.preserved.length}.`));
+      for (const w of plan.warnings) body.append(hint("⚠ " + w));
+      for (const b of plan.blocked) body.append(hint("⛔ " + b));
+      if (!plan.local.length && !plan.drive.length && !plan.blocked.length) body.append(hint("Nada a remover nesta opção."));
+      if (!plan.blocked.length && (plan.local.length || plan.drive.length)) {
+        body.append(actions(confirmButton("Remover", "Confirmar: " + plan.confirm_text, async () => {
+          try {
+            const r = await api("/api/storage/removal-apply", {scope, code: g.code, entry: plan.entry, token: plan.token, confirm: plan.confirm_text});
+            const failed = r.results.filter(x => !x.ok);
+            toolStatus(failed.length ? `${r.results.length - failed.length} removido(s); ${failed.length} falhou(aram): ${failed[0].error}` : `Pronto: ${r.results.length} arquivo(s) para a lixeira. ${r.recover}`, failed.length > 0);
+            await load(state.kind, state.code);
+          } catch (e) { toolStatus(e.message, true); }
+        })));
+      }
+    };
+    await draw();
+  });
+};
+
 $("decompose").onclick = () => {
   const g = state.selected; closeGame();
   let names = [];

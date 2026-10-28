@@ -4307,3 +4307,19 @@ filtros unificados).
 - Prova: `Tennis.nes` apagado, oferecido pelo catálogo, baixado pela rota `/api/heavy/download`, hash
   idêntico. Depois, 1.318 ROMs leves (16,3 GB) apagadas com cópia idêntica no Drive; Arcade mantido.
 - Castlevania SotN (jogo sorteado) apagado por engano do celular e do PC e restaurado nos dois (MD5 igual).
+
+## 28/10/2026 — nuvem no PC (saves, Biblioteca, Backups), remoção na ficha e WGP16
+
+- **Saves (G, lado PC):** copiados e verificados para `~/Games/PyRetro/Saves` (418 arquivos, 557 MB); `[cloud]`
+  no `config.toml` (remoto `drive:Jogos/PyRetro-Nuvem`); `core/cloud_sync.py` + rotas
+  `/api/cloud/saves/{status,sync,resolve}`; cache de hash (não relê 560 MB a cada vez). Primeiro envio feito
+  em segundo plano. **Ainda não migrado:** caminhos dos emuladores e overrides (setup) e `[storage] migrated`.
+- **Biblioteca e Backups sem Insync:** `core/cloud_snapshots.py` envia uma versão nova e imutável do
+  `library.json` a cada gravação (com espera de 30 s), mantém as 30 últimas (as velhas vão para a lixeira do
+  Drive), restaura com hash conferido e envia os arquivos novos dos Backups sem apagar nada. Rotas
+  `/api/cloud/snapshots[/publish]` e CLI `python3 -m core.cloud_sync status|sync|publish|versions|restore-library`.
+- **Remoção na ficha do jogo (modo TV):** botão "🗑 Remover…" com as três opções, prévia dos arquivos do PC e
+  do Drive, proteção de jogo em andamento e confirmação com a frase exata. A prévia resolve o arquivo a
+  partir do nome do catálogo e, sem cópia no PC, lê o descritor do Drive.
+- WGP16 Nova II medido (aparece como "Sony Interactive Entertainment Wireless Controller", GUID no registro).
+- 433 testes Python.
