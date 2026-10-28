@@ -4297,3 +4297,13 @@ filtros unificados).
 - PC: 20 arquivos (20,5 GB: ROMs pesadas e NSW) apagados após `rclone check` com cópia idêntica no
   Drive; ROMs leves mantidas até o download sob demanda delas existir no PC.
 - Celular: 12 ROMs (3,5 GB) apagadas após MD5 igual ao do Drive; saves e dados dos emuladores intactos.
+
+## 28/10/2026 — ROMs leves sob demanda no PC; limpeza das leves
+
+- `heavy_roms.downloadable_systems` (leves + pesados) no download; `download_staging` em
+  `~/Games/PyRetro/.pyretro/staging`; `sortear.build_pool` sorteia leves também do Drive; o catálogo da
+  TV lista e baixa leves do Drive; a lista de um sistema leve no modo TV passou a usar o catálogo.
+  Catálogo do Drive atualizado com os leves (MD refeito à parte: a primeira consulta falhou sem erro).
+- Prova: `Tennis.nes` apagado, oferecido pelo catálogo, baixado pela rota `/api/heavy/download`, hash
+  idêntico. Depois, 1.318 ROMs leves (16,3 GB) apagadas com cópia idêntica no Drive; Arcade mantido.
+- Castlevania SotN (jogo sorteado) apagado por engano do celular e do PC e restaurado nos dois (MD5 igual).

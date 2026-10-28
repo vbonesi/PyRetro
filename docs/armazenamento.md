@@ -116,9 +116,13 @@ descartável; o `deletefile` vai para a lixeira, não apaga de vez) e `[rclone] 
   `~/Games/PyRetro`, só depois de `rclone check` provar cópia idêntica (hash) no Drive: 20 arquivos,
   20,5 GB. Ficaram as 4 pesadas dos jogos em andamento (Gran Turismo 2, Toy Story Racer, Guitar Hero
   III, NFS Underground 2). O PyRetro continua listando os apagados para baixar.
-- **PC, pendente:** as ROMs **leves** (FC, SFC, GB/GBC/GBA, N64, NDS, MD, SMS, GG, PCE, Arcade; ~16 GB)
-  ficaram, porque hoje o catálogo e o download do Drive no PC só cobrem os sistemas pesados; depois
-  de estender isso aos leves elas também podem sair (todas já conferidas no Drive).
+- **PC, ROMs leves (feito em 28/10, à noite):** o catálogo do Drive, o download, o sorteio e a lista do modo TV
+  passaram a cobrir também os sistemas leves; provado ponta a ponta (apagar, baixar pela rota, mesmo
+  hash). Apagados 1.318 arquivos (16,3 GB) de FC, SFC, GB, GBC, GBA, N64, NDS, MD, SMS, GG, PCE e
+  PCECD, todos com cópia idêntica no Drive. Ficaram Final Fantasy VI, Super Mario 64, Kirby's
+  Adventure e o Molblins. **O Arcade ficou inteiro (3,2 GB):** clones precisam dos zips "pai"/BIOS e
+  baixar um jogo sozinho o deixaria sem rodar. Playlists dos sistemas esvaziados foram zeradas (cópia
+  em `Backups/playlists-antes-leves-*`). Restaurado a pedido o Castlevania SotN (era o sorteado).
 - **Celular, feito:** 12 ROMs apagadas de `/sdcard/Jogos` depois de MD5 igual ao do Drive (3,9 GB → 0,4 GB,
   o resto é dado de emulador). Ficaram FF VI, Super Mario 64 (em andamento) e o Zelda Molblins.
 - "O que foi sorteado" não é registrado em lugar nenhum; ficaram os jogos em andamento (biblioteca) e o
