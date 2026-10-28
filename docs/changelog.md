@@ -4189,3 +4189,12 @@ filtros unificados).
   cartões e ficha do Android **0.16.0 (code 24)**, instalada e conferida no celular
   (selos N64/GBC e pódio do Ranking). Os ícones são desenho próprio (cor + sigla), sem logotipos
   de fabricantes. Testes: 367 Python, 54 JS, JVM com `PlatformRulesTest`.
+
+## 28/10/2026 — armazenamento do PC, etapa E (modelo e prévia, sem mover nada)
+
+- `core/storage.py`: `Layout` (resolvedor único de destinos; NSW com raiz própria e uma pasta por
+  título) e `plan` (prévia somente leitura: destinos, tamanhos, dependências CUE/GDI/M3U, colisões,
+  links, espaço e consumidores da pasta antiga). `python3 -m core.storage` imprime a prévia.
+- Nenhum consumidor foi religado e nada foi copiado. Detalhes e ordem da migração em
+  [`armazenamento.md`](armazenamento.md). Pedido de ajustes (lançador, overrides do Flatpak,
+  Insync) enviado à conversa do setup. 375 testes Python.
