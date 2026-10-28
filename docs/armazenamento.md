@@ -24,6 +24,10 @@ Plano completo: [`plano-melhorias-2026-10-28.md`](plano-melhorias-2026-10-28.md)
   links). O título local (3 arquivos, 3,5 GB) foi copiado e verificado por hash, e `nsw` entrou em
   `migrated`.
 - **`ROMs` e `BIOS` já desmarcadas** pelo Victor (28/10); nuvem manteve tudo.
+- **Setup (g) de ROM/BIOS aplicado** (`7e89d27` no setup): DuckStation sem a 2ª `RecursivePaths`,
+  Dolphin com `ISOPaths = 2`, lançador só com `~/Games/PyRetro/ROMs`. Overrides do Flatpak
+  `Drive/Jogos:ro` e `Saves/*` continuam até a etapa G; cópia dos configs em
+  `~/.local/state/bonisarch/backups/paths-20261028-190408`.
 - **Capas migrada (28/10):** 1.931 arquivos copiados e verificados; `migrated` inclui `capas`; os links
   dos emuladores foram refeitos pela manutenção. Pronta para desmarcar no Insync (só pelo Victor).
 - **Biblioteca, Backups e Saves ficam no Drive de propósito, por ora:** o Drive é hoje a rede de
