@@ -31,6 +31,7 @@
 <div id="saida"></div>
 <iframe id="app-under-test" title="PyRetro sob teste"></iframe>
 
+<script src="/static/platforms.js"></script>
 <script src="/static/logic.js"></script>
 <script>
 // Mini-framework: só o suficiente pra asserção legível, sem dependência
@@ -47,6 +48,24 @@ const jogo = (extra = {}) => Object.assign({
   nome: "Jogo", plataforma: "Steam", fontes: [], capa: null, oculto: false,
   iniciado: false, finalizado: false, platinado: false, nota: null,
 }, extra);
+
+// --- ícones de plataforma ----------------------------------------------
+teste("plataforma casa por código de ROM, nome da fonte e apelido", () => {
+  igual(plataformaInfo("SFC", "qualquer").id, "snes");
+  igual(plataformaInfo(undefined, "Sony - PlayStation").id, "ps1");
+  igual(plataformaInfo("Xbox Series S").id, "xboxseries");
+  igual(plataformaInfo("Nintendo - Nintendo 64").short, "N64");
+  igual(plataformaInfo(null, "Epic Games Store").id, "epic");
+});
+teste("plataforma desconhecida tem ícone neutro com iniciais", () => {
+  const info = plataformaInfo("Atari Jaguar");
+  igual(info.id, "outro"); igual(info.short, "ATA"); igual(info.name, "Atari Jaguar");
+});
+teste("ícone é decorativo ou tem nome acessível", () => {
+  const deco = plataformaIcone(plataformaInfo("GBA")), com = plataformaIcone(plataformaInfo("GBA"), "Game Boy Advance");
+  igual(deco.getAttribute("aria-hidden"), "true"); igual(com.getAttribute("role"), "img");
+  igual(com.dataset.short, "GBA"); igual(com.textContent, "");
+});
 
 // --- nota: escala de cor (vermelho 1 -> verde 10 -> dourado 11) ------
 teste("sem nota não tem cor", () => {

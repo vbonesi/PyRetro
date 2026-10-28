@@ -139,6 +139,17 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private val accent=Color.rgb(129,225,202)
     private fun dp(value:Int)=(value*resources.displayMetrics.density).toInt()
     private fun shape(selected:Boolean=false)=GradientDrawable().apply { cornerRadius=dp(12).toFloat();setColor(if(selected)Color.rgb(35,94,87) else Color.rgb(26,43,63));setStroke(dp(if(selected)3 else 1),if(selected)accent else Color.rgb(60,81,102)) }
+    /** Selo colorido da plataforma, igual ao da web e do modo TV; decorativo (o nome vem escrito ao lado). */
+    private fun platformChip(vararg names:String?):TextView {
+        val info=PlatformRules.find(*names)
+        return TextView(this).apply {
+            text=info.short;setTextColor(Color.WHITE);setTypeface(null,Typeface.BOLD);gravity=android.view.Gravity.CENTER
+            textSize=if(info.short.length>=5)8.5f else if(info.short.length==4)9.5f else 11f;maxLines=1
+            setPadding(dp(5),dp(2),dp(5),dp(2));minWidth=dp(34)
+            background=android.graphics.drawable.GradientDrawable().apply { cornerRadius=dp(5).toFloat();setColor(info.color) }
+            importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+    }
     private fun text(value:CharSequence,size:Float=16f)=TextView(this).apply { text=value;textSize=size;setTextColor(appForeground);setPadding(dp(4),dp(4),dp(4),dp(4)) }
     private fun button(value:String,action:()->Unit)=Button(this).apply { text=value;isAllCaps=false;minHeight=dp(48);setTextColor(appForeground);background=shape();setPadding(dp(12),dp(6),dp(12),dp(6));setOnClickListener { action() };setOnFocusChangeListener { _,focused -> background=shape(focused) } }
     private fun row()=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL }
@@ -298,7 +309,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val cover=ImageView(this).apply { setImageResource(com.pyretro.app.R.drawable.ic_pyretro);scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name }
         card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
         card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
-        card.addView(text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END })
+        val meta=text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END }
+        card.addView(LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL
+            addView(platformChip(game.code,game.platform),LinearLayout.LayoutParams(-2,-2).apply { setMargins(dp(4),0,0,0) });addView(meta,LinearLayout.LayoutParams(0,-2,1f)) })
         val badges=text(coloredBadges(game),12f).apply { maxLines=1;setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
         card.addView(badges);downloadBadges[game.key]=badges
         images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
@@ -609,6 +622,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val cover=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name;visibility=View.GONE }
         box.addView(cover,LinearLayout.LayoutParams(-1,dp(if(resources.configuration.orientation==2)140 else 230)))
         images.execute { val file=runCatching { store.cover(game) }.getOrNull();val bitmap=file?.let { BitmapFactory.decodeFile(it.path) };if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap);cover.visibility=View.VISIBLE } }
+        box.addView(platformChip(game.code,game.platform),LinearLayout.LayoutParams(-2,-2).apply { setMargins(dp(4),0,0,dp(2)) })
         box.addView(text(game.name,22f).apply { setTypeface(null,Typeface.BOLD) })
         val rom=game.code in store.folders;val stream=GameLogic.remotePackage(game.platform);val viaNotebook=GameLogic.streamedThroughNotebook(game.platform)
         val waiting=rom && game.localUri==null && queued(game)

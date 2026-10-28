@@ -4175,3 +4175,17 @@ filtros unificados).
 - **Ranking:** Top 3 da seleção em pódio 2–1–3 (modo TV e Android), aviso de empate alfabético.
   Pódio conferido no modo TV; no celular só instalado (sem Tailscale, o cache não tinha notas).
 - Testes: 363 Python, 51 JS, JVM com `NotaRulesTest`.
+
+## 28/10/2026 — ícones de plataforma (etapa B do plano)
+
+- **Manifesto único** `assets/platforms/manifest.json` (34 plataformas e lojas, aliases por código de ROM
+  e por nome de fonte, cor e sigla). `tools/build_platform_icons.py` gera `gui/static/platforms.js`
+  (web e modo TV) e `PlatformData.kt` (Android); `tests/test_platforms.py` falha se os gerados
+  ficarem desatualizados, se um alias pertencer a duas plataformas ou se o contraste do texto
+  branco ficar abaixo de 4,5.
+- Plataforma sem ícone cai num selo neutro com as três primeiras letras (nunca fica sem selo).
+- Selos são decorativos (o nome continua escrito ao lado) e não entram no texto do elemento.
+- Aplicado em: cartões, ficha, abas de plataforma e Sistemas do modo TV; cartões e lista da web;
+  cartões e ficha do Android **0.16.0 (code 24)**, instalada e conferida no celular
+  (selos N64/GBC e pódio do Ranking). Os ícones são desenho próprio (cor + sigla), sem logotipos
+  de fabricantes. Testes: 367 Python, 54 JS, JVM com `PlatformRulesTest`.

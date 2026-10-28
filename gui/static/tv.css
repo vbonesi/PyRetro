@@ -383,3 +383,8 @@ header{padding:1rem 3vw .5rem}
 .podium-note{margin:.8rem 0 0;font-size:.8rem;color:var(--muted);text-align:center}
 @media(max-width:700px){.podium-row{flex-direction:column;align-items:stretch}.podium-place,.podium-place.place-1{order:0;flex-basis:auto}}
 .badge[style*="border-color"]{font-weight:600}
+
+.plat-icon{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:3.6em;height:2em;padding:0 .2em;border-radius:.4em;color:#fff;font:700 .68em/1 system-ui,sans-serif;letter-spacing:.02em;vertical-align:middle;margin-right:.5em;flex:none;white-space:nowrap}
+.plat-icon::before{content:attr(data-short)}
+.plat-icon[data-len="4"]{font-size:.6em}.plat-icon[data-len="5"],.plat-icon[data-len="6"]{font-size:.5em}
+.system-symbol{font-size:3rem}.system-symbol .plat-icon{margin:0}

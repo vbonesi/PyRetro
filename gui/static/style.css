@@ -1509,3 +1509,7 @@ a.button-link {
 .sortear-note{color:var(--text-dim);font-size:13px;line-height:1.45}
 .sortear-actions a{display:inline-flex;padding:8px 10px;border:1px solid var(--border);border-radius:6px;color:var(--accent);text-decoration:none}
 @media(max-width:650px){#sortear-modal .search-bar{grid-template-columns:minmax(0,1fr) auto}#sortear-system{grid-column:1/-1}}
+
+.plat-icon{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:3.6em;height:2em;padding:0 .2em;border-radius:.4em;color:#fff;font:700 .68em/1 system-ui,sans-serif;letter-spacing:.02em;vertical-align:middle;margin-right:.5em;flex:none;white-space:nowrap}
+.plat-icon::before{content:attr(data-short)}
+.plat-icon[data-len="4"]{font-size:.6em}.plat-icon[data-len="5"],.plat-icon[data-len="6"]{font-size:.5em}

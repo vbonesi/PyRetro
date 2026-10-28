@@ -1695,6 +1695,7 @@ function buildLibraryCard(g, rank) {
     <div class="card-meta" title="${meta}">${meta}</div>
     ${g.genero ? `<div class="card-genero">🎭 ${g.genero}</div>` : ""}
   `;
+  div.querySelector(".card-meta").prepend(plataformaIcone(plataformaInfo(g.plataforma)));
 
   div.appendChild(buildTrackingRow(g, (field, value) => {
     g[field] = value;
@@ -2313,7 +2314,7 @@ async function openLista(tipo) {
         ? `<img class="lista-capa" src="${g.capa_url}" alt="" loading="lazy" title="Ampliar capa">`
         : '<span class="lista-capa lista-capa-vazia">🖼</span>'}
       <span class="lista-nome" title="${g.nome}">${g.nome}</span>
-      <span class="lista-plataforma">${g.plataforma}</span>
+      <span class="lista-plataforma"></span>
       ${g.nota !== null ? `<span class="lista-nota" style="color:${cor};border-color:${cor}">${notaTexto(g.nota)}</span>` : ""}
       <button class="icon-btn${g.observacoes || g.tempo ? " ativo" : ""}" type="button"
               title="Comentário e tempo jogado">💬</button>
@@ -2323,6 +2324,8 @@ async function openLista(tipo) {
     // comentario feito"). Editável aqui também - grava por id, igual
     // o card da Biblioteca (vale pra ROM também: desde o tracking
     // universal todo jogo com progresso tem registro no library.json).
+    const plat = linha.querySelector(".lista-plataforma");
+    plat.append(plataformaIcone(plataformaInfo(g.plataforma)), g.plataforma);
     const img = linha.querySelector("img.lista-capa");
     if (img) img.addEventListener("click", () => openLightbox(g.capa_url, g.nome));
     linha.querySelector(".icon-btn").addEventListener("click", (e) => {

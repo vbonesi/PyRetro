@@ -1,0 +1,382 @@
+{
+ "fallback": {
+  "id": "outro",
+  "name": "Outra plataforma",
+  "short": "?",
+  "color": "#4A5560"
+ },
+ "platforms": [
+  {
+   "id": "nes",
+   "name": "Nintendo Entertainment System",
+   "short": "NES",
+   "color": "#B3202B",
+   "aliases": [
+    "FC",
+    "Nintendo - Nintendo Entertainment System",
+    "Famicom",
+    "Nintendo Entertainment System"
+   ]
+  },
+  {
+   "id": "snes",
+   "name": "Super Nintendo",
+   "short": "SNES",
+   "color": "#6B4FA0",
+   "aliases": [
+    "SFC",
+    "Nintendo - Super Nintendo Entertainment System",
+    "Super Nintendo Entertainment System",
+    "Super Famicom"
+   ]
+  },
+  {
+   "id": "gb",
+   "name": "Game Boy",
+   "short": "GB",
+   "color": "#5C6B3A",
+   "aliases": [
+    "GB",
+    "Nintendo - Game Boy"
+   ]
+  },
+  {
+   "id": "gbc",
+   "name": "Game Boy Color",
+   "short": "GBC",
+   "color": "#8A3FA8",
+   "aliases": [
+    "GBC",
+    "Nintendo - Game Boy Color"
+   ]
+  },
+  {
+   "id": "gba",
+   "name": "Game Boy Advance",
+   "short": "GBA",
+   "color": "#3F4FA8",
+   "aliases": [
+    "GBA",
+    "Nintendo - Game Boy Advance"
+   ]
+  },
+  {
+   "id": "n64",
+   "name": "Nintendo 64",
+   "short": "N64",
+   "color": "#2E7D4F",
+   "aliases": [
+    "N64",
+    "Nintendo - Nintendo 64"
+   ]
+  },
+  {
+   "id": "nds",
+   "name": "Nintendo DS",
+   "short": "DS",
+   "color": "#4A5560",
+   "aliases": [
+    "NDS",
+    "Nintendo - Nintendo DS",
+    "Nintendo DS"
+   ]
+  },
+  {
+   "id": "3ds",
+   "name": "Nintendo 3DS",
+   "short": "3DS",
+   "color": "#B3202B",
+   "aliases": [
+    "3DS",
+    "Nintendo - 3DS",
+    "Nintendo 3DS"
+   ]
+  },
+  {
+   "id": "gamecube",
+   "name": "GameCube",
+   "short": "GC",
+   "color": "#5B4B9A",
+   "aliases": [
+    "NGC",
+    "Nintendo - GameCube",
+    "GameCube",
+    "Nintendo GameCube"
+   ]
+  },
+  {
+   "id": "wii",
+   "name": "Wii",
+   "short": "Wii",
+   "color": "#37769A",
+   "aliases": [
+    "WII",
+    "Nintendo - Wii",
+    "Nintendo Wii"
+   ]
+  },
+  {
+   "id": "switch",
+   "name": "Nintendo Switch",
+   "short": "NSW",
+   "color": "#C21F2B",
+   "aliases": [
+    "NSW",
+    "Nintendo Switch",
+    "Switch"
+   ]
+  },
+  {
+   "id": "mastersystem",
+   "name": "Master System",
+   "short": "SMS",
+   "color": "#1F4E9C",
+   "aliases": [
+    "SMS",
+    "Sega - Master System - Mark III",
+    "Sega Master System"
+   ]
+  },
+  {
+   "id": "megadrive",
+   "name": "Mega Drive",
+   "short": "MD",
+   "color": "#223A7A",
+   "aliases": [
+    "MD",
+    "Sega - Mega Drive - Genesis",
+    "Mega Drive",
+    "Genesis",
+    "Sega Genesis"
+   ]
+  },
+  {
+   "id": "gamegear",
+   "name": "Game Gear",
+   "short": "GG",
+   "color": "#2B4F8F",
+   "aliases": [
+    "GG",
+    "Sega - Game Gear",
+    "Sega Game Gear"
+   ]
+  },
+  {
+   "id": "pcengine",
+   "name": "PC Engine",
+   "short": "PCE",
+   "color": "#B8561A",
+   "aliases": [
+    "PCE",
+    "NEC - PC Engine - TurboGrafx 16",
+    "PC Engine",
+    "TurboGrafx-16"
+   ]
+  },
+  {
+   "id": "pcenginecd",
+   "name": "PC Engine CD",
+   "short": "PCE-CD",
+   "color": "#9A4A16",
+   "aliases": [
+    "PCECD",
+    "NEC - PC Engine CD - TurboGrafx-CD",
+    "PC Engine CD",
+    "TurboGrafx-CD"
+   ]
+  },
+  {
+   "id": "arcade",
+   "name": "Arcade",
+   "short": "ARC",
+   "color": "#8F6A00",
+   "aliases": [
+    "ARCADE",
+    "FBNeo - Arcade Games",
+    "Arcade",
+    "Fliperama"
+   ]
+  },
+  {
+   "id": "ps1",
+   "name": "PlayStation",
+   "short": "PS1",
+   "color": "#1F4F9E",
+   "aliases": [
+    "PS",
+    "Sony - PlayStation",
+    "PlayStation",
+    "PlayStation 1",
+    "PS1",
+    "PSX"
+   ]
+  },
+  {
+   "id": "ps2",
+   "name": "PlayStation 2",
+   "short": "PS2",
+   "color": "#243C8A",
+   "aliases": [
+    "PS2",
+    "Sony - PlayStation 2",
+    "PlayStation 2"
+   ]
+  },
+  {
+   "id": "psp",
+   "name": "PlayStation Portable",
+   "short": "PSP",
+   "color": "#33414F",
+   "aliases": [
+    "PSP",
+    "Sony - PSP",
+    "PlayStation Portable"
+   ]
+  },
+  {
+   "id": "ps3",
+   "name": "PlayStation 3",
+   "short": "PS3",
+   "color": "#2A3E6E",
+   "aliases": [
+    "PS3",
+    "PlayStation 3",
+    "Sony - PlayStation 3"
+   ]
+  },
+  {
+   "id": "ps4",
+   "name": "PlayStation 4",
+   "short": "PS4",
+   "color": "#1B4F8A",
+   "aliases": [
+    "PS4",
+    "PlayStation 4",
+    "Sony - PlayStation 4"
+   ]
+  },
+  {
+   "id": "ps5",
+   "name": "PlayStation 5",
+   "short": "PS5",
+   "color": "#2C4A7A",
+   "aliases": [
+    "PS5",
+    "PlayStation 5"
+   ]
+  },
+  {
+   "id": "xbox",
+   "name": "Xbox",
+   "short": "XBOX",
+   "color": "#2F7D32",
+   "aliases": [
+    "Xbox"
+   ]
+  },
+  {
+   "id": "xbox360",
+   "name": "Xbox 360",
+   "short": "360",
+   "color": "#3A7A2E",
+   "aliases": [
+    "Xbox 360",
+    "X360"
+   ]
+  },
+  {
+   "id": "xboxone",
+   "name": "Xbox One",
+   "short": "ONE",
+   "color": "#2F7D32",
+   "aliases": [
+    "Xbox One"
+   ]
+  },
+  {
+   "id": "xboxseries",
+   "name": "Xbox Series X|S",
+   "short": "XS",
+   "color": "#1F6F4A",
+   "aliases": [
+    "Xbox Series S",
+    "Xbox Series X",
+    "Xbox Series X|S",
+    "Xbox Series"
+   ]
+  },
+  {
+   "id": "steam",
+   "name": "Steam",
+   "short": "STEAM",
+   "color": "#27475E",
+   "aliases": [
+    "Steam"
+   ]
+  },
+  {
+   "id": "gog",
+   "name": "GOG",
+   "short": "GOG",
+   "color": "#6A3D8F",
+   "aliases": [
+    "GOG",
+    "GOG Galaxy"
+   ]
+  },
+  {
+   "id": "epic",
+   "name": "Epic Games Store",
+   "short": "EPIC",
+   "color": "#3A3F45",
+   "aliases": [
+    "Epic Games Store",
+    "Epic Games",
+    "Epic"
+   ]
+  },
+  {
+   "id": "amazon",
+   "name": "Amazon Games",
+   "short": "AMZ",
+   "color": "#9A5B00",
+   "aliases": [
+    "Amazon Games",
+    "Amazon",
+    "Prime Gaming"
+   ]
+  },
+  {
+   "id": "pc",
+   "name": "PC",
+   "short": "PC",
+   "color": "#4A5560",
+   "aliases": [
+    "PC",
+    "Windows",
+    "Heroic",
+    "Heroic Games Launcher"
+   ]
+  },
+  {
+   "id": "android",
+   "name": "Android",
+   "short": "AND",
+   "color": "#2F7A4F",
+   "aliases": [
+    "Android"
+   ]
+  },
+  {
+   "id": "ios",
+   "name": "iOS",
+   "short": "iOS",
+   "color": "#4A5560",
+   "aliases": [
+    "iOS",
+    "iPhone",
+    "iPad"
+   ]
+  }
+ ]
+}

@@ -46,6 +46,36 @@ function notaDigitada(valor) {
   return n > 10 && n < 11 ? (n >= 10.5 ? 11 : 10) : n;
 }
 
+// --- ícones de plataforma (dados de platforms.js, gerado de assets/platforms/manifest.json) ---
+let _plataformasIndice = null;
+function _plataformaChave(texto) {
+  return String(texto ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+// Aceita o código da ROM (SFC), o nome da fonte ("Sony - PlayStation") ou a plataforma da
+// Biblioteca; o primeiro que casar vence. Sem casar, devolve um ícone neutro com as iniciais.
+function plataformaInfo(...nomes) {
+  if (!_plataformasIndice) {
+    _plataformasIndice = new Map();
+    for (const p of PLATAFORMAS.platforms) for (const nome of [p.id, p.name, ...(p.aliases || [])]) {
+      const chave = _plataformaChave(nome); if (chave && !_plataformasIndice.has(chave)) _plataformasIndice.set(chave, p);
+    }
+  }
+  for (const nome of nomes) { const achou = _plataformasIndice.get(_plataformaChave(nome)); if (achou) return achou; }
+  const nome = nomes.find(Boolean) || "";
+  const letras = nome.replace(/[^\p{L}\p{N}]/gu, "").slice(0, 3).toUpperCase();
+  return {...PLATAFORMAS.fallback, name: nome || PLATAFORMAS.fallback.name, short: letras || PLATAFORMAS.fallback.short};
+}
+// Selo da plataforma: cor e sigla do manifesto. A sigla vem do CSS (`::before`), então não entra
+// no texto do elemento nem é lida duas vezes. Sem `rotulo` é decorativo (o nome já está ao lado);
+// com `rotulo` vira imagem com nome acessível.
+function plataformaIcone(info, rotulo) {
+  const selo = document.createElement("span");
+  selo.className = "plat-icon"; selo.dataset.short = info.short; selo.dataset.len = String(info.short.length);
+  selo.style.background = info.color;
+  if (rotulo) { selo.setAttribute("role", "img"); selo.setAttribute("aria-label", rotulo); } else selo.setAttribute("aria-hidden", "true");
+  return selo;
+}
+
 function notaTexto(nota) {
   if (nota === null || nota === undefined || nota === "") return "–";
   return String(Number(nota)); // 8.0 -> "8", 7.1 -> "7.1"
@@ -188,7 +218,7 @@ function libraryMatchesFilters(g, fonte, noCover, mostrarOcultos, status) {
 // Deixa acessível pros testes (e pro app.js, que roda no mesmo escopo
 // global do navegador).
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { notaColor, notaEspecial, notaPasso, notaDigitada, notaTexto, fonteLabel, libraryGroupsFor,
+  module.exports = { plataformaInfo, notaColor, notaEspecial, notaPasso, notaDigitada, notaTexto, fonteLabel, libraryGroupsFor,
                      libraryTabGroupsFor, libraryMatchesFilters, stemOf, formatGB,
                      formatTempoTotal, FONTE_LABELS, GROUP_TAB_ALIASES, TAB_NAO_AGRUPA };
 }

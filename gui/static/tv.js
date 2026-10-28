@@ -49,9 +49,13 @@ function platformTabs() {
   }
   if (["library", "playing", "ranking", "wishlist", "local", "search", "favorites"].includes(state.kind)) {
     const platforms = [...new Set(state.items.map(g => g.platform))].sort();
-    for (const p of ["", ...platforms]) nav.append(button(p || "Todas as plataformas", () => {
-      state.filter = p; platformTabs(); render(); nav.querySelector(`[aria-pressed="true"]`)?.focus();
-    }, state.filter === p));
+    for (const p of ["", ...platforms]) {
+      const tab = button(p || "Todas as plataformas", () => {
+        state.filter = p; platformTabs(); render(); nav.querySelector(`[aria-pressed="true"]`)?.focus();
+      }, state.filter === p);
+      if (p) tab.prepend(plataformaIcone(plataformaInfo(p)));
+      nav.append(tab);
+    }
   } else if (["heavy", "light"].includes(state.kind)) {
     const systems = state.kind === "heavy" ? state.systems : state.light;
     for (const s of systems) nav.append(button(s.nome || s.code, () => load(state.kind, s.code), state.code === s.code));
@@ -234,6 +238,7 @@ function gameCard(g) {
     const title = document.createElement("strong"); title.textContent = (g.favorite ? "★ " : "") + g.name;
     const meta = document.createElement("small");
     meta.textContent = [g.platform, g.downloadName && !g.local ? "No Drive" : g.local ? "Neste PC" : ""].filter(Boolean).join(" · ");
+    if (g.platform) meta.prepend(plataformaIcone(plataformaInfo(g.code, g.platform)));
     const badges = document.createElement('span'); badges.className = 'badges'; fillBadges(badges, g);
     card.append(title, meta, badges); return card;
 }
@@ -370,7 +375,7 @@ function renderSystems() {
     });
     card.className = "game system-card";
     const symbol = document.createElement("span"); symbol.className = "system-symbol";
-    symbol.textContent = g.code || ({Steam: "STEAM", GOG: "GOG", "Epic Games Store": "EPIC", "Amazon Games": "AMAZON", Switch: "NSW"})[g.name] || "🎮";
+    symbol.append(plataformaIcone(plataformaInfo(g.code, g.name)));
     const name = document.createElement("strong"); name.textContent = g.name;
     const count = document.createElement("small"); count.textContent = `${g.total} jogos · ${g.local} neste PC`;
     card.append(symbol, name, count); gallery.append(card);
@@ -512,6 +517,7 @@ function openGame(g, origin = document.activeElement) {
   returnGameKey = origin?.dataset?.key;
   state.draft = {iniciado: !!g.tracking.iniciado, finalizado: !!g.tracking.finalizado, platinado: !!g.tracking.platinado, nota: g.tracking.nota ?? null};
   $("game-title").textContent = g.name; $("game-platform").textContent = g.platform;
+  if (g.platform) $("game-platform").prepend(plataformaIcone(plataformaInfo(g.code, g.platform)));
   fillBadges($('game-badges'), g);
   const textureCode = TEXTURE_SYSTEMS[g.code];
   $("textures-toggle").hidden = !textureCode; $("textures-fields").hidden = true; $("textures-toggle").setAttribute("aria-expanded", "false");
@@ -584,7 +590,7 @@ $("edit-save").onclick = async () => {
     else { const r = await api("/api/library/track", {nome: g.name, code: g.code, plataforma: g.platform, fonte: `rom:${g.code}`, campos}); g.id = r.id; }
     Object.assign(g.tracking, campos);
     if (campos.nome) { g.name = campos.nome; $("game-title").textContent = g.name; }
-    if (campos.plataforma && !g.wishlist) { g.platform = campos.plataforma; $("game-platform").textContent = g.platform; }
+    if (campos.plataforma && !g.wishlist) { g.platform = campos.plataforma; $("game-platform").textContent = g.platform; $("game-platform").prepend(plataformaIcone(plataformaInfo(g.code, g.platform))); }
     state.edits = {}; renderEdit(); render(); report("Dados do jogo salvos.", false, "detail-status");
   } catch (e) { report(`Não foi salvo: ${e.message}`, true, "detail-status"); }
   finally { state.busy = false; }
