@@ -4261,3 +4261,9 @@ filtros unificados).
 - **Aguardando aprovação do Victor** para trocar favicon, marca do modo TV, atalho do Steam e ícone
   do Android (assinatura e package ID não mudam). Falta ainda a variante simplificada de 16/24 px
   (nesses tamanhos o play se perde) e o ícone adaptativo do Android.
+
+## 28/10/2026 — Capas migrada para ~/Games/PyRetro/Capas
+
+- Cópia verificada por hash (1.931 arquivos, 1,1 GB, 0 erros); `[storage] migrated` do Victor agora
+  é roms, bios, nsw e capas. Capas servidas de lá; links de capa dos emuladores refeitos.
+- Biblioteca, Backups e Saves seguem no Drive: ver `armazenamento.md` (substitutos necessários).

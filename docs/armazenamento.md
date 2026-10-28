@@ -23,8 +23,14 @@ Plano completo: [`plano-melhorias-2026-10-28.md`](plano-melhorias-2026-10-28.md)
   então `~/Downloads/NSW` seria sincronizado pelo Insync; a prévia agora bloqueia isso (resolve
   links). O título local (3 arquivos, 3,5 GB) foi copiado e verificado por hash, e `nsw` entrou em
   `migrated`.
-- **Pronto para desmarcar no Insync, só pelo Victor: `ROMs` e `BIOS`** (cada uma, nunca `Jogos`).
-  Tudo que elas tinham está em `~/Games/PyRetro` com hash conferido.
+- **`ROMs` e `BIOS` já desmarcadas** pelo Victor (28/10); nuvem manteve tudo.
+- **Capas migrada (28/10):** 1.931 arquivos copiados e verificados; `migrated` inclui `capas`; os links
+  dos emuladores foram refeitos pela manutenção. Pronta para desmarcar no Insync (só pelo Victor).
+- **Biblioteca, Backups e Saves ficam no Drive de propósito, por ora:** o Drive é hoje a rede de
+  segurança de cada uma (histórico de versões do `library.json`, cópia fora do disco dos backups e
+  transporte dos saves). Tirar do Drive exige antes o substituto: snapshot versionado da
+  Biblioteca, backup remoto verificável e a etapa G (saves direto pelo Drive, que pede rclone com
+  escrita). Ver `plano-melhorias-2026-10-28.md`, seções 5.4 e 5.5.
 
 ## Ver a prévia (somente leitura)
 
