@@ -44,6 +44,16 @@ O código do PyRetro (`~/Drive/Jogos/PyRetro`) **não** muda de lugar. Outras pa
 - Pedido enviado à conversa do setup em 28/10 (planejar sem aplicar); registrar o resultado em
   `setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`.
 
+- Conferido pelo setup em leitura (28/10): o **PCSX2** tem `Bios`, `Savestates`, `MemoryCards`,
+  `InputProfiles` e `GameSettings` em `~/Drive/Jogos` (BIOS/PS2 e Saves/PS2); ao migrar a BIOS ele
+  também precisa trocar `Bios`. O **PPSSPP** não guarda pasta de ROMs; só o histórico `[Recent]`
+  aponta para a pasta antiga. Os dois são Flatpak (`~/.var/app/...`). RetroArch, DuckStation e
+  Dolphin guardam caminhos de ROMs, saves e BIOS; as playlists `.lpl` do RetroArch têm caminhos
+  absolutos e serão regeneradas pelo PyRetro (com backup) na etapa de religar os emuladores.
+- Teste pendente do Victor: o que o Insync faz com os arquivos locais ao desmarcar uma pasta,
+  usando uma pasta pequena e descartável (`insync pause`, `insync selective-sync`). Nenhuma
+  categoria real antes disso.
+
 ## Celular
 
 O app já baixa sob demanda: o Catálogo mostra "↓ Baixar" e a ROM vem do Drive, em segundo plano,
