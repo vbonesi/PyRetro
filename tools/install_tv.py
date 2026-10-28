@@ -9,6 +9,7 @@ from datetime import datetime
 import os
 from pathlib import Path
 import struct
+import shutil
 import subprocess
 import tempfile
 import zlib
@@ -58,7 +59,7 @@ def encode(nodes):
     return bytes(data)
 
 
-def add_shortcut(data, launcher, home):
+def add_shortcut(data, launcher, home, icon=''):
     nodes = decode(data) if data else [(0, 'shortcuts', [])]
     roots = [value for kind, key, value in nodes if kind == 0 and key == 'shortcuts']
     if len(roots) != 1: raise ValueError('estrutura de atalhos Steam inesperada')
@@ -71,15 +72,23 @@ def add_shortcut(data, launcher, home):
             values = {k.lower(): v for t, k, v in fields if t == 1}
             if values.get('exe') != exe or values.get('launchoptions') != launch_options:
                 raise ValueError('atalho com mesmo nome e comando diferente; arquivo preservado')
+            changed = False
             if values['appname'] == LEGACY_NAME:
                 # Mantém appid, artes, tags e perfil Steam Input existentes.
                 fields[:] = [(t, k, NAME if t == 1 and k.lower() == 'appname' else v) for t, k, v in fields]
-                return encode(nodes), True
-            return data, False
+                changed = True
+            if icon and values.get('icon', '') != icon:
+                # Só o ícone muda; appid, artes e tags ficam como estão.
+                if any(t == 1 and k.lower() == 'icon' for t, k, v in fields):
+                    fields[:] = [(t, k, icon if t == 1 and k.lower() == 'icon' else v) for t, k, v in fields]
+                else:
+                    fields.append((1, 'icon', icon))
+                changed = True
+            return (encode(nodes), True) if changed else (data, False)
     appid = zlib.crc32((exe + NAME).encode()) | 0x80000000
     fields = [(2, 'appid', struct.pack('<I', appid))]
     for k, v in {'AppName': NAME, 'Exe': exe, 'StartDir': '"' + str(home) + '"',
-                 'icon': '', 'ShortcutPath': '', 'LaunchOptions': launch_options}.items():
+                 'icon': icon, 'ShortcutPath': '', 'LaunchOptions': launch_options}.items():
         fields.append((1, k, v))
     for k, v in {'IsHidden': 0, 'AllowDesktopConfig': 1, 'AllowOverlay': 1, 'OpenVR': 0,
                  'Devkit': 0, 'LastPlayTime': 0}.items():
@@ -88,6 +97,20 @@ def add_shortcut(data, launcher, home):
     index = max((int(key) for _, key, _ in shortcuts), default=-1) + 1
     shortcuts.append((0, str(index), fields))
     return encode(nodes), True
+
+
+BRAND = Path(__file__).resolve().parent.parent / 'assets/brand'
+
+
+def install_icons(home):
+    """Instala a marca no tema de ícones do usuário (hicolor): PNGs de 16 a 512 e o SVG."""
+    root = home / '.local/share/icons/hicolor'
+    for size in (16, 24, 32, 48, 64, 128, 192, 256, 512):
+        target = root / f'{size}x{size}/apps'
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(BRAND / 'png' / f'pyretro-{size}.png', target / 'pyretro.png')
+    (root / 'scalable/apps').mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(BRAND / 'pyretro.svg', root / 'scalable/apps/pyretro.svg')
 
 
 def install(apply=False, config=None):
@@ -100,8 +123,10 @@ def install(apply=False, config=None):
         raise ValueError('selecione a conta Steam com --config; não foi encontrada uma conta única')
     vdf = configs[0] / 'shortcuts.vdf'
     old = vdf.read_bytes() if vdf.exists() else b''
-    new, changed = add_shortcut(old, launcher, home)
-    content = '[Desktop Entry]\nType=Application\nName=' + NAME + '\nExec="' + str(launcher) + '"\nIcon=applications-games\nCategories=Game;\nTerminal=false\n'
+    icon_name = 'pyretro'
+    steam_icon = str(home / '.local/share/icons/hicolor/256x256/apps/pyretro.png')
+    new, changed = add_shortcut(old, launcher, home, steam_icon)
+    content = '[Desktop Entry]\nType=Application\nName=' + NAME + '\nExec="' + str(launcher) + '"\nIcon=pyretro\nCategories=Game;\nTerminal=false\n'
     if launcher.is_symlink():
         if launcher.resolve() != source: raise ValueError('lançador existente aponta para outro arquivo')
     elif launcher.exists(): raise ValueError('lançador existente preservado; revise-o antes de instalar')
@@ -111,6 +136,7 @@ def install(apply=False, config=None):
                 'Name=' + name in previous.splitlines() for name in (NAME, LEGACY_NAME)):
             raise ValueError('atalho desktop existente preservado; revise-o antes de instalar')
         content = previous.replace('Name=' + LEGACY_NAME + '\n', 'Name=' + NAME + '\n')
+        content = '\n'.join('Icon=pyretro' if line.startswith('Icon=') else line for line in content.splitlines()) + '\n'
     legacy_desktop = home / '.local/share/applications/bonisarch-8000.desktop'
     legacy_content = None
     if legacy_desktop.is_file():
@@ -131,6 +157,7 @@ def install(apply=False, config=None):
     desktop.parent.mkdir(parents=True, exist_ok=True)
     if not launcher.is_symlink(): launcher.symlink_to(source)
     desktop.write_text(content)
+    install_icons(home)
     if legacy_content is not None:
         legacy_desktop.write_text(legacy_content)
     if changed:

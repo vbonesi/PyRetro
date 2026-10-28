@@ -4267,3 +4267,13 @@ filtros unificados).
 - Cópia verificada por hash (1.931 arquivos, 1,1 GB, 0 erros); `[storage] migrated` do Victor agora
   é roms, bios, nsw e capas. Capas servidas de lá; links de capa dos emuladores refeitos.
 - Biblioteca, Backups e Saves seguem no Drive: ver `armazenamento.md` (substitutos necessários).
+
+## 28/10/2026 — identidade visual instalada (etapa D, aprovada pelo Victor)
+
+- Monograma PR com play em negativo em todas as superfícies: favicon da web e do modo TV (variante
+  sem o play em 16/24 px, `assets/brand/pyretro-pequeno.svg`), marca no cabeçalho do modo TV,
+  atalho desktop (`Icon=pyretro` no tema hicolor do usuário, PNGs de 16 a 512 e SVG), ícone do
+  atalho Steam (só o campo `icon`; appid, artes e tags preservados, cópia do VDF em
+  `~/.local/share/pyretro/steam-shortcuts/`) e Android **0.17.0 (code 25)** com ícone adaptativo,
+  monocromático (Android 13) e placeholder dos cartões. Package e assinatura não mudaram.
+- `tools/build_brand.py` gera tudo a partir do SVG; `tools/install_tv.py` instala os ícones.

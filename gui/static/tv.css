@@ -394,3 +394,6 @@ footer{flex-direction:row;align-items:center}
 #hints-extra{flex-basis:100%}
 body.filters-collapsed #platforms,body.filters-collapsed #genres{display:none}
 #filters-toggle{white-space:nowrap}
+
+.brand-logo{width:2.1rem;height:2.1rem;border-radius:22%;display:block}
+@media(max-width:700px){.brand-logo{width:1.8rem;height:1.8rem}}

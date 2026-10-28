@@ -31,6 +31,17 @@ class TestTVInstall(unittest.TestCase):
         self.assertFalse(changed)
         self.assertEqual(again, new)
 
+    def test_existing_shortcut_gets_the_new_icon_once_and_keeps_everything_else(self):
+        launcher, home, icon = Path('/home/test/.local/bin/pyretro-tv'), Path('/home/test'), '/home/test/.local/share/icons/hicolor/256x256/apps/pyretro.png'
+        data, _ = install_tv.add_shortcut(b'', launcher, home)  # atalho antigo: ícone vazio
+        new, changed = install_tv.add_shortcut(data, launcher, home, icon)
+        self.assertTrue(changed)
+        fields = {k: v for t, k, v in install_tv.decode(new)[0][2][0][2] if t == 1}
+        self.assertEqual(fields['icon'], icon)
+        old_fields = {k: v for t, k, v in install_tv.decode(data)[0][2][0][2] if t == 1}
+        self.assertEqual({k: v for k, v in fields.items() if k != 'icon'}, {k: v for k, v in old_fields.items() if k != 'icon'})
+        self.assertFalse(install_tv.add_shortcut(new, launcher, home, icon)[1])
+
     def test_unknown_or_truncated_vdf_is_refused(self):
         for data in (b'\x00shortcuts\0', b'\x00shortcuts\0\x090\0\x08\x08', b'\x08extras'):
             with self.subTest(data=data), self.assertRaises((ValueError, IndexError)):

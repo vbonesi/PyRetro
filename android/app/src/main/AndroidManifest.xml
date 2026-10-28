@@ -13,7 +13,7 @@
         <package android:name="io.github.lime3ds.android"/><package android:name="io.github.azahar_emu.azahar"/>
         <package android:name="org.ppsspp.ppssppgold"/><package android:name="org.ppsspp.ppsspp"/>
     </queries>
-    <application android:theme="@android:style/Theme.Material.NoActionBar" android:label="PyRetro" android:icon="@drawable/ic_pyretro" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
+    <application android:theme="@android:style/Theme.Material.NoActionBar" android:label="PyRetro" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:usesCleartextTraffic="false" android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:configChanges="keyboard|keyboardHidden|orientation|screenSize">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>

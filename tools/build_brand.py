@@ -13,6 +13,7 @@ SOURCE = ROOT / 'docs/design/pyretro-logo-proposta.svg'
 OUT = ROOT / 'assets/brand'
 SIZES = (16, 24, 32, 48, 64, 128, 192, 256, 512)
 MINT, BASE = '#81E1CA', '#11212E'
+SMALL_SIZES = (16, 24)  # o play se perde abaixo de 32 px: nesses tamanhos vale a variante sem ele
 
 
 TRIANGLE = '<path d="M46 33L66 43L46 53Z" fill="#11212E"/>'
@@ -33,8 +34,11 @@ def main():
     shutil.copyfile(SOURCE, OUT / 'pyretro.svg')
     (OUT / 'pyretro-mono-escuro.svg').write_text(mono(svg, BASE), encoding='utf-8')
     (OUT / 'pyretro-mono-claro.svg').write_text(mono(svg, '#EDF4FD'), encoding='utf-8')
+    small = svg.replace(TRIANGLE, '')
+    (OUT / 'pyretro-pequeno.svg').write_text(small, encoding='utf-8')
     for size in SIZES:
-        subprocess.run(['rsvg-convert', '-w', str(size), '-h', str(size), str(SOURCE), '-o', str(OUT / 'png' / f'pyretro-{size}.png')], check=True)
+        source = OUT / 'pyretro-pequeno.svg' if size in SMALL_SIZES else SOURCE
+        subprocess.run(['rsvg-convert', '-w', str(size), '-h', str(size), str(source), '-o', str(OUT / 'png' / f'pyretro-{size}.png')], check=True)
     subprocess.run(['magick', *[str(OUT / 'png' / f'pyretro-{s}.png') for s in (16, 32, 48)], str(OUT / 'favicon.ico')], check=True)
     # folha de conferência: todos os tamanhos lado a lado, sobre fundo claro e escuro
     cells = []

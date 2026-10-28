@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#7967e8"/><path d="M18 23h28c5 0 9 17 7 21-2 4-6 3-11-3H22c-5 6-9 7-11 3-2-4 2-21 7-21Z" fill="#fff"/><path d="M23 28v10m-5-5h10" stroke="#302664" stroke-width="4" stroke-linecap="round"/><circle cx="41" cy="30" r="3" fill="#7967e8"/><circle cx="47" cy="36" r="3" fill="#7967e8"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-labelledby="title desc">
+  <title id="title">Proposta de símbolo PyRetro</title>
+  <desc id="desc">Monograma PR em menta com play em negativo sobre fundo azul escuro.</desc>
+  <rect width="108" height="108" rx="25" fill="#11212E"/>
+  <path d="M28 23H62Q80 23 80 41V45Q80 63 62 63H46V85H28ZM58 60H77L88 85H68Z" fill="#81E1CA"/>
+  
+</svg>
