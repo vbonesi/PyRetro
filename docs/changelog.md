@@ -1,5 +1,15 @@
 # Changelog
 
+## 28/10/2026 — registro da auditoria independente
+
+[Resultados e fila de correção](AUDITORIA-2026-10-28.md) para a base `721b9be`:
+356 Python, 50 JavaScript e 69 JVM passaram; build Android reproduzido e lint
+sem erros. Registrados três defeitos reproduzidos com fixtures (save inicial,
+CUE incompleto e colisão de nomes), exposição de identificador em documentação
+e conciliação do roadmap. Nenhuma correção de código, instalação ou operação
+em dados reais nesta entrega documental. O plano de melhorias posterior segue
+em sua frente própria.
+
 Histórico detalhado do que foi feito, quando, e por quê - bugs achados,
 testes realizados, decisões de desenho e o raciocínio por trás delas.
 Pra "o que está pronto hoje" e "o que vem a seguir", ver

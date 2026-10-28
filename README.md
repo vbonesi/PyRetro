@@ -1,5 +1,7 @@
 # PyRetro
 
+**Auditoria de 28/10/2026:** [resultados, limites e próximos passos](docs/AUDITORIA-2026-10-28.md). Os testes se referem à revisão indicada no registro; alterações posteriores precisam de validação própria.
+
 Manutenção do meu acervo de jogos no PC e Android, com CLI, interface web e modo
 TV para navegar pelo controle, abrir jogos e acessar transmissões dos consoles.
 
