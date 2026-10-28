@@ -11,9 +11,8 @@ o alvo é o PyRetro falar com a nuvem direto, qualquer que seja ela.
 | `core/cloud.py`: interface `Storage` (list, exists, get, put sem sobrescrever, trash) com `RcloneStorage` (qualquer remoto do rclone ou pasta local) e `MemoryStorage` | **pronta e testada** |
 | `core/cloud_saves.py`: motor de saves por manifestos por dispositivo (push, pull, conflito, resolver, histórico) | **pronto e testado** (memória e rclone local) |
 | Ligar o motor ao lançador (baixar antes de abrir, enviar ao fechar) e à tela de conflito | falta |
-| Implementação nativa Android de `Storage` (Drive via API; S3/WebDAV depois) e do motor | falta |
-| Biblioteca: SQLite local + diário de mudanças sincronizado pela mesma camada | falta (desenho abaixo) |
-| Backups remotos verificáveis e retenção | falta |
+| Android 0.18.0: `CloudStorage`, `DriveCloudStorage` (Drive), `CloudSavesEngine` (mesmo protocolo e prefixos por grupo), `CloudPhone` (pastas SAF) e botão "☁ Saves na nuvem (novo)" em Situação | **compila e tem 9 testes JVM de paridade; não testado no aparelho** |
+| Biblioteca e Backups sem Insync: `core/cloud_snapshots.py` (versões imutáveis, retenção, restauração, backups novos) com gancho no `save_library` | **pronto** (SQLite + diário fica para depois) |
 
 ## Protocolo de saves (sem escrita condicional)
 
@@ -54,3 +53,13 @@ histórico).
 2. Implementação Android de `Storage` (Drive) e do motor, com o mesmo protocolo.
 3. Migrar os saves reais (etapa G) com backup, emuladores fechados e conferência por hash.
 4. Biblioteca em SQLite + diário; backups remotos.
+
+## Como testar no celular (Android 0.18.0)
+
+1. Conferir no notebook que o envio terminou: `python3 -m core.cloud_sync status` deve mostrar `{}`.
+2. Instalar: `adb install --user 0 -r cache/artifacts/PyRetro-0.18.0-debug.apk`.
+3. Em Situação, escolher as pastas de saves (RetroArch, PPSSPP, 3DS) se ainda não estiverem, e abrir
+   "☁ Saves na nuvem (novo)" → "Comparar e sincronizar". Esperado: baixar os saves do notebook e enviar os do celular.
+4. Jogar algo, voltar ao notebook e rodar `python3 -m core.cloud_sync status`/`sync`.
+5. Conflito (mudar o mesmo save nos dois lados): o app e o notebook mostram o conflito; nada é sobrescrito.
+O protocolo antigo (pendências pelo Insync) continua no app até este teste passar.

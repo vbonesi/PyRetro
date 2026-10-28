@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from core import cloud as cloud_mod
@@ -73,10 +74,11 @@ def decide(local, baseline, heads):
 
 
 class CloudSaves:
-    def __init__(self, storage, device, root, group='saves', state_path=None, now=time.time, exclude=()):
+    def __init__(self, storage, device, root, group='saves', state_path=None, now=time.time, exclude=(), workers=8):
         if not device or '/' in device or device.startswith('.'):
             raise ValueError('nome de dispositivo inválido')
         self.storage, self.device, self.root, self.group, self.now = storage, device, Path(root), group, now
+        self.workers = workers
         self.exclude = set(exclude)  # pastas de topo que nunca sobem (ex.: runtime-logs)
         self.state_path = Path(state_path) if state_path else self.root / '.pyretro-cloud' / f'{group}.json'
 
@@ -188,13 +190,14 @@ class CloudSaves:
         baseline, manifests = self._baseline(), self.manifests()
         own = manifests.get(self.device) or {'version': 1, 'device': self.device, 'generation': 0, 'files': {}}
         results, wrote = [], False
+        pushes = []
         for item in items:
             rel, action = item['path'], item['action']
             try:
                 safe_relative(rel)
                 if action == 'push':
-                    self._push(rel, item, own, baseline); wrote = True
-                elif action == 'pull':
+                    pushes.append(item); continue  # o envio dos blobs roda em paralelo, logo abaixo
+                if action == 'pull':
                     self._pull(rel, next(iter(item['heads'])), baseline)
                 elif action == 'same':
                     baseline[rel] = item['local']
@@ -202,6 +205,16 @@ class CloudSaves:
                                 **({'conflict': item['heads']} if action == 'conflict' else {})})
             except (OSError, ValueError, cloud_mod.NotFound, Conflict) as error:
                 results.append({'path': rel, 'action': action, 'ok': False, 'error': str(error)})
+        if pushes:
+            # Cada chamada ao Drive leva segundos; vários blobs ao mesmo tempo (o manifesto só sai depois).
+            with ThreadPoolExecutor(max_workers=self.workers) as pool:
+                outcomes = list(pool.map(self._upload_blob, pushes))
+            for item, (entry, error) in zip(pushes, outcomes):
+                if error:
+                    results.append({'path': item['path'], 'action': 'push', 'ok': False, 'error': error})
+                else:
+                    own['files'][item['path']] = entry; baseline[item['path']] = entry['sha256']; wrote = True
+                    results.append({'path': item['path'], 'action': 'push', 'ok': True})
         if wrote:
             own['generation'] = int(own.get('generation', 0)) + 1
             own['updated'] = self.now()
@@ -209,21 +222,25 @@ class CloudSaves:
         self._save_baseline(baseline)
         return results
 
-    def _push(self, rel, item, own, baseline):
-        path = self.root / rel
-        size = path.stat().st_size
-        if size > MAX_BYTES:
-            raise ValueError(f'{rel}: maior que o limite de {MAX_BYTES} bytes')
-        data = path.read_bytes()
-        sha = sha256_bytes(data)
-        if sha != item['local']:
-            raise Conflict(f'{rel}: o arquivo mudou durante a sincronização; tente de novo')
+    def _upload_blob(self, item):
+        """Envia o blob de um arquivo e devolve (entrada do manifesto, erro)."""
+        rel = item['path']
         try:
-            self.storage.put(f'{self.group}/blobs/{sha}', data)
-        except cloud_mod.Exists:
-            pass  # mesmo hash = mesmo conteúdo
-        own['files'][rel] = {'sha256': sha, 'size': size, 'base': sorted(item['heads']), 'at': self.now()}
-        baseline[rel] = sha
+            path = self.root / rel
+            size = path.stat().st_size
+            if size > MAX_BYTES:
+                raise ValueError(f'{rel}: maior que o limite de {MAX_BYTES} bytes')
+            data = path.read_bytes()
+            sha = sha256_bytes(data)
+            if sha != item['local']:
+                raise Conflict(f'{rel}: o arquivo mudou durante a sincronização; tente de novo')
+            try:
+                self.storage.put(f'{self.group}/blobs/{sha}', data)
+            except cloud_mod.Exists:
+                pass  # mesmo hash = mesmo conteúdo
+            return {'sha256': sha, 'size': size, 'base': sorted(item['heads']), 'at': self.now()}, None
+        except (OSError, ValueError, Conflict) as error:
+            return None, str(error)
 
     def _pull(self, rel, sha, baseline):
         data = self.storage.get(f'{self.group}/blobs/{sha}')

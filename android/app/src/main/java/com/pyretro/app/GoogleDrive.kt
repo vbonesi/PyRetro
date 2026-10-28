@@ -135,6 +135,15 @@ class GoogleDrive(private val context:Context,private val prefs:android.content.
     /** Move para outra pasta com outro nome (usado para tirar do caminho um envio que duplicou). */
     fun move(id:String,from:String,to:String,name:String) { created(send("PATCH","https://www.googleapis.com/drive/v3/files/${URLEncoder.encode(id,"UTF-8")}?addParents=$to&removeParents=$from&fields=id",
         JSONObject().put("name",name).toString().toByteArray())) }
+    /** Envia bytes como arquivo novo (mesmo envio retomável de [create]). */
+    fun createBytes(parent:String,name:String,data:ByteArray):JSONObject {
+        val temporary=java.io.File.createTempFile("cloud-",".tmp",context.cacheDir)
+        try { temporary.writeBytes(data);return create(parent,name,temporary) } finally { temporary.delete() }
+    }
+    /** Troca o conteúdo de um arquivo que já existe (o id e o histórico de versões do Drive continuam). */
+    fun replaceBytes(id:String,data:ByteArray) { created(send("PATCH","https://www.googleapis.com/upload/drive/v3/files/${URLEncoder.encode(id,"UTF-8")}?uploadType=media&fields=id",data,"application/octet-stream")) }
+    /** Manda para a lixeira do Drive (recuperável por 30 dias). */
+    fun trash(id:String) { created(send("PATCH","https://www.googleapis.com/drive/v3/files/${URLEncoder.encode(id,"UTF-8")}?fields=id",JSONObject().put("trashed",true).toString().toByteArray())) }
     fun accountId():String=json("https://www.googleapis.com/drive/v3/about?fields=user(permissionId)").getJSONObject("user").getString("permissionId")
     fun account():String { val email=json("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)").getJSONObject("user").getString("emailAddress")
         prefs.edit().putBoolean("google:connected",true).putString("google:email",email).apply();return email }

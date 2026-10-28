@@ -885,6 +885,40 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val wanted=games.filter { it.localUri!=null || store.prefs.getBoolean("favorite:${it.key}",false) || pinned(it) }.take(300)
         prefetch.execute { for(game in wanted) { if(!store.online)break;runCatching { store.cover(game) } } }
     }
+    /** Saves e estados pela nuvem (core/cloud_saves no notebook): compara, mostra e só então sincroniza. */
+    private fun cloudSaves() {
+        val box=column();box.addView(text("☁ Saves na nuvem",23f));val info=text("Comparando com o Drive…",15f);box.addView(info)
+        val area=column();box.addView(area)
+        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Fechar",null))
+        work.execute {
+            val phone=runCatching { CloudPhone(store,FileSync(store),DriveCloudStorage(drive)) }
+            val analysis=phone.mapCatching { it.analyze() }
+            runOnUiThread {
+                if(dialog!==opened)return@runOnUiThread
+                val result=analysis.getOrElse { info.text="Não foi possível comparar: ${it.message}";return@runOnUiThread }
+                if(result.isEmpty()) { info.text="Escolha as pastas de saves em Situação (pasta RetroArch, PPSSPP, 3DS).";return@runOnUiThread }
+                val counts=result.values.mapNotNull { it.getOrNull() }.flatten().groupingBy { it.action }.eachCount()
+                val failed=result.filterValues { it.isFailure }
+                info.text=if(counts.isEmpty() && failed.isEmpty())"Tudo em dia com a nuvem." else
+                    "Enviar: ${counts["push"] ?: 0} · Baixar: ${counts["pull"] ?: 0} · Conflitos: ${counts["conflict"] ?: 0}"+if(failed.isEmpty())"" else "\nErro em: ${failed.map { it.key+" ("+it.value.exceptionOrNull()?.message+")" }.joinToString()}"
+                val pending=counts.filterKeys { it=="push" || it=="pull" }.values.sum()
+                if(pending>0)add(area,button("Sincronizar agora ($pending)") {
+                    info.text="Sincronizando…";area.removeAllViews()
+                    work.execute {
+                        val applied=phone.getOrThrow().apply()
+                        runOnUiThread { val errors=applied.values.flatMap { it.getOrNull().orEmpty() }.count { !it.ok && it.conflict==null };val conflicts=applied.values.flatMap { it.getOrNull().orEmpty() }.count { it.conflict!=null }
+                            message("Saves na nuvem: sincronizado${if(conflicts>0)" · $conflicts conflito(s)" else ""}${if(errors>0)" · $errors erro(s)" else ""}.");dialog?.dismiss();render() }
+                    }
+                })
+                for((group,items) in result)for(item in items.getOrNull().orEmpty().filter { it.action=="conflict" }) {
+                    add(area,text("⚠ Conflito: ${item.path}",15f))
+                    val line=row();horizontal(area,line)
+                    add(line,button("Manter o do celular") { work.execute { runCatching { phone.getOrThrow().resolve(group,item.path,"local") };runOnUiThread { message("Mantido o do celular: ${item.path}");dialog?.dismiss() } } })
+                    add(line,button("Usar o da nuvem") { work.execute { runCatching { phone.getOrThrow().resolve(group,item.path,"remote",item.heads.keys.first()) };runOnUiThread { message("Usado o da nuvem: ${item.path}");dialog?.dismiss() } } })
+                }
+            }
+        }
+    }
     private fun statusCenter() {
         val box=column();val prefs=store.prefs;val pending=StatusStore(store).pending()
         fun date(key:String)=prefs.getLong(key,0).takeIf { it>0 }?.let(::versionDate) ?: "ainda não"
@@ -918,6 +952,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             box.addView(text("⚠ $problem",14f).apply { setTextColor(Color.rgb(255,207,112)) })
             add(box,button("Escolher a pasta RetroArch de novo") { pickSyncFolder("retroarch") })
         }
+        line("☁ Saves na nuvem (novo)","Sincroniza saves e estados direto pelo Drive (pasta Jogos/PyRetro-Nuvem), sem o notebook ligado. Conflito nunca sobrescreve: você escolhe.")
+        add(box,button("Comparar e sincronizar") { dialog?.dismiss();cloudSaves() })
         val technical=expandable(box,"Detalhes técnicos")
         val contact=text(StatusStore(store).connectionSummary(::versionDate),13f);technical.addView(contact)
         val partials=text("Consultando cópias parciais…",13f);technical.addView(partials)

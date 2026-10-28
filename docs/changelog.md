@@ -4323,3 +4323,12 @@ filtros unificados).
   partir do nome do catálogo e, sem cópia no PC, lê o descritor do Drive.
 - WGP16 Nova II medido (aparece como "Sony Interactive Entertainment Wireless Controller", GUID no registro).
 - 433 testes Python.
+
+## 28/10/2026 — Android 0.18.0: camada de nuvem (saves) e envio paralelo no PC
+
+- Android 0.18.0 (code 26): `CloudStorage`/`MemoryCloudStorage`, `DriveCloudStorage` (Drive da conta
+  conectada, pasta `Jogos/PyRetro-Nuvem`), `CloudSavesEngine` (mesmo protocolo do notebook, com prefixo por
+  grupo: saves/, states/, PPSSPP/SAVEDATA/, PPSSPP/PPSSPP_STATE/, Lime3DS/sdmc/), `CloudPhone` (pastas SAF
+  pelo `FileSync`) e botão "☁ Saves na nuvem (novo)" em Situação. 85 testes JVM (9 de nuvem). Compilado e
+  validado por lint; **não instalado nem testado no aparelho** (desconectado). O sync antigo continua.
+- PC: o motor envia os blobs em paralelo (8); o primeiro envio ficava em ~4 objetos/minuto.
