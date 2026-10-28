@@ -106,4 +106,6 @@ cópia, token de revalidação, frase de confirmação com local e Drive por ext
 item. Saves, estados, texturas, capa e cadastro nunca são tocados. **Rotas no servidor (28/10):**
 `GET /api/storage/removal-plan?scope=local|drive|both&code=&entry=` e `POST /api/storage/removal-apply`
 (`scope, code, entry, token, confirm`). Falta a interface (ficha do jogo). O Drive só funciona depois de reconectar o rclone com permissão de
-escrita (hoje é somente leitura, e a prévia bloqueia a ação com essa explicação).
+escrita. **Reconectado em 28/10** (`scope = drive`; gravar e mandar à lixeira testados com um arquivo
+descartável; o `deletefile` vai para a lixeira, não apaga de vez) e `[rclone] can_write = true` no
+`config.toml`: a prévia do Drive já lista as cópias reais. Sem a escrita a prévia bloqueia a ação.

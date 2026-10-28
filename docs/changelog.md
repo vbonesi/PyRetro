@@ -4277,3 +4277,10 @@ filtros unificados).
   `~/.local/share/pyretro/steam-shortcuts/`) e Android **0.17.0 (code 25)** com ícone adaptativo,
   monocromático (Android 13) e placeholder dos cartões. Package e assinatura não mudaram.
 - `tools/build_brand.py` gera tudo a partir do SVG; `tools/install_tv.py` instala os ícones.
+
+## 28/10/2026 — rclone com escrita (escopo drive)
+
+- Victor reconectou o rclone com `scope = drive` (antes `drive.readonly`). Teste: gravar e mandar um
+  arquivo descartável à lixeira do Drive (`deletefile` vai para a lixeira por padrão; lixeira
+  confirmada com `--drive-trashed-only`). `[rclone] can_write = true` no `config.toml`; a prévia de
+  remoção já lista as cópias reais do Drive (ex.: PS, 4 arquivos, ~650 MB). Nada foi removido.
