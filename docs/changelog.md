@@ -4284,3 +4284,10 @@ filtros unificados).
   arquivo descartável à lixeira do Drive (`deletefile` vai para a lixeira por padrão; lixeira
   confirmada com `--drive-trashed-only`). `[rclone] can_write = true` no `config.toml`; a prévia de
   remoção já lista as cópias reais do Drive (ex.: PS, 4 arquivos, ~650 MB). Nada foi removido.
+
+## 28/10/2026 — camada de nuvem independente (início)
+
+- `core/cloud.py` (interface `Storage`, `RcloneStorage`, `MemoryStorage`) e `core/cloud_saves.py`
+  (saves por manifestos por dispositivo, sem escrita condicional; conflito explícito; histórico).
+  21 testes, inclusive contra o remoto local do rclone. Plano em [`nuvem.md`](nuvem.md). Ainda não
+  está ligado ao lançador nem ao Android.
