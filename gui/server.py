@@ -58,6 +58,7 @@ from core import tv_saves as tv_saves_mod
 from core import mobile_textures as mobile_textures_mod
 from core import mobile_sync as mobile_sync_mod
 from core import mobile_roms as mobile_roms_mod
+from core import removal as removal_mod
 from core import diagnostics as diagnostics_mod
 from core import drive_pending as drive_pending_mod
 from core import recent as recent_mod
@@ -423,6 +424,53 @@ def _organize_sources(cfg: dict) -> dict:
 def _organize_trash(cfg: dict):
     fallback = Path(cfg["pc"]["backups_root"]).expanduser() / "Organizar substituídos"
     return lambda path: organize_mod._trash(path, fallback=fallback)
+
+
+def _removal_plan(cfg: dict, scope: str, code: str, entry: str) -> dict:
+    """Prévia de remover um jogo (core/removal.py): arquivos exclusivos no PC, cópias no Drive,
+    proteções e permissões. A escrita no Drive só vale com `[rclone] can_write = true` (o rclone
+    deste PC foi configurado somente leitura)."""
+    try:
+        local = mobile_roms_mod.removal_plan(cfg, code, entry)
+    except (ValueError, LookupError, OSError):
+        local = None
+    protected = []
+    lib_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+    if lib_path.is_file():
+        index = library_mod.index_by_rom_name(library_mod.load_library(lib_path))
+        for record in index.get(covers_mod.normalize(Path(entry).stem), []):
+            if library_mod.rom_code_for_plataforma(record.get("plataforma")) == code and record.get("iniciado") and not record.get("finalizado"):
+                protected.append(f"jogo iniciado e não finalizado: {record.get('nome')}")
+    can_write = bool(cfg.get("rclone", {}).get("can_write"))
+    drive_list = None
+    if scope in ("drive", "both") and can_write and local:
+        drive_list = []
+        for relative in [*local["remove"], *local["preserve"]]:
+            try:
+                row = mobile_roms_mod._rclone_json(["lsjson", "--stat", mobile_roms_mod._drive_remote(cfg, code, relative)])
+            except (ValueError, OSError):
+                row = None
+            if isinstance(row, dict) and not row.get("IsDir"):
+                drive_list.append({"path": mobile_roms_mod._drive_remote(cfg, code, relative), "id": row.get("ID", ""), "size": row.get("Size", 0)})
+    return removal_mod.plan(scope, code, entry, local_plan=local, drive_list=drive_list, protected=protected,
+                            can_write_drive=can_write, running=PLAY_SESSIONS.status().get("status") == "running")
+
+
+def _removal_apply(cfg: dict, body: dict) -> dict:
+    scope, code, entry = body.get("scope"), body.get("code", ""), body.get("entry", "")
+    current = _removal_plan(cfg, scope, code, entry)
+    root = Path(cfg["pc"]["roms_root"]).expanduser() / code
+    trash = _organize_trash(cfg)
+    def local_trash(relative):
+        path = (root / relative).resolve()
+        if not path.is_relative_to(root.resolve()) or not path.is_file():
+            raise ValueError("arquivo fora da pasta do sistema ou já removido")
+        trash(path)
+    def drive_trash(item):
+        done = subprocess.run(["rclone", "deletefile", item["path"]], capture_output=True, text=True, timeout=120)
+        if done.returncode != 0:
+            raise OSError(done.stderr.strip() or "rclone falhou")
+    return removal_mod.apply(current, body.get("token"), body.get("confirm"), trash=local_trash, drive_trash=drive_trash)
 
 
 def _organize_cover(cfg: dict, code: str, label: str, image: Path | None) -> str | None:
@@ -2079,6 +2127,12 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "emu_sync", "sources"]:
             return self._json([{"code": k, "nome": v["nome"]} for k, v in emu_sync_mod.SOURCES.items()])
 
+        if parts == ["api", "storage", "removal-plan"]:
+            try:
+                return self._json(_removal_plan(load_config(), query.get("scope", [""])[0], query.get("code", [""])[0], query.get("entry", [""])[0]))
+            except (ValueError, LookupError) as error:
+                return self._json({"error": str(error)}, 400)
+
         if parts == ["api", "sortear", "systems"]:
             # Lista pra popular o <select> - leve (sempre local), pesado
             # (do catálogo cacheado, mesmo que a CLI usa) e os 3 grupos
@@ -2707,6 +2761,14 @@ class Handler(BaseHTTPRequestHandler):
                 result = playtime_mod.record(PLAYTIME_PATH, key, minutes * 60, source='manual', event=body.get('event'))
                 return self._json(playtime_mod.public(result))
             except (ValueError, OSError) as error: return self._json({'error':str(error)}, 400)
+
+        if parts == ['api', 'storage', 'removal-apply']:
+            try:
+                return self._json({'ok': True, **_removal_apply(load_config(), self._read_json_body())})
+            except removal_mod.Blocked as error:
+                return self._json({'error': str(error)}, 409)
+            except (ValueError, LookupError, OSError) as error:
+                return self._json({'error': str(error)}, 400)
 
         if parts[:2] == ['api', 'drive_pending'] and len(parts) == 3 and parts[2] in ('apply', 'reject'):
             body = self._read_json_body(); cfg = load_config()

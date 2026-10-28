@@ -77,5 +77,52 @@ class TestRemoval(unittest.TestCase):
             make("tudo")
 
 
+class TestRemovalServer(unittest.TestCase):
+    """Rotas de remoção: prévia pelo acervo de mentira e aplicação com lixeira simulada."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name); ps = self.root / "ROMs" / "PS"; ps.mkdir(parents=True)
+        (ps / "Disco.cue").write_text('FILE "Disco.bin" BINARY\n TRACK 01 MODE2/2352')
+        (ps / "Disco.bin").write_bytes(b"x" * 20)
+        (ps / "Outro.cue").write_text('FILE "Outro.bin" BINARY\n TRACK 01 MODE2/2352')
+        (ps / "Outro.bin").write_bytes(b"y" * 20)
+        (self.root / "Biblioteca").mkdir()
+        self.cfg = {"pc": {"roms_root": str(self.root / "ROMs"), "library_root": str(self.root / "Biblioteca"),
+                           "backups_root": str(self.root / "Backups")},
+                    "systems": {}, "heavy_systems": {"PS": {"exts": ["cue", "chd"]}},
+                    "rclone": {"remote": "drive", "drive_roms_root": "Jogos/ROMs"}}
+
+    def test_local_plan_then_apply_sends_only_this_game_to_the_trash(self):
+        import sys
+        sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent / "gui"))
+        import server as srv
+        from unittest import mock
+        plan = srv._removal_plan(self.cfg, "local", "PS", "Disco.cue")
+        self.assertEqual(sorted(plan["local"]), ["Disco.bin", "Disco.cue"])
+        self.assertEqual(plan["blocked"], [])
+        trashed = []
+        with mock.patch.object(srv, "_organize_trash", return_value=lambda p: trashed.append(p.name)):
+            outcome = srv._removal_apply(self.cfg, {"scope": "local", "code": "PS", "entry": "Disco.cue",
+                                                    "token": plan["token"], "confirm": plan["confirm_text"]})
+        self.assertTrue(outcome["ok"])
+        self.assertEqual(sorted(trashed), ["Disco.bin", "Disco.cue"])
+
+    def test_drive_scope_is_blocked_while_rclone_is_read_only_and_wrong_token_is_refused(self):
+        import sys
+        sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent / "gui"))
+        import server as srv
+        from unittest import mock
+        plan = srv._removal_plan(self.cfg, "both", "PS", "Disco.cue")
+        self.assertTrue(any("só para leitura" in b for b in plan["blocked"]))
+        local = srv._removal_plan(self.cfg, "local", "PS", "Disco.cue")
+        with mock.patch.object(srv, "_organize_trash", return_value=lambda p: self.fail("não devia apagar")):
+            with self.assertRaises(removal.Blocked):
+                srv._removal_apply(self.cfg, {"scope": "local", "code": "PS", "entry": "Disco.cue",
+                                              "token": "errado", "confirm": local["confirm_text"]})
+
+
 if __name__ == "__main__":
     unittest.main()

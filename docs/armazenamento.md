@@ -93,6 +93,7 @@ sobrescrever um save novo com um snapshot antigo.
 `core/removal.py`: prévia e aplicação de três ações (`local`, `drive` = lixeira do Drive, `both`),
 com proteção (iniciado/fixado/em execução), arquivos compartilhados preservados, aviso de última
 cópia, token de revalidação, frase de confirmação com local e Drive por extenso e resultado por
-item. Saves, estados, texturas, capa e cadastro nunca são tocados. **Ainda não está ligado ao
-servidor nem à interface** e o Drive só funciona depois de reconectar o rclone com permissão de
+item. Saves, estados, texturas, capa e cadastro nunca são tocados. **Rotas no servidor (28/10):**
+`GET /api/storage/removal-plan?scope=local|drive|both&code=&entry=` e `POST /api/storage/removal-apply`
+(`scope, code, entry, token, confirm`). Falta a interface (ficha do jogo). O Drive só funciona depois de reconectar o rclone com permissão de
 escrita (hoje é somente leitura, e a prévia bloqueia a ação com essa explicação).

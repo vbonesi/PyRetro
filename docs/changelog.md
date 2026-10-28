@@ -4233,3 +4233,13 @@ filtros unificados).
   Título local copiado e verificado; `[storage] migrated` do Victor agora é roms, bios e nsw.
 - Etapa F: `core/removal.py` (prévia/aplicação de remoção local, Drive e ambos) com testes; ainda
   sem servidor/interface, e o Drive espera o rclone com escrita. 396 testes Python.
+
+## 28/10/2026 — remoção ligada ao servidor; Zelda Molblins; ROMs/BIOS desmarcadas
+
+- Victor desmarcou ROMs e BIOS no Insync: local sumiu do Drive, nuvem manteve tudo (21 pastas de
+  ROMs, 353 BIOS); `~/Games/PyRetro` íntegro. Setup foi pedido para limpar os caminhos antigos.
+- `GET /api/storage/removal-plan` e `POST /api/storage/removal-apply` (PC; protege jogo iniciado e
+  jogo em execução; Drive bloqueado enquanto `[rclone] can_write` não for verdadeiro).
+- Zelda Molblins (DS): o erro "something bad happened while trying to write to your cart" some com
+  um `.sav` em branco de 512 KB em `Saves/saves/NDS/` (o melonDS não tem tipo de save para essa ROM de
+  fã). Criado esse arquivo; confirmar jogando.
