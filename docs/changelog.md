@@ -4336,3 +4336,9 @@ filtros unificados).
 - Lançador: `Sessions(before, after)` — com `[cloud] auto = true` o PyRetro baixa/envia os saves antes de abrir
   (até 30 s) e depois de fechar o jogo; falha na nuvem nunca impede de jogar. Desligado por padrão até os
   caminhos dos emuladores migrarem. 434 testes Python.
+
+## 28/10/2026 — saves migrados para ~/Games/PyRetro/Saves
+
+- Primeiro envio à nuvem concluído (463 objetos, 578 MB, 0 erros; 405 conteúdos distintos, nenhum faltando).
+  Caminhos de saves dos emuladores trocados pelo setup (com cópia) e `[storage] migrated += saves`.
+  Aguarda a validação do Victor jogando em cada emulador.

@@ -127,3 +127,15 @@ descartável; o `deletefile` vai para a lixeira, não apaga de vez) e `[rclone] 
   o resto é dado de emulador). Ficaram FF VI, Super Mario 64 (em andamento) e o Zelda Molblins.
 - "O que foi sorteado" não é registrado em lugar nenhum; ficaram os jogos em andamento (biblioteca) e o
   Molblins. O último jogo aberto no PC (Kirby's Adventure, FC) é leve e também ficou.
+
+## Saves migrados para ~/Games/PyRetro/Saves (28/10, noite)
+
+- Cópia verificada (418 arquivos) e **todos os 405 conteúdos distintos já estão na nuvem**
+  (`drive:Jogos/PyRetro-Nuvem/saves`, 0 erros). Nada diferia entre o Drive e a cópia no momento da troca.
+- Aplicado (setup `install-emulator-library.py --saves`, cópia em `~/.local/state/bonisarch/backups/paths-20261028-202843`):
+  RetroArch (saves/states), DuckStation, PCSX2 e o link do sdmc do Azahar apontam para `~/Games/PyRetro/Saves`.
+  Dolphin e PPSSPP usam as próprias pastas de dados (nada a trocar).
+- PyRetro: `[storage] migrated` inclui `saves`; `memcards.*` do `config.toml` apontam para a pasta nova.
+- **Falta (Victor):** abrir um jogo com save em cada emulador e conferir que o save aparece em
+  `~/Games/PyRetro/Saves`. Só depois: `install-emulator-access.py --sem-drive --apply` (setup), `[cloud] auto = true`
+  e desmarcar `Saves` e `Capas` no Insync. Reverter: restaurar a cópia dos configs do setup e `migrated` sem `saves`.
