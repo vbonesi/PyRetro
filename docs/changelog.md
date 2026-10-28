@@ -4253,3 +4253,11 @@ filtros unificados).
 - Glifos: Xbox (A/B/X/Y, LB/RB, LT/RT), PlayStation (✕/○/□/△, L1/R1, L2/R2) ou Automático pelo
   controle conectado; o botão "Botões" nas opções escolhe manualmente. Os bindings não mudam.
   Conferido no navegador; sem teste automatizado novo (as funções vivem no escopo do `tv.js`).
+
+## 28/10/2026 — identidade visual (etapa D): ativos gerados, nada instalado
+
+- `tools/build_brand.py` gera `assets/brand/` (SVG, monocromático claro/escuro com o play como furo
+  real, PNG de 16 a 512, `favicon.ico`, folhas de conferência) a partir do símbolo proposto.
+- **Aguardando aprovação do Victor** para trocar favicon, marca do modo TV, atalho do Steam e ícone
+  do Android (assinatura e package ID não mudam). Falta ainda a variante simplificada de 16/24 px
+  (nesses tamanhos o play se perde) e o ícone adaptativo do Android.
