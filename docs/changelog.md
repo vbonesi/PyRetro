@@ -468,7 +468,7 @@ Itens 2, 3 e parte do 5 da "Ordem combinada" do roadmap, mais a fila de interfac
 Branch da nuvem unido ao `main` nos três repositórios. APK 0.6.0 compilado no notebook
 (toolchain em `~/.cache/pyretro/android-toolchain`: `JAVA_HOME=…/jdk ANDROID_HOME=…/sdk`)
 e instalado. Validado com o Victor no aparelho:
-- Catálogo atualizou sozinho ao abrir (Tailscale, `https://bonisarch.tailcc66ce.ts.net:8443`).
+- Catálogo atualizou sozinho ao abrir (Tailscale, `https://notebook.tailnet.ts.net:8443`).
 - ⬇ Baixar de jogo que só está no PC (3 Ninjas, SFC): SHA-256 igual ao do PC.
 - ⬇ Baixar de PSP que só está no Drive (ATV Offroad, 679 MB): pausa e retomada pediram
   ao Drive a partir do byte exato do parcial (`rclone cat --offset`); MD5 igual ao do Drive.

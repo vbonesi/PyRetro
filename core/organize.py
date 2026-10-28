@@ -204,11 +204,16 @@ def _trash(path: Path, run=_subprocess.run, fallback: Path | None = None):
 
 def place(files: list, dest_dir: Path, trash) -> list:
     """Coloca os arquivos com nome limpo em dest_dir, sobrescrevendo o que tiver o mesmo nome
-    (o antigo vai para a lixeira). Um .cue é reescrito para os nomes novos das faixas."""
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    (o antigo vai para a lixeira). Um .cue é reescrito para os nomes novos das faixas e
+    publicado por último. Dois arquivos do lote com o mesmo nome final são recusados antes de
+    qualquer escrita."""
     renamed = {f.name: clean_name(f.name) for f in files}
-    placed = []
-    for f in files:
+    final = [name.casefold() for name in renamed.values()]
+    if len(set(final)) != len(final) or len(renamed) != len(files):
+        raise ValueError("dois arquivos do conjunto ficariam com o mesmo nome depois da limpeza; nada foi movido")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    placed = {}
+    for f in sorted(files, key=lambda f: f.suffix.lower() == ".cue"):
         target = dest_dir / renamed[f.name]
         if f.suffix.lower() == ".cue":
             text = f.read_text(encoding="utf-8", errors="replace")
@@ -218,8 +223,8 @@ def place(files: list, dest_dir: Path, trash) -> list:
         if target.exists():
             trash(target)
         _shutil.move(str(f), str(target))
-        placed.append(target)
-    return placed
+        placed[f] = target
+    return [placed[f] for f in files]
 
 
 def organize(roms_root: Path, sources: dict, item_id: str, code: str, trash, run=_subprocess.run) -> dict:
@@ -243,7 +248,10 @@ def organize(roms_root: Path, sources: dict, item_id: str, code: str, trash, run
                 listed = {Path(m).name: m for m, _ in archive_members(src, run)}
                 run(["7z", "e", "-y", f"-o{tmpdir}", "-spd", str(src), member], capture_output=True, timeout=600)
                 refs = _bundles.references((tmpdir / Path(member).name).read_text(encoding="utf-8", errors="replace"), ".cue")
-                wanted += [listed[r] for r in refs if r in listed]
+                missing = [r for r in refs if r not in listed]
+                if missing:
+                    raise ValueError(f"conjunto incompleto: faltam {', '.join(missing)} no arquivo compactado; nada foi movido")
+                wanted += [listed[r] for r in refs]
             result = run(["7z", "e", "-y", f"-o{tmpdir}", "-spd", str(src), *wanted], capture_output=True, timeout=1800)
             if result.returncode != 0:
                 raise ValueError("falha ao extrair do arquivo compactado")
@@ -251,6 +259,10 @@ def organize(roms_root: Path, sources: dict, item_id: str, code: str, trash, run
         else:
             files = [src]
             if src.suffix.lower() == ".cue":
-                files += [folder / r for r in _bundles.references(src.read_text(encoding="utf-8", errors="replace"), ".cue") if (folder / r).is_file()]
+                refs = _bundles.references(src.read_text(encoding="utf-8", errors="replace"), ".cue")
+                missing = [r for r in refs if not (folder / r).is_file()]
+                if missing:
+                    raise ValueError(f"conjunto incompleto: faltam {', '.join(missing)} na pasta; nada foi movido")
+                files += [folder / r for r in refs]
         placed = place(files, roms_root / code, trash)
     return {"files": [str(p) for p in placed], "rom": str(placed[0]), "label": placed[0].stem}

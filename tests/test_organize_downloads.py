@@ -65,6 +65,37 @@ class TestScanAndOrganize(unittest.TestCase):
         self.assertIn('FILE "Disco.bin" BINARY', cue.read_text())
         self.assertEqual((self.roms / "PS" / "Disco.bin").stat().st_size, 4096)
 
+    def test_incomplete_cue_is_refused_and_left_in_place(self):
+        (self.down / "Solto.cue").write_text('FILE "faltando.bin" BINARY\n  TRACK 01 MODE2/2352\n')
+        with self.assertRaisesRegex(ValueError, "faltando.bin"):
+            om.organize(self.roms, self.sources, "downloads/Solto.cue", "PS", trash=mock.Mock())
+        self.assertTrue((self.down / "Solto.cue").exists())
+        self.assertFalse((self.roms / "PS").exists())
+
+    def test_incomplete_cue_inside_archive_is_refused(self):
+        with zipfile.ZipFile(self.down / "Quebrado.zip", "w") as z:
+            z.writestr("Quebrado.cue", 'FILE "sumiu.bin" BINARY\n  TRACK 01 MODE2/2352\n')
+        with self.assertRaisesRegex(ValueError, "sumiu.bin"):
+            om.organize(self.roms, self.sources, "downloads/Quebrado.zip::Quebrado.cue", "PS", trash=mock.Mock())
+        self.assertFalse((self.roms / "PS").exists())
+
+    def test_tracks_that_collide_after_cleaning_are_refused_before_moving(self):
+        (self.down / "Colide.cue").write_text('FILE "A*B.bin" BINARY\n  TRACK 01 MODE2/2352\nFILE "AB.bin" BINARY\n  TRACK 02 AUDIO\n')
+        (self.down / "A*B.bin").write_bytes(b"1"); (self.down / "AB.bin").write_bytes(b"2")
+        trash = mock.Mock()
+        with self.assertRaisesRegex(ValueError, "mesmo nome"):
+            om.organize(self.roms, self.sources, "downloads/Colide.cue", "PS", trash)
+        trash.assert_not_called()
+        self.assertTrue((self.down / "A*B.bin").exists() and (self.down / "AB.bin").exists())
+        self.assertFalse((self.roms / "PS").exists())
+
+    def test_cue_is_published_last(self):
+        order = []
+        real = om._shutil.move
+        with mock.patch.object(om._shutil, "move", side_effect=lambda a, b: (order.append(Path(b).suffix), real(a, b))):
+            om.organize(self.roms, self.sources, "downloads/Multi (BR-J).zip::Multi (BR-J) (T1.0).cue", "PS", trash=mock.Mock())
+        self.assertEqual(order[-1], ".cue")
+
     def test_loose_file_overwrites_existing_and_trashes_old(self):
         (self.roms / "SFC").mkdir()
         old = self.roms / "SFC" / "Jogo.sfc"; old.write_bytes(b"velho")

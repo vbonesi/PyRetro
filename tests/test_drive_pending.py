@@ -66,3 +66,20 @@ class TestDrivePending(BaseAPI):
         self.assertEqual(self.listing(), [])
         status, _ = self.pedir('/api/drive_pending/apply', {'group': 'retro-saves', 'path': 'SFC/Jogo.srm', 'pending': 'qualquer.pending'})
         self.assertEqual(status, 404)
+
+    def test_first_save_without_previous_version_applies(self):
+        (self.saves / 'SFC/Jogo.srm').unlink()
+        name = self.pending(b'novo do celular', None)
+        [item] = self.listing()
+        self.assertEqual(item['status'], 'apply')
+        status, _ = self.pedir('/api/drive_pending/apply', {'group': 'retro-saves', 'path': 'SFC/Jogo.srm', 'pending': name})
+        self.assertEqual(status, 200)
+        self.assertEqual((self.saves / 'SFC/Jogo.srm').read_bytes(), b'novo do celular')
+        self.assertEqual(self.listing(), [])
+
+    def test_force_without_destination_creates_it(self):
+        (self.saves / 'SFC/Jogo.srm').unlink()
+        name = self.pending(b'do celular', sha(b'qualquer'))
+        status, _ = self.pedir('/api/drive_pending/apply', {'group': 'retro-saves', 'path': 'SFC/Jogo.srm', 'pending': name, 'force': True})
+        self.assertEqual(status, 200)
+        self.assertEqual((self.saves / 'SFC/Jogo.srm').read_bytes(), b'do celular')

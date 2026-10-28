@@ -82,7 +82,8 @@ def apply(cfg, group, relative, pending, force=False):
         current = mobile_sync.fingerprint(mobile_sync.resolve(cfg, group, relative))
         base = current['sha256'] if current else None
     with open(file, 'rb') as stream:
-        result = mobile_sync.receive(cfg, group, relative, base, sha, stream, file.stat().st_size)
+        # sem versão anterior (arquivo novo), `receive` espera o sentinela '-'
+        result = mobile_sync.receive(cfg, group, relative, base or '-', sha, stream, file.stat().st_size)
     _archive(cfg, group, relative, file, 'applied')
     return result
 

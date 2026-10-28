@@ -70,3 +70,10 @@ não perda irrecuperável: a lixeira sintética preserva a primeira faixa.
 As linhas citadas são da revisão auditada. As reproduções usaram apenas diretórios
 temporários e fixtures; os logs e o script de reprodução permanecem no relatório
 privado da auditoria. Este registro não contém hostname, credenciais ou inventário.
+
+## Correções (28/10/2026)
+
+AUD28-01 a 04 corrigidas com testes de regressão (`tests/test_public_docs.py`,
+`test_drive_pending.py`, `test_organize_downloads.py`); 363 testes Python passam. O histórico
+do Git ainda contém o hostname antigo (etapa separada, não reescrita). AUD28-07 conciliada no
+roadmap; homologação real continua pendente.

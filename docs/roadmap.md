@@ -3,7 +3,17 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 22/10/2026 (noite).
+pronto" (resumo) e "o que vem a seguir". Atualizado em 28/10/2026.
+
+## Estado em 28/10/2026
+
+- Android **0.14.0 (code 22)** instalado. Consumidor CUE/M3U (0.13.0), saves pelo Drive,
+  Organizar a partir dos Downloads e conta Google estão implementados; falta homologar no
+  aparelho G8, atalhos 3DS, interrupção de download e uso prolongado.
+- Páginas OAuth publicadas no GitHub Pages e app OAuth fora do modo Teste (23/10).
+- Auditoria de 28/10 ([registro](AUDITORIA-2026-10-28.md)): AUD28-01 a 04 corrigidas nesta
+  base com testes sintéticos; plano de melhorias em [`plano-melhorias-2026-10-28.md`](plano-melhorias-2026-10-28.md).
+- As seções de 23/10 abaixo são histórico: onde dizem "pendente", vale este bloco.
 
 ## Entrega de backend e apoio — 23/10/2026
 
@@ -195,7 +205,7 @@ Link e PS4/Xbox remotos ✅ 23/10).
 
 **Notas práticas:** compilar o APK com
 `JAVA_HOME=~/.cache/pyretro/android-toolchain/jdk ANDROID_HOME=~/.cache/pyretro/android-toolchain/sdk python3 tools/build_android.py`;
-endereço do notebook no app: `https://bonisarch.tailcc66ce.ts.net:8443`; na Pasta
+endereço do notebook no app: `https://notebook.tailnet.ts.net:8443`; na Pasta
 RetroArch, escolher a raiz `RetroArch` (o app recusa `saves`/`states` desde a 0.6.1).
 
 ## Rodada de 22/10/2026 (tarde) — hub de jogos e balanço da rodada anterior
