@@ -4578,3 +4578,8 @@ filtros unificados).
   mas as atribuições ficam nas preferências privadas do app (`/data/data`, app não depurável): não dá para gravar por arquivo/adb;
   configurar em Controles › Atalhos no próprio app. O `config.ini` em `/sdcard/Jogos/3DS/config/` é só modelo, sem os botões.
   Atalhos de tela no PC (LT/RT no Azahar) foram validados pelo Victor em 29/10.
+- **Assistente de primeiros passos (`core/firstrun.py`, `/api/setup/status|apply`, 🚀 nas Ferramentas do modo TV):** confere
+  configuração, pastas do acervo (`~/Games/PyRetro`), nuvem (rclone) e emuladores. Cria só `config.toml` (a partir do modelo +
+  `[storage]`, modo 600, nunca sobrescreve) e pastas vazias; não instala programas: o que faltar é listado e fica com o
+  `setup-linux-bonesi`. Numa instalação sem `config.toml` o `/tv` abre os Primeiros passos sozinho; o servidor deixou de
+  encerrar com `sys.exit` quando falta a configuração. 7 testes novos (466 no total). Login do Drive continua manual (`rclone config`).

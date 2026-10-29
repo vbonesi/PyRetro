@@ -65,6 +65,7 @@ from core import removal as removal_mod
 from core import rom_bundles as rom_bundles_mod
 from core import cloud_sync as cloud_sync_mod
 from core import diagnostics as diagnostics_mod
+from core import firstrun as firstrun_mod
 from core import recent as recent_mod
 from core import playlist as playlist_mod
 from core import rom_rename as rom_rename_mod
@@ -79,6 +80,7 @@ from core import texturas as texturas_mod
 from core import capas_emuladores as capas_emu_mod
 
 CONFIG_PATH = ROOT / "config.toml"
+EXAMPLE_CONFIG_PATH = ROOT / "config.example.toml"
 REGISTRY_PATH = ROOT / "cache" / "covers_registry.json"
 HEAVY_CATALOG_PATH = ROOT / "cache" / "heavy_catalog.json"
 LAST_PLAYED_PATH = ROOT / "cache" / "last_played.json"
@@ -368,8 +370,10 @@ def is_rom_backed(game: dict, rom_names_by_code: dict) -> bool:
 
 
 def load_config() -> dict:
+    # Exceção comum (não sys.exit): o servidor responde 500 em JSON e o assistente de primeiros
+    # passos (/api/setup) ainda funciona numa instalação sem config.toml.
     if not CONFIG_PATH.exists():
-        sys.exit(f"config.toml não encontrado - copie config.example.toml para {CONFIG_PATH}")
+        raise FileNotFoundError(f"config.toml não encontrado - abra o PyRetro (modo TV) para criar, ou copie config.example.toml para {CONFIG_PATH}")
     with open(CONFIG_PATH, "rb") as f:
         return storage_mod.apply_config(tomllib.load(f))
 
@@ -1827,11 +1831,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({'error': 'jogo não encontrado'}, 404)
             return self._json(game_save_ids.mapping(cfg, game))
 
+        if parts == ['api', 'setup', 'apply']:
+            return self._json(firstrun_mod.apply(CONFIG_PATH, EXAMPLE_CONFIG_PATH))
+
         if parts[:3] == ['api','mobile','sync']:
             return self._json({'error':'Protocolo de saves encerrado. Atualize o app e use Saves na nuvem.'},410)
 
         if parts == ["api", "play", "status"]:
             return self._json(PLAY_SESSIONS.status())
+
+        if parts == ['api', 'setup', 'status']:
+            return self._json(firstrun_mod.status(CONFIG_PATH, EXAMPLE_CONFIG_PATH))
 
         if parts == ['api', 'diagnostics']:
             try:

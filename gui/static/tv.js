@@ -1214,6 +1214,7 @@ function renderTools() {
     ["🛠", "Manutenção", "Backups, nomes, playlists e sincronização de saves", toolMaintenance],
     ["⚙", "Configurações", "Pastas do PC e do celular usadas pelo PyRetro", toolSettings],
     ["🩺", "Diagnóstico", "Confere pastas e programas; relatório sem dados privados", toolDiagnostics],
+    ["🚀", "Primeiros passos", "Cria a configuração e as pastas que faltam e avisa o que o setup precisa instalar", toolSetup],
   ];
   $("gallery").replaceChildren(...tools.map(([symbol, title, text, open]) => {
     const card = button("", () => openTool(`${symbol} ${title}`, open)); card.className = "game system-card stat-card";
@@ -1434,6 +1435,23 @@ async function toolDiagnostics(body) {
     actions(button("Atualizar", () => toolDiagnostics(body))),
     Object.assign(document.createElement("p"), {className: "hint", innerHTML: 'Versão para copiar e enviar: <a href="/diagnostics">/diagnostics</a>.'}));
 }
+// Assistente de primeira execução (core/firstrun.py): só cria configuração e pastas vazias; programas são do setup.
+async function toolSetup(body) {
+  body.replaceChildren(hint("Conferindo…"));
+  const r = await api("/api/setup/status");
+  const icon = {ok: "✓", missing: "✗", optional: "○"};
+  const fixable = r.steps.some(step => step.fixable);
+  body.replaceChildren(
+    hint(r.ready ? "Tudo no lugar para usar o PyRetro." : "Falta preparar o PyRetro neste computador."),
+    ...r.steps.flatMap(step => [row(`${icon[step.state] || "?"} ${step.label}`), ...(step.detail ? [hint(step.detail)] : [])]),
+    actions(...(fixable ? [button("Criar o que falta", async () => {
+        try { const done = await api("/api/setup/apply", {}); toolStatus(done.created.length ? `Criado: ${done.created.join(", ")}.` : "Nada a criar."); await toolSetup(body); }
+        catch (e) { toolStatus(e.message, true); }
+      })] : []),
+      button("Verificar de novo", () => toolSetup(body)),
+      ...(r.ready && !state.systems?.length ? [button("Abrir o acervo", () => location.reload())] : [])),
+    hint("O PyRetro não instala programas nem apaga arquivos: emuladores, rclone e o lançador vêm do setup do sistema."));
+}
 async function toolSettings(body) {
   const cfg = await api("/api/settings"), changed = {pc: {}, android: {}};
   const draw = () => body.replaceChildren(hint("Pastas usadas pelo PyRetro. Só os campos alterados mudam ao salvar."),
@@ -1556,6 +1574,8 @@ async function openLinkedGame(key) {
 }
 async function init() {
   collectionTabs();
+  // Instalação nova (sem config.toml ou sem pastas): abre os Primeiros passos em vez de falhar no catálogo.
+  try { const setup = await api("/api/setup/status"); if (!setup.ready) { openTool("🚀 Primeiros passos", toolSetup); return; } } catch {}
   try {
     [state.systems, state.light] = await Promise.all([api("/api/heavy/systems"), api("/api/systems")]); await load();
     const key = new URLSearchParams(location.search).get("game");
