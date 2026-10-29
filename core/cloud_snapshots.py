@@ -88,25 +88,34 @@ def restore(storage, name, dest, version=None):
     return {'restored': version, 'bytes': len(data)}
 
 
-def publish_tree(storage, root, prefix='backups', max_file=256 * 1024 * 1024):
-    """Envia arquivos novos de `root` para `<prefix>/...`. Nunca sobrescreve nem apaga na nuvem;
-    arquivos maiores que `max_file` ou symlinks são ignorados e contados."""
+def publish_tree(storage, root, prefix='backups', max_file=256 * 1024 * 1024, workers=8):
+    """Envia arquivos novos de `root` para `<prefix>/...` (em paralelo; cada chamada ao Drive leva segundos).
+    Nunca sobrescreve nem apaga na nuvem; arquivos maiores que `max_file` e symlinks são ignorados e contados."""
+    from concurrent.futures import ThreadPoolExecutor
     root = Path(root)
-    sent = skipped = 0
     if not root.is_dir():
         return {'sent': 0, 'skipped': 0, 'present': 0}
-    present = 0
+    skipped, wanted = 0, []
     for current, dirs, names in os.walk(root):
         dirs[:] = [d for d in dirs if not (Path(current) / d).is_symlink()]
         for leaf in names:
             path = Path(current) / leaf
             if path.is_symlink() or leaf.endswith(('.part', '.tmp', '.pyretro-part')):
                 continue
-            rel = f'{prefix}/{path.relative_to(root).as_posix()}'
             if path.stat().st_size > max_file:
                 skipped += 1; continue
-            if storage.exists(rel):
-                present += 1; continue
+            wanted.append((f'{prefix}/{path.relative_to(root).as_posix()}', path))
+
+    def send(item):
+        rel, path = item
+        if storage.exists(rel):
+            return 'present'
+        try:
             storage.put(rel, path.read_bytes())
-            sent += 1
-    return {'sent': sent, 'skipped': skipped, 'present': present}
+        except cloud_mod.Exists:
+            return 'present'
+        return 'sent'
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        outcomes = list(pool.map(send, wanted))
+    return {'sent': outcomes.count('sent'), 'skipped': skipped, 'present': outcomes.count('present')}

@@ -78,6 +78,13 @@ _(vazio)_
 
 ## Situação
 
+- 29/10 — Celular em uso pelo Codex para revisão da interface Android e paridade com o PC.
+  Sem jogos, remoções ou sincronizações reais nesta revisão.
+  Codex encontrou outro publicador do Claude no checkout principal e encerrou somente seu
+  publicador adicional. Não sobrescrever `core/cloud_snapshots.py` do checkout principal:
+  a variante do Codex está isolada em `codex/backups-nuvem` (listagem única e proteção da
+  criação de ancestrais para evitar pastas homônimas em processos rclone paralelos).
+
 - 23/10 — Claude: Android 0.9.0 **instalada e validada** no celular. Celular **livre**.
   Mexi em `core/library.py` (fora da minha parte, avisando aqui): `search_covers_steamgriddb`
   agora busca as grades em paralelo (o SteamGridDB levava 30–60 s por chamada), com teste em

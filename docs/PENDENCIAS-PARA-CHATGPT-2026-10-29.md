@@ -29,9 +29,8 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
 ## Pendências (marcar `[x]` ao concluir)
 
 ### Em andamento / verificar primeiro
-- [ ] **Envio dos Backups à nuvem** (`python3 -m core.cloud_sync publish`): estava em ~195 de ~470 arquivos e lento
-      (`cloud_snapshots.publish_tree` é sequencial). Conferir se terminou; se não, paralelizar como em `CloudSaves._upload_blob`
-      (ThreadPoolExecutor) e rodar de novo. Depois conferir com `rclone size drive:Jogos/PyRetro-Nuvem/backups`.
+- [x] **Envio dos Backups à nuvem:** concluído em 29/10 (`publish_tree` agora paralelo; 505 arquivos locais, todos presentes
+      em `drive:Jogos/PyRetro-Nuvem/backups`; conferido por `rclone size` e uma 2ª rodada sem pendência).
 - [ ] **Insync (só o Victor):** desmarcar `Saves`, `Capas`, `Biblioteca` e `Backups` na sincronização seletiva. Antes,
       conferir `python3 -m core.cloud_sync status` = `{}` e que o último snapshot da Biblioteca está na nuvem.
 
