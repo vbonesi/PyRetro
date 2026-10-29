@@ -41,7 +41,7 @@ A normalização mais ampla do catálogo fornece apenas candidatos. Mais de um
 serial, inclusive em aliases, exige escolha. Não fazer fuzzy match de títulos.
 
 O filtro compara os nove caracteres iniciais do componente de pasta/arquivo,
-depois de validar pelo `mobile_sync.accepted`: `ULUS12345DATA00/**` para saves,
+depois de validar pelo `save_paths.accepted`: `ULUS12345DATA00/**` para saves,
 `ULUS12345*.ppst/jpg/png` para states. Não confundir região ou usar simples busca
 por substring. `core/game_save_ids.matches` é referência para espelhar no Kotlin.
 

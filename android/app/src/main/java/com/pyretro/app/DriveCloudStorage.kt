@@ -4,7 +4,7 @@ package com.pyretro.app
  * [CloudStorage] sobre o Drive da conta conectada, dentro de uma pasta raiz (ex.: ["Jogos","PyRetro-Nuvem"]),
  * a mesma que o notebook usa pelo rclone (`drive:Jogos/PyRetro-Nuvem`). Nunca apaga de vez: `trash` usa a lixeira.
  */
-class DriveCloudStorage(private val drive:GoogleDrive,private val root:List<String> = listOf("Jogos","PyRetro-Nuvem")):CloudStorage {
+class DriveCloudStorage(private val drive:GoogleDrive,private val root:List<String> = listOf("Jogos","PyRetro-Nuvem"),private val maxBytes:Int=512*1024*1024):CloudStorage {
     private val folderMime="application/vnd.google-apps.folder"
 
     private fun folderOf(dirs:List<String>,create:Boolean):String? =
@@ -40,7 +40,10 @@ class DriveCloudStorage(private val drive:GoogleDrive,private val root:List<Stri
         val connection=drive.media(id,0)
         try {
             require(connection.responseCode in 200..299) { "Drive recusou a leitura de $path (HTTP ${connection.responseCode})." }
-            return connection.inputStream.use { it.readBytes() }
+            return connection.inputStream.use { input ->
+                val out=java.io.ByteArrayOutputStream();val buffer=ByteArray(65536)
+                while(true) { val n=input.read(buffer);if(n<0)break;require(out.size().toLong()+n<=maxBytes) { "Arquivo excede o limite de leitura." };out.write(buffer,0,n) };out.toByteArray()
+            }
         } finally { connection.disconnect() }
     }
 

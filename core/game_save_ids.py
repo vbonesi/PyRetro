@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import re
 import unicodedata
-from core import covers, library, mobile_sync, serials
+from core import covers, library, save_paths, serials
 
 
 def exact_name(value):
@@ -112,7 +112,7 @@ def mapping(cfg, game, index=None):
 
 def matches(group, path, title_id):
     """Filtro após identificação/escolha explícita. Nunca seleciona extdata por chute."""
-    if not mobile_sync.accepted(group, path) or not isinstance(title_id, str): return False
+    if not save_paths.accepted(group, path) or not isinstance(title_id, str): return False
     if group in ('psp-saves', 'psp-states'):
         return bool(re.fullmatch(r'[A-Z]{4}\d{5}', title_id) and path[:9].upper() == title_id)
     if group == '3ds-saves' and re.fullmatch(r'00040000[0-9a-f]{8}', title_id):

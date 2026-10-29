@@ -926,7 +926,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(!store.online)return
         val pinned=SpaceStore(store).pinnedChecker()
         val wanted=games.filter { it.localUri!=null || store.favorite(it) || pinned(it) }.take(300)
-        prefetch.execute { for(game in wanted) { if(!store.online)break;runCatching { store.cover(game) } } }
+        prefetch.execute { for(game in wanted) { if(!store.online)break;runCatching { store.cover(game,publish=false) } } }
     }
     /** Saves e estados pela nuvem (core/cloud_saves no notebook): compara, mostra e só então sincroniza. */
     private fun cloudSaves(title:String="☁ Saves na nuvem",filter:((String,String)->Boolean)?=null) {
@@ -1294,12 +1294,49 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 .setNegativeButton("Voltar") { _,_ -> details(game) }.setPositiveButton("Escolher pasta") { _,_ -> pickSyncFolder("retroarch") });return
         }
         dialog?.dismiss()
+        if(!retro) { titleSaveChoice(game);return }
         work.execute {
             val label=SaveRules.label(game.localUri?.let { runCatching { store.displayName(it) }.getOrNull() } ?: game.romName.substringAfterLast('/').ifBlank { game.name },store.extensionsFor(game.code))
-            // RetroArch: só os arquivos deste jogo. PSP/3DS: o grupo do emulador inteiro (o ID do título não é lido aqui).
-            val mine:(String,String)->Boolean=if(retro) { g,path -> g in setOf("retro-saves","retro-states") && SaveRules.belongs(path,game.code,label) }
-                else { g,_ -> g.startsWith(if(game.code=="PSP")"psp-" else "3ds-") }
+            val mine:(String,String)->Boolean={ g,path -> g in setOf("retro-saves","retro-states") && SaveRules.belongs(path,game.code,label) }
             runOnUiThread { cloudSaves("💾 ${game.name}",mine) }
+        }
+    }
+    private fun titleSaveChoice(game:Game) {
+        work.execute {
+            val mapping=if(store.online && game.id.isNotBlank())runCatching { extras.saveIds(game.id) }.getOrNull() else extras.cachedSaveIds(game.id)
+            val local=if(game.code=="3DS")game.localUri?.let { runCatching { read3dsId(it) }.getOrNull() } else null
+            val identified=mapping?.optJSONArray("titleIds")?.let { ids -> if(ids.length()==1 && mapping.optString("status")=="identified")ids.optString(0) else null }
+            val saved=store.prefs.getString("save-title:${game.key}",null)
+            val title=local ?: saved?.takeIf { SaveIdRules.valid(game.code,it) } ?: identified
+            runOnUiThread {
+                if(title!=null && SaveIdRules.valid(game.code,title)) { titleSaves(game,title);return@runOnUiThread }
+                val candidates=mapping?.optJSONArray("candidates") ?: JSONArray()
+                val box=column();box.addView(text("Saves de ${game.name}",22f));box.addView(text("Não há ID verificado deste jogo. Escolha a região/ID ou abra explicitamente todos os jogos do emulador. Extdata de 3DS exige escolha do grupo completo.",14f))
+                for(i in 0 until candidates.length()) { val c=candidates.getJSONObject(i);val id=c.optString("titleId")
+                    if(SaveIdRules.valid(game.code,id))add(box,button("${c.optString("name")} · $id") { store.prefs.edit().putString("save-title:${game.key}",id).apply();titleSaves(game,id) }) }
+                val input=EditText(this).apply { hint=if(game.code=="PSP")"Serial da região, ex.: ULUS12345" else "Program ID: 00040000xxxxxxxx";setTextColor(appForeground) };box.addView(input)
+                add(box,button("Usar este ID") { val id=input.text.toString().trim().let { if(game.code=="PSP")it.uppercase() else it.lowercase() }
+                    if(!SaveIdRules.valid(game.code,id)) { message("ID inválido; confira a região do jogo.");return@button };store.prefs.edit().putString("save-title:${game.key}",id).apply();titleSaves(game,id) })
+                add(box,button("Todos os jogos de ${if(game.code=="PSP")"PPSSPP" else "3DS (inclui extdata)"}") { emulatorSaves(game) })
+                show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> details(game) })
+            }
+        }
+    }
+    private fun emulatorSaves(game:Game) {
+        val groups=SaveIdRules.groups(game.code).toSet()
+        cloudSaves("💾 Todos os jogos de ${if(game.code=="PSP")"PPSSPP" else "3DS · saves e extdata"}") { group,_ -> group in groups }
+    }
+    private fun titleSaves(game:Game,title:String) {
+        fun open(tree:String?)=cloudSaves("💾 ${game.name} · $title") { group,path -> SaveIdRules.matches(group,path,title) && (tree==null || path.startsWith("$tree/")) }
+        if(game.code!="3DS") { open(null);return }
+        dialog?.dismiss();message("Conferindo árvores de saves 3DS…")
+        work.execute {
+            val result=runCatching { CloudPhone(store,FileSync(store),DriveCloudStorage(drive)).analyze { group,path -> SaveIdRules.matches(group,path,title) }
+                .getValue("3ds-saves").getOrThrow().map { it.path }.let { SaveIdRules.trees(it,title) } }
+            runOnUiThread { result.onSuccess { trees ->
+                if(trees.size<=1)open(trees.singleOrNull())
+                else show(AlertDialog.Builder(this).setTitle("Qual árvore 3DS o emulador usa?").setItems(trees.toTypedArray()) { _,which -> open(trees[which]) }.setNegativeButton("Voltar",null))
+            }.onFailure { show(AlertDialog.Builder(this).setTitle("Saves 3DS indisponíveis").setMessage(it.message).setPositiveButton("Escolher pasta") { _,_ -> pickSyncFolder("3ds-saves") }.setNegativeButton("Voltar",null)) } }
         }
     }
     /** PSP/3DS: o notebook diz o ID do título do jogo (Redump para PSP, cabeçalho da ROM para 3DS).

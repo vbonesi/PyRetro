@@ -55,10 +55,10 @@ from core import tv_home as tv_home_mod
 from core import game_actions as game_actions_mod
 from core import playtime as playtime_mod
 from core import library_activity
+from core import cloud_covers
 from core import tv_media as tv_media_mod
 from core import tv_saves as tv_saves_mod
 from core import mobile_textures as mobile_textures_mod
-from core import mobile_sync as mobile_sync_mod
 from core import mobile_roms as mobile_roms_mod
 from core import removal as removal_mod
 from core import rom_bundles as rom_bundles_mod
@@ -1816,24 +1816,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(game_save_ids.mapping(cfg, game))
 
         if parts[:3] == ['api','mobile','sync']:
-            try:
-                cfg = load_config(); group = query.get('group',[''])[0]
-                if parts == ['api','mobile','sync','groups']:
-                    return self._json(mobile_sync_mod.groups(cfg))
-                if parts == ['api','mobile','sync','history']:
-                    return self._json(mobile_sync_mod.history(cfg,group))
-                if parts == ['api','mobile','sync','manifest']:
-                    return self._json(mobile_sync_mod.manifest(cfg,group))
-                if parts == ['api','mobile','sync','file']:
-                    mobile_sync_mod.check_tag(cfg,group,query.get('rootTag',[''])[0])
-                    with mobile_sync_mod.snapshot(cfg,group,query.get('path',[''])[0],query.get('hash',[''])[0]) as (source,info):
-                        self.send_response(200);self.send_header('Content-Type','application/octet-stream')
-                        self.send_header('Content-Length',str(info['size']));self.send_header('X-PyRetro-SHA256',info['sha256'])
-                        self.send_header('Cache-Control','no-store');self._security_headers();self.end_headers()
-                        shutil.copyfileobj(source,self.wfile,1024*1024)
-                    return
-            except mobile_sync_mod.Conflict as error:return self._json({'error':str(error)},409)
-            except (ValueError,OSError) as error:return self._json({'error':str(error)},400)
+            return self._json({'error':'Protocolo de saves encerrado. Atualize o app e use Saves na nuvem.'},410)
 
         if parts == ["api", "play", "status"]:
             return self._json(PLAY_SESSIONS.status())
@@ -2167,6 +2150,7 @@ class Handler(BaseHTTPRequestHandler):
             if not dentro_de(capas_dir, path):
                 return self._file(Path("/nonexistent"), "image/png")
             ctype = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+            cloud_covers.displayed_rom(cfg,code,path.stem,path)
             return self._file(path, ctype)
 
         if parts[:1] == ["library-images"] and len(parts) >= 2:
@@ -2179,6 +2163,7 @@ class Handler(BaseHTTPRequestHandler):
             path = (library_root / rel_path).resolve()
             if library_root not in path.parents:
                 return self._file(Path("/nonexistent"), "image/png")
+            cloud_covers.displayed_library(cfg,rel_path,path)
             return self._file(path, "image/png")
 
         if parts == ["api", "settings"]:
@@ -2196,7 +2181,7 @@ class Handler(BaseHTTPRequestHandler):
                 store = cloud_sync_mod.storage(cfg)
                 return self._json({"enabled": True, "latest": cloud_sync_mod.snapshots_mod.latest(store, "library"),
                                    "versions": cloud_sync_mod.snapshots_mod.versions(store, "library")[:30],
-                                   "last_run": dict(cloud_sync_mod.LAST_SNAPSHOT)})
+                                   "last_run": dict(cloud_sync_mod.LAST_SNAPSHOT),"library_sync":dict(cloud_sync_mod.LAST_LIBRARY),"covers":dict(cloud_covers.LAST)})
             except (ValueError, OSError) as error:
                 return self._json({"error": str(error)}, 400)
 
@@ -2772,7 +2757,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "Content-Length inválido"}, 400)
             if content_length < 0:
                 return self._json({"error": "Content-Length inválido"}, 400)
-            limit = mobile_sync_mod.MAX_BYTES if rota == ('api','mobile','sync','file') else mobile_textures_mod.MAX_BYTES if rota == ('api','texturas','upload') else tv_media_mod.MAX_BYTES if rota == ('api','tv','media') else MAX_JSON_BODY
+            limit = mobile_textures_mod.MAX_BYTES if rota == ('api','texturas','upload') else tv_media_mod.MAX_BYTES if rota == ('api','tv','media') else MAX_JSON_BODY
             if content_length > limit:
                 return self._json({"error": "requisição grande demais"}, 413)
             recebido = self.headers.get("X-PyRetro-CSRF", "")
@@ -2800,27 +2785,8 @@ class Handler(BaseHTTPRequestHandler):
         parts = [p for p in parsed.path.split("/") if p]
         query = urllib.parse.parse_qs(parsed.query)
 
-        if parts == ['api','mobile','sync','file']:
-            try:
-                with file_lock_mod.exclusive(TRANSFER_LOCK_KEY):
-                    cfg=load_config();mobile_sync_mod.check_tag(cfg,query.get('group',[''])[0],query.get('rootTag',[''])[0])
-                    result=mobile_sync_mod.receive(cfg,query.get('group',[''])[0],query.get('path',[''])[0],
-                        query.get('expected',[''])[0],query.get('sha256',[''])[0],self.rfile,int(self.headers.get('Content-Length',0)))
-                return self._json(result)
-            except mobile_sync_mod.Conflict as error:return self._json({'error':str(error)},409)
-            except (ValueError,OSError) as error:return self._json({'error':str(error)},400)
-
-        if parts == ['api','mobile','sync','restore']:
-            body=self._read_json_body()
-            try:
-                if not isinstance(body,dict):raise ValueError('pedido inválido')
-                with file_lock_mod.exclusive(TRANSFER_LOCK_KEY):
-                    cfg=load_config();group=body.get('group','')
-                    mobile_sync_mod.check_tag(cfg,group,body.get('rootTag',''))
-                    result=mobile_sync_mod.restore(cfg,group,body.get('path',''),body.get('version',''),body.get('expected',''),body.get('sha256',''))
-                return self._json(result)
-            except mobile_sync_mod.Conflict as error:return self._json({'error':str(error)},409)
-            except (ValueError,OSError) as error:return self._json({'error':str(error)},400)
+        if parts[:3] == ['api','mobile','sync']:
+            return self._json({'error':'Protocolo de saves encerrado. Atualize o app e use Saves na nuvem.'},410)
 
         if parts == ['api','texturas','upload']:
             try:

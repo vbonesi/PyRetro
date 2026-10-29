@@ -237,7 +237,10 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     fun synchronize():String {
         return cloudLibrary.sync()
     }
-    fun cover(game:Game):File? {
+    fun cover(game:Game,publish:Boolean=true):File? {
+        if(game.id.isNotBlank() && (game.cover.startsWith("cloud-cover:") || prefs.getBoolean("google:connected",false))) {
+            runCatching { cloudLibrary.cover(game,publish) }.getOrNull()?.let { return it }
+        }
         if(game.cover.isBlank() || !game.cover.startsWith('/'))return null
         val url=base()+game.cover
         // Chave só pelo caminho (com ?v=mtime): trocar LAN ↔ Tailscale não esvazia o cache offline.

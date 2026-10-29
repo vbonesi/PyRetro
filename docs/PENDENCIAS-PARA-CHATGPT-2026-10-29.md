@@ -54,9 +54,12 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
 - [x] **Catálogo sem o notebook:** Biblioteca local + listagem direta do Drive, incluindo ROMs sem cadastro;
       ambiguidades de nome/região não criam vínculo automático. Montada a lista a partir da Biblioteca local + listagem direta das pastas do Drive
       (`CloudIndex`/`GoogleDrive`); hoje vem de `/api/tv/catalog`.
-- [ ] **Capas sob demanda pela nuvem:** decidir com o Victor (recomendado: subir para `capas/` da nuvem só as dos jogos
+- [x] **Capas sob demanda pela nuvem:** Victor escolheu enviar apenas as exibidas; blobs por hash e ponteiro
+      por identidade no PC/Android, cache offline e leitura direta da origem no Drive quando necessário.
+      Subir para `capas/` da nuvem só as dos jogos
       exibidos; as 2,1 GB de `Biblioteca/capas` não estão na nuvem e saem do Insync).
-- [ ] **Remover de vez o que sobrou do protocolo antigo:** rotas `/api/mobile/sync/*` e `core/mobile_sync.py`
+- [x] **Remover de vez o que sobrou do protocolo antigo:** rotas `/api/mobile/sync/*` retornam 410 e `core/mobile_sync.py` foi retirado;
+      validação extraída para `core/save_paths.py` e documentação atualizada. Antes: `core/mobile_sync.py`
       (`core/game_save_ids.py` ainda usa `mobile_sync.accepted`; extrair essa regra antes), `docs/drive-saves.md` e
       `docs/mobile-save-ids.md` desatualizados.
 

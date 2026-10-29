@@ -23,6 +23,7 @@ class InterfaceSmoke(private val runner:Instrumentation) {
         val name="interface-smoke-"+UUID.randomUUID()
         val fixture=LibraryStore(targetContext,name)
         val real=LibraryStore(targetContext)
+        real.cloudLibrary // inicialização normal do dispositivo antes da comparação de preferências
         val before=real.prefs.all.toMap()
         val directory=File(targetContext.cacheDir,name).apply { mkdirs() }
         val screens=JSONArray();val findings=JSONArray()

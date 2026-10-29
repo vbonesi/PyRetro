@@ -1,5 +1,18 @@
 # Changelog
 
+## 29/10/2026 — Android 0.21.0: capas sob demanda e escopo de saves
+
+Capas exibidas no PC ou Android vão para blobs por SHA-256 com ponteiro por jogo; versões antigas
+permanecem. Android consulta a nuvem diretamente, preserva cache offline e pode buscar a capa
+original em Jogos/Biblioteca no Drive. Pré-busca não publica capas de jogos ainda não exibidos.
+Nenhuma varredura/envio dos 2,1 GB foi criado. Limites de leitura e hashes são conferidos.
+
+Saves PSP/3DS na ficha usam ID verificado/escolhido, pedem região e árvore quando há ambiguidade;
+sem evidência há uma opção explícita para todos os jogos do emulador. Extdata não é inferida
+pelo Program ID. Rotas HTTP antigas de saves retornam 410, módulo antigo removido e regra pura
+extraída para save_paths. 436 testes Python, JVM, build e lint passaram. O total Python diminuiu
+pela retirada dos testes do protocolo encerrado. APK final ainda será instalado e conferido.
+
 ## 29/10/2026 — Biblioteca local Android, diário e estados por aparelho
 
 Android ganhou SQLite por jogo, bootstrap pelo snapshot e diário imutável compatível com Python.

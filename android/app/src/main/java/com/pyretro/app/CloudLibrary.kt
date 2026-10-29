@@ -56,6 +56,29 @@ class CloudLibrary(private val store:LibraryStore) {
         val rows=JSONArray(store.prefs.getString("drive-index:$code","[]"));(0 until rows.length()).map { rows.getJSONObject(it) }.map { DriveRef(it.getString("id"),it.getString("name"),it.getLong("size"),it.optString("md5")) }
     }
     fun catalog()=CloudCatalog.games(journal.library(),store.legacyCached(),files(),store::accepts)
+    fun cover(game:Game,publish:Boolean=true):java.io.File? {
+        if(game.id.isBlank())return null
+        val directory=java.io.File(store.context.cacheDir,"covers").apply { mkdirs() }
+        val file=java.io.File(directory,"cloud-"+CloudRules.sha256(game.id.toByteArray()))
+        val checked="cover-checked:"+game.id
+        if(file.isFile && System.currentTimeMillis()-store.prefs.getLong(checked,0)<5*60*1000L)return file
+        if(!drive.connected)return file.takeIf { it.isFile }
+        try {
+            val remote=DriveCloudStorage(drive,maxBytes=CloudCovers.MAX_BYTES)
+            val bytes=try { CloudCovers.get(remote,game.id) } catch(_:CloudNotFound) {
+                val relative=this.game(game.id)?.optString("capa")?.takeUnless { it.isBlank() || it=="null" } ?: return file.takeIf { it.isFile }
+                val original=DriveCloudStorage(drive,listOf("Jogos","Biblioteca"),CloudCovers.MAX_BYTES).get(relative)
+                if(publish)CloudCovers.publish(remote,game.id,original)
+                original
+            }
+            val temp=java.io.File.createTempFile("cover-",".tmp",directory)
+            try { temp.writeBytes(bytes);check(temp.renameTo(file)) } finally { temp.delete() }
+            // Pré-busca não suprime o envio quando o jogo for de fato exibido.
+            if(publish)store.prefs.edit().putLong(checked,System.currentTimeMillis()).apply()
+            directory.listFiles()?.sortedBy { it.lastModified() }?.dropLast(LibraryStore.COVER_CACHE_LIMIT)?.forEach { it.delete() }
+            return file
+        } catch(error:Exception) { if(file.isFile)return file;throw error }
+    }
     fun sync(forceIndex:Boolean=false):String=synchronized(syncLock) {
         require(drive.connected) { "Conecte a conta Google em Opções para sincronizar a Biblioteca sem o notebook." }
         seed(store.legacyCached())
