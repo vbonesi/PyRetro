@@ -1505,18 +1505,27 @@ let held = new Set(), repeatAt = new Map(), foreground = true, awaitNeutral = fa
 window.addEventListener("blur", () => { foreground = false; held.clear(); awaitNeutral = true; $("spotlight-video").pause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { $("spotlight-video").pause(); $("detail-video").pause(); } else if (state.kind === 'home' && spotlightGame) showSpotlight(spotlightGame); });
 window.addEventListener("focus", () => { foreground = true; });
+const RAW_PAD = {
+  matches: pad => pad.mapping !== "standard" && pad.buttons.length === 15 && pad.axes.length >= 8,
+  // índice padrão -> índice cru: A, B, X, Y, LB, RB, LT, RT, Back, Start
+  buttons: {0: 0, 1: 1, 2: 3, 3: 4, 4: 6, 5: 7, 6: 8, 7: 9, 8: 10, 9: 11},
+};
 function pollGamepad(now) {
   const pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false && p.buttons.length >= 10);
   const pad = pads.find(p => p.mapping === "standard") || pads[0];
   if (pad) {
     const family = padFamily(pad.id); if (family !== glifoDetectado) { glifoDetectado = family; applyGlyphs(); }
     $("controller").textContent = `Controle conectado: ${pad.id}`; noPadSince = null; $("controller").classList.remove("warning");
-    const pressed = i => pad.buttons[i]?.pressed;
+    // Sem mapeamento "standard" (G8 pelo evdev, medido em 29/10) o navegador entrega a ordem crua do Linux:
+    // cruz nos eixos 6/7 e botões deslocados. A tabela traduz para os índices padrão usados abaixo.
+    const raw = RAW_PAD.matches(pad);
+    const pressed = i => pad.buttons[raw ? RAW_PAD.buttons[i] : i]?.pressed;
+    const hat = (axis, sign) => raw && (pad.axes[axis] || 0) * sign > 0.55;
     const keys = new Set();
-    if (pressed(14) || pad.axes[0] < -0.55) keys.add("left");
-    if (pressed(15) || pad.axes[0] > 0.55) keys.add("right");
-    if (pressed(12) || pad.axes[1] < -0.55) keys.add("up");
-    if (pressed(13) || pad.axes[1] > 0.55) keys.add("down");
+    if (pressed(14) || pad.axes[0] < -0.55 || hat(6, -1)) keys.add("left");
+    if (pressed(15) || pad.axes[0] > 0.55 || hat(6, 1)) keys.add("right");
+    if (pressed(12) || pad.axes[1] < -0.55 || hat(7, -1)) keys.add("up");
+    if (pressed(13) || pad.axes[1] > 0.55 || hat(7, 1)) keys.add("down");
     if (pressed(0)) keys.add("accept"); if (pressed(1)) keys.add("back");
     if (pressed(2)) keys.add("erase"); if (pressed(3)) keys.add("search");
     if (pressed(4)) keys.add("page-up"); if (pressed(5)) keys.add("page-down");

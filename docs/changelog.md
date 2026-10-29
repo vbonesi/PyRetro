@@ -4563,3 +4563,7 @@ filtros unificados).
   em `-bigpicture -fullscreen`, PPSSPP `--fullscreen`, RetroArch `-f`; todos conferidos em tela cheia pelo KWin.
 - **Janela nativa:** instância única (a segunda chamada traz a janela). Orientação ao setup para abandonar o Plasma
   Bigscreen e abrir o PyRetro pelo Guide do Xbox e pelo botão PS do WGP16 Nova II: `docs/setup-pyretro-unico.md`.
+- **G8 no modo TV:** o navegador entrega o Galileo G8 sem mapeamento "standard" (15 botões, 8 eixos): cruz nos eixos 6/7,
+  Start = botão 11, X/Y = 3/4, LB/RB = 6/7, LT/RT = 8/9, Back = 10. `tv.js` ganhou `RAW_PAD`, que traduz para os
+  índices padrão só nesse caso (controles com mapeamento padrão não mudam). Medido com sonda no QtWebEngine.
+  O app Android não é afetado: usa `KeyEvent`/`AXIS_HAT_*` do sistema, já normalizados.
