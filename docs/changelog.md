@@ -1,5 +1,15 @@
 # Changelog
 
+## 29/10/2026 — Android 0.20.0: filtros, Ranking e navegação visual
+
+Desejados agora oferece os seus próprios filtros; filtros são guardados por coleção. Pódio em
+retrato usa cartões legíveis na ordem 1–2–3; paisagem mantém 2–1–3. Empates usam nome em
+português, plataforma e ID. Glifos automáticos/manuais Xbox/PlayStation/genérico preservam
+bindings. Aba ativa e foco têm sinais distintos; a seleção volta ao trecho visível da barra.
+Busca e paginação compactas em paisagem, marca PR no cabeçalho, nota especial na ficha e
+botão Sortear novamente com filtros preservados. Build/lint e testes JVM passaram; validação
+no aparelho será feita junto com as próximas entregas. Saves reais intocados.
+
 ## 29/10/2026 — Android 0.19.1: falhas de saves permanecem visíveis
 
 Resolução de conflito só confirma sucesso depois do resultado positivo. Erros de grupos e de

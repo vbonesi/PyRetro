@@ -12,11 +12,19 @@ class GridRulesTest {
     }
     @Test fun podiumGoesSecondFirstThirdAndTieIsAnnounced() {
         assertEquals(listOf("b","a","c"),GridRules.podiumOrder(listOf("a","b","c")))
+        assertEquals(listOf("a","b","c"),GridRules.podiumOrder(listOf("a","b","c"),wide=false))
         assertEquals(listOf("a","b"),GridRules.podiumOrder(listOf("a","b")))
         val ranked=listOf(entry("a",nota=11.0),entry("b",nota=11.0),entry("c",nota=11.0),entry("d",nota=11.0))
         assertNotNull(GridRules.tieNote(ranked))
         assertNull(GridRules.tieNote(ranked.take(3)))
         assertNull(GridRules.tieNote(ranked.take(3)+entry("e",nota=10.0)))
+    }
+    @Test fun rankingUsesPortugueseNamesPlatformAndStableIdentityForTies() {
+        val a=GridEntry("a","Água","SNES","",8.0)
+        val b=GridEntry("b","Zebra","NES","",8.0)
+        val c=GridEntry("c","Água","NES","",8.0)
+        assertEquals(listOf("c","a","b"),GridRules.ranking(listOf(b,a,c)))
+        assertEquals(listOf("c","a","b"),GridRules.ranking(listOf(c,b,a)))
     }
     @Test fun filterCombinesPlatformAndGenre() {
         val entries=listOf(entry("1","NES","RPG"),entry("2","SNES","RPG"),entry("3","NES","Ação"))

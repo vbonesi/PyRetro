@@ -101,12 +101,12 @@ class InterfaceSmoke(private val runner:Instrumentation) {
                         var keys=emptyList<String>()
                         runOnMainSync { keys=nodes(field("grid").get(activity) as View).mapNotNull { (it.tag as? Game)?.key } }
                         check(keys.toSet()==setOf("ui:a","ui:b","ui:c") && keys.size==3) { "Ranking duplicou jogos ou incluiu jogo sem nota." }
-                        if(label=="portrait" && keys!=listOf("ui:a","ui:b","ui:c"))findings.put("Pódio em retrato mantém a ordem 2–1–3 e três colunas estreitas.")
+                        if(label=="portrait")check(keys==listOf("ui:a","ui:b","ui:c")) { "Pódio em retrato fora da ordem 1–2–3." }
                     }
                 }
                 runOnMainSync { field("collection").set(activity,"wishlist") }
                 invoke("filterDialog");capture("$label-wishlist-filters","Filtrar")
-                if("Xbox Series S" !in texts() || "Corrida" !in texts())findings.put("Filtro de Desejados usa as plataformas/gêneros do Catálogo.")
+                check("Xbox Series S" in texts() && "Corrida" in texts()) { "Filtro de Desejados usou as opções do Catálogo." }
                 dismiss()
                 runOnMainSync { field("collection").set(activity,"catalog") }
                 invoke("draw");capture("$label-draw","Sortear",screenshot=true);dismiss()

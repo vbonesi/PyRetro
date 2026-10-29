@@ -65,6 +65,12 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private val collectionButtons=linkedMapOf<String,Button>()
     private lateinit var gridScroll:ScrollView
     private lateinit var controlHint:TextView
+    private lateinit var previousPage:Button
+    private lateinit var nextPage:Button
+    private lateinit var searchToggle:Button
+    private var glyphFamily="generic"
+    private var renderedCollection=""
+    private var lastDrawKey:String?=null
     private lateinit var controllerManager:InputManager
     private val work=Executors.newSingleThreadExecutor()
     private val images=Executors.newFixedThreadPool(2)
@@ -138,7 +144,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private val appForeground=Color.rgb(237,244,253)
     private val accent=Color.rgb(129,225,202)
     private fun dp(value:Int)=(value*resources.displayMetrics.density).toInt()
-    private fun shape(selected:Boolean=false)=GradientDrawable().apply { cornerRadius=dp(12).toFloat();setColor(if(selected)Color.rgb(35,94,87) else Color.rgb(26,43,63));setStroke(dp(if(selected)3 else 1),if(selected)accent else Color.rgb(60,81,102)) }
+    private fun shape(selected:Boolean=false,focused:Boolean=false)=GradientDrawable().apply { cornerRadius=dp(12).toFloat();setColor(if(selected)Color.rgb(35,94,87) else Color.rgb(26,43,63));setStroke(dp(if(focused)3 else if(selected)2 else 1),if(focused)Color.WHITE else if(selected)accent else Color.rgb(60,81,102)) }
     /** Selo colorido da plataforma, igual ao da web e do modo TV; decorativo (o nome vem escrito ao lado). */
     private fun platformChip(vararg names:String?):TextView {
         val info=PlatformRules.find(*names)
@@ -151,7 +157,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         }
     }
     private fun text(value:CharSequence,size:Float=16f)=TextView(this).apply { text=value;textSize=size;setTextColor(appForeground);setPadding(dp(4),dp(4),dp(4),dp(4)) }
-    private fun button(value:String,action:()->Unit)=Button(this).apply { text=value;isAllCaps=false;minHeight=dp(48);setTextColor(appForeground);background=shape();setPadding(dp(12),dp(6),dp(12),dp(6));setOnClickListener { action() };setOnFocusChangeListener { _,focused -> background=shape(focused) } }
+    private fun button(value:String,action:()->Unit)=Button(this).apply { text=value;isAllCaps=false;minHeight=dp(48);setTextColor(appForeground);background=shape();setPadding(dp(12),dp(6),dp(12),dp(6));setOnClickListener { action() };setOnFocusChangeListener { _,focused -> background=shape(focused=focused) } }
     private fun row()=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL }
     private fun column()=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(8),dp(12),dp(8)) }
     private fun add(parent:LinearLayout,view:View,weight:Float=0f) { parent.addView(view,LinearLayout.LayoutParams(if(weight>0)0 else ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT,weight).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) }) }
@@ -159,7 +165,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun message(value:String) {
         status.text=value
         val notice=value.startsWith("Offline") || value.startsWith("Modo offline") || value.startsWith("Online ·")
-        status.visibility=if(notice && !store.prefs.getBoolean("ui:show-notice",true))View.GONE else View.VISIBLE
+        status.visibility=if(notice && (resources.configuration.orientation==2 || !store.prefs.getBoolean("ui:show-notice",true)))View.GONE else View.VISIBLE
     }
     private fun failure(error:Throwable) { message(error.message ?: "Não foi possível concluir.") }
     private fun firstEnabledButton(view:View):Button? {
@@ -196,6 +202,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState);store=LibraryStore(this)
         collection=store.prefs.getString("ui:collection","home").takeIf { it in COLLECTIONS.map { c -> c.first } } ?: "home"
+        filterPlatform=store.prefs.getString("ui:filter:$collection:platform","").orEmpty();filterGenre=store.prefs.getString("ui:filter:$collection:genre","").orEmpty()
         page=store.prefs.getInt("ui:page",0).coerceAtLeast(0);restoredScroll=store.prefs.getInt("ui:scroll",0).coerceAtLeast(0)
         restoredPage=page
         lastSelectedKey=store.prefs.getString("ui:selected",null)
@@ -209,9 +216,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             insets
         }
         // Um só lugar para Situação e Opções, nas duas orientações; a barra abaixo é só de coleções.
-        val heading=row();titleView=text("✦ PyRetro",25f).apply { setTypeface(null,Typeface.BOLD) };add(heading,titleView,1f);statusButton=button("Situação") { statusCenter() };add(heading,statusButton);add(heading,button("Opções") { settings() });pageRoot.addView(heading);headingBar=heading
+        val heading=row();heading.addView(ImageView(this).apply { setImageResource(R.drawable.ic_pyretro);contentDescription=null;scaleType=ImageView.ScaleType.FIT_CENTER },LinearLayout.LayoutParams(dp(32),dp(32)))
+        titleView=text("PyRetro",25f).apply { setTypeface(null,Typeface.BOLD) };add(heading,titleView,1f);statusButton=button("Situação") { statusCenter() };add(heading,statusButton);add(heading,button("Opções") { settings() });pageRoot.addView(heading);headingBar=heading
         val collections=row()
-        for((id,label) in COLLECTIONS)add(collections,button(label) { selectCollection(id) }.also { tab -> collectionButtons[id]=tab;tab.setOnFocusChangeListener { _,focused -> tab.background=shape(focused || collection==id) } })
+        for((id,label) in COLLECTIONS)add(collections,button(label) { selectCollection(id) }.also { tab -> collectionButtons[id]=tab;tab.setOnFocusChangeListener { _,focused -> tab.background=shape(collection==id,focused) } })
         horizontal(pageRoot,collections)
         drawShortcut=button("🎲 Sortear") { draw() };add(collections,drawShortcut)
         statsShortcut=button("📊 Estatísticas") { statsDialog() };add(collections,statsShortcut)
@@ -219,25 +227,35 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         search.addTextChangedListener(object:TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){};override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){page=0;render()};override fun afterTextChanged(s:Editable?){} })
         // Filtro por plataforma/gênero ao lado da busca; vale para a coleção aberta.
         val searchRow=row();searchRow.addView(search,LinearLayout.LayoutParams(0,dp(52),1f))
+        searchToggle=button("⌕ Buscar") { store.prefs.edit().putBoolean("ui:search-open",true).apply();render();search.requestFocus();(getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(search,InputMethodManager.SHOW_IMPLICIT) };add(searchRow,searchToggle)
         filterButton=button("Filtro") { filterDialog() };add(searchRow,filterButton);pageRoot.addView(searchRow,LinearLayout.LayoutParams(-1,-2))
         status=text("Modo offline · selecione suas pastas ou carregue o catálogo do notebook.",13f);pageRoot.addView(status)
         queueBanner=button("Downloads") { downloads() }.apply { textSize=13f;maxLines=2;visibility=View.GONE };pageRoot.addView(queueBanner,LinearLayout.LayoutParams(-1,-2))
         seenQueueCompletion=runCatching { queue().completedAt }.getOrDefault(0L)
         grid=GridLayout(this).apply { alignmentMode=GridLayout.ALIGN_BOUNDS }
         gridScroll=ScrollView(this).apply { isFillViewport=true;addView(grid) };pageRoot.addView(gridScroll,LinearLayout.LayoutParams(-1,0,1f))
-        val paging=row();add(paging,button("LB · Anterior") { changePage(-1) });counter=text("",13f);add(paging,counter,1f);add(paging,button("Próxima · RB") { changePage(1) });pageRoot.addView(paging);pagingBar=paging
+        val paging=row();previousPage=button("LB · Anterior") { changePage(-1) }.apply { minWidth=0 };add(paging,previousPage);counter=text("",13f);add(paging,counter,1f);nextPage=button("Próxima · RB") { changePage(1) }.apply { minWidth=0 };add(paging,nextPage);pageRoot.addView(paging);pagingBar=paging
         controlHint=text("Galileo G8: direcional/analógico · A abrir · B voltar · X favorito · Y buscar · Menu opções",11f);pageRoot.addView(controlHint)
         setContentView(pageRoot);adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal();probeNotebook()
         if(collection=="wishlist")loadWishlist()
         // Ligar o Tailscale (VPN) troca a rede padrão: sonda de novo sem esperar o usuário sair e voltar.
         networkCallback=object:ConnectivityManager.NetworkCallback() { override fun onAvailable(network:Network) { queueHandler.postDelayed({ if(!isFinishing && !isDestroyed)probeNotebook(force=true) },2_000) } }
         runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).registerDefaultNetworkCallback(networkCallback!!) }
-        controllerManager=getSystemService(INPUT_SERVICE) as InputManager;controllerManager.registerInputDeviceListener(this,null);updateControllerOrientation()
+        controllerManager=getSystemService(INPUT_SERVICE) as InputManager;controllerManager.registerInputDeviceListener(this,null);updateControllerOrientation();updateGlyphs()
     }
     private fun updateControllerOrientation() {
         val present=InputDevice.getDeviceIds().asSequence().mapNotNull { InputDevice.getDevice(it) }.any { !it.isVirtual && (it.supportsSource(InputDevice.SOURCE_GAMEPAD) || it.supportsSource(InputDevice.SOURCE_JOYSTICK)) }
         val orientation=if(present)ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         if(requestedOrientation!=orientation)requestedOrientation=orientation
+        if(::search.isInitialized)updateGlyphs()
+    }
+    private fun glyph(key:String)=GlyphRules.key(glyphFamily,key)
+    private fun updateGlyphs() {
+        val names=InputDevice.getDeviceIds().asSequence().mapNotNull { InputDevice.getDevice(it) }.filter { !it.isVirtual && it.supportsSource(InputDevice.SOURCE_GAMEPAD) }.map { it.name }.toList()
+        glyphFamily=GlyphRules.family(store.prefs.getString("ui:glyphs","auto").orEmpty(),names)
+        search.hint="${glyph("Y")} · Pesquisar nome, plataforma ou gênero"
+        previousPage.text="${glyph("LB")} · Anterior";nextPage.text="Próxima · ${glyph("RB")}"
+        controlHint.text="${glyph("A")} abrir · ${glyph("B")} voltar · ${glyph("X")} favorito · ${glyph("Y")} buscar · ${glyph("Menu")} opções"
     }
     override fun onInputDeviceAdded(deviceId:Int)=updateControllerOrientation()
     override fun onInputDeviceRemoved(deviceId:Int)=updateControllerOrientation()
@@ -254,9 +272,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun render() {
         if(!::grid.isInitialized)return
-        for((id,tab) in collectionButtons)tab.background=shape(tab.hasFocus() || id==collection)
+        for((id,tab) in collectionButtons)tab.background=shape(id==collection,tab.hasFocus())
+        if(renderedCollection!=collection) { renderedCollection=collection;collectionButtons[collection]?.let { tab -> tab.post { (tab.parent?.parent as? HorizontalScrollView)?.smoothScrollTo((tab.left-dp(16)).coerceAtLeast(0),0) } } }
         val streaming=collection=="stream"
-        search.visibility=if(streaming)View.GONE else View.VISIBLE
+        val compactSearch=resources.configuration.orientation==2 && search.text.isBlank() && !store.prefs.getBoolean("ui:search-open",false)
+        search.visibility=if(streaming || compactSearch)View.GONE else View.VISIBLE
+        searchToggle.visibility=if(!streaming && compactSearch)View.VISIBLE else View.GONE
+        filterButton.visibility=if(streaming)View.GONE else View.VISIBLE
         refreshStatusButton()
         pagingBar.visibility=if(streaming)View.GONE else View.VISIBLE
         drawShortcut.visibility=if(streaming)View.GONE else View.VISIBLE
@@ -269,26 +291,27 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(home) { renderHome();return }
         val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
         val query=GameLogic.normalized(search.text.toString())
-        val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
-        val base=(if(collection=="wishlist")wishGames else games).filter { game -> (collection!="cell" || game.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${game.key}",false)) && (collection!="kept" || pinned(game)) && (query.isBlank() || GameLogic.normalized(game.name+game.platform+game.genre).contains(query)) }
+        val base=collectionGames().filter { query.isBlank() || GameLogic.normalized(it.name+it.platform+it.genre).contains(query) }
         val entries=gridEntries(base)
         val ordered=if(collection=="ranking") { val byKey=base.associateBy { it.key };GridRules.ranking(entries).mapNotNull(byKey::get) } else base
         val allowed=GridRules.filter(entries,filterPlatform,filterGenre).map { it.key }.toSet()
         val visible=ordered.filter { it.key in allowed }
         filterButton.text=listOf(filterPlatform,filterGenre).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Filtro" }.let { if(it=="Filtro") it else "Filtro: $it" }
-        filterButton.background=shape(filterPlatform.isNotBlank() || filterGenre.isNotBlank())
+        filterButton.background=shape(filterPlatform.isNotBlank() || filterGenre.isNotBlank(),filterButton.hasFocus())
         val podium=if(collection=="ranking")visible.take(3) else emptyList()
         val listed=visible.drop(podium.size)
         val count=((listed.size+23)/24).coerceAtLeast(1);pageCount=count;page=page.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos"
+        pagingBar.visibility=if(count>1)View.VISIBLE else View.GONE
         if(restorePosition && localScanAt>0 && restoredPage!=null) { page=restoredPage!!.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos" }
         val compact=resources.configuration.orientation==2
         grid.removeAllViews();downloadBadges.clear();cardQueue=runCatching { queue().snapshot() }.getOrDefault(emptyList());val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
         val columns=if(width>=900)4 else if(width>=600)3 else 2;grid.columnCount=columns
         if(podium.isNotEmpty() && page==0) {
-            grid.addView(text("Top 3 desta seleção",18f).apply { setTypeface(null,Typeface.BOLD) },GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,columns),GridLayout.spec(GridLayout.UNDEFINED,columns)).apply { this.width=-1 })
-            val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+            grid.addView(text("Top 3 desta seleção",18f).apply { setTypeface(null,Typeface.BOLD) },GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1),GridLayout.spec(0,columns)).apply { this.width=-1 })
+            val wide=compact && width>=600
+            val row=LinearLayout(this).apply { orientation=if(wide)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
             val byKey=podium.associateBy { it.key }
-            for(key in GridRules.podiumOrder(podium.map { it.key }))row.addView(gameCard(byKey.getValue(key),true),LinearLayout.LayoutParams(0,-2,if(key==podium.first().key)1.2f else 1f).apply { setMargins(dp(4),dp(4),dp(4),dp(4)) })
+            for(key in GridRules.podiumOrder(podium.map { it.key },wide))row.addView(gameCard(byKey.getValue(key),wide),LinearLayout.LayoutParams(if(wide)0 else -1,-2,if(!wide)0f else if(key==podium.first().key)1.2f else 1f).apply { setMargins(dp(4),dp(4),dp(4),dp(4)) })
             grid.addView(row,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1),GridLayout.spec(0,columns)).apply { this.width=-1 })
             GridRules.tieNote(visible.map { g -> entries.first { it.key==g.key } })?.let { grid.addView(text(it,12f),GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1),GridLayout.spec(0,columns)).apply { this.width=-1 }) }
         }
@@ -304,15 +327,15 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
     }
     private fun gameCard(game:Game,compact:Boolean):LinearLayout {
-        val card=column().apply { isFocusable=true;isClickable=true;descendantFocusability=ViewGroup.FOCUS_BLOCK_DESCENDANTS;tag=game;background=shape();setOnClickListener { details(game) };setOnFocusChangeListener { _,focused -> background=shape(focused) } }
+        val card=column().apply { isFocusable=true;isClickable=true;descendantFocusability=ViewGroup.FOCUS_BLOCK_DESCENDANTS;tag=game;background=shape();setOnClickListener { details(game) };setOnFocusChangeListener { _,focused -> background=shape(focused=focused) } }
         if(compact)card.setPadding(dp(8),dp(4),dp(8),dp(4))
         val cover=ImageView(this).apply { setImageResource(com.pyretro.app.R.drawable.ic_pyretro);scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name }
         card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
-        card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
+        card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
         val meta=text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END }
         card.addView(LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL
             addView(platformChip(game.code,game.platform),LinearLayout.LayoutParams(-2,-2).apply { setMargins(dp(4),0,0,0) });addView(meta,LinearLayout.LayoutParams(0,-2,1f)) })
-        val badges=text(coloredBadges(game),12f).apply { maxLines=1;setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
+        val badges=text(coloredBadges(game),12f).apply { maxLines=3;setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
         card.addView(badges);downloadBadges[game.key]=badges
         images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
         return card
@@ -362,16 +385,19 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(focusedKey!=null)(cards.firstOrNull { (it.tag as Game).key==focusedKey } ?: cards.firstOrNull())?.requestFocus()
         if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
     }
-    private fun gridEntries(list:List<Game>)=list.map { GridEntry(it.key,it.name,it.platform,it.genre,TrackingRules.value(store.tracking(it),"nota") as Double?) }
+    private fun gridEntries(list:List<Game>)=list.map { GridEntry(it.key,it.name,it.platform,it.genre,TrackingRules.value(store.tracking(it),"nota") as Double?,it.id.ifBlank { it.key }) }
+    private fun collectionGames():List<Game> {
+        val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
+        return (if(collection=="wishlist")wishGames else games).filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) && (collection!="kept" || pinned(it)) && (collection!="ranking" || TrackingRules.value(store.tracking(it),"nota")!=null) }
+    }
     /** Filtro da coleção aberta: plataformas e gêneros que existem nela. */
     private fun filterDialog() {
-        val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
-        val entries=gridEntries(games.filter { game -> (collection!="cell" || game.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${game.key}",false)) && (collection!="kept" || pinned(game)) && (collection!="ranking" || TrackingRules.value(store.tracking(game),"nota")!=null) })
+        val entries=gridEntries(collectionGames())
         val box=column();box.addView(text("Filtrar",23f))
         fun section(title:String,options:List<String>,all:String,current:String,choose:(String)->Unit) {
             box.addView(text(title,18f).apply { setTypeface(null,Typeface.BOLD) })
             val line=row();horizontal(box,line)
-            for(option in listOf("")+options)add(line,button(option.ifBlank { all }) { choose(option);page=0;dialog?.dismiss();render() }.apply { background=shape(option==current);setOnFocusChangeListener { _,focused -> background=shape(focused || option==current) } })
+            for(option in listOf("")+options)add(line,button(option.ifBlank { all }) { choose(option);page=0;dialog?.dismiss();render() }.apply { background=shape(option==current);setOnFocusChangeListener { _,focused -> background=shape(option==current,focused) } })
         }
         section("Plataforma",GridRules.platforms(entries),"Todas",filterPlatform) { filterPlatform=it }
         section("Gênero",GridRules.genres(entries),"Qualquer",filterGenre) { filterGenre=it }
@@ -494,7 +520,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         search()
     }
     private fun selectCollection(id:String) {
-        if(id!=collection) { filterPlatform="";filterGenre="" }
+        if(id!=collection) {
+            store.prefs.edit().putString("ui:filter:$collection:platform",filterPlatform).putString("ui:filter:$collection:genre",filterGenre).apply()
+            filterPlatform=store.prefs.getString("ui:filter:$id:platform","").orEmpty();filterGenre=store.prefs.getString("ui:filter:$id:genre","").orEmpty()
+        }
         if(id=="wishlist")loadWishlist()
         collection=id;page=0;restorePosition=false;restoredPage=null;render();gridScroll.scrollTo(0,0)
     }
@@ -507,6 +536,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             Triple("PC e Switch · Moonlight","com.limelight","Escolha o notebook no Moonlight. O vídeo do Switch passa pelo notebook.")
         )
         for((label,target,description) in clients) {
+            box.addView(platformChip(if(target=="com.grill.xbxplay")"Xbox Series S" else if(target=="com.playstation.remoteplay")"PlayStation 4" else "PC"))
             val installed=packageManager.getLaunchIntentForPackage(target)!=null
             box.addView(button(label+(if(installed)"" else " · não encontrado")) { openPackage(target) }.apply { isEnabled=installed;alpha=if(installed)1f else .55f },LinearLayout.LayoutParams(-1,-2).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) })
             box.addView(text(description,14f))
@@ -525,7 +555,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         }
     }
     private fun controllerSearch() {
-        val box=column();box.addView(text("Pesquisar · X apaga · Menu confirma",18f))
+        val box=column();box.addView(text("Pesquisar · ${glyph("X")} apaga · ${glyph("Menu")} confirma",18f))
         val input=EditText(this).apply { setSingleLine();setText(search.text.toString());setTextColor(appForeground) };box.addView(input)
         val keyboard=GridLayout(this).apply { columnCount=6 }
         fun append(value:String) { input.append(value) }
@@ -552,8 +582,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         status.maxLines=if(landscape)1 else 2;message(status.text.toString());search.layoutParams.height=dp(if(landscape)48 else 52)
     }
     private fun draw() {
-        val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
-        val current=games.filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) && (collection!="kept" || pinned(it)) }
+        val query=GameLogic.normalized(search.text.toString())
+        val current=collectionGames().filter { (filterPlatform.isBlank() || it.platform==filterPlatform) && (filterGenre.isBlank() || it.genre==filterGenre) && (query.isBlank() || GameLogic.normalized(it.name+it.platform+it.genre).contains(query)) }
         // Coleção vazia (Fixados/Favoritos sem jogos) não pode parecer botão morto: sorteia dos jogos do celular ou do catálogo.
         val local=games.filter { it.localUri!=null }
         val (pool,title)=when {
@@ -566,10 +596,14 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val genres=listOf("Qualquer gênero")+pool.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
         val system=Spinner(this);system.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,platforms)
         val genre=Spinner(this);genre.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,genres)
+        system.setSelection(platforms.indexOf(store.prefs.getString("ui:draw-platform","")).coerceAtLeast(0))
+        genre.setSelection(genres.indexOf(store.prefs.getString("ui:draw-genre","")).coerceAtLeast(0))
         val box=column();box.addView(text(title,if(pool===current)22f else 18f));box.addView(system);box.addView(genre)
+        box.addView(text("${pool.size} jogo(s) disponíveis. O resultado abre a ficha; jogar/baixar exige sua escolha.",13f))
         add(box,button("Sortear e sugerir como jogar") {
+            store.prefs.edit().putString("ui:draw-platform",system.selectedItem.toString()).putString("ui:draw-genre",genre.selectedItem.toString()).apply()
             val selected=pool.filter { (system.selectedItemPosition==0 || it.platform==system.selectedItem) && (genre.selectedItemPosition==0 || it.genre==genre.selectedItem) }.randomOrNull()
-            if(selected==null)Toast.makeText(this,"Nenhum jogo com esses filtros.",Toast.LENGTH_SHORT).show() else details(selected)
+            if(selected==null)Toast.makeText(this,"Nenhum jogo com esses filtros.",Toast.LENGTH_SHORT).show() else { lastDrawKey=selected.key;details(selected) }
         });show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun textures(game:Game?=null) {
@@ -635,8 +669,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             else -> "Só no catálogo"
         }
         val played=store.prefs.getLong("time:${game.key}",0)/60
-        box.addView(text(listOfNotNull(game.platform,state,played.takeIf { it>0 }?.let { if(it>=60)"⏱ ${it/60}h${"%02d".format(it%60)} no celular" else "⏱ $it min no celular" },
-            (TrackingRules.value(store.tracking(game),"nota") as Double?)?.let { "★ "+TrackingRules.label(it) }).joinToString(" · "),14f))
+        box.addView(text(listOfNotNull(game.platform,state,played.takeIf { it>0 }?.let { if(it>=60)"⏱ ${it/60}h${"%02d".format(it%60)} no celular" else "⏱ $it min no celular" }).joinToString(" · "),14f))
+        (TrackingRules.value(store.tracking(game),"nota") as Double?)?.let { nota -> box.addView(text(NotaRules.symbol(nota)+" "+TrackingRules.label(nota)+(if(NotaRules.special(nota))" · jogo muito especial" else ""),16f).apply { NotaRules.color(nota)?.let(::setTextColor) }) }
         // A ação principal é a próxima coisa que faz sentido para o jogo; o resto fica em Mais opções.
         when {
             game.localUri!=null -> primary(box,"▶ Jogar neste celular") { dialog?.dismiss();launchLocal(game) }
@@ -648,6 +682,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             rom -> primary(box,"Procurar a ROM no Drive") { driveSearch(game) }
         }
         if(stream!=null)box.addView(text("Abrir o jogo direto não é possível: escolha-o no console depois de conectar.",13f))
+        if(lastDrawKey==game.key)add(box,button("🎲 Sortear novamente") { draw() })
         if(viaNotebook)box.addView(text("Abra o jogo no Switch. O notebook liga o SysDVR e o Moonlight mostra a tela.",13f))
         if(rom && game.localUri==null && !waiting && !linked(game) && !game.downloadable)box.addView(text("O notebook não tem esta ROM. Escolha o arquivo no Drive uma vez; depois o download é direto.",13f))
         val quick=row();horizontal(box,quick)
@@ -845,6 +880,11 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(!notificationsAllowed()) add(box,button("🔔 Permitir notificações de download") {
             runCatching { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName)) }.onFailure(::failure) })
         box.addView(text("Uso",18f).apply { setTypeface(null,Typeface.BOLD) })
+        val pref=store.prefs.getString("ui:glyphs","auto").orEmpty()
+        add(box,button("Botões: ${GlyphRules.label(pref,glyphFamily)}") {
+            val next=GlyphRules.choices[(GlyphRules.choices.indexOf(pref)+1).mod(GlyphRules.choices.size)]
+            store.prefs.edit().putString("ui:glyphs",next).apply();updateGlyphs();settings()
+        })
         add(box,button("Downloads") { downloads() })
         add(box,button("Espaço e jogos fixados") { spaceManager() })
         add(box,button("Saves e estados · todos os jogos") { syncFiles() })
@@ -1130,7 +1170,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun queueItem(key:String) {
         val entry=queue().snapshot().firstOrNull { it.game.key==key } ?: return
-        val box=column();box.addView(text(entry.game.name,21f));val state=text(queueLabel(entry),14f);box.addView(state)
+        val box=column();box.addView(platformChip(entry.game.code,entry.game.platform));box.addView(text(entry.game.name,21f));val state=text(queueLabel(entry),14f);box.addView(state)
         if(entry.error.isNotBlank())box.addView(text(entry.error,13f))
         if(entry.state in setOf(DownloadState.PAUSED,DownloadState.FAILED))add(box,button("Tentar novamente · deixar aguardando") { queueAction { queue().retry(key) } })
         if(entry.state!=DownloadState.RUNNING) {
@@ -1475,7 +1515,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             restoredScroll=gridScroll.scrollY;restoredPage=page;restorePosition=true
             val selected=(currentFocus?.tag as? Game)?.key ?: lastSelectedKey
             store.prefs.edit().putString("ui:collection",collection).putInt("ui:page",page).putInt("ui:scroll",restoredScroll)
-                .putString("ui:query",search.text.toString().take(256)).putString("ui:selected",selected).apply()
+                .putString("ui:query",search.text.toString().take(256)).putString("ui:selected",selected)
+                .putString("ui:filter:$collection:platform",filterPlatform).putString("ui:filter:$collection:genre",filterGenre).apply()
         }
         super.onPause();scanOnResume=true;if(activeGame!=null)leftForGame=true
     }
