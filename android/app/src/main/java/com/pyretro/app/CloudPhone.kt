@@ -42,7 +42,9 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
     fun apply(only:Set<String>?=null,filter:((String,String)->Boolean)?=null):Map<String,Result<List<CloudResult>>> = groups().filter { only==null || it in only }.associateWith { group ->
         runCatching {
             val engine=engine(group);val results=engine.apply(engine.plan().filter { filter==null || filter(group,it.path) })
-            prefs.edit().putString("baseline:$group",JSONObject(engine.baseline as Map<*,*>).toString()).putLong("at",System.currentTimeMillis()).apply()
+            val edit=prefs.edit().putString("baseline:$group",JSONObject(engine.baseline as Map<*,*>).toString())
+            if(results.all { it.ok && it.conflict==null })edit.putLong("at",System.currentTimeMillis())
+            edit.apply()
             results
         }
     }

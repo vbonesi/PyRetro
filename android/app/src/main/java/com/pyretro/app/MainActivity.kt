@@ -890,6 +890,20 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val box=column();box.addView(text(title,23f));val info=text("Comparando com o Drive…",15f);box.addView(info)
         val area=column();box.addView(area)
         val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Fechar",null))
+        var busy=false
+        fun enable(view:View,value:Boolean) { if(view is Button)view.isEnabled=value;if(view is ViewGroup)for(i in 0 until view.childCount)enable(view.getChildAt(i),value) }
+        fun perform(action:()->CloudFeedback) {
+            if(busy)return
+            busy=true;info.text="Conferindo e aplicando…";enable(area,false)
+            work.execute {
+                val feedback=action()
+                runOnUiThread {
+                    if(dialog!==opened || isFinishing || isDestroyed)return@runOnUiThread
+                    busy=false;enable(area,true);info.text=feedback.message
+                    if(feedback.complete) { message(feedback.message);render();cloudSaves(title,filter) }
+                }
+            }
+        }
         work.execute {
             val phone=runCatching { CloudPhone(store,FileSync(store),DriveCloudStorage(drive)) }
             val analysis=phone.mapCatching { it.analyze(filter) }
@@ -903,18 +917,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     "Enviar: ${counts["push"] ?: 0} · Baixar: ${counts["pull"] ?: 0} · Conflitos: ${counts["conflict"] ?: 0}"+if(failed.isEmpty())"" else "\nErro em: ${failed.map { it.key+" ("+it.value.exceptionOrNull()?.message+")" }.joinToString()}"
                 val pending=counts.filterKeys { it=="push" || it=="pull" }.values.sum()
                 if(pending>0)add(area,button("Sincronizar agora ($pending)") {
-                    info.text="Sincronizando…";area.removeAllViews()
-                    work.execute {
-                        val applied=phone.getOrThrow().apply(filter=filter)
-                        runOnUiThread { val errors=applied.values.flatMap { it.getOrNull().orEmpty() }.count { !it.ok && it.conflict==null };val conflicts=applied.values.flatMap { it.getOrNull().orEmpty() }.count { it.conflict!=null }
-                            message("Saves na nuvem: sincronizado${if(conflicts>0)" · $conflicts conflito(s)" else ""}${if(errors>0)" · $errors erro(s)" else ""}.");dialog?.dismiss();render() }
-                    }
+                    perform { CloudFeedback.batch { phone.getOrThrow().apply(filter=filter) } }
                 })
                 for((group,items) in result)for(item in items.getOrNull().orEmpty().filter { it.action=="conflict" }) {
                     add(area,text("⚠ Conflito: ${item.path}",15f))
                     val line=row();horizontal(area,line)
-                    add(line,button("Manter o do celular") { work.execute { runCatching { phone.getOrThrow().resolve(group,item.path,"local") };runOnUiThread { message("Mantido o do celular: ${item.path}");dialog?.dismiss() } } })
-                    add(line,button("Usar o da nuvem") { work.execute { runCatching { phone.getOrThrow().resolve(group,item.path,"remote",item.heads.keys.first()) };runOnUiThread { message("Usado o da nuvem: ${item.path}");dialog?.dismiss() } } })
+                    add(line,button("Manter o do celular") { perform { CloudFeedback.resolve("Mantido o do celular: ${item.path}") { phone.getOrThrow().resolve(group,item.path,"local") } } })
+                    add(line,button("Usar o da nuvem") { perform { CloudFeedback.resolve("Usado o da nuvem: ${item.path}") { phone.getOrThrow().resolve(group,item.path,"remote",item.heads.keys.first()) } } })
                 }
             }
         }

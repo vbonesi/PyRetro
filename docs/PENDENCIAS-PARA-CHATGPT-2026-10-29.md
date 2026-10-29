@@ -72,6 +72,8 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
       lançador do setup poderia chamar `configure_xbox.py --detect/--controller`.
 
 ### Interface / produto
+- [x] **Correção de falhas/confirmacões de saves (0.19.1):** falhas de grupo/arquivo/exceção preservam a tela;
+      sucesso de resolução depende do resultado. 85 JVM e build/lint aprovados; ainda sem instalação nesta entrega.
 - [x] **Revisão comparativa Android × PC (Codex, 29/10):** matriz, divergências e roteiro reproduzível
       em `REVISAO-ANDROID-PC-2026-10-29.md`; 48 telas/estados no aparelho, em retrato/paisagem.
       As diferenças identificadas continuam abertas; navegação aprovada não comprova paridade.

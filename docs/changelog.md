@@ -1,5 +1,14 @@
 # Changelog
 
+## 29/10/2026 — Android 0.19.1: falhas de saves permanecem visíveis
+
+Resolução de conflito só confirma sucesso depois do resultado positivo. Erros de grupos e de
+arquivos entram no resumo; exceções mantêm o diálogo e a possibilidade de nova tentativa.
+Botões ficam bloqueados durante a operação para impedir ações concorrentes. Uma execução com
+falha não atualiza a data de sucesso daquele grupo. 85 testes JVM e build/lint passaram, incluindo
+falhas de grupo, arquivo, exceção, conflito e resolução. APK compilado; instalação fica para a
+validação conjunta das próximas correções. Nenhum save real foi alterado.
+
 ## 29/10/2026 — revisão da interface Android em comparação com o PC (Codex)
 
 Matriz e fila de correções em [REVISAO-ANDROID-PC-2026-10-29.md](REVISAO-ANDROID-PC-2026-10-29.md).
