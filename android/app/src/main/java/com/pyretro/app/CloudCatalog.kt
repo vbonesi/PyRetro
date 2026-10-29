@@ -12,6 +12,7 @@ object CloudCatalog {
         for(i in 0 until sources.length())sources.optString(i).takeIf { it.startsWith("rom:") }?.removePrefix("rom:")?.takeIf { it in codes.values }?.let { return it }
         return codes[PlatformRules.find(game.optString("plataforma")).id].orEmpty()
     }
+    private val setCode=Regex("\\s*\\([^)]*\\)")
     fun romName(value:String):String=GameLogic.normalized(GameLogic.fileLabel(value)
         .replace(tags,"").replace(regions,""))
     fun libraryFrom(games:List<Game>):JSONObject {
@@ -22,7 +23,7 @@ object CloudCatalog {
     fun games(library:JSONObject,legacy:List<Game>,files:Map<String,List<DriveRef>>,arcadeNames:JSONObject=JSONObject(),accepts:(String,String)->Boolean):List<Game> {
         val old=legacy.filter { it.id.isNotBlank() }.groupBy { it.id };val result=mutableListOf<Game>()
         fun label(code:String,name:String)=if(code=="ARCADE")arcadeNames.optString(name.substringBeforeLast('.'),GameLogic.fileLabel(name)) else GameLogic.fileLabel(name)
-        val indexed=files.mapValues { (code,refs) -> refs.filter { it.size>0 && accepts(code,it.name) }.flatMap { ref -> listOf(romName(ref.name),romName(label(code,ref.name))).distinct().map { it to ref } }.groupBy({ it.first },{ it.second }) }
+        val indexed=files.mapValues { (code,refs) -> refs.filter { it.size>0 && accepts(code,it.name) }.flatMap { ref -> listOf(romName(ref.name),romName(label(code,ref.name)),romName(label(code,ref.name).let { if(code=="ARCADE")it.replace(setCode,"") else it })).distinct().map { it to ref } }.groupBy({ it.first },{ it.second }) }
         val rows=JournalRules.games(library);val candidates=rows.mapValues { (_,g) ->
             val aliases=g.optJSONArray("nomes_alt") ?: JSONArray();val wanted=(listOf(g.optString("nome"))+(0 until aliases.length()).map { aliases.optString(it) }).map(::romName).toSet()
             wanted.flatMap { indexed[code(g)]?.get(it).orEmpty() }.distinctBy { it.id }
