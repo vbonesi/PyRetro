@@ -165,9 +165,11 @@ def load_library(path: Path) -> dict:
 # Ganchos chamados depois de cada gravação do library.json (ex.: snapshot na nuvem, ver core/cloud_sync).
 # Um gancho que falha nunca atrapalha a gravação.
 AFTER_SAVE: list = []
+# Ganchos que recebem também o antes e o depois: hook(path, antes, depois). Só lê o arquivo antigo se houver algum.
+AFTER_SAVE_DIFF: list = []
 
 
-def save_library(path: Path, library: dict) -> None:
+def save_library(path: Path, library: dict, hooks: bool = True) -> None:
     """Grava de forma ATÔMICA: escreve num temporário do lado e só
     então troca pelo arquivo final (`os.replace`, que é atômico no
     mesmo sistema de arquivos). Achado 28/08: com `write_text` direto,
@@ -189,12 +191,23 @@ def save_library(path: Path, library: dict) -> None:
     if duplicados:
         raise ValueError(f"library.json contém id(s) duplicado(s): {', '.join(map(str, duplicados))}")
     path.parent.mkdir(parents=True, exist_ok=True)
+    before = None
+    if hooks and AFTER_SAVE_DIFF and path.exists():
+        try:
+            before = json.loads(path.read_text())
+        except (OSError, ValueError):
+            before = None
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(library, indent=1, ensure_ascii=False))
     tmp.replace(path)
-    for hook in list(AFTER_SAVE):
+    for hook in (list(AFTER_SAVE) if hooks else []):
         try:
             hook(path)
+        except Exception:  # noqa: BLE001
+            pass
+    for hook in (list(AFTER_SAVE_DIFF) if hooks else []):
+        try:
+            hook(path, before, library)
         except Exception:  # noqa: BLE001
             pass
 

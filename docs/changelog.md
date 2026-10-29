@@ -4390,3 +4390,14 @@ filtros unificados).
   "Saves enviados pelo celular" do modo TV e seus testes. `core/mobile_sync.py` e `/api/mobile/sync/*` ficam por
   ora (só o app antigo os usava; `game_save_ids` ainda reutiliza as regras de grupo). 426 Python, 54 JS, JVM.
 - A lista de um sistema leve no modo TV agora vem do catálogo (PC + Drive); testes ajustados.
+
+## 29/10/2026 — Biblioteca com diário SQLite; Biblioteca e Backups em ~/Games/PyRetro; Series S medido
+
+- `core/library_journal.py`: a cada gravação do `library.json` o diário (`library-journal.db`, SQLite) registra só
+  o que mudou (jogo novo/removido, campo alterado/removido, metadados). A nuvem recebe segmentos imutáveis
+  (`journal/<dispositivo>/de-até.json`, algumas centenas de bytes por edição) e o arquivo inteiro só como snapshot
+  de compactação (o primeiro, a cada 24 h ou após 2.000 mudanças). `pull_library` junta mudanças de outro
+  dispositivo campo a campo (vence a mais recente; remoção perde para edição local mais nova; sem eco).
+- Biblioteca (2,2 GB com capas) e Backups copiados e verificados para `~/Games/PyRetro`; `[storage] migrated`
+  inclui `biblioteca` e `backups`. Primeiro snapshot enviado; Backups subindo.
+- Xbox Series S medido (SDL: "Xbox Series X Controller"). Registro: Xbox One, Series S e WGP16 medidos; G8 não.

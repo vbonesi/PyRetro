@@ -14,9 +14,9 @@
    "id": "xbox-series-s",
    "label": "Xbox Series S",
    "layout": "xbox",
-   "sdl_name": null,
-   "guid": null,
-   "measured": null
+   "sdl_name": "Xbox Series X Controller",
+   "guid": "0300f5a35e040000120b000017050000",
+   "measured": "2026-10-29"
   },
   {
    "id": "galileo-g8",

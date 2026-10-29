@@ -445,6 +445,7 @@ def _organize_trash(cfg: dict):
 
 # Cada gravação da Biblioteca agenda um snapshot na nuvem (se [cloud] estiver configurado).
 library_mod.AFTER_SAVE.append(lambda _path: cloud_sync_mod.schedule_library_snapshot(lambda: load_config()))
+library_mod.AFTER_SAVE_DIFF.append(lambda _path, before, after: cloud_sync_mod.record_library_change(load_config(), before, after))
 
 
 def _removal_entry(cfg: dict, code: str, entry: str) -> str:

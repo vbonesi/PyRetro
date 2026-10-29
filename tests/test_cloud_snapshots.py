@@ -84,5 +84,46 @@ class TestLibraryHook(unittest.TestCase):
         self.assertEqual(calls, [path])
 
 
+class TestLibraryJournalFlow(unittest.TestCase):
+    """Gravar a Biblioteca registra no diário; publicar envia só as mudanças e compacta com snapshot."""
+
+    def setUp(self):
+        from core import cloud_sync as cs, library as lm
+        self.cs, self.lm = cs, lm
+        self.tmp = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, self.tmp)
+        (self.tmp / "Biblioteca").mkdir(); (self.tmp / "Backups").mkdir()
+        self.cfg = {"pc": {"library_root": str(self.tmp / "Biblioteca"), "backups_root": str(self.tmp / "Backups")},
+                    "cloud": {"remote": "x", "device": "pc"}}
+        self.store = cloud.MemoryStorage()
+        hook = lambda path, before, after: cs.record_library_change(self.cfg, before, after)
+        lm.AFTER_SAVE_DIFF.append(hook); self.addCleanup(lm.AFTER_SAVE_DIFF.remove, hook)
+        self.path = cs.library_file(self.cfg)
+
+    def test_saving_records_publishes_increments_and_compacts_with_a_snapshot(self):
+        game = {"id": "a", "nome": "A", "nota": 5}
+        self.lm.save_library(self.path, {"games": [game]})
+        first = self.cs.publish_snapshots(self.cfg, self.store)
+        self.assertEqual(first["journal"], 1); self.assertEqual(first["library"]["state"], "enviado")  # 1º snapshot
+        self.lm.save_library(self.path, {"games": [{**game, "nota": 9}]})
+        second = self.cs.publish_snapshots(self.cfg, self.store)
+        self.assertEqual(second["journal"], 1)
+        self.assertNotIn("library", second)                      # sem compactar de novo: só o diário subiu
+        self.assertEqual(len(snap.versions(self.store, "library")), 1)
+        self.assertEqual(len([p for p in self.store.files if p.startswith("journal/pc/")]), 2)
+
+    def test_pull_merges_another_device_without_echoing_it_back(self):
+        from core import library_journal as lj
+        game = {"id": "a", "nome": "A", "nota": 5}
+        self.lm.save_library(self.path, {"games": [game]})
+        self.cs.publish_snapshots(self.cfg, self.store)
+        phone = lj.Journal(self.tmp / "celular.db", "celular")
+        phone.record({"games": [game]}, {"games": [{**game, "nota": 7}, {"id": "b", "nome": "B"}]}, at=9e12)
+        phone.publish(self.store)
+        self.assertEqual(self.cs.pull_library(self.cfg, self.store)["applied"], 2)
+        merged = json.loads(self.path.read_text())
+        self.assertEqual({g["id"]: g.get("nota") for g in merged["games"]}, {"a": 7, "b": None})
+        self.assertEqual(self.cs.publish_snapshots(self.cfg, self.store)["journal"], 0)  # nada de eco
+
+
 if __name__ == "__main__":
     unittest.main()

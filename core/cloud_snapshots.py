@@ -45,7 +45,7 @@ def versions(storage, name):
     return sorted(rows, key=lambda r: r['stamp'], reverse=True)
 
 
-def publish(storage, name, path, keep=30, now=time.time):
+def publish(storage, name, path, keep=30, now=time.time, extra=None):
     """Envia `path` como nova versão se o conteúdo mudou. Devolve {'state': 'enviado'|'igual', ...}."""
     data = Path(path).read_bytes()
     json.loads(data)  # só publica JSON válido: um arquivo pela metade nunca vira "versão atual"
@@ -58,7 +58,7 @@ def publish(storage, name, path, keep=30, now=time.time):
         storage.put(f'snapshots/{name}/{leaf}', data)
     except cloud_mod.Exists:
         pass
-    pointer = {'file': leaf, 'sha256': sha, 'size': len(data), 'at': now()}
+    pointer = {'file': leaf, 'sha256': sha, 'size': len(data), 'at': now(), **(extra or {})}
     storage.put(f'snapshots/{name}/latest.json', json.dumps(pointer).encode(), overwrite=True)
     trimmed = 0
     for old in versions(storage, name)[keep:]:

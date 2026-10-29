@@ -6,11 +6,13 @@
     saves_dir = "~/Games/PyRetro/Saves"       # padrão: a pasta de saves em vigor
 """
 import threading
+import time
 from pathlib import Path
 
 from core import cloud as cloud_mod
 from core import cloud_saves as cloud_saves_mod
 from core import cloud_snapshots as snapshots_mod
+from core import library_journal as journal_mod
 
 EXCLUDE = ('runtime-logs',)
 
@@ -75,15 +77,43 @@ def library_file(cfg):
     return Path(cfg['pc']['library_root']).expanduser() / 'library.json'
 
 
+def journal(cfg):
+    """Diário de mudanças da Biblioteca (SQLite ao lado do library.json)."""
+    return journal_mod.Journal(library_file(cfg).with_name('library-journal.db'), (cfg.get('cloud') or {}).get('device') or 'pc')
+
+
+def record_library_change(cfg, before, after):
+    """Chamado a cada gravação da Biblioteca: registra o que mudou no diário local (sem rede)."""
+    if enabled(cfg):
+        journal(cfg).record(before, after)
+
+
 def publish_snapshots(cfg, store=None):
-    """Envia a Biblioteca (se mudou) e os arquivos novos dos Backups. Devolve o resultado de cada um."""
+    """Envia as mudanças novas da Biblioteca (diário) e os arquivos novos dos Backups. O arquivo inteiro só
+    vai como snapshot de compactação: o primeiro, a cada 24 h ou depois de muitas mudanças."""
     store = store or storage(cfg)
     result = {}
     path = library_file(cfg)
     if path.is_file():
-        result['library'] = snapshots_mod.publish(store, 'library', path, keep=int((cfg.get('cloud') or {}).get('keep', 30)))
+        diary = journal(cfg)
+        result['journal'] = diary.publish(store)
+        latest = snapshots_mod.latest(store, 'library')
+        stale = latest is None or (time.time() - float(latest.get('at', 0))) > 24 * 3600 or diary.count() - int(latest.get('journal_count', 0)) > 2000
+        if stale:
+            result['library'] = snapshots_mod.publish(store, 'library', path, keep=int((cfg.get('cloud') or {}).get('keep', 30)),
+                                                      extra={'journal_count': diary.count()})
     result['backups'] = snapshots_mod.publish_tree(store, Path(cfg['pc']['backups_root']).expanduser())
     return result
+
+
+def pull_library(cfg, store=None):
+    """Junta na Biblioteca local as mudanças de outros dispositivos (por jogo e campo, vence a mais recente)."""
+    from core import library as library_mod
+    path = library_file(cfg)
+    merged, applied = journal(cfg).pull(store or storage(cfg), library_mod.load_library(path))
+    if applied:
+        library_mod.save_library(path, merged, hooks=False)  # as mudanças já entraram no diário como remotas
+    return {'applied': applied}
 
 
 def schedule_library_snapshot(load_config, delay=30):
