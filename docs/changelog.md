@@ -4540,3 +4540,12 @@ filtros unificados).
   `ULUS10437GameData00`; ficou Patapon 2. Foi preciso editar os manifestos à mão (o motor não propaga exclusão): pendência
   de "tombstone" registrada para o Codex.
 - Moemon Ruby e KOF '97 baixados em ambos e marcados como iniciados.
+
+## 29/10/2026 — Switch → Drive pelo PyRetro (só PC)
+
+- Outbound (base, update e DLC Schoolbus Adventures) subiu para `Jogos/ROMs/NSW/Outbound/` (conferido por hash),
+  entrou na Biblioteca com capa (ScreenScraper) e gênero Simulação (escolha manual: nenhuma fonte achou).
+- Novo `core/switch_upload.py` + seção "Switch → Drive" no 🗂 Organizar: lê dumps NSP/NSZ/XCI/XCZ em Downloads,
+  sugere o nome limpo da pasta (editável), permite escolher o gênero (ou automático via ScreenScraper), envia com
+  `rclone copyto`, confere com `rclone check` e só então manda a origem para a lixeira. Rotas
+  `GET /api/switch/upload/pending` e `POST /api/switch/upload`. 5 testes novos (459 no total).

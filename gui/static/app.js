@@ -1130,6 +1130,7 @@ async function deleteHeavyItem(code, item) {
 function openOrganize() {
   document.getElementById("organize-modal").classList.remove("hidden");
   loadOrganizePending();
+  loadSwitchUpload();
 }
 
 function closeOrganize() {
@@ -1210,6 +1211,60 @@ async function moveOrganizeItem(name, code) {
   } else {
     alert(`erro ao mover: ${data.error || "falha"}`);
   }
+}
+
+function esc(text) {
+  return String(text).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+
+async function loadSwitchUpload() {
+  const list = document.getElementById("switch-upload-list");
+  const data = await (await fetch("/api/switch/upload/pending")).json();
+  document.getElementById("switch-upload-status").textContent = `(${data.downloads_dir})`;
+  list.innerHTML = "";
+  if (data.items.length === 0) {
+    list.innerHTML = '<div class="empty-state">Nenhum dump de Switch em Downloads.</div>';
+    return;
+  }
+  const generos = ['<option value="">gênero automático</option>']
+    .concat(data.generos.map(g => `<option>${esc(g)}</option>`)).join("");
+  for (const item of data.items) {
+    const row = document.createElement("div");
+    row.className = "heavy-item";
+    row.innerHTML = `
+      <div class="heavy-item-name" title="${esc(item.files.map(f => f.name).join("\n"))}">📦 ${esc(item.entry)} (${item.files.length} arq.)</div>
+      <div class="heavy-item-size">${formatGB(item.size)}</div>
+      <input class="switch-nome" type="text" value="${esc(item.nome)}" title="nome da pasta no Drive">
+      <select class="switch-genero">${generos}</select>
+      <button class="tiny" data-action="up" ${item.baixando ? "disabled" : ""}>${item.baixando ? "baixando" : "Subir"}</button>`;
+    row.querySelector('[data-action="up"]').addEventListener("click", () => uploadSwitch(row, item.entry));
+    list.appendChild(row);
+  }
+}
+
+async function uploadSwitch(row, entry) {
+  const nome = row.querySelector(".switch-nome").value.trim();
+  const genero = row.querySelector(".switch-genero").value;
+  if (!confirm(`Subir "${entry}" para o Drive como "${nome}"? A origem vai para a lixeira depois de conferida.`)) return;
+  const btn = row.querySelector('[data-action="up"]');
+  btn.disabled = true; btn.textContent = "Enviando...";
+  const statusEl = document.getElementById("switch-upload-status");
+  const res = await fetch("/api/switch/upload", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entry, nome, genero }),
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(`erro: ${data.error || "falha"}`); loadSwitchUpload(); return; }
+  const src = new EventSource(`/api/fetch/stream?job=${data.job}`);
+  src.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === "progress") statusEl.textContent = ev.status;
+    else if (ev.type === "system_done") {
+      statusEl.textContent = ev.result.message;
+      if (!ev.result.ok) alert(`falha ao subir: ${ev.result.message}`);
+    } else if (ev.type === "error") alert(`erro: ${ev.message}`);
+    else if (ev.type === "job_done") { src.close(); loadSwitchUpload(); }
+  };
 }
 
 document.getElementById("btn-organize").addEventListener("click", openOrganize);
