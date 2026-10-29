@@ -4379,3 +4379,14 @@ filtros unificados).
   Nenhum jogo do acervo atual depende de outro jogo (só de BIOS), então a coleção já era segura.
 - Arcade local apagado (219 arquivos, 3,4 GB, todos com cópia idêntica no Drive). Provado: `2020bb.zip`
   baixado pela rota e aberto no RetroArch (fbneo + BIOS local). Artefatos do teste (estado e .fs) removidos.
+
+## 28/10/2026 — protocolo antigo de saves removido; Android 0.19.0
+
+- **Android 0.19.0 (code 28):** o botão 💾 Saves da ficha e a tela "Saves e estados" usam só o motor de nuvem
+  (por jogo no RetroArch; grupo inteiro em PSP/3DS). Removidos o sync com o notebook por HTTP (`FileSync.analyze/
+  apply/upload/download`), `DriveSaves` (pendências pelo Insync), `SaveReviewText` e as telas antigas de
+  comparação/versões do notebook. Teste real no aparelho: comparação e sincronização por jogo ("Tudo em dia").
+- **Notebook:** removidos `core/drive_pending.py`, `core/drive_saves.py`, as rotas `/api/drive_pending*`, o cartão
+  "Saves enviados pelo celular" do modo TV e seus testes. `core/mobile_sync.py` e `/api/mobile/sync/*` ficam por
+  ora (só o app antigo os usava; `game_save_ids` ainda reutiliza as regras de grupo). 426 Python, 54 JS, JVM.
+- A lista de um sistema leve no modo TV agora vem do catálogo (PC + Drive); testes ajustados.

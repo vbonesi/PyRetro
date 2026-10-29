@@ -37,11 +37,11 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
         baselineOf(prefs.getString("baseline:$group",null)),"saves",prefixes.getValue(group))
 
     /** Prévia por grupo; um grupo ilegível vira erro de texto, não derruba os outros. */
-    fun analyze():Map<String,Result<List<CloudItem>>> = groups().associateWith { group -> runCatching { engine(group).plan() } }
+    fun analyze(filter:((String,String)->Boolean)?=null):Map<String,Result<List<CloudItem>>> = groups().associateWith { group -> runCatching { engine(group).plan().filter { filter==null || filter(group,it.path) } } }
 
-    fun apply(only:Set<String>?=null):Map<String,Result<List<CloudResult>>> = groups().filter { only==null || it in only }.associateWith { group ->
+    fun apply(only:Set<String>?=null,filter:((String,String)->Boolean)?=null):Map<String,Result<List<CloudResult>>> = groups().filter { only==null || it in only }.associateWith { group ->
         runCatching {
-            val engine=engine(group);val results=engine.apply()
+            val engine=engine(group);val results=engine.apply(engine.plan().filter { filter==null || filter(group,it.path) })
             prefs.edit().putString("baseline:$group",JSONObject(engine.baseline as Map<*,*>).toString()).putLong("at",System.currentTimeMillis()).apply()
             results
         }

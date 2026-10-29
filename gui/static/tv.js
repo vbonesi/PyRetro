@@ -1204,7 +1204,6 @@ function renderTools() {
   const tools = [
     ["🗂", "Organizar ROMs novas", "Move o que chegou na pasta de organizar para o sistema certo", toolOrganize],
     ["💾", "Memory cards PS1/PS2", "Exportar, transferir, importar e apagar saves dos cards", toolMemcards],
-    ["☁", "Saves enviados pelo celular", "Aplica no PC o que o celular mandou ao Drive sem o notebook", toolDrivePending],
     ["📱", "Saves do celular (PSP)", "Baixa para o PC os saves do PPSSPP do celular, pelo cabo", toolPhoneSaves],
     ["🎨", "Texturas HD", "Catálogo completo, no PC ou no celular, e importar arquivo ou link", toolTextures],
     ["📚", "Biblioteca", "Atualizar Heroic, Steam e Switch, buscar capas e adicionar jogos", toolLibrary],
@@ -1382,26 +1381,6 @@ async function toolMaintenance(body) {
     jobRow("Sanitizar nomes (remove & : *)", a => q("/api/sanitize_names", {target: o.sanitize}, a), {extra: choice([["all", "Capas + ROMs"], ["capas", "Só Capas"], ["roms", "Só ROMs"]], o.sanitize, v => o.sanitize = v)}),
     jobRow("Reconstruir playlist do RetroArch", a => q(`/api/rebuild_playlist/${encodeURIComponent(o.playlist)}`, {target: o.playlistTarget}, a), {extra: actions(choice(state.light.map(s => [s.code, s.code]), o.playlist, v => o.playlist = v), choice(targets, o.playlistTarget, v => o.playlistTarget = v))}),
     jobRow("Sincronizar saves de emulador (PC/Drive/Android)", a => q("/api/emu_sync", {source: o.sync}, a), {extra: choice([["all", "Todos"], ...sources.map(x => [x.code, x.nome])], o.sync, v => o.sync = v)}));
-}
-// Envios do celular pelo Drive (core/drive_pending.py): aplicar só substitui se o PC ainda
-// tem a versão que o celular viu; conflito pede escolha, e a versão trocada vai para o histórico.
-async function toolDrivePending(body) {
-  body.replaceChildren(hint("Procurando envios do celular…"));
-  const {items} = await api("/api/drive_pending");
-  const when = t => new Date(t).toLocaleString("pt-BR", {dateStyle: "short", timeStyle: "short"});
-  const act = (url, item, extra, done) => async () => {
-    try { await api(url, {group: item.group, path: item.path, pending: item.pending, ...extra}); toolStatus(done); }
-    catch (e) { toolStatus(e.message, true); }
-    toolDrivePending(body);
-  };
-  body.replaceChildren(hint("O celular envia ao Drive sem sobrescrever; o Insync traz para cá. Feche o emulador antes de aplicar."),
-    ...(items.length ? items.map(item => {
-      const label = `${item.path} · enviado em ${when(item.at)} · ${{apply: "pronto para aplicar", same: "já igual no PC", conflict: "o PC mudou depois: escolha"}[item.status]}`;
-      if (item.status === "conflict") return row(label,
-        confirmButton("Usar o do celular", "Confirmar: usar o do celular", act("/api/drive_pending/apply", item, {force: true}, `${item.path}: versão do celular aplicada; a do PC foi para o histórico.`)),
-        confirmButton("Manter o do PC", "Confirmar: manter o do PC", act("/api/drive_pending/reject", item, {}, `${item.path}: mantido o do PC; o do celular foi para o histórico.`)));
-      return row(label, button(item.status === "same" ? "Arquivar" : "Aplicar", act("/api/drive_pending/apply", item, {}, `${item.path}: aplicado.`)));
-    }) : [hint("Nenhum envio do celular esperando.")]));
 }
 // Relatório do Codex (core/diagnostics.py): só presença de pastas e programas, sem caminhos.
 async function toolDiagnostics(body) {

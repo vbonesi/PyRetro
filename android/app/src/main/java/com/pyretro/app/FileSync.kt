@@ -66,23 +66,6 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
             install(version.group,version.path,temp,version.file.sha256,version.current)
         } finally { temp.delete() }
     }
-    fun lastResult()=prefs.getString("last-result","Ainda não sincronizado.")!!
-    fun observation(group:String):JSONObject? {
-        val value=runCatching { prefs.getString("observation:$group",null)?.let(::JSONObject) }.getOrNull() ?: return null
-        return runCatching { value.takeIf {
-            it.getLong("at")>0 && it.getInt("conflicts")>=0 && it.getInt("failures")>=0 && it.has("applied") &&
-                StatusRules.currentObservation(it.optString("server"),it.optString("tree"),store.base(),tree(group).toString())
-        } }.getOrNull()
-    }
-    private fun observe(plan:SyncPlan,applied:Boolean,failures:Int=0) {
-        if(plan.partial)return
-        if(sha(store.base()+"|"+plan.group+"|"+plan.rootTag+"|"+tree(plan.group))!=plan.identity)return
-        val value=JSONObject().put("server",store.base()).put("tree",tree(plan.group).toString())
-            .put("at",System.currentTimeMillis()).put("applied",applied).put("failures",failures)
-            .put("conflicts",plan.rows.count { it.choice=="conflict" })
-            .put("transfers",plan.rows.count { it.choice in setOf("upload","download") })
-        prefs.edit().putString("observation:${plan.group}",value.toString()).apply()
-    }
     private fun hex(bytes:ByteArray)=bytes.joinToString("") { "%02x".format(it) }
     private fun sha(value:String)=hex(MessageDigest.getInstance("SHA-256").digest(value.toByteArray()))
     private fun fingerprint(uri:Uri):SyncFile {
@@ -135,41 +118,10 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
         }
         folder(group,false)?.let { scan(it,"",0) };return result
     }
-    fun analyze(group:String,only:((String)->Boolean)?=null):SyncPlan {
-        val tree=tree(group) ?: error("Selecione a pasta local primeiro.")
-        val remote=JSONObject(store.request("/api/mobile/sync/manifest?group="+Uri.encode(group)))
-        val tag=remote.getString("rootTag");val identity=sha(store.base()+"|"+group+"|"+tag+"|"+tree)
-        val baseline=JSONObject(prefs.getString("baseline:$identity","{}")!!)
-        val local=local(group);val other=linkedMapOf<String,JSONObject>();val array=remote.getJSONArray("files")
-        for(i in 0 until array.length()) { val row=array.getJSONObject(i);val path=row.getString("path");require(SyncRules.accepted(group,path) && path !in other);other[path]=row }
-        val rows=(local.keys+other.keys+baseline.keys().asSequence().toList()).distinct().filter { only==null || only(it) }.sorted().map { path ->
-            val left=local[path];val right=other[path];val previous=baseline.optString(path).takeIf { it.isNotBlank() }
-            SyncRow(path,left,right,SyncRules.direction(left?.sha256,right?.getString("sha256"),previous))
-        }
-        return SyncPlan(group,tag,identity,rows,only!=null).also { observe(it,false) }
-    }
-    private fun connection(path:String)= (URL(store.base()+path).openConnection() as HttpURLConnection).apply { connectTimeout=15000;readTimeout=600000;instanceFollowRedirects=false }
-    private fun parameters(group:String,path:String)= "group="+Uri.encode(group)+"&path="+Uri.encode(path)
     private fun hash(file:File)=MessageDigest.getInstance("SHA-256").let { digest -> file.inputStream().use { input -> val buffer=ByteArray(1024*1024);while(true) { val n=input.read(buffer);if(n<0)break;digest.update(buffer,0,n) } };hex(digest.digest()) }
     private fun copyBounded(input:InputStream,output:java.io.OutputStream):Long {
         var total=0L;val buffer=ByteArray(1024*1024)
         while(true) { val n=input.read(buffer);if(n<0)break;total+=n;require(total<=limit);output.write(buffer,0,n) };return total
-    }
-    private fun upload(plan:SyncPlan,row:SyncRow) {
-        val source=row.local ?: error("Sem versão local para enviar.")
-        require(fingerprint(source.uri).sha256==source.sha256) { "Save local mudou depois da análise." }
-        val temp=File.createTempFile("sync-send-",".tmp",store.context.cacheDir)
-        try {
-            resolver.openInputStream(source.uri).use { input -> requireNotNull(input);temp.outputStream().use { copyBounded(input,it) } };require(hash(temp)==source.sha256) { "Save mudou durante a cópia." }
-            val query=parameters(plan.group,row.path)+"&rootTag="+plan.rootTag+"&expected="+(row.remote?.getString("sha256") ?: "-")+"&sha256="+source.sha256
-            val token=JSONObject(store.request("/api/csrf")).getString("token");val conn=connection("/api/mobile/sync/file?"+query)
-            try {
-                conn.requestMethod="POST";conn.doOutput=true;conn.setFixedLengthStreamingMode(temp.length());conn.setRequestProperty("Content-Type","application/octet-stream");conn.setRequestProperty("X-PyRetro-CSRF",token)
-                conn.outputStream.use { out -> temp.inputStream().use { it.copyTo(out,1024*1024) } }
-                require(conn.responseCode==200) { "Notebook recusou: HTTP ${conn.responseCode}. Analise novamente; nenhuma versão local foi substituída." }
-                val reply=JSONObject(conn.inputStream.bufferedReader().use { it.readText() });require(reply.getString("sha256")==source.sha256)
-            } finally { conn.disconnect() }
-        } finally { temp.delete() }
     }
     private fun parent(group:String,path:String):Pair<Uri,Uri> {
         val root=tree(group) ?: error("Pasta local indisponível.")
@@ -178,40 +130,10 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
         for(part in path.split('/').dropLast(1))current=children(root,current)[part] ?: DocumentsContract.createDocument(resolver,current,DocumentsContract.Document.MIME_TYPE_DIR,part) ?: error("Não foi possível criar a pasta do save.")
         return root to current
     }
-    private fun download(plan:SyncPlan,row:SyncRow) {
-        val source=row.remote ?: error("Sem versão no notebook.");val expected=source.getString("sha256")
-        val temp=File.createTempFile("sync-get-",".tmp",store.context.cacheDir);val conn=connection("/api/mobile/sync/file?"+parameters(plan.group,row.path)+"&rootTag="+plan.rootTag+"&hash="+expected)
-        try {
-            require(conn.responseCode==200) { "Origem mudou no notebook: HTTP ${conn.responseCode}. Analise novamente." }
-            val length=conn.inputStream.use { input -> temp.outputStream().use { copyBounded(input,it) } }
-            require(length==source.getLong("size") && hash(temp)==expected) { "Transferência incompleta; save local preservado." }
-            install(plan.group,row.path,temp,expected,row.local?.sha256)
-        } finally { conn.disconnect();temp.delete() }
-    }
     internal fun install(group:String,path:String,temp:File,expected:String,expectedLocal:String?) {
         require(SyncRules.accepted(group,path)) { "Arquivo não pertence ao grupo." }
         require(temp.length()<=limit && hash(temp)==expected) { "Checksum do arquivo recebido não confere." }
         val (root,parent)=parent(group,path)
         SafStorage(store).publish(root,parent,path.substringAfterLast('/'),temp,expected,expectedLocal)
-    }
-    fun apply(plan:SyncPlan,progress:(String)->Unit):String {
-        val fresh=JSONObject(store.request("/api/mobile/sync/manifest?group="+Uri.encode(plan.group)))
-        require(fresh.getString("rootTag")==plan.rootTag) { "Pasta do notebook mudou. Analise novamente." }
-        val identity=sha(store.base()+"|"+plan.group+"|"+plan.rootTag+"|"+tree(plan.group))
-        require(identity==plan.identity) { "Pasta/endereço mudou. Analise novamente." }
-        val baseline=JSONObject(prefs.getString("baseline:$identity","{}")!!);var sent=0;val errors=mutableListOf<String>();var ignored=0
-        for(row in plan.rows) {
-            try {
-                when(row.choice) {
-                    "upload" -> { progress("Enviando ${row.path}");upload(plan,row);baseline.put(row.path,row.local!!.sha256);sent++ }
-                    "download" -> { progress("Recebendo ${row.path}");download(plan,row);baseline.put(row.path,row.remote!!.getString("sha256"));sent++ }
-                    "same" -> { val hash=row.local?.sha256 ?: row.remote?.optString("sha256");if(hash!=null)baseline.put(row.path,hash) }
-                    else -> ignored++
-                }
-                prefs.edit().putString("baseline:$identity",baseline.toString()).apply()
-            } catch(error:Exception) { errors.add(row.path+": "+(error.message ?: "falha")) }
-        }
-        val result="$sent transferência(s) confirmada(s). $ignored conflito(s) adiado(s). ${errors.size} falha(s)."+if(errors.isEmpty())"" else "\n"+errors.take(30).joinToString("\n")
-        prefs.edit().putString("last-result",result).apply();observe(plan,true,errors.size);return result
     }
 }

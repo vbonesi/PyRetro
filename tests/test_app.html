@@ -1002,7 +1002,7 @@ teste("modo TV: Desejados filtra por loja e Comprado pede confirmação; Estatí
 teste("modo TV: editar grava só o alterado e capa de ROM usa a fonte escolhida", async () => {
   const {frame, app, doc, posts} = await abrirTV(url => {
     if (url === "/api/systems") return [{code: "FC", nome: "NES"}];
-    if (url === "/api/covers/FC") return [{label: "Jogo", display_name: "Jogo", file: "Jogo.png", biblioteca: {genero: "Ação", observacoes: "antigo"}}];
+    if (url === "/api/tv/catalog") return [{name: "Jogo", code: "FC", platform: "NES", romName: "Jogo", cover: "/images/FC/Jogo.png", local: true, tracking: {genero: "Ação", observacoes: "antigo"}}];
     if (url === "/api/sortear/systems") return {grupos: [], generos: ["Ação", "RPG"]};
     if (url === "/api/library/track") return {ok: true, id: "novo"};
     if (url.startsWith("/api/cover/search?")) return [{source: "libretro", name: "Jogo (USA)", preview: "/x.png", filename: "Jogo (USA).png"}];
@@ -1036,6 +1036,7 @@ teste("modo TV: saves com cópia, texturas, marcar capa e adicionar desejado", a
   let saves = [{name: "Jogo.srm", kind: "save", size: 8192, mtime: 1700000000, legado: false}], streams = [];
   const {frame, app, doc, posts} = await abrirTV(url => {
     if (url === "/api/systems") return [{code: "PS", nome: "PlayStation"}];
+    if (url === "/api/tv/catalog") return [{name: "Jogo", code: "PS", platform: "PlayStation", romName: "Jogo", cover: "/images/PS/Jogo.png", local: true, tracking: {}}];
     if (url === "/api/covers/PS") return [{label: "Jogo", display_name: "Jogo", file: "Jogo.png", flagged: false, biblioteca: {}}];
     if (url.startsWith("/api/tv/saves?")) return {items: saves};
     if (url.startsWith("/api/tv/saves/backups?")) return {items: [{stamp: "2026-10-23_100000", motivo: "cópia", arquivos: [{name: "Jogo.srm"}]}]};
@@ -1090,7 +1091,7 @@ teste("modo TV: saves com cópia, texturas, marcar capa e adicionar desejado", a
 teste("modo TV: renomear e apagar ROM pela ficha, com confirmação e cascata", async () => {
   const {frame, app, doc, posts} = await abrirTV(url => {
     if (url === "/api/systems") return [{code: "FC", nome: "NES"}];
-    if (url === "/api/covers/FC") return [{label: "Velho", display_name: "Velho", file: "Velho.png", biblioteca: {}}];
+    if (url === "/api/tv/catalog") return [{name: "Velho", code: "FC", platform: "NES", romName: "Velho", cover: "/images/FC/Velho.png", local: true, tracking: {}}];
     if (url === "/api/cover/rename") return {ok: true, new_label: "Novo", cascade: {rom: {status: "renomeado"}, saves: ["a"], states: [], flat_skipped: false}};
     if (url === "/api/cover/delete") return {ok: true, cascade: {rom: {status: "apagado"}, capa: ["x"], saves: [], states: [], flat_skipped: false}};
   });

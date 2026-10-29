@@ -62,4 +62,4 @@ histórico).
    "☁ Saves na nuvem (novo)" → "Comparar e sincronizar". Esperado: baixar os saves do notebook e enviar os do celular.
 4. Jogar algo, voltar ao notebook e rodar `python3 -m core.cloud_sync status`/`sync`.
 5. Conflito (mudar o mesmo save nos dois lados): o app e o notebook mostram o conflito; nada é sobrescrito.
-O protocolo antigo (pendências pelo Insync) continua no app até este teste passar.
+O protocolo antigo (pendências pelo Insync e sync HTTP com o notebook) foi removido do app na 0.19.0, depois do teste.
