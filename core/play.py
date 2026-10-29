@@ -31,6 +31,20 @@ def emulators(code):
         if (CORE_ROOT / (key + '_libretro.so')).is_file()]]
 
 
+EMULATOR_CLASSES = ('retroarch', 'pcsx2', 'ppsspp', 'duckstation', 'dolphin', 'azahar')
+
+
+def raise_emulator_window():
+    """O PyRetro fica em tela cheia e ativo: sem isso o emulador novo abria atrás dele (achado em 29/10)."""
+    helper = Path(__file__).resolve().parent.parent / 'tools/raise-new-window.sh'
+    if os.environ.get('DBUS_SESSION_BUS_ADDRESS') and helper.is_file():
+        try:
+            subprocess.Popen([str(helper), '40', *EMULATOR_CLASSES], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            pass
+
+
 def restore_tv_focus():
     helper = Path(__file__).resolve().parent.parent / 'tools/raise-window.sh'
     if os.environ.get('DBUS_SESSION_BUS_ADDRESS') and helper.is_file():
@@ -222,6 +236,7 @@ class Sessions:
             if self.before:
                 self._safe(self.before, cfg, code, name)
             # Sem shell e sem herdar stdin; os erros do lançador vão para o journal.
+            raise_emulator_window()
             process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, close_fds=True)
             self.process = process
             self.started = time.monotonic()

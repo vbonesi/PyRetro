@@ -4567,3 +4567,6 @@ filtros unificados).
   Start = botão 11, X/Y = 3/4, LB/RB = 6/7, LT/RT = 8/9, Back = 10. `tv.js` ganhou `RAW_PAD`, que traduz para os
   índices padrão só nesse caso (controles com mapeamento padrão não mudam). Medido com sonda no QtWebEngine.
   O app Android não é afetado: usa `KeyEvent`/`AXIS_HAT_*` do sistema, já normalizados.
+- **Foco do emulador:** o jogo aberto pelo PyRetro (tela cheia) surgia atrás dele e exigia Alt-Tab. `tools/raise-new-window.sh`
+  (KWin) ativa a próxima janela de emulador; `core/play.py` o chama antes de abrir o jogo (40 s). A classe só chega depois
+  de a janela existir no Wayland, por isso escuta `windowClassChanged`. Conferido com o Azahar: ativa passa de pyretro-tv a Azahar.
