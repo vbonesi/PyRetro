@@ -492,6 +492,13 @@ def _removal_plan(cfg: dict, scope: str, code: str, entry: str) -> dict:
         local = mobile_roms_mod.removal_plan(cfg, code, entry)
     except (ValueError, LookupError, OSError):
         local = None
+    if code == "ARCADE" and local and entry in local["remove"]:
+        # Um zip "pai" que outro jogo local ainda usa não sai: o clone deixaria de rodar.
+        from core import arcade
+        root = Path(cfg["pc"]["roms_root"]).expanduser() / code
+        users = arcade.dependents(entry, [p.name for p in root.glob("*.zip")], arcade.load_dat(arcade.dat_dir(cfg)))
+        if users:
+            local = {**local, "remove": [f for f in local["remove"] if f != entry], "preserve": [*local["preserve"], entry]}
     protected = []
     lib_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
     if lib_path.is_file():

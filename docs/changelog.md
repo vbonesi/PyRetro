@@ -4371,3 +4371,11 @@ filtros unificados).
 - Defeito achado no teste e corrigido (PC e Android): duas entradas que citam uma à outra em `base` se
   anulavam e o save "sumia" das cabeças. Agora uma entrada só substitui outra mais antiga. 25 testes de
   nuvem; JVM com teste de paridade.
+
+## 28/10/2026 — Arcade sob demanda (zips pai) e limpeza do Arcade local
+
+- `core/arcade.py`: lê o DAT do FinalBurn Neo (`romof`) e calcula a cadeia pai/BIOS; o download de um clone
+  baixa os pais que faltam (BIOS fica em `BIOS/RetroArch`); a remoção não tira um pai que outro zip local usa.
+  Nenhum jogo do acervo atual depende de outro jogo (só de BIOS), então a coleção já era segura.
+- Arcade local apagado (219 arquivos, 3,4 GB, todos com cópia idêntica no Drive). Provado: `2020bb.zip`
+  baixado pela rota e aberto no RetroArch (fbneo + BIOS local). Artefatos do teste (estado e .fs) removidos.

@@ -239,9 +239,27 @@ def download_from_drive(code: str, name: str, roms_root: Path, cfg: dict) -> tup
         if not root.resolve().is_relative_to(roms_root.expanduser().resolve()):
             raise ValueError("pasta do sistema fora do acervo")
         with file_lock_mod.exclusive(root / ".download"):
-            return _download_item(code, name, root, cfg)
+            result = _download_item(code, name, root, cfg)
+            if code == "ARCADE" and (result[0] or "já existe" in result[1]):
+                _download_arcade_parents(code, name, root, cfg)
+            return result
     except (OSError, ValueError, subprocess.TimeoutExpired) as e:
         return False, str(e)
+
+
+def _download_arcade_parents(code, name, root, cfg):
+    """Clones de fliperama não rodam sem o zip do pai: baixa os que faltam e existem no Drive. BIOS
+    (neogeo, pgm…) fica em BIOS/RetroArch e não é tocada aqui."""
+    from core import arcade
+    needed = arcade.required_zips(name, arcade.load_dat(arcade.dat_dir(cfg)))
+    have = {p.name for p in root.glob("*.zip")}
+    for parent in needed:
+        if parent in have:
+            continue
+        try:
+            _download_item(code, parent, root, cfg)
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            pass  # o pai pode ser uma BIOS que não está no Drive de ROMs
 
 
 def _download_item(code, name, root, cfg):
