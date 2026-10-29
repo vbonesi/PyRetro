@@ -53,6 +53,22 @@ class TestRcloneLocal(StorageContract, unittest.TestCase):
         self.storage = cloud.RcloneStorage(self.tmp)
 
 
+class TestParentFolderCreatedOnce(unittest.TestCase):
+    def test_parallel_puts_into_a_new_folder_create_it_a_single_time(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import subprocess
+        mkdirs = []
+
+        def run(cmd, **kwargs):
+            if cmd[1] == 'mkdir':
+                mkdirs.append(cmd[2])
+            return subprocess.CompletedProcess(cmd, 0, b'null', b'')
+        storage = cloud.RcloneStorage('drive:x', run=run)
+        with ThreadPoolExecutor(8) as pool:
+            list(pool.map(lambda n: storage._ensure_dir(f'states/pc/blobs/{n}'), range(16)))
+        self.assertEqual(mkdirs, ['drive:x/states/pc/blobs'])
+
+
 class TestDecide(unittest.TestCase):
     def test_table(self):
         cases = [

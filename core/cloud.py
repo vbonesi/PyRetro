@@ -18,6 +18,7 @@ import json
 import posixpath
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 
 
@@ -88,6 +89,7 @@ class RcloneStorage(Storage):
 
     def __init__(self, base, run=subprocess.run, timeout=600):
         self.base, self.run, self.timeout = base.rstrip('/'), run, timeout
+        self._dirs, self._dirs_lock = set(), threading.Lock()
 
     def _remote(self, path=''):
         return self.base + ('/' + path if path else '')
@@ -100,6 +102,17 @@ class RcloneStorage(Storage):
                 raise NotFound(message)
             raise OSError(message or f'rclone falhou ({done.returncode})')
         return done
+
+    def _ensure_dir(self, path):
+        """Cria a pasta-pai uma vez só. O Drive aceita duas pastas com o mesmo nome: sem isso, envios
+        paralelos para uma pasta nova criam uma cópia cada, e o conteúdo se espalha entre elas."""
+        parent = posixpath.dirname(path)
+        if not parent:
+            return
+        with self._dirs_lock:
+            if parent not in self._dirs:
+                self._rclone('mkdir', self._remote(parent))
+                self._dirs.add(parent)
 
     def list(self, prefix=''):
         if prefix:
@@ -124,6 +137,7 @@ class RcloneStorage(Storage):
         _clean(path)
         if not overwrite and self.exists(path):
             raise Exists(path)
+        self._ensure_dir(path)
         with tempfile.TemporaryDirectory(prefix='pyretro-cloud-') as tmp:
             source = Path(tmp) / 'dados'
             source.write_bytes(data)
