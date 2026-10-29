@@ -4342,3 +4342,10 @@ filtros unificados).
 - Primeiro envio à nuvem concluído (463 objetos, 578 MB, 0 erros; 405 conteúdos distintos, nenhum faltando).
   Caminhos de saves dos emuladores trocados pelo setup (com cópia) e `[storage] migrated += saves`.
   Aguarda a validação do Victor jogando em cada emulador.
+
+## 28/10/2026 — saves validados; overrides do Drive retirados; sincronização automática ligada
+
+- Victor validou os saves em cada emulador. `install-emulator-access.py --sem-drive --apply` retirou os
+  overrides do Flatpak que apontavam para o Drive (cópia em `~/.local/state/bonisarch/backups/overrides-*`).
+- `[cloud] auto = true`: o PyRetro baixa os saves antes de abrir um jogo e envia ao fechar.
+- Falta: desmarcar `Saves` e `Capas` no Insync (Victor) e testar o app 0.18.0 no celular.
