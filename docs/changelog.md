@@ -1,5 +1,22 @@
 # Changelog
 
+## 29/10/2026 — Conclusão do lote Mega Man
+
+- Conferidos os nove arquivos de sete jogos no Drive: Mega Man 8/X5/X6 (PS), ZX/ZX Advent (DS)
+  e 9/10 (WiiWare). Hashes remotos iguais aos preparados; payloads iguais aos originais de Downloads.
+  Catálogo do PC atualizado e os sete vínculos com os registros existentes conferidos; capas cadastradas
+  também copiadas para as pastas dos sistemas, com hashes iguais e resposta HTTP 200 no modo TV.
+- Biblioteca e índice do celular atualizados: sete cadastros com capa, gênero, desenvolvedora, lançamento
+  e sinopse; cinco ROMs de PS/DS disponíveis para baixar no app. Wii permanece no PC. Captain Spirit
+  conferido como registro único com fonte Xbox, nota 9,5 e platinado preservados.
+- Sete originais de Downloads enviados à lixeira após a conferência, preservando o arquivo fora do lote.
+  Lista de reposição atualizada localmente e no Drive: 63 itens principais e cinco linhas opcionais.
+  IMG/SUB antigos do X6 enviados à lixeira do Drive após autorização explícita; CHD novo preservado.
+- Nenhum jogo foi iniciado nesta conferência. O CUE de uma faixa do Mega Man 8 preparado pelo Claude
+  foi preservado, com cópia privada do CUE original malformado; integridade e referências não comprovam
+  reprodução de áudio nem homologação em emulador.
+- Verificação do projeto ao encerrar: 469 testes Python e 58 testes JavaScript aprovados.
+
 ## 29/10/2026 (noite) — Desenvolvedora, lançamento e capas pelo LaunchBox
 
 - `desenvolvedora`/`lancamento` preenchidos em **2.338 registros** que estavam vazios (agora 2.474 e 2.494 de 2.826), pelo

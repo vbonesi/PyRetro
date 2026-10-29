@@ -78,6 +78,13 @@ _(vazio)_
 
 ## Situação
 
+- 29/10 — Codex concluiu as pendências da conversa “Ports de jogos para PC”; **celular livre**.
+  Sete Mega Man vinculados às ROMs do Drive e às capas no PC; catálogo e Biblioteca do celular
+  atualizados (PS/DS disponíveis no app, Wii no PC). Captain Spirit único e progresso preservado.
+  Originais de Downloads e IMG/SUB antigos do X6 enviados à lixeira conforme autorização;
+  lista de reposição atualizada. Evidências privadas em `auditoria/ports-2026-10-29/`.
+  Sem instalar APK ou iniciar jogos.
+
 - 29/10 — Codex: revisão Android concluída; **celular livre**, APK principal 0.19.0 preservado.
   Matriz/fila em `docs/REVISAO-ANDROID-PC-2026-10-29.md`: 48 telas/estados nas duas orientações,
   repetidos com fontes 80% e 130%; 272 arquivos com metadados iguais; 435 Python/54 JS/82 JVM,
