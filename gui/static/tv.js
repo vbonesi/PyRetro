@@ -1117,13 +1117,15 @@ $("rom-remove").onclick = () => {
   const entry = g.driveName || g.romName;
   const scopes = [["local", "Só deste PC (continua no Drive)"], ["drive", "Só do Drive (vai para a lixeira)"], ["both", "Dos dois"]];
   openTool(`🗑 Remover: ${g.name}`, async body => {
-    let scope = g.local ? "local" : "drive";
+    let scope = g.local ? "local" : "drive", revision = 0;
     const draw = async () => {
+      const request = ++revision, chosen = scope;
       const buttons = scopes.map(([key, label]) => button(label, () => { scope = key; draw(); }, scope === key));
       body.replaceChildren(hint("Saves, estados, texturas, capa, cadastro, nota e tempo ficam. Tudo o que sai vai para a lixeira (PC: do sistema; Drive: recuperável por 30 dias)."), actions(...buttons), hint("Conferindo o que seria removido…"));
       let plan;
       try { plan = await api(`/api/storage/removal-plan?${new URLSearchParams({scope, code: g.code, entry})}`); }
-      catch (e) { body.append(hint(e.message)); return toolStatus(e.message, true); }
+      catch (e) { if (request !== revision || !body.isConnected) return; body.append(hint(e.message)); return toolStatus(e.message, true); }
+      if (request !== revision || !body.isConnected) return;
       body.replaceChildren(hint("Saves, estados, texturas, capa, cadastro, nota e tempo ficam. Tudo o que sai vai para a lixeira (PC: do sistema; Drive: recuperável por 30 dias)."), actions(...buttons));
       if (plan.local.length) body.append(heading(`Neste PC (${plan.local.length})`), ...plan.local.map(f => row(f)));
       if (plan.drive.length) body.append(heading(`No Drive (${plan.drive.length} · ${fmtBytes(plan.bytes_drive)})`), ...plan.drive.map(f => row(f.path.split("/").slice(-1)[0], Object.assign(document.createElement("small"), {textContent: fmtBytes(f.size)}))));
@@ -1134,7 +1136,7 @@ $("rom-remove").onclick = () => {
       if (!plan.blocked.length && (plan.local.length || plan.drive.length)) {
         body.append(actions(confirmButton("Remover", "Confirmar: " + plan.confirm_text, async () => {
           try {
-            const r = await api("/api/storage/removal-apply", {scope, code: g.code, entry: plan.entry, token: plan.token, confirm: plan.confirm_text});
+            const r = await api("/api/storage/removal-apply", {scope: chosen, code: g.code, entry: plan.entry, token: plan.token, confirm: plan.confirm_text});
             const failed = r.results.filter(x => !x.ok);
             toolStatus(failed.length ? `${r.results.length - failed.length} removido(s); ${failed.length} falhou(aram): ${failed[0].error}` : `Pronto: ${r.results.length} arquivo(s) para a lixeira. ${r.recover}`, failed.length > 0);
             await load(state.kind, state.code);
@@ -1205,6 +1207,7 @@ function renderTools() {
     ["🗂", "Organizar ROMs novas", "Move o que chegou na pasta de organizar para o sistema certo", toolOrganize],
     ["💾", "Memory cards PS1/PS2", "Exportar, transferir, importar e apagar saves dos cards", toolMemcards],
     ["📱", "Saves do celular (PSP)", "Baixa para o PC os saves do PPSSPP do celular, pelo cabo", toolPhoneSaves],
+    ["☁", "Saves na nuvem", "Comparar, sincronizar e escolher versões em conflito", toolCloudSaves],
     ["🎨", "Texturas HD", "Catálogo completo, no PC ou no celular, e importar arquivo ou link", toolTextures],
     ["📚", "Biblioteca", "Atualizar Heroic, Steam e Switch, buscar capas e adicionar jogos", toolLibrary],
     ["🖼", "Capas dos sistemas", "Buscar capas que faltam nas ROMs leves e pesadas", toolCovers],
@@ -1219,6 +1222,42 @@ function renderTools() {
     return card;
   }));
   report("Ferramentas de organização e manutenção. Ações que mexem em arquivos pedem confirmação.");
+}
+async function toolCloudSaves(body) {
+  let revision = 0, busy = false;
+  const draw = async () => {
+    const request = ++revision;
+    body.replaceChildren(hint("Comparando saves com a nuvem…"));
+    try {
+      const status = await api("/api/cloud/saves/status");
+      if (request !== revision || !body.isConnected) return;
+      if (!status.enabled) { body.replaceChildren(hint("Configure a nuvem para sincronizar saves.")); return; }
+      body.replaceChildren(hint("Feche os emuladores. Saves são compartilhados; estados ficam separados por aparelho. Conflitos exigem escolha e a outra versão fica no histórico."));
+      const perform = async (url, data) => {
+        if (busy) return; busy = true; body.querySelectorAll("button").forEach(b => b.disabled = true);
+        try {
+          const result = await api(url, data);
+          if (result.ok === false || result.errors?.length) throw new Error(result.error || result.errors.map(e => `${e.path}: ${e.error}`).join("; "));
+          if (!body.isConnected) return;
+          toolStatus(result.conflicts?.length ? `${result.conflicts.length} conflito(s) ainda precisam de escolha.` : "Operação concluída. Versões anteriores preservadas.");
+          await draw();
+        } catch (e) { if (body.isConnected) { toolStatus(e.message, true); body.querySelectorAll("button").forEach(b => b.disabled = false); } }
+        finally { busy = false; }
+      };
+      body.append(actions(button("Comparar novamente", draw), button("Sincronizar sem resolver conflitos", () => perform("/api/cloud/saves/sync", {}))));
+      if (!status.items?.length) body.append(hint("Saves em dia com a nuvem."));
+      for (const item of status.items || []) {
+        const box = document.createElement("section"); box.append(heading(item.path), hint(`${item.group || "saves"} · ${item.action === "conflict" ? "Conflito" : item.action}`));
+        if (item.action === "conflict") {
+          const choose = (choice, sha) => perform("/api/cloud/saves/resolve", {path: item.path, group: item.group || "saves", choice, ...(sha ? {sha} : {})});
+          if (item.local) box.append(confirmButton("Manter deste PC", "Confirmar: manter deste PC", () => choose("local")));
+          for (const [sha, devices] of Object.entries(item.heads || {})) box.append(confirmButton(`Usar da nuvem: ${devices.join(", ")} · ${sha.slice(0, 12)}`, "Confirmar: usar esta versão", () => choose("remote", sha)));
+        }
+        body.append(box);
+      }
+    } catch (e) { if (request === revision && body.isConnected) { body.replaceChildren(hint(e.message), button("Tentar novamente", draw));toolStatus(e.message, true); } }
+  };
+  await draw();
 }
 async function toolOrganize(body) {
   body.replaceChildren(hint("Lendo a pasta de organizar e os Downloads…"));

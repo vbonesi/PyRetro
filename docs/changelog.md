@@ -1,5 +1,13 @@
 # Changelog
 
+## 29/10/2026 — Conflitos de saves no modo TV e regressões da interface
+
+Ferramentas → Saves na nuvem compara, sincroniza sem resolver conflitos automaticamente e oferece
+escolhas por dispositivo/hash, com confirmação e nova tentativa após falha. A tela de remoção
+descarta prévias atrasadas ao trocar de escopo; aplicação envia o escopo da prévia exibida.
+57 testes JavaScript passaram, incluindo pódio/empates, filtros recolhíveis, glifos Xbox/PS,
+falha/retry de conflito e remoção com resposta fora de ordem. Dados de teste isolados.
+
 ## 29/10/2026 — Android 0.21.0: capas sob demanda e escopo de saves
 
 Capas exibidas no PC ou Android vão para blobs por SHA-256 com ponteiro por jogo; versões antigas

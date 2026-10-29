@@ -74,8 +74,8 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
       de core incompatível. Avaliar excluir `states/` da sincronização automática ou separar por dispositivo.
 - [ ] **Zelda Molblins (DS):** o erro "write to your cart" some com um `.sav` em branco de 512 KB em
       `Saves/saves/NDS/` (já criado). Pedir ao Victor para confirmar jogando.
-- [ ] **Conflitos de saves na tela:** hoje só no app (botões) e na rota `/api/cloud/saves/resolve`; falta a tela de
-      conflito no modo TV do notebook.
+- [x] **Conflitos de saves na tela:** Ferramentas → Saves na nuvem no modo TV mostra cabeças/dispositivos,
+      escolha explícita, confirmação e retry após falha. Teste de navegador passou.
 
 ### Controles
 - [ ] **Galileo G8 no notebook:** `python3 tools/configure_xbox.py --learn galileo-g8` com SÓ ele conectado. Já medidos:
@@ -92,7 +92,8 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
       As diferenças identificadas continuam abertas; navegação aprovada não comprova paridade.
 - [ ] **Aplicar as diferenças da revisão Android:** primeiro erros/confirmações de saves, filtro de Desejados
       e Ranking em retrato; depois escopo PSP/3DS, glifos/foco/espaço útil e remoção local/Drive.
-- [ ] **Testes automatizados do que só foi conferido no navegador:** pódio do Ranking, filtros recolhíveis, glifos
+- [x] **Testes automatizados do que só foi conferido no navegador:** 57 JS aprovados, incluindo pódio, empates,
+      filtros, glifos, confirmação de conflito e remoção com resposta atrasada. Pódio do Ranking, filtros recolhíveis, glifos
       Xbox/PS, tela "🗑 Remover…" (modo TV, `tests/test_app.html`).
 - [ ] **Remoção na ficha:** confirmar uma remoção real de ponta a ponta (PC + Drive à lixeira) com um jogo descartável;
       até agora só a prévia foi exercitada. Ligar também ao Android (ficha) com a mesma regra de `core/removal.py`.
