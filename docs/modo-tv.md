@@ -219,7 +219,9 @@ reais durante essa configuração.
 
 ## Atalho Steam e integração com setup-linux-bonesi
 
-O script `tools/pyretro-tv.sh` inicia o serviço e abre o Chrome Flatpak em tela
+O script `tools/pyretro-tv.sh` abre a janela nativa `gui/app.py` (PyQt6 + QtWebEngine, ID
+`pyretro-tv`, tela cheia), que inicia o serviço se preciso. Sem PyQt6 ou com
+`PYRETRO_TV_CHROME=1`, cai no Chrome Flatpak descrito a seguir, em tela
 cheia na URL local, com um perfil próprio dentro da configuração do Chrome.
 Como o Big Picture fica ativo em tela cheia, o script chama `tools/raise-window.sh`
 (KWin/Wayland via qdbus6) por até 25 s para trazer a janela do PyRetro para a frente;

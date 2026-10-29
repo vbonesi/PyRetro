@@ -4549,3 +4549,11 @@ filtros unificados).
   sugere o nome limpo da pasta (editável), permite escolher o gênero (ou automático via ScreenScraper), envia com
   `rclone copyto`, confere com `rclone check` e só então manda a origem para a lixeira. Rotas
   `GET /api/switch/upload/pending` e `POST /api/switch/upload`. 5 testes novos (459 no total).
+
+## 29/10/2026 — janela nativa do modo TV
+
+- `gui/app.py`: janela PyQt6/QtWebEngine para `/tv` (ID `pyretro-tv`), inicia `pyretro-gui` se parado.
+  `tools/pyretro-tv.sh` usa a janela nativa e cai no Chrome sem PyQt6 ou com `PYRETRO_TV_CHROME=1`;
+  `core/play.py` traz de volta a janela nativa ou a do Chrome após o jogo. Android inalterado.
+- Pendente: confirmar o controle (Gamepad API) e o Steam Link com a janela nativa antes de retirar o
+  override `/run/udev` do Chrome e a web `/`. Requer `python-pyqt6-webengine` (setup).

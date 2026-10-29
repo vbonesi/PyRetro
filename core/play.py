@@ -34,11 +34,12 @@ def emulators(code):
 def restore_tv_focus():
     helper = Path(__file__).resolve().parent.parent / 'tools/raise-window.sh'
     if os.environ.get('DBUS_SESSION_BUS_ADDRESS') and helper.is_file():
-        try:
-            subprocess.Popen([str(helper), 'chrome-127.0.0.1__tv', '2'], stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-        except OSError:
-            pass
+        for pattern in ('pyretro-tv', 'chrome-127.0.0.1__tv'):
+            try:
+                subprocess.Popen([str(helper), pattern, '2'], stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            except OSError:
+                pass
 
 
 def safe_relative(value):
