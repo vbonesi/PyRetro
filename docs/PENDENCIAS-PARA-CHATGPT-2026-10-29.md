@@ -72,16 +72,18 @@ As limpezas de jogos/saves feitas pelo Claude a pedido do Victor continuam váli
 
 ## Pendências que exigem ação ou equipamento do Victor
 
-- [ ] **Insync (só o Victor):** após conferir status da nuvem e snapshot atual, desmarcar `Saves`, `Capas`,
-  `Biblioteca` e `Backups` na sincronização seletiva. Não apagar pastas dentro do Drive.
+Fechadas pelo Victor em 29/10 (não reabrir): Insync com `Saves`, `Capas`, `Biblioteca` e `Backups`
+desmarcados; ícone temático; BIOS do Neo Geo no celular; Arcade com clone real.
+
 - [ ] **Galileo G8 no notebook:** medir com só ele conectado: `python3 tools/configure_xbox.py --learn galileo-g8`.
-  Nenhum controle estava disponível na sondagem desta rodada. Alternância física dos perfis ainda não homologada.
-- [ ] **3DS:** atalhos em jogo e uso prolongado; G8 e interrupção de download já foram testados pelo Victor.
-  Os jogos removidos não devem ser baixados para cumprir essa verificação.
-- [ ] **Identidade visual real:** conferir ícone temático no launcher e Steam Big Picture. Recursos instalados
-  e nove combinações de máscara/tema Android foram renderizados; isso não equivale a mudar o tema do launcher.
-- [ ] **Arcade com clone real:** quando houver um na coleção, conferir a cadeia pai/BIOS em jogo. Hoje os casos
-  de dependência são cobertos por fixtures; não adquirir ROM para marcar esta linha.
+  Alternância física dos perfis ainda não homologada.
+- [ ] **3DS:** atalhos em jogo e uso prolongado. Os jogos removidos não devem ser baixados para isso.
+- [ ] **KOF '97 (Arcade pelo título completo):** conferir a capa no app 0.22.1 e, no PC, que abrir o jogo registra o
+  tempo no cadastro `The King of Fighters '97` (servidor reiniciado em 29/10). Regra única em
+  `library.rom_name_keys`/`records_for_rom`/`find_for_rom`; testes em `tests/test_arcade_titles.py`.
+- [ ] **Pastas antigas do Drive (`Jogos/Saves`, `Jogos/Biblioteca`, `Jogos/Backups`):** comparadas por hash com o PC,
+  sem perda (único diferente era memory card PS2 antigo e `library.json`/diário, mais velhos). Excluir pelo
+  Drive web (lixeira de 30 dias) só quando o Victor decidir; nada foi apagado.
 
 ## Ideias futuras, sem decisão de implementação
 
