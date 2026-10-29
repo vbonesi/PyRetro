@@ -6,9 +6,13 @@
   Metadata.xml do LaunchBox: nome normalizado EXATO (nome + `nomes_alt`, com/sem "The") só na plataforma do registro
   (ROM → `PLATFORM_MAP`; Steam/Epic/GOG/Amazon → Windows; Switch → Switch; Xbox/PSN → consoles da loja). Nada foi sobrescrito.
   Ficaram sem casamento 326 (Switch 50, Steam 44, GBA 34 — hacks e traduções —, Xbox 28...).
-- 30 valores que já existiam divergem do LaunchBox e NÃO foram mexidos (ex.: 19XX com "1026 Development"/2015, Aerial Assault
-  do Game Gear com dados de um jogo de 2016, Portal do Switch com a data do PC). Lista e o que foi preenchido em
-  `~/Games/PyRetro/Backups/Metadados LaunchBox 2026-10-29/` (com o `library.json.antes`).
+- 30 valores que já existiam divergiam do LaunchBox. Com o OK do Victor, 20 foram trocados (19XX, Aerial Assault, Age of
+  History II, Captain Spirit, Crime Scene Cleaner, FIFA 21, Football Manager 2016, TLOU Left Behind, The Sims 1/2/4,
+  Where's My Water?, Zoo Tycoon UAC, Portal do Switch). Ficaram 10 em que o valor antigo é o certo e o LaunchBox erra
+  (editora no lugar do estúdio, data de relançamento): FIFA 23, Fractured Minds, Limbo, Minecraft Dungeons, Streets of Rage 2,
+  When the Past was Around, WorldBox, Yu-Gi-Oh! FM e Life is Strange: True Colors. Listas e backups (`library.json.antes`,
+  `.antes-divergentes`) em `~/Games/PyRetro/Backups/Metadados LaunchBox 2026-10-29/`.
+- Achado: Captain Spirit tem dois registros no Xbox One (um com o progresso do Victor, outro vindo da sincronização do Xbox).
 - Capas: 32 de arcade que não tinham capa nem thumbnail do sistema (libretro FBNeo; Out Run e Oriental Legend escolhidas à mão;
   Chibi Maruko só tem a arte genérica do Neo Geo) e a do Trials of Mana do Switch, que estava com a do SNES (agora a do remake,
   LaunchBox). Sem capa ainda: Geoplanetical (Steam) e os 6 Twinmotion ocultos.
