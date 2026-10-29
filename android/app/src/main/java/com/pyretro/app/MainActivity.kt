@@ -469,7 +469,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             val result=runCatching { extras.record(game.id) to extras.genres() }
             runOnUiThread { result.onFailure(::failure).onSuccess { (record,genres) ->
                 if(record==null) { message("Este jogo não está mais na Biblioteca do notebook.");return@onSuccess }
-                val fields=listOf("genero" to "Gênero","data_final" to "Data que finalizou (aaaa-mm-dd)","tempo" to "Tempo jogado (ex.: 31:40:00)","observacoes" to "Comentário")
+                val fields=listOf("genero" to "Gênero","data_final" to "Data que finalizou (aaaa-mm-dd)","tempo" to "Tempo jogado (ex.: 31:40:00)","observacoes" to "Comentário","sinopse" to "Sinopse (resumo do jogo)")
                 val before=fields.associate { (field,_) -> field to (record.optString(field).takeUnless { record.isNull(field) } ?: "") }
                 val box=column();box.addView(text("✎ ${game.name}",21f).apply { setTypeface(null,Typeface.BOLD) })
                 val options=(listOf("") + genres + listOf(before.getValue("genero"))).distinct()
@@ -477,7 +477,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 val genre=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,options.map { it.ifBlank { "Sem gênero" } });setSelection(options.indexOf(before.getValue("genero")).coerceAtLeast(0)) }
                 box.addView(genre)
                 val inputs=fields.drop(1).associate { (field,label) -> box.addView(text(label,15f))
-                    field to EditText(this).apply { setText(before.getValue(field));setTextColor(appForeground);background=shape();setPadding(dp(12),dp(8),dp(12),dp(8));if(field=="observacoes") { minLines=3 } else isSingleLine=true }.also { box.addView(it,LinearLayout.LayoutParams(-1,-2)) } }
+                    field to EditText(this).apply { setText(before.getValue(field));setTextColor(appForeground);background=shape();setPadding(dp(12),dp(8),dp(12),dp(8));if(field=="observacoes" || field=="sinopse") { minLines=3 } else isSingleLine=true }.also { box.addView(it,LinearLayout.LayoutParams(-1,-2)) } }
                 show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null).setPositiveButton("Salvar") { _,_ ->
                     val after=mapOf("genero" to options[genre.selectedItemPosition])+inputs.mapValues { it.value.text.toString() }
                     val changes=ExtrasRules.changes(before,after)
@@ -674,6 +674,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val played=store.prefs.getLong("time:${game.key}",0)/60
         box.addView(text(listOfNotNull(game.platform,state,played.takeIf { it>0 }?.let { if(it>=60)"⏱ ${it/60}h${"%02d".format(it%60)} no celular" else "⏱ $it min no celular" }).joinToString(" · "),14f))
         (TrackingRules.value(store.tracking(game),"nota") as Double?)?.let { nota -> box.addView(text(NotaRules.symbol(nota)+" "+TrackingRules.label(nota)+(if(NotaRules.special(nota))" · jogo muito especial" else ""),16f).apply { NotaRules.color(nota)?.let(::setTextColor) }) }
+        store.tracking(game).optString("sinopse").takeUnless { store.tracking(game).isNull("sinopse") || it.isBlank() }?.let { box.addView(text(it,14f).apply { setPadding(0,dp(6),0,dp(6)) }) }
         // A ação principal é a próxima coisa que faz sentido para o jogo; o resto fica em Mais opções.
         when {
             game.localUri!=null -> primary(box,"▶ Jogar neste celular") { dialog?.dismiss();launchLocal(game) }

@@ -119,6 +119,7 @@ def _blank_game(nome: str, plataforma: str, game_id: str | None = None) -> dict:
         "tempo": None,
         "meta": None,
         "observacoes": None,
+        "sinopse": None,
         "lancamento": None,
         "desenvolvedora": None,
         "capa": None,
@@ -1047,7 +1048,7 @@ def rom_tracking_info(rom_index: dict, nome: str, code: str) -> dict | None:
         return None
     return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
             "platinado": g["platinado"], "nota": g["nota"], "genero": g.get("genero"),
-            "tempo": g.get("tempo"), "observacoes": g.get("observacoes"),
+            "tempo": g.get("tempo"), "observacoes": g.get("observacoes"), "sinopse": g.get("sinopse"),
             **{k:g[k] for k in ('favorite','_play_sessions') if k in g}}
 
 
@@ -1282,7 +1283,7 @@ def read_manual_list(path: Path, plataforma: str, fonte: str) -> list:
 # de posse confirmada por API, não opinião do usuário - muda via
 # library-refresh/library-add).
 _CAMPOS_BOOL = {"iniciado", "finalizado", "platinado", "savestate", "oculto"}
-_CAMPOS_TEXTO = {"tempo", "observacoes", "nome", "plataforma", "genero",
+_CAMPOS_TEXTO = {"tempo", "observacoes", "sinopse", "nome", "plataforma", "genero",
                  "subgenero", "desenvolvedora", "meta"}
 _CAMPOS_DATA = {"lancamento", "data_final"}
 _CAMPOS_OBRIGATORIOS = {"nome", "plataforma"}

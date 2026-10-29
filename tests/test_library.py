@@ -141,7 +141,7 @@ class TestRomTrackingInfo(unittest.TestCase):
         info = lm.rom_tracking_info(lm.index_by_rom_name(lib), "Celeste", "GBA")
         self.assertEqual(info, {
             "iniciado": True, "finalizado": True, "platinado": False, "nota": 9.5,
-            "genero": "Plataforma", "tempo": "12:30:00", "observacoes": "Ótimo jogo",
+            "genero": "Plataforma", "tempo": "12:30:00", "observacoes": "Ótimo jogo", "sinopse": None,
         })
 
     def test_sem_registro_devolve_none(self):
@@ -248,6 +248,15 @@ class TestValidacaoDeCampos(unittest.TestCase):
         self.assertEqual(self.lib["games"][0]["data_final"], "2024-01-02")
         with self.assertRaises(ValueError):
             lm.update_game(self.lib, self.gid, "lancamento", "banana")
+
+    def test_sinopse_e_campo_proprio_separado_do_comentario(self):
+        lm.update_game(self.lib, self.gid, "observacoes", "meu comentário")
+        lm.update_game(self.lib, self.gid, "sinopse", "  Aventura de plataforma em pixel art.  ")
+        game = self.lib["games"][0]
+        self.assertEqual((game["observacoes"], game["sinopse"]), ("meu comentário", "Aventura de plataforma em pixel art."))
+        lm.update_game(self.lib, self.gid, "sinopse", "")
+        self.assertIsNone(game["sinopse"])
+        self.assertEqual(game["observacoes"], "meu comentário")
 
     def test_texto_vazio_vira_none(self):
         lm.update_game(self.lib, self.gid, "observacoes", "   ")

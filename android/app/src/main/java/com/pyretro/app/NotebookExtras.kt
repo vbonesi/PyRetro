@@ -75,7 +75,7 @@ class NotebookExtras(private val store:LibraryStore,private val dir:File) {
         val campos=JSONObject();for((field,value) in changes)campos.put(field,value ?: JSONObject.NULL)
         if(store.cloudLibrary.available()) {
             val row=store.cloudLibrary.game(id) ?: error("Jogo ausente da Biblioteca local.")
-            require(changes.keys.all { it in setOf("genero","data_final","tempo","observacoes") })
+            require(changes.keys.all { it in setOf("genero","data_final","tempo","observacoes","sinopse") })
             changes["data_final"]?.let { java.time.LocalDate.parse(it) }
             store.cloudLibrary.edit(Game(id,"pc:$id",row.getString("nome"),row.getString("plataforma")),campos);return
         }

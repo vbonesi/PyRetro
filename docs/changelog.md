@@ -1,5 +1,18 @@
 # Changelog
 
+## 29/10/2026 (noite) — Campo Sinopse em todos os apps (Android 0.23.0)
+
+- Novo campo `sinopse` no registro da Biblioteca: resumo do jogo em português, 2–3 frases, **separado** de `observacoes`
+  (o comentário continua só para jogos zerados). Editável como os demais campos de texto (`EDITABLE_FIELDS`,
+  `/api/library/track|edit`); `rom_tracking_info` também o devolve. Nenhuma migração: o campo nasce vazio e o journal já sincroniza
+  campos arbitrários.
+- Modo TV: a ficha mostra a sinopse sob o título; ✎ Editar tem o campo. Web: o campo está em ✎ Editar e o resumo aparece como
+  dica (hover) no nome do card da Biblioteca. Android **0.23.0 (code 34)**: texto na ficha do jogo e campo "Sinopse (resumo do jogo)"
+  no ✎ Editar dados; instalada e conferida no celular depois de "Atualizar Biblioteca e catálogo".
+- Testes: 467 Python, 58 JS (o mock do modo TV passou a responder `/api/setup/status`), JVM + lint do build aprovados.
+- Combinado com o Victor para preencher: Steam (`appdetails` em pt-BR) → ScreenScraper (pt) → o que ficar em branco, busca no Google
+  e resumo/tradução pelo Claude em 2–3 frases; só texto com fonte real. Registro de teste: Super Metroid já tem sinopse.
+
 ## 29/10/2026 (noite) — Moonlight e Steam Link validados na janela nativa
 
 - Victor confirmou: Moonlight com o PyRetro primeiro no Sunshine e o PyRetro aberto pelo Big Picture da Steam.

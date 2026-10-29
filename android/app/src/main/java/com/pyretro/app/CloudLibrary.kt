@@ -71,7 +71,7 @@ class CloudLibrary(private val store:LibraryStore) {
             require(candidates.size<=1) { "Mais de um cadastro com este nome; escolha o correto na Biblioteca." }
             val row=candidates.singleOrNull() ?: JSONObject().apply {
                 put("id","android-"+UUID.randomUUID());put("nome",name);put("plataforma",store.folders.getValue(game.code))
-                for(field in listOf("subgenero","genero","nota","data_final","tempo","meta","observacoes","lancamento","desenvolvedora","capa"))put(field,JSONObject.NULL)
+                for(field in listOf("subgenero","genero","nota","data_final","tempo","meta","observacoes","sinopse","lancamento","desenvolvedora","capa"))put(field,JSONObject.NULL)
                 for(field in listOf("iniciado","finalizado","platinado","savestate","oculto"))put(field,false)
                 put("fontes",JSONArray().put("rom:${game.code}"));put("nomes_alt",JSONArray())
             }.also { rows[it.getString("id")]=it;created=true }

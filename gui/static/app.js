@@ -1746,7 +1746,7 @@ function buildLibraryCard(g, rank) {
         : `<div class="cover-placeholder">🖼<br>sem capa</div>`}
       ${rank ? `<span class="lib-badge">#${rank}</span>` : ""}
     </div>
-    <div class="label" title="${g.nome}">${g.nome}</div>
+    <div class="label" title="${esc(g.sinopse ? g.nome + "\n\n" + g.sinopse : g.nome)}">${g.nome}</div>
     <div class="card-meta" title="${meta}">${meta}</div>
     ${g.genero ? `<div class="card-genero">🎭 ${g.genero}</div>` : ""}
   `;
@@ -1991,6 +1991,7 @@ const EDITAR_CAMPOS_BIBLIOTECA = [
   { campo: "data_final", rotulo: "Data que finalizou", dica: "aaaa-mm-dd" },
   { campo: "tempo", rotulo: "Tempo jogado", dica: "ex: 31:40:00" },
   { campo: "observacoes", rotulo: "Comentário", textarea: true },
+  { campo: "sinopse", rotulo: "Sinopse", textarea: true },
 ];
 // ROM (leve/pesada): sem "Plataforma" - vem do sistema, não é editável aqui.
 const EDITAR_CAMPOS_ROM = EDITAR_CAMPOS_BIBLIOTECA.filter((c) => c.campo !== "plataforma");

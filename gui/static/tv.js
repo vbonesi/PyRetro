@@ -555,6 +555,7 @@ function openGame(g, origin = document.activeElement) {
   if (textureCode) $("textures-link").href = '/?'+new URLSearchParams({textures:textureCode,game:g.name});
   $("detail-cover").hidden = !g.cover; if (g.cover) $("detail-cover").src = g.cover;
   $("spotlight-video").pause(); $("time-fields").hidden = true; $("media-fields").hidden = true;
+  $("game-synopsis").textContent = g.tracking?.sinopse || ''; $("game-synopsis").hidden = !g.tracking?.sinopse;
   $("game-time").textContent = g.playtime?.seconds ? `${formatTime(g.playtime.seconds)} em ${g.playtime.sessions} sessão(ões) registrada(s).` : 'Ainda sem tempo registrado neste PC.';
   $("detail-video").pause(); $("detail-video").hidden = !g.media?.video;
   $("detail-video").removeAttribute('src'); if (g.media?.video) $("detail-video").src = g.media.video;
@@ -581,7 +582,7 @@ function openGame(g, origin = document.activeElement) {
 }
 // ✎ Editar jogo: os mesmos campos do ✎ da web. ROM sem cadastro cria o registro na 1ª gravação
 // (/api/library/track); nome e plataforma de ROM vêm do arquivo/sistema e não são editados aqui.
-const EDIT_FIELDS = [["nome", "Nome"], ["plataforma", "Plataforma"], ["genero", "Gênero"], ["data_final", "Data que finalizou (aaaa-mm-dd)"], ["tempo", "Tempo jogado (ex.: 31:40:00)"], ["observacoes", "Comentário"]];
+const EDIT_FIELDS = [["nome", "Nome"], ["plataforma", "Plataforma"], ["genero", "Gênero"], ["data_final", "Data que finalizou (aaaa-mm-dd)"], ["tempo", "Tempo jogado (ex.: 31:40:00)"], ["observacoes", "Comentário"], ["sinopse", "Sinopse"]];
 function editFields(g) { return g.code ? EDIT_FIELDS.filter(([f]) => !["nome", "plataforma"].includes(f)) : EDIT_FIELDS; }
 function editValue(g, field) { return field in state.edits ? state.edits[field] : field === "nome" ? g.name : field === "plataforma" && !g.tracking.plataforma ? g.platform : g.tracking[field] ?? ""; }
 function renderEdit(focusField) {

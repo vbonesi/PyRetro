@@ -547,6 +547,7 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
     if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
     else if (url === "/api/tv/catalog") data = [];
     else if (url === "/api/csrf") data = {token: "tv-token"};
+    else if (url === "/api/setup/status") data = {ready: true, steps: []};
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
     else if (url === "/api/systems" || url === "/api/library") data = [];
@@ -1012,7 +1013,7 @@ teste("modo TV: editar grava só o alterado e capa de ROM usa a fonte escolhida"
     await app.load("light");
     doc.querySelector("#gallery .game").click();
     doc.getElementById("edit-toggle").click();
-    igual([...doc.querySelectorAll("#edit-list button")].map(b => b.dataset.field), ["genero", "data_final", "tempo", "observacoes"]);
+    igual([...doc.querySelectorAll("#edit-list button")].map(b => b.dataset.field), ["genero", "data_final", "tempo", "observacoes", "sinopse"]);
     doc.querySelector('#edit-list [data-field="genero"]').click();
     await esperar(() => !doc.getElementById("genre-list").hidden, "lista de gêneros não abriu");
     [...doc.querySelectorAll("#genre-list button")].find(b => b.textContent === "Ação").click(); // mesmo valor: não grava
