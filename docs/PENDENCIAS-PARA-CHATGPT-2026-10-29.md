@@ -5,6 +5,9 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
 
 ## Regras que valem (aprendidas nesta rodada)
 
+- **Saves de jogos finalizados nunca são apagados** (decisão do Victor, 29/10): ficam nos dois aparelhos e na nuvem, mesmo sem a
+  ROM local. A ROM de um jogo finalizado pode sair do aparelho; o save não. Só apagar save quando o Victor pedir, jogo a jogo.
+
 - **Nunca apagar nada do acervo/saves sem prova:** ROM só sai do PC/celular depois de `rclone check`/MD5 idêntico no
   Drive. Saves e estados de teste: comparar a lista de arquivos antes/depois e remover só o que o teste criou.
 - **`~/Downloads` é um link para `~/Drive/Temp`:** nada que não deva ir à nuvem pode morar ali.
@@ -64,18 +67,28 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
       `docs/mobile-save-ids.md` desatualizados.
 
 ### Saves / emuladores
-- [x] **Decidir sobre `Lime3DS/sdmc` do celular no PC:** Victor escolheu manter saves/extdata compartilhados.
-      27 arquivos de 3DS do celular (Pokémon X/Y extdata, demo Epic
-      Mickey, etc.) chegaram a `~/Games/PyRetro/Saves/Lime3DS/sdmc`. Perguntar se ficam ou se o 3DS sai da sincronização
-      (`CloudSaves(..., exclude=...)` no PC; `CloudPhone.prefixes` no app).
+- [ ] **Exclusão explícita de saves na nuvem (tombstone):** o motor nunca propaga exclusão (arquivo que falta é restaurado);
+      apagar um save de verdade exigiu editar `saves/devices/*.json` à mão em 29/10. Criar a operação "esquecer" com teste
+      PC/Android (e confirmação na tela).
+- [x] **Decidir sobre `Lime3DS/sdmc` do celular no PC:** Victor escolheu manter a sincronização de saves/extdata.
+      A limpeza posterior removeu os dados antigos por pedido dele; essa decisão não autoriza restaurá-los.
 - [x] **Estados entre PC e celular:** Victor escolheu separação por aparelho; novos manifestos em `states/<dispositivo>`.
       Teste PC/celular prova isolamento de estados e manutenção dos saves compartilhados. Histórico antigo preservado.
       `savestate_auto_load` com `.state.auto` vindo do outro aparelho pode carregar estado
       de core incompatível. Avaliar excluir `states/` da sincronização automática ou separar por dispositivo.
-- [ ] **Zelda Molblins (DS):** o erro "write to your cart" some com um `.sav` em branco de 512 KB em
-      `Saves/saves/NDS/` (já criado). Pedir ao Victor para confirmar jogando.
+- [x] **Zelda Molblins (DS), encerrado por mudança de escopo:** ROM/save removidos pelo Claude a pedido do Victor.
+      Não houve homologação em jogo; não recriar o save nem baixar a ROM para esse teste.
 - [x] **Conflitos de saves na tela:** Ferramentas → Saves na nuvem no modo TV mostra cabeças/dispositivos,
       escolha explícita, confirmação e retry após falha. Teste de navegador passou.
+
+### BIOS no celular (aviso do Victor, 29/10)
+- [ ] **`neogeo.zip` (BIOS) no celular:** `Saves`/ROMs de Arcade (KOF '97, baixado no celular em `/sdcard/Jogos/ARCADE/kof97.zip`) só abrem
+      com a BIOS do Neo Geo. Não achei `neogeo.zip` em `/sdcard` (busca até 5 níveis). No PC ela está em
+      `~/Games/PyRetro/BIOS/RetroArch/neogeo.zip` (e a pasta `fbneo/` ao lado). Descobrir onde o RetroArch do celular lê BIOS
+      (`system_directory` no `retroarch.cfg` do aparelho, `/sdcard/RetroArch/system`?), copiar a BIOS (e as outras que os jogos
+      de Arcade/PCE-CD/DS do celular exigirem), conferir MD5 contra o PC e abrir o KOF '97 no aparelho para confirmar.
+      Decidir também se as BIOS passam a vir da nuvem sob demanda (hoje `BIOS/` só existe local no PC, copiada do Drive em
+      `drive:Jogos/BIOS`). Usar o celular um agente por vez e avisar o Victor.
 
 ### Controles
 - [ ] **Galileo G8 no notebook:** `python3 tools/configure_xbox.py --learn galileo-g8` com SÓ ele conectado. Já medidos:
