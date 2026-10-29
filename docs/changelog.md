@@ -1,5 +1,18 @@
 # Changelog
 
+## 29/10/2026 (noite) — Desenvolvedora, lançamento e capas pelo LaunchBox
+
+- `desenvolvedora`/`lancamento` preenchidos em **2.338 registros** que estavam vazios (agora 2.474 e 2.494 de 2.826), pelo
+  Metadata.xml do LaunchBox: nome normalizado EXATO (nome + `nomes_alt`, com/sem "The") só na plataforma do registro
+  (ROM → `PLATFORM_MAP`; Steam/Epic/GOG/Amazon → Windows; Switch → Switch; Xbox/PSN → consoles da loja). Nada foi sobrescrito.
+  Ficaram sem casamento 326 (Switch 50, Steam 44, GBA 34 — hacks e traduções —, Xbox 28...).
+- 30 valores que já existiam divergem do LaunchBox e NÃO foram mexidos (ex.: 19XX com "1026 Development"/2015, Aerial Assault
+  do Game Gear com dados de um jogo de 2016, Portal do Switch com a data do PC). Lista e o que foi preenchido em
+  `~/Games/PyRetro/Backups/Metadados LaunchBox 2026-10-29/` (com o `library.json.antes`).
+- Capas: 32 de arcade que não tinham capa nem thumbnail do sistema (libretro FBNeo; Out Run e Oriental Legend escolhidas à mão;
+  Chibi Maruko só tem a arte genérica do Neo Geo) e a do Trials of Mana do Switch, que estava com a do SNES (agora a do remake,
+  LaunchBox). Sem capa ainda: Geoplanetical (Steam) e os 6 Twinmotion ocultos.
+
 ## 29/10/2026 (noite) — Sinopses: lojas, Google e ScreenScraper (1ª leva)
 
 - **1.263 de 2.264 jogos** da Biblioteca já têm `sinopse` (máx. 297 caracteres, 2–3 frases em pt-BR). Origem: Steam pt-BR (97),
