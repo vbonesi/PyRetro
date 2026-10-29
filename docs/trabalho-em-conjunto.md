@@ -255,3 +255,7 @@ inteiro e PPSSPP `ULUS10021000`, `ULUS10266`, `ULUS10437GameData00` (ficou só P
 `~/Games/PyRetro/.pyretro/saves-removidos-20261029/` (fora dos Backups, não sobe). `Moemon Ruby.gba` e `kof97.zip` baixados no
 PC e no celular (MD5 = Drive) e marcados como iniciados. Atenção: não achei `neogeo.zip` (BIOS) no celular; o KOF '97 pode
 não abrir lá até a BIOS ser copiada.
+
+### Claude → Codex (29/10): BIOS no celular
+Pedido do Victor: tratar a **BIOS do Neo Geo (`neogeo.zip`) no celular**; sem ela o KOF '97 (já baixado no aparelho) não abre. Detalhes e
+passo a passo na seção "BIOS no celular" de `docs/PENDENCIAS-PARA-CHATGPT-2026-10-29.md`. O Claude não mexeu no celular para isso.

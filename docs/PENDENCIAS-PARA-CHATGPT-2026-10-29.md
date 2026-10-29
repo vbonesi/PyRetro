@@ -70,6 +70,15 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
 - [ ] **Conflitos de saves na tela:** hoje só no app (botões) e na rota `/api/cloud/saves/resolve`; falta a tela de
       conflito no modo TV do notebook.
 
+### BIOS no celular (aviso do Victor, 29/10)
+- [ ] **`neogeo.zip` (BIOS) no celular:** `Saves`/ROMs de Arcade (KOF '97, baixado no celular em `/sdcard/Jogos/ARCADE/kof97.zip`) só abrem
+      com a BIOS do Neo Geo. Não achei `neogeo.zip` em `/sdcard` (busca até 5 níveis). No PC ela está em
+      `~/Games/PyRetro/BIOS/RetroArch/neogeo.zip` (e a pasta `fbneo/` ao lado). Descobrir onde o RetroArch do celular lê BIOS
+      (`system_directory` no `retroarch.cfg` do aparelho, `/sdcard/RetroArch/system`?), copiar a BIOS (e as outras que os jogos
+      de Arcade/PCE-CD/DS do celular exigirem), conferir MD5 contra o PC e abrir o KOF '97 no aparelho para confirmar.
+      Decidir também se as BIOS passam a vir da nuvem sob demanda (hoje `BIOS/` só existe local no PC, copiada do Drive em
+      `drive:Jogos/BIOS`). Usar o celular um agente por vez e avisar o Victor.
+
 ### Controles
 - [ ] **Galileo G8 no notebook:** `python3 tools/configure_xbox.py --learn galileo-g8` com SÓ ele conectado. Já medidos:
       Xbox One (principal), Series S ("Xbox Series X Controller") e WGP16 (aparece como "Sony Interactive Entertainment
