@@ -1,5 +1,29 @@
 # Changelog
 
+## 29/10/2026 — Android 0.22.0 instalado e fechamento da revisão
+
+Biblioteca, Desejados, cadastro, edição e estatísticas usam dados locais; novas sessões e alterações
+entram no diário. Catálogo Arcade recebe nomes e dependências do DAT para vincular nomes curtos sem
+cache do notebook e proteger pais. Operação individual “Esquecer” usa marcador v2, confirmação,
+revalidação e histórico; uma edição offline divergente vira conflito, sem exclusão em lote de saves.
+
+No aparelho: 96 verificações de interface (48 em cada fonte 80%/130%, ambas as orientações), SQLite
+real, falha/retry de saves, SAF/fila e remoção/restauração sintética passaram. Os 231 arquivos reais
+inventariados mantiveram nomes, tamanhos e datas. Fonte/rotação restauradas. Ícone instalado e nove
+máscaras/temas renderizados; launcher temático real e Steam Big Picture ainda exigem conferência.
+BIOS Neo Geo em system/fbneo tem MD5 igual ao PC; FBNeo iniciou KOF '97 sem arquivos faltantes,
+com configuração/saves temporários e config original preservada. 103 JVM, 58 JS e build/lint aprovados.
+448 Python passaram antes da integração do teste adicional do Claude, aprovado na suíte focada.
+
+## 29/10/2026 — Integridade de Backups e prevenção de nomes duplicados no Drive
+
+A contagem de 505 caminhos escondia diretórios homônimos criados por uploads concorrentes. Foi
+montada uma árvore nova, verificada por hash e promovida: 505 arquivos de Backups e nove objetos de
+estados. As árvores antigas ficaram em `*-preservado-20261029-*`, mantendo seus IDs e arquivos.
+Criação de pastas e escritas no mesmo destino agora usam trava entre instâncias/processos no PC;
+Android serializa escritas e só aceita aliases de arquivo com tamanho/checksum iguais. Divergências
+bloqueiam a operação. Testes concorrentes conferem unicidade e uploads paralelos de destinos distintos.
+
 ## 29/10/2026 — Perfil automático do controle antes de Dolphin/Azahar
 
 `configure_xbox.py --auto --apply` exige um único controle com GUID/nome já medidos. Configuração

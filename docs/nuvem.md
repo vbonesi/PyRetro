@@ -1,65 +1,77 @@
-# Camada de nuvem independente (plano de 28/10/2026)
+# Nuvem independente — estado em 29/10/2026
 
-Objetivo: o PyRetro funciona sozinho no PC e no celular (local-first) e, se o usuário quiser,
-conecta uma nuvem para guardar ROMs sob demanda, saves e backups. Hoje o Drive é usado pelo Insync;
-o alvo é o PyRetro falar com a nuvem direto, qualquer que seja ela.
+PC e Android 0.22.0 mantêm dados locais e acessam a nuvem diretamente. O notebook não é necessário
+para consultar a Biblioteca, alterar progresso/favoritos, registrar sessões ou usar o catálogo do Drive
+no celular após conectar a conta. Jogos locais e alterações funcionam offline; envio ocorre quando há rede.
+O Insync deixa de transportar esses dados; a desmarcação seletiva continua sendo feita só pelo Victor.
 
-## Peças
+## Componentes em uso
 
-| Peça | Estado |
-|---|---|
-| `core/cloud.py`: interface `Storage` (list, exists, get, put sem sobrescrever, trash) com `RcloneStorage` (qualquer remoto do rclone ou pasta local) e `MemoryStorage` | **pronta e testada** |
-| `core/cloud_saves.py`: motor de saves por manifestos por dispositivo (push, pull, conflito, resolver, histórico) | **pronto e testado** (memória e rclone local) |
-| Ligar o motor ao lançador (baixar antes de abrir, enviar ao fechar) e à tela de conflito | falta |
-| Android 0.18.0: `CloudStorage`, `DriveCloudStorage` (Drive), `CloudSavesEngine` (mesmo protocolo e prefixos por grupo), `CloudPhone` (pastas SAF) e botão "☁ Saves na nuvem (novo)" em Situação | **compila e tem 9 testes JVM de paridade; não testado no aparelho** |
-| Biblioteca e Backups sem Insync: `core/cloud_snapshots.py` (versões imutáveis, retenção, restauração, backups novos) com gancho no `save_library` | **pronto** (SQLite + diário fica para depois) |
+| Área | PC | Android |
+|---|---|---|
+| Transporte | `core/cloud.py`, rclone | `DriveCloudStorage`, Google Drive |
+| Biblioteca | SQLite/`library_journal.py`, snapshots versionados | SQLite transacional/`LibraryJournal`, bootstrap pelo snapshot |
+| Atualizações | início, pós-jogo, cinco minutos | WorkManager, rede/bateria, mínimo 15 minutos |
+| Catálogo | resolvedor local/Drive | Biblioteca local + índice direto das pastas do Drive |
+| Capas | `cloud_covers.py`, publicação quando exibidas | cache offline, blobs por hash e origem direta no Drive |
+| Saves e estados | motor antes/depois do jogo e modo TV | SAF, ficha por título e central de saves |
+| Backups | publicação verificável em `backups/` | cópia remota disponível; não exige Insync |
 
-## Protocolo de saves (sem escrita condicional)
+Cada campo da Biblioteca resolve concorrência pelo relógio persistente, dispositivo e sequência.
+Sessões novas possuem identidade imutável e não são somadas duas vezes. Segmentos do diário são
+imutáveis e conferidos; recibos só avançam após salvar. Ambiguidades e alterações antigas sem cadastro
+não são descartadas. Desejados, edição, cadastro e estatísticas também usam a Biblioteca local.
+
+Capas são enviadas sob demanda para os jogos exibidos, conforme decisão do Victor. Pré-busca não
+envia toda a coleção. `catalog/arcade.json` contém nomes e pais do DAT já existente no PC;
+não inclui ROM/BIOS e permite reconhecer nomes curtos e proteger a remoção de pais no Android.
+
+## Protocolo de saves v2
 
 ```
-<grupo>/blobs/<sha256>              conteúdo imutável
-<grupo>/devices/<dispositivo>.json  manifesto que só aquele dispositivo escreve
+saves/blobs/<sha256>                         conteúdo imutável compartilhado
+saves/devices/<dispositivo>.json             manifesto de um dispositivo
+states/<dispositivo>/blobs/<sha256>          estados exclusivos daquele aparelho
+states/<dispositivo>/devices/<dispositivo>.json
 ```
 
-- Cada dispositivo escreve só o próprio manifesto: não há disputa pelo mesmo arquivo.
-- A versão atual de um save é o conjunto de **cabeças** (entradas que nenhuma outra declara como
-  `base`). Uma cabeça = em dia; várias = conflito, e nada é sobrescrito até o usuário escolher.
-- Antes de substituir um arquivo local, a versão antiga vai para `.pyretro-history/`. Na nuvem,
-  todo blob fica (histórico); `trash` do provedor cobre a limpeza futura.
-- O que vem da nuvem é desconfiado: caminhos hostis ignorados, hash conferido antes de gravar.
-- Exclusão local nunca se propaga: arquivo que falta é restaurado (modo "só na nuvem": o cache local
-  pode ser apagado e o próximo jogo baixa o save mais recente).
+Uma versão aponta suas bases. As cabeças não superadas por outra versão representam o estado atual:
+uma cabeça pode ser aplicada; várias exigem escolha explícita. Hash e caminho são validados antes de
+gravar. A versão local substituída vai para o histórico, e os blobs remotos antigos permanecem.
+O Android usa `android-<UUID>` persistente; saves continuam compartilhados, estados são separados.
+Dados antigos não são apagados ou restaurados em decorrência dessa separação.
 
-## Modo "saves só na nuvem"
+Ausência local normalmente não é exclusão: um save ausente pode voltar da nuvem. **Esquecer** é uma
+operação explícita por arquivo, com confirmação e prévia revalidada; publica marcador `deleted: true`,
+sem apagar blobs. Outro aparelho com a mesma cópia arquiva a versão local; se ela mudou offline,
+o motor apresenta conflito. Restaurar uma versão histórica cria uma cabeça de conteúdo normal.
+Saves de jogos finalizados permanecem, mesmo sem ROM. Nenhuma rotina de limpeza em lote os esquece.
 
-O lançador do PyRetro baixa o save mais recente antes de abrir o jogo e envia ao fechar; offline,
-joga com o cache e envia depois. Conflito pergunta (manter este, usar o da nuvem; o outro fica no
-histórico).
+PSP/3DS exigem ID de título verificado/escolhido, com região/árvore quando necessário. Extdata não
+é inferida automaticamente. A opção de sincronizar todos os jogos do emulador é apresentada por extenso.
+Saves/extdata 3DS continuam compartilhados por escolha do Victor; os dados removidos por pedido dele
+não devem ser recriados. O protocolo HTTP/Insync de saves foi removido; suas rotas respondem 410.
 
-## Para outras pessoas
+## Escritas e integridade no Drive
 
-- Escopos: o acesso total ao Drive (`drive`) é restrito pelo Google e pede verificação de segurança
-  paga; para terceiros o caminho é `drive.file` (o app vê só o que criou) com a pasta escolhida pelo
-  usuário. Outros provedores via rclone (OneDrive, Dropbox, S3, WebDAV, SFTP).
-- Credenciais no chaveiro do sistema, nunca em arquivo de projeto.
-- Modelo "traga a sua nuvem": o app não hospeda nem indexa conteúdo de terceiros (reduz o risco
-  jurídico; não é parecer). Capas e metadados dependem dos termos de cada fonte.
-- Empacotamento (Flatpak/AppImage), onboarding que detecta emuladores, atualizador e testes de
-  instalação limpa ficam para depois da camada estar estável.
+O Drive admite nomes duplicados. No PC, trava por destino protege escritas concorrentes e a criação
+de diretórios é serializada antes do envio paralelo de arquivos. Android serializa escritas entre instâncias;
+cópias de arquivo com mesmo tamanho/checksum podem ser tratadas juntas, mas divergências bloqueiam a operação.
 
-## Ordem sugerida
+A auditoria final encontrou diretórios duplicados nos Backups e estados, apesar da contagem lógica correta.
+Foi criada uma árvore nova, conferida e promovida: **505 arquivos de Backups por hash e nove objetos de estados**.
+As árvores anteriores permanecem em `backups-preservado-20261029-*` e `states-preservado-20261029-*`.
+Não houve deduplicação destrutiva dos arquivos reais. Recibos privados ficaram fora do Git.
 
-1. Ligar o motor de saves ao lançador do PC com um grupo de teste (pasta descartável no Drive).
-2. Implementação Android de `Storage` (Drive) e do motor, com o mesmo protocolo.
-3. Migrar os saves reais (etapa G) com backup, emuladores fechados e conferência por hash.
-4. Biblioteca em SQLite + diário; backups remotos.
+## Verificar antes de desmarcar o Insync
 
-## Como testar no celular (Android 0.18.0)
+Com emuladores fechados, executar `python3 -m core.cloud_sync status` (sem ações pendentes = `{}`)
+e conferir o snapshot mais recente da Biblioteca. Backups exigem conferência por hash, não só contagem.
+Só o Victor desmarca Saves, Capas, Biblioteca e Backups na sincronização seletiva; não usar remoção local
+em `~/Drive` para simular essa ação.
 
-1. Conferir no notebook que o envio terminou: `python3 -m core.cloud_sync status` deve mostrar `{}`.
-2. Instalar: `adb install --user 0 -r cache/artifacts/PyRetro-0.18.0-debug.apk`.
-3. Em Situação, escolher as pastas de saves (RetroArch, PPSSPP, 3DS) se ainda não estiverem, e abrir
-   "☁ Saves na nuvem (novo)" → "Comparar e sincronizar". Esperado: baixar os saves do notebook e enviar os do celular.
-4. Jogar algo, voltar ao notebook e rodar `python3 -m core.cloud_sync status`/`sync`.
-5. Conflito (mudar o mesmo save nos dois lados): o app e o notebook mostram o conflito; nada é sobrescrito.
-O protocolo antigo (pendências pelo Insync e sync HTTP com o notebook) foi removido do app na 0.19.0, depois do teste.
+## Futuro, sem decisão
+
+Produto para terceiros, revisão de escopos OAuth (`drive.file`), chaveiro, outros provedores,
+empacotamento e onboarding continuam ideias. Não houve alteração de credenciais/escopos nesta entrega.
+Também não foi implementada distribuição automática de BIOS.

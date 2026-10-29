@@ -20,118 +20,82 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
   conversa/repositório; ela já registrou até a linha 20).
 - Reiniciar `pyretro-gui` só com o modo TV fechado.
 
-## Estado em 29/10 (resumo)
+## Estado final da implementação em 29/10
 
-- Acervo em `~/Games/PyRetro` (ROMs, BIOS, NSW, Capas, Saves, Biblioteca, Backups); `[storage] migrated` inclui tudo.
-  Local fica só com jogos em andamento; o resto vem do Drive sob demanda (PC e celular). ROMs de Arcade também saíram.
-- Nuvem independente: `core/cloud.py`, `cloud_saves.py`, `cloud_sync.py`, `cloud_snapshots.py`, `library_journal.py`;
-  remoto `drive:Jogos/PyRetro-Nuvem`; saves sincronizam antes/depois do jogo (`auto = true`).
-- Android **0.19.0**: ficha 💾 Saves e "Saves e estados" usam só o motor de nuvem (testado no aparelho).
-- Biblioteca: diário SQLite + snapshots; Backups sobem à nuvem sem Insync.
+Android **0.22.0 / code 32**. Acervo em `~/Games/PyRetro`; todas as categorias migradas.
+Biblioteca local com SQLite/diário no PC e Android, nuvem direta e capas dos jogos exibidos.
+Saves compartilhados; estados separados por dispositivo. O protocolo HTTP/Insync antigo foi retirado.
+As limpezas de jogos/saves feitas pelo Claude a pedido do Victor continuam válidas: não restaurar esses dados.
 
-## Pendências (marcar `[x]` ao concluir)
+## Entregas concluídas
 
-### Em andamento / verificar primeiro
-- [x] **Envio dos Backups à nuvem:** concluído em 29/10 (`publish_tree` agora paralelo; 505 arquivos locais, todos presentes
-      em `drive:Jogos/PyRetro-Nuvem/backups`; conferido por `rclone size` e uma 2ª rodada sem pendência).
-- [ ] **Insync (só o Victor):** desmarcar `Saves`, `Capas`, `Biblioteca` e `Backups` na sincronização seletiva. Antes,
-      conferir `python3 -m core.cloud_sync status` = `{}` e que o último snapshot da Biblioteca está na nuvem.
+- [x] **Backups:** 505 arquivos conferidos por hash. A contagem inicial escondia diretórios duplicados
+  no Drive, criados por uploads concorrentes. Árvores novas verificadas foram promovidas para
+  `backups/` e `states/`; os diretórios anteriores ficaram em `*-preservado-20261029-*`, sem apagar cópias.
+  Os nove objetos de estados foram preservados e conferidos. Escritas agora serializam a criação de
+  diretórios e o mesmo caminho; uploads de caminhos diferentes continuam paralelos. Teste concorrente aprovado.
+- [x] **Biblioteca independente:** SQLite transacional Android, bootstrap por snapshot, diário imutável
+  Kotlin/Python, relógio persistente, desempate por campo e replay idempotente. Progresso, favoritos e novas
+  sessões entram no diário; pendências antigas identificadas migram sem contar tempo duas vezes.
+  Conflitos antigos e entradas sem identidade ficam preservados. Desejados, estatísticas, cadastro e edição
+  usam a Biblioteca local; serviços externos continuam exigindo conexão.
+- [x] **Agendamento:** PC recebe no início, pós-jogo e a cada cinco minutos; Android usa WorkManager
+  com rede/bateria suficiente, período mínimo de 15 minutos e limitações normais do sistema.
+- [x] **Catálogo e capas:** Biblioteca + pastas do Drive, incluindo jogos sem cadastro e ambiguidades explícitas.
+  Nomes/dependências de Arcade vêm do DAT local publicado como metadados, sem enviar ROM/BIOS.
+  Capas enviadas somente quando exibidas, com SHA-256, ponteiro por jogo e cache offline.
+  Prova real de uma capa passou por envio/leitura e igualdade de bytes.
+- [x] **Protocolo antigo:** rotas `/api/mobile/sync/*` retornam 410, módulo antigo retirado e validação
+  extraída para `core/save_paths.py`; documentação do protocolo atualizada.
+- [x] **Saves:** falhas preservam a tela e permitem repetir; TV e Android exibem conflitos e versões.
+  PSP/3DS usam identificação verificada/escolhida por título, região e árvore. Sem identificação há
+  opção explícita de todos os jogos do emulador. Extdata não é inferida pelo Program ID.
+- [x] **Esquecer um save:** operação individual com confirmação e revalidação, marcador `deleted` do protocolo v2,
+  histórico local e blobs preservados. Cópia inalterada de outro aparelho acompanha o marcador;
+  edição offline vira conflito. Restaurar cria uma versão normal. Nenhuma exclusão em lote ou por jogo finalizado.
+- [x] **3DS e estados:** manter saves/extdata compartilhados, como escolhido pelo Victor; novos estados em
+  `states/<dispositivo>`. Android usa identidade persistente própria. Não ressuscitar os saves antigos removidos.
+- [x] **Molblins:** encerrado por remoção solicitada pelo Victor; não homologado em jogo e não deve ser recriado.
+- [x] **Remoção de ROM:** Android oferece celular/Drive/ambos, prévia, revalidação e proteção de iniciados,
+  fixados, execução/fila e arquivos compartilhados. Lixeira local recuperável e lixeira do Drive.
+  Prova real PC/Drive usou ROM sintética própria; prova SAF Android verificou remoção e restauração idêntica.
+  Arcade bloqueia quando o índice de dependências é incompleto.
+- [x] **Controle automático:** `configure_xbox.py --auto --apply` e lançador do setup selecionam apenas
+  um controle medido, com emuladores fechados; nove testes do configurador e nove do lançador aprovados.
+- [x] **Diferenças Android × PC:** Desejados, Ranking 1–2–3 em retrato/2–1–3 em paisagem, desempates,
+  glifos automáticos/manuais, foco distinto da seleção, abas visíveis, espaço útil, ajuda, marca PR,
+  nota 11, sorteio repetido, selos e indicação da fila foram aplicados. Histórico da revisão em
+  `REVISAO-ANDROID-PC-2026-10-29.md`; resultados físicos finais registrados ali.
+- [x] **BIOS Neo Geo:** `neogeo.zip` em `/sdcard/RetroArch/system/fbneo/`, MD5 igual ao PC.
+  FBNeo iniciou KOF '97 sem arquivos faltantes e exibiu o boot Neo Geo. Configuração original inalterada;
+  saves/estados/logs do teste ficaram em pasta própria, removida ao terminar.
 
-### Celular independente do notebook (o que o Victor quer)
-- [x] **Biblioteca local no celular + diário em Kotlin:** SQLite transacional, bootstrap do snapshot e diário Kotlin;
-      fixture compartilhada Python/Kotlin e teste no SQLite real do aparelho passaram. Portado `core/library_journal.py` (diff, apply, LWW por jogo/campo,
-      segmentos imutáveis em `journal/<dispositivo>/`) para o app, com testes JVM de paridade (como `CloudSavesTest`).
-      Base inicial = último `snapshots/library/latest.json` da nuvem (`DriveCloudStorage`).
-- [x] **Trocar a fila de progresso/tempo para o diário:** nota/progresso/favoritos e novas sessões usam o diário;
-      pendências antigas com ID migram sem duplicar tempo. Pendências sem cadastro ou em conflito ficam preservadas.
-      Antes o celular mandava nota/iniciado/finalizado/tempo/favoritos por
-      HTTP ao notebook (`StatusStore`/`pending`). Deve gravar no diário e subir pela nuvem; o notebook junta com
-      `cloud_sync.pull_library` (já existe e é testado).
-- [x] **Agendar o `pull_library` no notebook** (início, pós-jogo e cinco minutos) e WorkManager Android
-      (rede disponível/bateria suficiente, período mínimo de 15 minutos). Implementado e testado; instalação final pendente.
-      Requisito original: (ao iniciar, depois de cada jogo e a cada poucos minutos) e o equivalente
-      no celular (WorkManager, respeitando bateria). Hoje é manual: `python3 -c "from core import cloud_sync..."`.
-- [x] **Relógio híbrido:** PC e Kotlin persistem o maior `at` e avançam estritamente após ele; desempate estável
-      por dispositivo/sequência e comparação contra todas as origens. Guardar o maior `at`
-      já visto e nunca usar um menor (PC e Android).
-- [x] **Catálogo sem o notebook:** Biblioteca local + listagem direta do Drive, incluindo ROMs sem cadastro;
-      ambiguidades de nome/região não criam vínculo automático. Montada a lista a partir da Biblioteca local + listagem direta das pastas do Drive
-      (`CloudIndex`/`GoogleDrive`); hoje vem de `/api/tv/catalog`.
-- [x] **Capas sob demanda pela nuvem:** Victor escolheu enviar apenas as exibidas; blobs por hash e ponteiro
-      por identidade no PC/Android, cache offline e leitura direta da origem no Drive quando necessário.
-      Subir para `capas/` da nuvem só as dos jogos
-      exibidos; as 2,1 GB de `Biblioteca/capas` não estão na nuvem e saem do Insync).
-- [x] **Remover de vez o que sobrou do protocolo antigo:** rotas `/api/mobile/sync/*` retornam 410 e `core/mobile_sync.py` foi retirado;
-      validação extraída para `core/save_paths.py` e documentação atualizada. Antes: `core/mobile_sync.py`
-      (`core/game_save_ids.py` ainda usa `mobile_sync.accepted`; extrair essa regra antes), `docs/drive-saves.md` e
-      `docs/mobile-save-ids.md` desatualizados.
+## Pendências que exigem ação ou equipamento do Victor
 
-### Saves / emuladores
-- [ ] **Exclusão explícita de saves na nuvem (tombstone):** o motor nunca propaga exclusão (arquivo que falta é restaurado);
-      apagar um save de verdade exigiu editar `saves/devices/*.json` à mão em 29/10. Criar a operação "esquecer" com teste
-      PC/Android (e confirmação na tela).
-- [x] **Decidir sobre `Lime3DS/sdmc` do celular no PC:** Victor escolheu manter a sincronização de saves/extdata.
-      A limpeza posterior removeu os dados antigos por pedido dele; essa decisão não autoriza restaurá-los.
-- [x] **Estados entre PC e celular:** Victor escolheu separação por aparelho; novos manifestos em `states/<dispositivo>`.
-      Teste PC/celular prova isolamento de estados e manutenção dos saves compartilhados. Histórico antigo preservado.
-      `savestate_auto_load` com `.state.auto` vindo do outro aparelho pode carregar estado
-      de core incompatível. Avaliar excluir `states/` da sincronização automática ou separar por dispositivo.
-- [x] **Zelda Molblins (DS), encerrado por mudança de escopo:** ROM/save removidos pelo Claude a pedido do Victor.
-      Não houve homologação em jogo; não recriar o save nem baixar a ROM para esse teste.
-- [x] **Conflitos de saves na tela:** Ferramentas → Saves na nuvem no modo TV mostra cabeças/dispositivos,
-      escolha explícita, confirmação e retry após falha. Teste de navegador passou.
+- [ ] **Insync (só o Victor):** após conferir status da nuvem e snapshot atual, desmarcar `Saves`, `Capas`,
+  `Biblioteca` e `Backups` na sincronização seletiva. Não apagar pastas dentro do Drive.
+- [ ] **Galileo G8 no notebook:** medir com só ele conectado: `python3 tools/configure_xbox.py --learn galileo-g8`.
+  Nenhum controle estava disponível na sondagem desta rodada. Alternância física dos perfis ainda não homologada.
+- [ ] **3DS:** atalhos em jogo e uso prolongado; G8 e interrupção de download já foram testados pelo Victor.
+  Os jogos removidos não devem ser baixados para cumprir essa verificação.
+- [ ] **Identidade visual real:** conferir ícone temático no launcher e Steam Big Picture. Recursos instalados
+  e nove combinações de máscara/tema Android foram renderizados; isso não equivale a mudar o tema do launcher.
+- [ ] **Arcade com clone real:** quando houver um na coleção, conferir a cadeia pai/BIOS em jogo. Hoje os casos
+  de dependência são cobertos por fixtures; não adquirir ROM para marcar esta linha.
 
-### BIOS no celular (aviso do Victor, 29/10)
-- [ ] **`neogeo.zip` (BIOS) no celular:** `Saves`/ROMs de Arcade (KOF '97, baixado no celular em `/sdcard/Jogos/ARCADE/kof97.zip`) só abrem
-      com a BIOS do Neo Geo. Não achei `neogeo.zip` em `/sdcard` (busca até 5 níveis). No PC ela está em
-      `~/Games/PyRetro/BIOS/RetroArch/neogeo.zip` (e a pasta `fbneo/` ao lado). Descobrir onde o RetroArch do celular lê BIOS
-      (`system_directory` no `retroarch.cfg` do aparelho, `/sdcard/RetroArch/system`?), copiar a BIOS (e as outras que os jogos
-      de Arcade/PCE-CD/DS do celular exigirem), conferir MD5 contra o PC e abrir o KOF '97 no aparelho para confirmar.
-      Decidir também se as BIOS passam a vir da nuvem sob demanda (hoje `BIOS/` só existe local no PC, copiada do Drive em
-      `drive:Jogos/BIOS`). Usar o celular um agente por vez e avisar o Victor.
+## Ideias futuras, sem decisão de implementação
 
-### Controles
-- [ ] **Galileo G8 no notebook:** `python3 tools/configure_xbox.py --learn galileo-g8` com SÓ ele conectado. Já medidos:
-      Xbox One (principal), Series S ("Xbox Series X Controller") e WGP16 (aparece como "Sony Interactive Entertainment
-      Wireless Controller", GUID 054c:09cc). Aplicar o perfil de outro controle: `--controller <id> --apply` (emuladores fechados).
-- [x] **Escolha automática do perfil pelo controle conectado:** `configure_xbox.py --auto --apply` e lançador
-      do setup escolhem somente um GUID/nome já medido para Dolphin/Azahar. Sem controle, com dois ou
-      emulador aberto, preservam o perfil. Nove testes de configuração + nove do lançador passaram.
-      Nenhum controle estava conectado à sondagem; alternância física e G8 continuam pendentes.
+- [ ] Produto para terceiros: escopos/OAuth, chaveiro, provedores adicionais, Flatpak/AppImage e onboarding.
+- [ ] Distribuir BIOS sob demanda pela nuvem. A correção atual usa a BIOS local já existente do Victor.
 
-### Interface / produto
-- [x] **Correção de falhas/confirmacões de saves (0.19.1):** falhas de grupo/arquivo/exceção preservam a tela;
-      sucesso de resolução depende do resultado. 85 JVM e build/lint aprovados; ainda sem instalação nesta entrega.
-- [x] **Revisão comparativa Android × PC (Codex, 29/10):** matriz, divergências e roteiro reproduzível
-      em `REVISAO-ANDROID-PC-2026-10-29.md`; 48 telas/estados no aparelho, em retrato/paisagem.
-      As diferenças identificadas continuam abertas; navegação aprovada não comprova paridade.
-- [ ] **Aplicar as diferenças da revisão Android:** primeiro erros/confirmações de saves, filtro de Desejados
-      e Ranking em retrato; depois escopo PSP/3DS, glifos/foco/espaço útil e remoção local/Drive.
-- [x] **Testes automatizados do que só foi conferido no navegador:** 57 JS aprovados, incluindo pódio, empates,
-      filtros, glifos, confirmação de conflito e remoção com resposta atrasada. Pódio do Ranking, filtros recolhíveis, glifos
-      Xbox/PS, tela "🗑 Remover…" (modo TV, `tests/test_app.html`).
-- [ ] **Remoção na ficha:** confirmar uma remoção real de ponta a ponta (PC + Drive à lixeira) com um jogo descartável;
-      até agora só a prévia foi exercitada. Ligar também ao Android (ficha) com a mesma regra de `core/removal.py`.
-- [ ] **Identidade visual:** conferir os ícones nas máscaras do launcher do Android e no Steam Big Picture (instalados,
-      mas não vistos nesses lugares). O recurso monocromático já existe em `ic_launcher.xml`; falta conferir o
-      resultado do ícone temático no launcher. O cabeçalho Android ainda usa a estrela.
-- [ ] **Arcade:** nenhum jogo atual depende de outro jogo (só de BIOS em `BIOS/RetroArch`). Se a coleção crescer, a
-      resolução de pai (`core/arcade.py`) já baixa os pais; testar com um clone real quando houver.
-- [ ] **Homologação física restante (Victor):** G8 e interrupção de download já testados por ele; ficam atalhos do 3DS e uso
-      prolongado.
-
-### Produto "para outras pessoas" (ideia futura, sem decisão)
-- [ ] Escopo `drive.file` (app só vê o que criou) em vez de `drive` para terceiros; credenciais no chaveiro; outros
-      provedores via rclone/`Storage`; empacotamento (Flatpak/AppImage) e onboarding. Ver `docs/nuvem.md`.
-      Modelo "traga a sua nuvem"; não hospedar ROMs de terceiros.
-
-## Como validar (rápido)
+## Validação reproduzível
 
 ```bash
-python3 -m unittest discover -s tests          # ~435 testes Python
-# JS: abrir http://localhost:8000/tests/test_app.html e ler window.RESULTADO (54 testes)
+python3 -m unittest discover -s tests
+# Navegador, acervo sintético: /tests/test_app.html; conferir #resumo (58 testes).
 JAVA_HOME=~/.cache/pyretro/android-toolchain/jdk ANDROID_HOME=~/.cache/pyretro/android-toolchain/sdk \
-  python3 tools/build_android.py < /dev/null   # compila, roda JVM e lint; APK em cache/artifacts/
-python3 -m core.cloud_sync status               # {} = tudo em dia com a nuvem
-python3 -m core.storage                         # prévia de armazenamento (config bruto)
+  python3 tools/build_android.py < /dev/null
+# Compilar também :app:assembleDebugAndroidTest; instalar ambos com --user 0 -r.
+adb shell am instrument -w -e suite interface com.pyretro.app.test/com.pyretro.app.StorageSmoke
+python3 -m core.cloud_sync status
 ```

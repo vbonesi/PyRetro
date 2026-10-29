@@ -1,5 +1,17 @@
 # Armazenamento do PC: acervo local sob demanda (etapa E, 28/10/2026)
 
+## Atualização de 29/10
+
+Todas as categorias migraram para `~/Games/PyRetro`, incluindo NSW, Saves, Capas, Biblioteca e Backups.
+Biblioteca e saves usam a nuvem direta; Backups tiveram os 505 arquivos verificados por hash.
+Estados novos são separados por dispositivo. As árvores remotas antigas com diretórios duplicados
+foram preservadas e substituídas por árvores verificadas. Ver `nuvem.md` e a lista de pendências atual.
+ROMs/BIOS já foram desmarcadas no Insync pelo Victor; as outras quatro pastas aguardam ação dele.
+Não apagar dados dentro de `~/Drive`. Limpezas posteriores solicitadas pelo Victor continuam válidas.
+O relato abaixo registra a migração de 28/10 e não representa pendências atuais.
+
+## Histórico da migração de 28/10
+
 Estado (28/10, noite): **etapa (a) feita**: ROMs (sem NSW) e BIOS copiados para `~/Games/PyRetro`
 com SHA-256 conferido na origem e no destino (1.915 arquivos, 41,7 GB, 0 erros; recibo em
 `~/Games/PyRetro/.pyretro/receipts/`). O Drive está intacto e **nada foi desmarcado no Insync**.

@@ -1,6 +1,45 @@
 # Revisão da interface Android em comparação com o PC — 29/10/2026
 
-**A paridade ainda está incompleta.** As cores de nota, os selos de plataforma e o motor de
+## Conclusão da implementação — Android 0.22.0
+
+As sete correções prioritárias desta revisão foram aplicadas. O APK **0.22.0 / code 32** foi
+instalado no aparelho com a mesma chave, preservando os dados. A revisão original abaixo é histórica.
+
+| Achado | Entrega atual |
+|---|---|
+| Sucesso falso em falha de saves | Erro visível, tela preservada e nova tentativa; consulta e envio com falha induzida passaram na Activity real. |
+| Filtro de Desejados | Opções da própria coleção, verificadas em retrato e paisagem. |
+| Ranking/empates | 1–2–3 em retrato, 2–1–3 em paisagem; desempate por nome normalizado, plataforma e ID. |
+| Escopo PSP/3DS | ID verificado/escolhido, região/árvore, alcance apresentado; fallback explícito para todo o emulador. |
+| Glifos/foco/espaço | Auto/manual Xbox, PlayStation e genérico; foco branco e seleção verde; aba ativa trazida à vista, busca compacta e ajuda. |
+| Remoção | Celular/Drive/ambos, prévia e revalidação; lixo local recuperável, proteção de compartilhados, fixados, iniciados e fila. |
+| Acabamento | Marca PR, nota especial 11, sorteio repetido, selos e fila. |
+| Dependência do notebook | Biblioteca SQLite/diário, catálogo direto, Desejados/edição/cadastro/estatísticas locais e capas sob demanda. |
+
+Verificação final: **48 telas/estados com fonte 80% + 48 com fonte 130%**, em ambas as orientações.
+As asserções passaram e as capturas de Ranking, início e ficha foram inspecionadas. Textos longos
+quebram linha ou usam rolagem; com fonte ampliada e paisagem há menos cartões visíveis. Um vídeo
+flutuante do usuário encobria parte de algumas capturas; essa região não foi tratada como evidência visual.
+Fonte e rotação originais foram restauradas.
+
+Passaram também as suítes no aparelho de SQLite/transações/replay/sessões, saves com falha/retry,
+SAF/histórico/checksum/conflitos, fila e remoção/restauração de ROM sintética. Nenhuma dessas suítes
+alterou saves/jogos reais: o inventário final manteve **231 arquivos** com nomes, tamanhos e datas iguais.
+KOF '97 foi iniciado separadamente com config e saves temporários: FBNeo não encontrou arquivos faltantes
+e exibiu o boot Neo Geo. A BIOS instalada tem MD5 igual ao PC; configuração real do RetroArch preservada.
+
+Recursos do ícone instalado e nove máscaras/temas foram renderizados e inspecionados. O tema do
+launcher real e Steam Big Picture continuam com conferência física pendente. Atalhos 3DS, uso prolongado,
+G8 no notebook e clone Arcade real também não são comprovados por esta revisão. O roteiro não faz
+login, compra, edição real de Biblioteca nem sincronização destrutiva.
+
+Validação de código: **103 JVM, 58 JavaScript, build, lint e APK auxiliar aprovados**; Python passou
+448 testes antes de integrar mais um teste de criação de diretório do Claude, aprovado na suíte focada.
+Evidências privadas em `auditoria/android-final-2026-10-29/`, fora do Git.
+
+## Revisão original — Android 0.19.0
+
+**Na revisão original, a paridade ainda estava incompleta.** As cores de nota, os selos de plataforma e o motor de
 saves chegaram ao Android. Outras mudanças do modo TV não chegaram, e há defeitos próprios
 do app. Esta entrega registra a revisão e recupera a instrumentação; não instala uma nova
 versão do produto nem marca as diferenças abaixo como corrigidas.
