@@ -168,6 +168,24 @@ class TestMergeDeFontes(unittest.TestCase):
         self.assertEqual(len(lib["games"]), 2)
         self.assertTrue(r["possible_dupes"], "devia ter reportado a semelhança")
 
+    def test_switch_nao_casa_com_registro_de_outra_plataforma(self):
+        # Achado 29/10: a pasta do Switch virava fonte da ROM de SNES/da Steam
+        # e ficava sem registro de Switch na Biblioteca.
+        lib = {"games": [jogo("Final Fantasy VI", "Nintendo - Super Nintendo Entertainment System", fontes=["rom:SFC"]),
+                         jogo("Final Fantasy VII", "Steam", fontes=["steam"])]}
+        r = lm.merge_owned(lib, [{"nome": "Final Fantasy VI", "plataforma": "Nintendo Switch", "fonte": "switch"},
+                                 {"nome": "Final Fantasy VII", "plataforma": "Nintendo Switch", "fonte": "switch"}])
+        self.assertEqual((r["added"], r["merged"]), (2, 0))
+        self.assertEqual(lib["games"][0]["fontes"], ["rom:SFC"])
+        self.assertEqual(lib["games"][1]["fontes"], ["steam"])
+        self.assertEqual({g["plataforma"] for g in lib["games"][2:]}, {"Nintendo Switch"})
+
+    def test_switch_ainda_casa_com_o_proprio_registro_de_switch(self):
+        lib = {"games": [jogo("Portal", "Nintendo Switch", nota=9.4, fontes=["switch"]), jogo("Portal", "Steam", fontes=["steam"])]}
+        r = lm.merge_owned(lib, [{"nome": "Portal", "plataforma": "Nintendo Switch", "fonte": "switch"}])
+        self.assertEqual((r["added"], r["merged"]), (0, 1))
+        self.assertEqual(lib["games"][1]["fontes"], ["steam"])
+
 
 class TestRenomearSobrevive(unittest.TestCase):
     """Achado real (28/08): renomear pela tela quebrava o casamento por

@@ -689,6 +689,13 @@ def nomes_para_match(game: dict) -> list:
     return [game["nome"], *game.get("nomes_alt", [])]
 
 
+# Fontes que só casam com registro da mesma plataforma. Achado 29/10: a pasta "FINAL FANTASY VI" do Switch
+# (Pixel Remaster) virava fonte do registro da ROM de SNES, e o FF VII do Switch sumia dentro do registro
+# da Steam - a pasta do NSW ficava sem jogo de Switch na Biblioteca. Entre lojas de PC o casamento por
+# nome continua juntando de propósito (mesmo jogo na Steam e na Epic é um registro só).
+FONTES_SO_DA_PLATAFORMA = {"switch"}
+
+
 def merge_owned(library: dict, owned: list) -> dict:
     """Cruza `owned` (jogos possuídos, vindos de alguma fonte externa)
     com library["games"]: nome normalizado IGUAL só anota a fonte a
@@ -722,6 +729,8 @@ def merge_owned(library: dict, owned: list) -> dict:
     for item in owned:
         norm = _normalize(item["nome"])
         existing = by_norm.get(norm)
+        if existing and item["fonte"] in FONTES_SO_DA_PLATAFORMA:
+            existing = [g for g in existing if g["plataforma"] == item["plataforma"]]
         if existing:
             for g in existing:
                 if item["fonte"] not in g["fontes"]:

@@ -1,5 +1,17 @@
 # Changelog
 
+## 29/10/2026 (noite) — Limpeza das coletâneas do Switch e 1 pasta = 1 jogo
+
+- Victor decidiu ficar na emulação (sem ports nativos). Saíram da Biblioteca 262 registros de coletâneas de Switch cobertas
+  ou dispensadas, e as 182 pastas no NSW foram para a lixeira do Drive (~114 GB). Ficaram SEGA AGES Phantasy Star/Out Run e Eschatos.
+  Backup: `~/Games/PyRetro/Backups/Limpeza Switch 2026-10-29/`.
+- `merge_owned`: a fonte `switch` só casa com registro de Switch (`FONTES_SO_DA_PLATAFORMA`). Antes, a pasta do Switch virava
+  fonte da ROM de SNES/NES (FF II–VI, Trials of Mana) ou de um registro de Steam/Xbox (FF VII, Stardew...). Corrigidos os 21 registros,
+  criados 9 de Switch, juntados os duplicados de Twilight Princess e Tales of Vesperia. Agora: 238 pastas = 238 jogos de Switch.
+- Cadastrados 67 jogos de ROMs que o Victor vai repor (vindos das coletâneas), ainda sem arquivo: capa (LaunchBox/libretro),
+  gênero, desenvolvedora e lançamento (Metadata.xml do LaunchBox) e sinopse. Lista em `~/Drive/Jogos/Switch - jogos que faltam na emulação.txt`.
+  MK4 e Salamander 2 de arcade ficaram de fora (o FBNeo não roda).
+
 ## 29/10/2026 (noite) — Sinopses dos jogos da Steam
 
 - Preenchida a `sinopse` de 97 jogos de loja (Steam e relacionados): textos da Steam em pt-BR (`appdetails`, `l=brazilian`) resumidos
