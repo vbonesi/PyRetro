@@ -1,5 +1,18 @@
 # Changelog
 
+## 28/10/2026 (noite) — Switch: 21 pastas de Downloads organizadas
+
+Lote de torrents em `~/Downloads` (= `Drive/Temp`) organizado direto no Drive (`rclone moveto`, sem
+reenvio). 15 títulos novos em `Jogos/ROMs/NSW` sem a tag `[NSZ]/[NSP]`: Omno, Planet of Lana (e II),
+Princess Peach Showtime!, Roots of Pacha, Sea of Solitude, Sea of Stars, SMT III Nocturne HD Remaster,
+The Gardens Between, Trials of Mana, Unicorn Overlord, Untitled Goose Game, Vampire Crawlers e
+Rogue Legacy 1 e 2 (coletânea decomposta). Apagados (lixeira do Drive): 8 títulos já existentes com
+arquivos idênticos (Arceus, Shovel Knight ×3, Galaxy 1 e 2, Bowser's Fury, Radiant Silvergun — o update
+novo era mais antigo que o do Drive), mods russos (Unicorn Overlord, Arceus, Galaxy 1 e 2), o mod de
+áudio LayeredFS do SMT III (versão beta) e o update antigo do Bowser's Fury. Biblioteca: 12 jogos
+novos, capa e gênero conferidos (gêneros do LaunchBox corrigidos à mão onde erraram). Fora do lote,
+de propósito: coletânea russa de ShootEmUp (ainda baixando, arquivos `.part`) e Outbound.
+
 ## 28/10/2026 — registro da auditoria independente
 
 [Resultados e fila de correção](AUDITORIA-2026-10-28.md) para a base `721b9be`:
@@ -4349,3 +4362,12 @@ filtros unificados).
   overrides do Flatpak que apontavam para o Drive (cópia em `~/.local/state/bonisarch/backups/overrides-*`).
 - `[cloud] auto = true`: o PyRetro baixa os saves antes de abrir um jogo e envia ao fechar.
 - Falta: desmarcar `Saves` e `Capas` no Insync (Victor) e testar o app 0.18.0 no celular.
+
+## 28/10/2026 — saves na nuvem testados no celular (Android 0.18.1)
+
+- Teste real: o celular comparou com o Drive (27 enviar, 4 baixar, 1 conflito), sincronizou e resolveu o
+  conflito do Final Fantasy VI a favor do celular; o notebook baixou a versão do celular (a do PC ficou em
+  `.pyretro-history`) e os 27 arquivos de `Lime3DS/sdmc` do celular.
+- Defeito achado no teste e corrigido (PC e Android): duas entradas que citam uma à outra em `base` se
+  anulavam e o save "sumia" das cabeças. Agora uma entrada só substitui outra mais antiga. 25 testes de
+  nuvem; JVM com teste de paridade.

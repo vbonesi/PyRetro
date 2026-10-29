@@ -64,25 +64,29 @@ class CloudSavesEngine(private val storage:CloudStorage,private val device:Strin
         return out
     }
 
-    /** {caminho local: {sha: [dispositivos]}}: só as cabeças (versões que nenhuma outra substitui). */
+    /** {caminho local: {sha: [dispositivos]}}: só as cabeças. Uma entrada só substitui outra MAIS ANTIGA:
+     *  duas que citam uma à outra não podem se anular (mesma regra do notebook). */
     fun heads(manifests:Map<String,JSONObject>):Map<String,Map<String,List<String>>> {
-        data class Row(val device:String,val sha:String)
-        val rows=linkedMapOf<String,MutableList<Row>>();val superseded=hashSetOf<String>()
+        data class Row(val device:String,val sha:String,val base:List<String>,val at:Double)
+        val rows=linkedMapOf<String,MutableList<Row>>();val written=hashMapOf<Pair<String,String>,Double>()
         for((device,manifest) in manifests) {
             val files=manifest.getJSONObject("files")
             for(key in files.keys()) {
                 if(!key.startsWith(prefix))continue
                 val rel=key.removePrefix(prefix);val entry=files.optJSONObject(key) ?: continue
-                val sha=entry.optString("sha256")
+                val sha=entry.optString("sha256");val at=entry.optDouble("at",0.0).let { if(it.isNaN())0.0 else it }
                 if(!CloudRules.safeRelative(rel) || sha.length!=64)continue
-                rows.getOrPut(rel) { mutableListOf() }.add(Row(device,sha))
-                entry.optJSONArray("base")?.let { base -> for(i in 0 until base.length())base.optString(i).takeIf { it.isNotEmpty() }?.let(superseded::add) }
+                val base=mutableListOf<String>();entry.optJSONArray("base")?.let { arr -> for(i in 0 until arr.length())arr.optString(i).takeIf { it.isNotEmpty() }?.let(base::add) }
+                rows.getOrPut(rel) { mutableListOf() }.add(Row(device,sha,base,at))
+                written[rel to sha]=maxOf(written[rel to sha] ?: 0.0,at)
             }
         }
+        val superseded=hashSetOf<Pair<String,String>>()
+        for((rel,list) in rows)for(r in list)for(b in r.base)if((written[rel to b] ?: 0.0)<=r.at)superseded.add(rel to b)
         val out=linkedMapOf<String,Map<String,List<String>>>()
         for((rel,list) in rows) {
             val heads=linkedMapOf<String,MutableList<String>>()
-            for(r in list)if(r.sha !in superseded)heads.getOrPut(r.sha) { mutableListOf() }.add(r.device)
+            for(r in list)if((rel to r.sha) !in superseded)heads.getOrPut(r.sha) { mutableListOf() }.add(r.device)
             if(heads.isNotEmpty())out[rel]=heads
         }
         return out

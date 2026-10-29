@@ -94,6 +94,14 @@ class CloudSavesTest {
         assertEquals(mapOf("X/Y.srm" to "pull"),engine.plan().associate { it.path to it.action }.filterKeys { it=="X/Y.srm" })
     }
 
+    @Test fun twoEntriesThatCiteEachOtherKeepTheNewerOneAsTheOnlyHead() {
+        val a="a".repeat(64);val b="b".repeat(64)
+        store.put("saves/devices/pc.json","{\"files\":{\"Jogo.srm\":{\"sha256\":\"$b\",\"base\":[\"$a\"],\"at\":100}}}".toByteArray())
+        store.put("saves/devices/celular.json","{\"files\":{\"Jogo.srm\":{\"sha256\":\"$a\",\"base\":[\"$b\"],\"at\":200}}}".toByteArray())
+        val engine=CloudSavesEngine(store,"x",phone)
+        assertEquals(mapOf("Jogo.srm" to mapOf(a to listOf("celular"))),engine.heads(engine.manifests()))
+    }
+
     @Test fun storageContractAndPathValidation() {
         store.put("a/b","1".toByteArray());assertThrows(CloudExists::class.java) { store.put("a/b","2".toByteArray()) }
         store.put("a/b","3".toByteArray(),overwrite=true);assertEquals("3",String(store.get("a/b")))

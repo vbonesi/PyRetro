@@ -148,6 +148,12 @@ class Devices(unittest.TestCase):
         self.assertFalse(result[0]["ok"]); self.assertIn("não confere", result[0]["error"])
         self.assertFalse((self.b_root / "Jogo.srm").exists())
 
+    def test_two_entries_that_cite_each_other_keep_the_newer_one_as_the_only_head(self):
+        a, b = "a" * 64, "b" * 64
+        manifests = {"pc": {"files": {"Jogo.srm": {"sha256": b, "base": [a], "at": 100}}},
+                     "celular": {"files": {"Jogo.srm": {"sha256": a, "base": [b], "at": 200}}}}
+        self.assertEqual(CloudSaves.heads(manifests), {"Jogo.srm": {a: ["celular"]}})
+
     def test_hidden_state_folders_are_never_uploaded(self):
         self.write(self.a_root, ".pyretro-history/Jogo.srm/1.previous", b"x")
         self.write(self.a_root, ".pyretro-pending/Jogo.srm/1.pending", b"y")

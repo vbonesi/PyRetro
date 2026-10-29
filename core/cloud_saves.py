@@ -148,7 +148,7 @@ class CloudSaves:
     @staticmethod
     def heads(manifests):
         """{caminho: {sha: [dispositivos]}} só com as cabeças (versões não substituídas)."""
-        entries, superseded = {}, set()
+        entries, written = {}, {}
         for device, manifest in manifests.items():
             for rel, entry in manifest['files'].items():
                 try:
@@ -156,15 +156,24 @@ class CloudSaves:
                     sha = entry['sha256']
                     if not (isinstance(sha, str) and len(sha) == 64):
                         continue
+                    at = float(entry.get('at') or 0)
                 except (ValueError, KeyError, TypeError):
                     continue
-                entries.setdefault(rel, []).append((device, sha, entry.get('base') or []))
-                superseded.update(b for b in entry.get('base') or [] if isinstance(b, str))
+                entries.setdefault(rel, []).append((device, sha, entry.get('base') or [], at))
+                written[(rel, sha)] = max(written.get((rel, sha), 0.0), at)
+        # Uma entrada só substitui outra MAIS ANTIGA: duas entradas que citam uma à outra (resolução de
+        # conflito a favor de um lado enquanto o outro enviava) não podem se anular e sumir com o save.
+        superseded = set()
+        for rel, rows in entries.items():
+            for _device, _sha, base, at in rows:
+                for b in base:
+                    if isinstance(b, str) and (rel, b) not in superseded and written.get((rel, b), 0.0) <= at:
+                        superseded.add((rel, b))
         result = {}
         for rel, rows in entries.items():
             heads = {}
-            for device, sha, _ in rows:
-                if sha not in superseded:
+            for device, sha, _base, _at in rows:
+                if (rel, sha) not in superseded:
                     heads.setdefault(sha, []).append(device)
             if heads:
                 result[rel] = heads
