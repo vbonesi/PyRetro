@@ -1,5 +1,11 @@
 # Changelog
 
+## 29/10/2026 (noite) — Moonlight e Steam Link validados na janela nativa
+
+- Victor confirmou: Moonlight com o PyRetro primeiro no Sunshine e o PyRetro aberto pelo Big Picture da Steam.
+  Pendências restantes: atalhos Azahar/Lime3DS no celular, G8 prolongado e perfil do G8, e depois a retirada do
+  override `/run/udev:ro` do Chrome (pelo setup).
+
 ## 29/10/2026 — Arcade pelo título completo, em todo o PC e no Android 0.22.1
 
 O arquivo de Arcade é o código do set (`kof97`), e o DAT traz o título com o código de revisão
