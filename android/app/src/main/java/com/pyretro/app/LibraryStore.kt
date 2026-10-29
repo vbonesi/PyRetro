@@ -114,7 +114,7 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     }
     private fun catalogFile(suffix:String="json")=File(context.filesDir,if(preferenceName=="pyretro")"catalog.$suffix" else "$preferenceName-catalog.$suffix")
     fun legacyCached():List<Game> = runCatching { parse(JSONArray(catalogFile().readText())) }.getOrDefault(emptyList())
-    fun cached():List<Game> = if(cloudLibrary.ready())cloudLibrary.catalog() else legacyCached()
+    fun cached():List<Game> = if(cloudLibrary.available())cloudLibrary.catalog() else legacyCached()
     fun refresh():List<Game> {
         if(prefs.getBoolean("google:connected",false)) { cloudLibrary.sync(forceIndex=true);return cached() }
         val games=parse(JSONArray(request("/api/tv/catalog")))
@@ -241,6 +241,7 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         if(game.id.isNotBlank() && (game.cover.startsWith("cloud-cover:") || prefs.getBoolean("google:connected",false))) {
             runCatching { cloudLibrary.cover(game,publish) }.getOrNull()?.let { return it }
         }
+        if(game.cover.startsWith("cloud-cover:"))legacyCached().firstOrNull { it.id==game.id && it.cover.startsWith('/') }?.let { old -> return cover(old.copy(id=""),publish=false) }
         if(game.cover.isBlank() || !game.cover.startsWith('/'))return null
         val url=base()+game.cover
         // Chave só pelo caminho (com ?v=mtime): trocar LAN ↔ Tailscale não esvazia o cache offline.

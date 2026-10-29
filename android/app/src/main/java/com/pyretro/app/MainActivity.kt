@@ -51,6 +51,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private lateinit var statsShortcut:Button
     private val extras by lazy { NotebookExtras(store,filesDir) }
     private val drive by lazy { GoogleDrive(this,store.prefs) }
+    private var saveStorageOverride:CloudStorage?=null
+    private fun saveStorage():CloudStorage=saveStorageOverride ?: DriveCloudStorage(drive)
     /** Jogo que esperava a conta Google ser conectada para baixar do Drive. */
     private var driveAfterConsent:Game?=null
     /** Desejados como cartões (chave "wish:…"); vêm do cache e se atualizam com o notebook online. */
@@ -429,7 +431,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         box.addView(text(listOf(ExtrasRules.STORES.getValue(item.source),item.genre).filter { it.isNotBlank() }.joinToString(" · ")+" · na sua lista de desejos",14f))
         val actions=row();horizontal(box,actions)
         fun leave(bought:Boolean) {
-            if(!needsNotebook())return
+            if(!store.cloudLibrary.ready() && !needsNotebook())return
             show(AlertDialog.Builder(this).setMessage(if(bought)"Marcar \"${item.name}\" como comprado? Sai dos Desejados e entra na Biblioteca." else "Tirar \"${item.name}\" da lista de desejos?")
                 .setPositiveButton(if(bought)"Comprado" else "Tirar") { _,_ -> work.execute { runCatching { extras.leaveWishlist(item,bought) }.onSuccess { items -> runOnUiThread {
                     wishGames=wishGames.filter { it.key!=game.key };message(if(bought)"${item.name} entrou na Biblioteca." else "${item.name} saiu dos Desejados.");render()
@@ -455,13 +457,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 "★ nota média $media · ${stats.getInt("com_nota")} com nota","◷ ${ExtrasRules.hours(stats.getDouble("tempo_total_horas"))} de jogo registrado","♡ $wishCount nos Desejados",
                 if(fresh)"" else "Offline · dados de ${store.prefs.getLong("stats-at",0).takeIf { it>0 }?.let(::versionDate) ?: "—"}.").filter { it.isNotBlank() }.joinToString("\n")
         }
-        fill(extras.stats(false),false)
+        fill(extras.stats(false),store.cloudLibrary.ready())
         // Online: lê também os Desejados, para a contagem não depender de ter aberto a coleção antes.
         if(store.online)work.execute { val result=runCatching { extras.stats(true) };val wishes=runCatching { extras.wishlist(true).size }.getOrNull()
             runOnUiThread { if(wishes!=null)wishCount=wishes;result.onSuccess { fill(it,true) }.onFailure { fill(extras.stats(false),false) } } }
     }
     private fun editGame(game:Game) {
-        if(!needsNotebook())return
+        if(!store.cloudLibrary.available() && !needsNotebook())return
         message("Lendo os dados de ${game.name}…")
         work.execute {
             val result=runCatching { extras.record(game.id) to extras.genres() }
@@ -480,7 +482,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     val after=mapOf("genero" to options[genre.selectedItemPosition])+inputs.mapValues { it.value.text.toString() }
                     val changes=ExtrasRules.changes(before,after)
                     if(changes.isEmpty()) { message("Nada alterado.");return@setPositiveButton }
-                    work.execute { runCatching { extras.edit(game.id,changes) }.onSuccess { runOnUiThread { message("Dados de ${game.name} salvos no notebook.");refreshCatalog(silent=true) } }.onFailure { runOnUiThread { failure(it) } } }
+                    work.execute { runCatching { extras.edit(game.id,changes) }.onSuccess { runOnUiThread { message("Dados de ${game.name} salvos; envio pela nuvem agendado.");catalog=store.cached();reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } }
                 })
             } }
         }
@@ -692,7 +694,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             runCatching { SpaceStore(store).setPinned(game,!SpaceStore(store).pinned(game));render();details(game) }.onFailure(::failure)
         })
         if(rom)add(quick,button("💾 Saves") { gameSaves(game) })
-        if(game.id.isBlank() && game.key.startsWith("local:") && game.localUri!=null)add(quick,button("📚 Adicionar à Biblioteca") { addToLibrary(game) })
+        if(game.id.isBlank() && rom)add(quick,button("📚 Adicionar à Biblioteca") { addToLibrary(game) })
         val progress=expandable(box,"Progresso e tempo",expandedTrackingKey==game.key) { expandedTrackingKey=if(it)game.key else null }
         val tracking=store.tracking(game)
         for((field,label) in listOf("iniciado" to "Iniciado","finalizado" to "Finalizado","platinado" to "Platinado"))add(progress,button((if(tracking.optBoolean(field))"✓ " else "○ ")+label) {
@@ -707,7 +709,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             if(nota!=null)add(rating,button("Limpar") { store.setNota(game,null);details(game) })
         }
         val minutes=store.prefs.getLong("time:${game.key}",0)/60
-        progress.addView(text("$minutes min neste celular. Vai para o notebook sozinho quando ele estiver online.",12f))
+        val sessions=tracking.optJSONObject("_play_sessions")?.let { values -> values.keys().asSequence().sumOf { values.optLong(it) } } ?: 0L
+        progress.addView(text("$minutes min neste celular · ${sessions/60} min em sessões compartilhadas na Biblioteca. Novas sessões sincronizam pela nuvem.",12f))
         val more=expandable(box,"Mais opções")
         if(rom && game.pcLocal && game.code !in setOf("NDS","3DS"))add(more,button("🖥 Jogar no notebook · Moonlight") { dialog?.dismiss();notebook(game) })
         if(game.code=="PS")add(more,button("Abrir DuckStation · escolher jogo") { dialog?.dismiss();openPackage("com.github.stenzek.duckstation") })
@@ -905,6 +908,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(!notificationsAllowed()) add(box,button("🔔 Permitir notificações de download") {
             runCatching { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName)) }.onFailure(::failure) })
         box.addView(text("Uso",18f).apply { setTypeface(null,Typeface.BOLD) })
+        help(box,"Controles e navegação","${glyph("A")} abre · ${glyph("B")} volta · ${glyph("X")} favorita · ${glyph("Y")} pesquisa. LB/RB trocam páginas; gatilhos trocam coleções; Menu abre Opções. A fila continua em segundo plano e pode ser pausada em Downloads.")
         val pref=store.prefs.getString("ui:glyphs","auto").orEmpty()
         add(box,button("Botões: ${GlyphRules.label(pref,glyphFamily)}") {
             val next=GlyphRules.choices[(GlyphRules.choices.indexOf(pref)+1).mod(GlyphRules.choices.size)]
@@ -947,17 +951,27 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     /** Capas dos jogos do celular, favoritos e fixados ficam no cache para o modo offline. */
     private fun prefetchCovers() {
-        if(!store.online)return
+        if(!store.online && !drive.connected)return
         val pinned=SpaceStore(store).pinnedChecker()
         val wanted=games.filter { it.localUri!=null || store.favorite(it) || pinned(it) }.take(300)
-        prefetch.execute { for(game in wanted) { if(!store.online)break;runCatching { store.cover(game,publish=false) } } }
+        prefetch.execute { for(game in wanted) { if(!store.online && !drive.connected)break;runCatching { store.cover(game,publish=false) } } }
     }
     /** Saves e estados pela nuvem (core/cloud_saves no notebook): compara, mostra e só então sincroniza. */
-    private fun cloudSaves(title:String="☁ Saves na nuvem",filter:((String,String)->Boolean)?=null) {
+    private fun cloudSaves(title:String="☁ Saves na nuvem",filter:((String,String)->Boolean)?=null,showAll:Boolean=false) {
         val box=column();box.addView(text(title,23f));val info=text("Comparando com o Drive…",15f);box.addView(info)
         val area=column();box.addView(area)
         val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Fechar",null))
         var busy=false
+        fun confirmItem(title:String,description:String,label:String,action:()->Unit) {
+            val popup=AlertDialog.Builder(this).setTitle(title).setMessage(description).setNegativeButton("Manter",null).setPositiveButton(label) { _,_ -> action() }.create()
+            popup.setOnKeyListener { _,code,event ->
+                when(code) {
+                    KeyEvent.KEYCODE_BUTTON_A -> { if(event.action==KeyEvent.ACTION_DOWN && event.repeatCount==0)(popup.currentFocus as? Button)?.performClick();true }
+                    KeyEvent.KEYCODE_BUTTON_B -> { if(event.action==KeyEvent.ACTION_UP)popup.dismiss();true }
+                    else -> false
+                }
+            };popup.show();popup.getButton(AlertDialog.BUTTON_NEGATIVE).requestFocus()
+        }
         fun enable(view:View,value:Boolean) { if(view is Button)view.isEnabled=value;if(view is ViewGroup)for(i in 0 until view.childCount)enable(view.getChildAt(i),value) }
         fun perform(action:()->CloudFeedback) {
             if(busy)return
@@ -972,26 +986,37 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }
         }
         work.execute {
-            val phone=runCatching { CloudPhone(store,FileSync(store),DriveCloudStorage(drive)) }
-            val analysis=phone.mapCatching { it.analyze(filter) }
+            val phone=runCatching { CloudPhone(store,FileSync(store),saveStorage()) }
+            val analysis=phone.mapCatching { it.analyze(filter,showAll) }
             runOnUiThread {
                 if(dialog!==opened)return@runOnUiThread
                 val result=analysis.getOrElse { info.text="Não foi possível comparar: ${it.message}";return@runOnUiThread }
                 if(result.isEmpty()) { info.text="Escolha as pastas de saves em Situação (pasta RetroArch, PPSSPP, 3DS).";return@runOnUiThread }
                 val counts=result.values.mapNotNull { it.getOrNull() }.flatten().groupingBy { it.action }.eachCount()
                 val failed=result.filterValues { it.isFailure }
+                add(area,button("Comparar novamente") { cloudSaves(title,filter,showAll) })
                 info.text=if(counts.isEmpty() && failed.isEmpty())"Tudo em dia com a nuvem." else
-                    "Enviar: ${counts["push"] ?: 0} · Baixar: ${counts["pull"] ?: 0} · Conflitos: ${counts["conflict"] ?: 0}"+if(failed.isEmpty())"" else "\nErro em: ${failed.map { it.key+" ("+it.value.exceptionOrNull()?.message+")" }.joinToString()}"
-                val pending=counts.filterKeys { it=="push" || it=="pull" }.values.sum()
+                    "Enviar: ${counts["push"] ?: 0} · Baixar: ${counts["pull"] ?: 0} · Guardar no histórico: ${counts["forget"] ?: 0} · Conflitos: ${counts["conflict"] ?: 0}"+if(failed.isEmpty())"" else "\nErro em: ${failed.map { it.key+" ("+it.value.exceptionOrNull()?.message+")" }.joinToString()}"
+                add(area,button(if(showAll)"Mostrar só pendentes" else "Ver também saves em dia") { cloudSaves(title,filter,!showAll) })
+                val pending=counts.filterKeys { it in setOf("push","pull","forget") }.values.sum()
                 if(pending>0)add(area,button("Sincronizar agora ($pending)") {
                     perform { CloudFeedback.batch { phone.getOrThrow().apply(filter=filter) } }
                 })
                 for((group,items) in result)for(item in items.getOrNull().orEmpty().filter { it.action=="conflict" }) {
                     add(area,text("⚠ Conflito: ${item.path}",15f))
                     val line=row();horizontal(area,line)
-                    add(line,button("Manter o do celular") { perform { CloudFeedback.resolve("Mantido o do celular: ${item.path}") { phone.getOrThrow().resolve(group,item.path,"local") } } })
-                    add(line,button("Usar o da nuvem") { perform { CloudFeedback.resolve("Usado o da nuvem: ${item.path}") { phone.getOrThrow().resolve(group,item.path,"remote",item.heads.keys.first()) } } })
+                    if(item.local!=null)add(line,button("Manter o do celular") { perform { CloudFeedback.resolve("Mantido o do celular: ${item.path}") { phone.getOrThrow().resolve(group,item.path,"local") } } })
+                    for((sha,devices) in item.heads)add(line,button((if(sha in item.deletedHeads)"Usar exclusão confirmada" else "Usar da nuvem")+" · ${devices.joinToString()} · ${sha.take(12)}") {
+                        confirmItem(item.path,if(sha in item.deletedHeads)"Guardar a cópia local no histórico e aceitar a exclusão explícita deste save?" else "Usar esta versão da nuvem? A versão local fica no histórico.","Confirmar") {
+                            perform { CloudFeedback.resolve("Versão escolhida: ${item.path}") { phone.getOrThrow().resolve(group,item.path,"remote",sha) } }
+                        }
+                    })
                 }
+                for((group,items) in result)for(item in items.getOrNull().orEmpty().filter { it.action!="forget" })add(area,button("Esquecer este save… · ${item.path}") {
+                    confirmItem("Esquecer este save: ${item.path}","Retirar somente este save do uso e impedir que os outros aparelhos restaurem a versão antiga? Cópias locais vão para o histórico na próxima sincronização; blobs antigos permanecem. Saves de outros jogos ficam.","Esquecer este save") {
+                        perform { CloudFeedback.resolve("Save esquecido com histórico: ${item.path}") { phone.getOrThrow().forget(group,item) } }
+                    }
+                })
             }
         }
     }
@@ -1005,7 +1030,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val local=line("🎮 Neste celular",localSummary())
         if(folderState("ROOT")!="✓" && prefs.getString("tree:ROOT",null)==null)add(box,button("Escolher a pasta Jogos") { dialog?.dismiss();pickFolder("ROOT") })
         else if(localProblems.isNotEmpty())add(box,button("Corrigir pastas") { folderStatuses() })
-        fun notebookSummary()=when { store.base().isBlank() -> "Endereço não configurado.";store.online -> "Online. Catálogo e progresso atualizam sozinhos.";else -> "Offline. Jogos do celular e catálogo em cache continuam funcionando." }
+        fun notebookSummary()=when { store.base().isBlank() -> "Endereço não configurado.";store.online -> "Online para transmissões e manutenção do PC.";else -> "Offline. Biblioteca local, jogos do celular e acesso direto ao Drive continuam disponíveis." }
         val notebook=line("🖥 Notebook",notebookSummary())
         val test=button("Testar conexão") {}
         if(store.base().isBlank())add(box,button("Configurar endereço") { settings() }) else add(box,test)
@@ -1327,20 +1352,21 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun titleSaveChoice(game:Game) {
         work.execute {
+            val source=CloudRules.sha256((store.prefs.getString("cloud:${game.key}",null) ?: game.localUri?.let { uri -> "$uri|${runCatching { SpaceStore(store).stamp(uri) }.getOrNull()}" } ?: game.romName).toByteArray())
             val mapping=if(store.online && game.id.isNotBlank())runCatching { extras.saveIds(game.id) }.getOrNull() else extras.cachedSaveIds(game.id)
             val local=if(game.code=="3DS")game.localUri?.let { runCatching { read3dsId(it) }.getOrNull() } else null
             val identified=mapping?.optJSONArray("titleIds")?.let { ids -> if(ids.length()==1 && mapping.optString("status")=="identified")ids.optString(0) else null }
-            val saved=store.prefs.getString("save-title:${game.key}",null)
+            val saved=store.prefs.getString("save-title:${game.key}",null)?.takeIf { store.prefs.getString("save-title-source:${game.key}",null)==source }
             val title=local ?: saved?.takeIf { SaveIdRules.valid(game.code,it) } ?: identified
             runOnUiThread {
                 if(title!=null && SaveIdRules.valid(game.code,title)) { titleSaves(game,title);return@runOnUiThread }
                 val candidates=mapping?.optJSONArray("candidates") ?: JSONArray()
                 val box=column();box.addView(text("Saves de ${game.name}",22f));box.addView(text("Não há ID verificado deste jogo. Escolha a região/ID ou abra explicitamente todos os jogos do emulador. Extdata de 3DS exige escolha do grupo completo.",14f))
                 for(i in 0 until candidates.length()) { val c=candidates.getJSONObject(i);val id=c.optString("titleId")
-                    if(SaveIdRules.valid(game.code,id))add(box,button("${c.optString("name")} · $id") { store.prefs.edit().putString("save-title:${game.key}",id).apply();titleSaves(game,id) }) }
+                    if(SaveIdRules.valid(game.code,id))add(box,button("${c.optString("name")} · $id") { store.prefs.edit().putString("save-title:${game.key}",id).putString("save-title-source:${game.key}",source).apply();titleSaves(game,id) }) }
                 val input=EditText(this).apply { hint=if(game.code=="PSP")"Serial da região, ex.: ULUS12345" else "Program ID: 00040000xxxxxxxx";setTextColor(appForeground) };box.addView(input)
                 add(box,button("Usar este ID") { val id=input.text.toString().trim().let { if(game.code=="PSP")it.uppercase() else it.lowercase() }
-                    if(!SaveIdRules.valid(game.code,id)) { message("ID inválido; confira a região do jogo.");return@button };store.prefs.edit().putString("save-title:${game.key}",id).apply();titleSaves(game,id) })
+                    if(!SaveIdRules.valid(game.code,id)) { message("ID inválido; confira a região do jogo.");return@button };store.prefs.edit().putString("save-title:${game.key}",id).putString("save-title-source:${game.key}",source).apply();titleSaves(game,id) })
                 add(box,button("Todos os jogos de ${if(game.code=="PSP")"PPSSPP" else "3DS (inclui extdata)"}") { emulatorSaves(game) })
                 show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> details(game) })
             }
@@ -1348,14 +1374,14 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun emulatorSaves(game:Game) {
         val groups=SaveIdRules.groups(game.code).toSet()
-        cloudSaves("💾 Todos os jogos de ${if(game.code=="PSP")"PPSSPP" else "3DS · saves e extdata"}") { group,_ -> group in groups }
+        cloudSaves("💾 Todos os jogos de ${if(game.code=="PSP")"PPSSPP" else "3DS · saves e extdata"}",filter={ group,_ -> group in groups })
     }
     private fun titleSaves(game:Game,title:String) {
-        fun open(tree:String?)=cloudSaves("💾 ${game.name} · $title") { group,path -> SaveIdRules.matches(group,path,title) && (tree==null || path.startsWith("$tree/")) }
+        fun open(tree:String?)=cloudSaves("💾 ${game.name} · $title",filter={ group,path -> SaveIdRules.matches(group,path,title) && (tree==null || path.startsWith("$tree/")) })
         if(game.code!="3DS") { open(null);return }
         dialog?.dismiss();message("Conferindo árvores de saves 3DS…")
         work.execute {
-            val result=runCatching { CloudPhone(store,FileSync(store),DriveCloudStorage(drive)).paths("3ds-saves").let { SaveIdRules.trees(it,title) } }
+            val result=runCatching { CloudPhone(store,FileSync(store),saveStorage()).paths("3ds-saves").let { SaveIdRules.trees(it,title) } }
             runOnUiThread { result.onSuccess { trees ->
                 if(trees.size<=1)open(trees.singleOrNull())
                 else show(AlertDialog.Builder(this).setTitle("Qual árvore 3DS o emulador usa?").setItems(trees.toTypedArray()) { _,which -> open(trees[which]) }.setNegativeButton("Voltar",null))
@@ -1409,15 +1435,14 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     /** ROM que só existe no celular ganha cadastro na Biblioteca do notebook; favorito, tempo e
      *  fixação passam para a chave do cadastro. */
     private fun addToLibrary(game:Game) {
-        if(!needsNotebook())return
         val name=GameLogic.fileLabel(game.romName.substringAfterLast('/').ifBlank { game.name })
         dialog?.dismiss();message("Cadastrando ${game.name} na Biblioteca…")
         work.execute {
-            val result=runCatching { val response=extras.addRom(name,game.code);response to store.refresh() }
+            val result=runCatching { val response=store.cloudLibrary.register(game,name);response to store.cached() }
             runOnUiThread { result.onSuccess { (response,fresh) ->
                 val id=response.getString("id");val registered=fresh.firstOrNull { it.id==id }
                 if(registered!=null && registered.key!=game.key)runCatching { store.migrateKeys(mapOf(game.key to registered.key)) }
-                registered?.let { store.prefs.edit().putString("rom:${it.key}",game.localUri.toString()).apply() }
+                if(game.localUri!=null)registered?.let { store.prefs.edit().putString("rom:${it.key}",game.localUri.toString()).apply() }
                 catalog=fresh;dialog?.dismiss()
                 message(if(response.optBoolean("created"))"${game.name} entrou na Biblioteca." else "${game.name} já estava na Biblioteca; agora está ligado a este arquivo.")
                 reloadLocal()

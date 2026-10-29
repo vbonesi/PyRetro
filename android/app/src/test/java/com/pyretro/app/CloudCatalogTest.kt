@@ -17,4 +17,9 @@ class CloudCatalogTest {
         assertFalse(catalog(listOf(row("a","Game"),row("b","Game")),refs).first { it.id=="a" }.drive)
         assertFalse(catalog(listOf(row("a","Game")),refs+DriveRef("two","Game (Europe).sfc",100,"")).first { it.id=="a" }.drive)
     }
+    @Test fun arcadeDatNamesLinkHumanTitleWithoutNotebookCache() {
+        val row=row("kof","The King of Fighters '97").put("fontes",JSONArray().put("rom:ARCADE"))
+        val games=CloudCatalog.games(JSONObject().put("games",JSONArray().put(row)),emptyList(),mapOf("ARCADE" to listOf(DriveRef("rom","kof97.zip",100,""))),JSONObject().put("kof97","The King of Fighters '97")) { _,_ -> true }
+        assertEquals(1,games.size);assertEquals("kof",games.single().id);assertTrue(games.single().drive);assertEquals("kof97.zip",games.single().romName)
+    }
 }

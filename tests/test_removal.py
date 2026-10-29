@@ -78,6 +78,13 @@ class TestRemoval(unittest.TestCase):
 
 
 class TestRemovalServer(unittest.TestCase):
+    def test_unknown_system_or_parent_traversal_never_reaches_drive(self):
+        import server as srv
+        from unittest.mock import patch
+        with patch.object(srv,'_drive_files_for') as remote:
+            for code,entry in (('../Saves','Game.srm'),('PS','../Game.cue'),('UNKNOWN','file.zip')):
+                with self.assertRaises(ValueError):srv._removal_plan(self.cfg,'drive',code,entry)
+            remote.assert_not_called()
     def test_remote_graph_keeps_shared_tracks_and_version_changes_invalidate_token(self):
         files={'Game.cue':'FILE "shared.bin" BINARY\n TRACK 01 MODE2/2352',
                'Other.cue':'FILE "shared.bin" BINARY\n TRACK 01 MODE2/2352','shared.bin':'payload'}

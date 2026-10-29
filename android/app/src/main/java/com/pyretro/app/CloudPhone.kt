@@ -11,6 +11,7 @@ class FileSyncLocalFiles(private val sync:FileSync,private val group:String,priv
         val file=sync.local(group)[rel] ?: error("Arquivo local sumiu: $rel")
         return resolver.openInputStream(file.uri)?.use { it.readBytes() } ?: error("Não foi possível ler $rel")
     }
+    override fun forget(rel:String,expected:String?)=sync.forget(group,rel,expected)
     /** Usa o mesmo caminho seguro do sync com o notebook: confere o hash e guarda a versão anterior no histórico. */
     override fun write(rel:String,data:ByteArray) {
         val temporary=File.createTempFile("cloud-get-",".tmp",cache)
@@ -22,7 +23,7 @@ class FileSyncLocalFiles(private val sync:FileSync,private val group:String,priv
  * Saves na nuvem pelo celular: cada grupo de pastas do aparelho vira um prefixo do caminho comum da nuvem,
  * o mesmo que o notebook enxerga em `~/Games/PyRetro/Saves` (ver docs/nuvem.md). Os runtimes ficam de fora.
  */
-class CloudPhone(private val store:LibraryStore,private val sync:FileSync,private val storage:CloudStorage,private val device:String="celular") {
+class CloudPhone(private val store:LibraryStore,private val sync:FileSync,private val storage:CloudStorage,private val device:String=store.cloudLibrary.journal.device) {
     companion object {
         val prefixes=linkedMapOf("retro-saves" to "saves/","retro-states" to "states/","psp-saves" to "PPSSPP/SAVEDATA/","psp-states" to "PPSSPP/PPSSPP_STATE/","3ds-saves" to "Lime3DS/sdmc/")
         fun baselineOf(text:String?):MutableMap<String,String> {
@@ -30,7 +31,7 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
             for(key in json.keys())out[key]=json.getString(key);return out
         }
     }
-    private val prefs=store.context.getSharedPreferences("cloud-sync",0)
+    private val prefs=store.context.getSharedPreferences(if(store.preferenceName=="pyretro")"cloud-sync" else store.preferenceName+"-cloud-sync",0)
 
     fun groups():List<String> = prefixes.keys.filter { runCatching { sync.tree(it)!=null }.getOrDefault(false) }
     fun paths(group:String):Set<String> { val engine=engine(group);return sync.local(group).keys+engine.heads(engine.manifests()).keys }
@@ -40,7 +41,7 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
         baselineOf(prefs.getString(baselineKey(group),null)),namespace(group),prefixes.getValue(group))
 
     /** Prévia por grupo; um grupo ilegível vira erro de texto, não derruba os outros. */
-    fun analyze(filter:((String,String)->Boolean)?=null):Map<String,Result<List<CloudItem>>> = groups().associateWith { group -> runCatching { engine(group).plan().filter { filter==null || filter(group,it.path) } } }
+    fun analyze(filter:((String,String)->Boolean)?=null,includeSame:Boolean=false):Map<String,Result<List<CloudItem>>> = groups().associateWith { group -> runCatching { engine(group).plan(includeSame).filter { filter==null || filter(group,it.path) } } }
 
     fun apply(only:Set<String>?=null,filter:((String,String)->Boolean)?=null):Map<String,Result<List<CloudResult>>> = groups().filter { only==null || it in only }.associateWith { group ->
         runCatching {
@@ -57,4 +58,8 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
         prefs.edit().putString(baselineKey(group),JSONObject(engine.baseline as Map<*,*>).toString()).apply();return result
     }
     fun lastAt():Long=prefs.getLong("at",0)
+    fun forget(group:String,item:CloudItem):CloudResult {
+        val engine=engine(group);val result=engine.forget(item.path,item.local,item.heads.keys)
+        prefs.edit().putString(baselineKey(group),JSONObject(engine.baseline as Map<*,*>).toString()).apply();return result
+    }
 }

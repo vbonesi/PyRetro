@@ -44,6 +44,7 @@ class NotebookExtras(private val store:LibraryStore,private val dir:File) {
     private fun cache(name:String)=File(dir,name)
     private fun save(name:String,raw:String) { val tmp=File(dir,"$name.tmp");tmp.writeText(raw);tmp.renameTo(cache(name)) }
     fun wishlist(fresh:Boolean):List<WishItem> {
+        if(store.cloudLibrary.ready())return LibraryView.wishlist(store.cloudLibrary.journal.library())
         if(fresh) { val raw=store.request("/api/wishlist");save("wishlist.json",raw);store.prefs.edit().putLong("wishlist-at",System.currentTimeMillis()).apply() }
         return runCatching { val data=JSONObject(cache("wishlist.json").readText())
             ExtrasRules.sorted(ExtrasRules.STORES.keys.flatMap { source -> val list=data.optJSONArray(source) ?: JSONArray()
@@ -51,21 +52,33 @@ class NotebookExtras(private val store:LibraryStore,private val dir:File) {
                     WishItem(g.getString("id"),source,g.getString("nome"),text("capa_url"),text("genero")) } }) }.getOrDefault(emptyList())
     }
     fun stats(fresh:Boolean):JSONObject? {
+        if(store.cloudLibrary.ready())return LibraryView.stats(store.cloudLibrary.journal.library())
         if(fresh) { val raw=store.request("/api/estatisticas");save("stats.json",raw);store.prefs.edit().putLong("stats-at",System.currentTimeMillis()).apply() }
         return runCatching { JSONObject(cache("stats.json").readText()) }.getOrNull()
     }
     fun leaveWishlist(item:WishItem,bought:Boolean) {
+        if(store.cloudLibrary.ready()) { store.cloudLibrary.leaveWishlist(item,bought);return }
         store.request(if(bought)"/api/wishlist/comprado" else "/api/wishlist/remove",JSONObject().put("source",item.source).put("id",item.id))
         wishlist(true)
     }
     /** Registro completo de um jogo da Biblioteca (gênero, comentário, tempo, data). */
     fun record(id:String):JSONObject? {
+        if(store.cloudLibrary.available())return store.cloudLibrary.game(id)
         val all=JSONArray(store.request("/api/library"))
         return (0 until all.length()).map { all.getJSONObject(it) }.firstOrNull { it.optString("id")==id }
     }
-    fun genres():List<String> = runCatching { val list=JSONObject(store.request("/api/sortear/systems")).getJSONArray("generos");(0 until list.length()).map { list.getString(it) } }.getOrDefault(emptyList())
+    fun genres():List<String> {
+        if(store.cloudLibrary.available())return JournalRules.games(store.cloudLibrary.journal.library()).values.mapNotNull { it.optString("genero").takeUnless { g -> it.isNull("genero") || g.isBlank() } }.distinct().sorted()
+        return runCatching { val list=JSONObject(store.request("/api/sortear/systems")).getJSONArray("generos");(0 until list.length()).map { list.getString(it) } }.getOrDefault(emptyList())
+    }
     fun edit(id:String,changes:Map<String,String?>) {
         val campos=JSONObject();for((field,value) in changes)campos.put(field,value ?: JSONObject.NULL)
+        if(store.cloudLibrary.available()) {
+            val row=store.cloudLibrary.game(id) ?: error("Jogo ausente da Biblioteca local.")
+            require(changes.keys.all { it in setOf("genero","data_final","tempo","observacoes") })
+            changes["data_final"]?.let { java.time.LocalDate.parse(it) }
+            store.cloudLibrary.edit(Game(id,"pc:$id",row.getString("nome"),row.getString("plataforma")),campos);return
+        }
         store.request("/api/library/edit",JSONObject().put("id",id).put("campos",campos))
     }
     fun searchCovers(query:String):List<Pair<String,String>> {

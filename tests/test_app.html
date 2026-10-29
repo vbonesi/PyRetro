@@ -1219,8 +1219,11 @@ teste('modo TV: pódio ordena empates, filtros recolhem e glifos mudam sem troca
     igual([...doc.querySelectorAll('.podium-place strong')].map(x=>x.textContent),['Zeta','Água','Beta']);
     verdade(doc.querySelector('.podium-note').textContent.includes('Empate'));
     const toggle=doc.getElementById('filters-toggle');toggle.click();const expanded=toggle.getAttribute('aria-expanded');toggle.click();verdade(toggle.getAttribute('aria-expanded')!==expanded);
-    doc.getElementById('glyphs-cycle').click();doc.getElementById('glyphs-cycle').click();
-    verdade(doc.getElementById('hints-extra').textContent.includes('□ Favoritar'));
+    const glyphs=doc.getElementById('glyphs-cycle');
+    for(let i=0;i<3 && glyphs.textContent!=='Botões: Xbox';i++)glyphs.click();
+    verdade(doc.getElementById('hints-extra').textContent.includes('X Favoritar'),'glifos Xbox não aplicaram');
+    for(let i=0;i<3 && glyphs.textContent!=='Botões: PlayStation';i++)glyphs.click();
+    verdade(doc.getElementById('hints-extra').textContent.includes('□ Favoritar'),'glifos PlayStation não aplicaram');
     igual(app.padFamily('Sony DualSense'),'ps');igual(app.padFamily('Xbox Series Controller'),'xbox');
   } finally {frame.remove();}
 });
@@ -1258,6 +1261,21 @@ teste('modo TV: remoção ignora prévia atrasada e confirma o escopo exibido', 
     const confirm=[...doc.querySelectorAll('#tool-body button')].find(b=>b.textContent==='Remover');
     confirm.click();igual(posts,[]);verdade(confirm.textContent.includes('both'));confirm.click();
     await esperar(()=>posts.length===1,'remoção não enviou');igual(posts[0].body,{scope:'both',code:'PS',entry:'Game.chd',token:'both-token',confirm:'both'});
+  } finally {frame.remove();}
+});
+
+teste('TV: esquecer save em dia exige confirmação com caminho e envia a prévia exata', async () => {
+  const hash='b'.repeat(64);const {frame,app,doc,posts}=await abrirTV(url=>{
+    if(url.startsWith('/api/cloud/saves/status'))return {enabled:true,items:url.includes('all=1')?[{path:'saves/SFC/Game.srm',group:'saves',action:'same',local:hash,heads:{[hash]:['pc']}}]:[]};
+    if(url==='/api/cloud/saves/forget')return {ok:true};
+  });
+  try {
+    app.openTool('Nuvem',app.toolCloudSaves);await esperar(()=>doc.getElementById('tool-body').textContent.includes('Ver também'),'tela ausente');
+    [...doc.querySelectorAll('#tool-body button')].find(b=>b.textContent==='Ver também saves em dia').click();
+    await esperar(()=>doc.getElementById('tool-body').textContent.includes('Esquecer este save…'),'save em dia ausente');
+    const forget=[...doc.querySelectorAll('#tool-body button')].find(b=>b.textContent==='Esquecer este save…');forget.click();igual(posts,[]);
+    verdade(forget.textContent.includes('saves/SFC/Game.srm'));forget.click();await esperar(()=>posts.length===1,'exclusão não enviou');
+    igual(posts[0].body,{path:'saves/SFC/Game.srm',group:'saves',expectedLocal:hash,expectedHeads:[hash],confirm:'Esquecer este save: saves/SFC/Game.srm'});
   } finally {frame.remove();}
 });
 

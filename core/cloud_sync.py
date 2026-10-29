@@ -57,9 +57,9 @@ def engines(cfg, store=None):
                                                         exclude=EXCLUDE, path_filter=is_state)]
 
 
-def status(cfg, store=None):
+def status(cfg, store=None, include_same=False):
     """Prévia da sincronização: contagem por ação e a lista (conflitos primeiro)."""
-    items = [{**item, 'group': engine.group} for engine in engines(cfg, store) for item in engine.plan()]
+    items = [{**item, 'group': engine.group} for engine in engines(cfg, store) for item in engine.plan(include_same)]
     counts = {}
     for item in items:
         counts[item['action']] = counts.get(item['action'], 0) + 1
@@ -79,6 +79,12 @@ def resolve(cfg, path, choice, sha=None, store=None, group='saves'):
     if engine is None:
         raise ValueError('grupo de saves inválido')
     return engine.resolve(path, choice, sha)
+
+
+def forget(cfg,path,expected_local,expected_heads,store=None,group='saves'):
+    engine=next((e for e in engines(cfg,store) if e.group==group),None)
+    if engine is None:raise ValueError('grupo de saves inválido')
+    return engine.forget(path,expected_local,expected_heads)
 
 
 # --- Biblioteca e Backups: snapshot direto na nuvem (sem Insync) --------------------------
@@ -113,6 +119,8 @@ def publish_snapshots(cfg, store=None):
 
 def publish_library(cfg, store=None):
     store = store or storage(cfg)
+    from core import cloud_catalog
+    cloud_catalog.publish_arcade(cfg,store)
     result = {}
     path = library_file(cfg)
     if path.is_file():

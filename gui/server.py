@@ -482,6 +482,12 @@ def _drive_files_for(cfg: dict, code: str, entry: str, local: dict | None) -> li
         if path in inventory:raise ValueError('caminho duplicado no Drive')
         inventory[path]={'path':remote+'/'+path,'id':row.get('ID',''),'size':row.get('Size',0),'hash':row.get('Hashes',{}),'mtime':row.get('ModTime','')}
     if entry not in inventory:return []
+    if code=='ARCADE':
+        from core import arcade
+        parents=arcade.load_dat(arcade.dat_dir(cfg))
+        others=[name for name in inventory if name!=entry and Path(name).suffix.lower() in ('.zip','.7z')]
+        if any(Path(name).stem not in parents for name in others):raise removal_mod.Blocked('DAT de Arcade incompleto; dependências não verificadas no Drive')
+        if arcade.dependents(entry,others,parents):raise removal_mod.Blocked('arquivo usado por outros jogos de Arcade; cópia do Drive preservada')
     def read(path):
         done=subprocess.run(['rclone','cat',remote+'/'+path],capture_output=True,timeout=120)
         if done.returncode or len(done.stdout)>1024*1024:raise ValueError('descritor indisponível no Drive')
@@ -494,6 +500,9 @@ def _removal_plan(cfg: dict, scope: str, code: str, entry: str) -> dict:
     """Prévia de remover um jogo (core/removal.py): arquivos exclusivos no PC, cópias no Drive,
     proteções e permissões. A escrita no Drive só vale com `[rclone] can_write = true` (o rclone
     deste PC foi configurado somente leitura)."""
+    if not isinstance(code,str) or not re.fullmatch(r'[A-Z0-9]{1,12}',code):raise ValueError('sistema inválido')
+    mobile_roms_mod._system(cfg,code)
+    rom_bundles_mod.relative(entry)
     entry = _removal_entry(cfg, code, entry)
     try:
         local = mobile_roms_mod.removal_plan(cfg, code, entry)
@@ -2187,7 +2196,7 @@ class Handler(BaseHTTPRequestHandler):
             if not cloud_sync_mod.enabled(cfg):
                 return self._json({"enabled": False})
             try:
-                return self._json({"enabled": True, **cloud_sync_mod.status(cfg)})
+                return self._json({"enabled": True, **cloud_sync_mod.status(cfg,include_same=query.get('all',[''])[0]=='1')})
             except (ValueError, OSError) as error:
                 return self._json({"error": str(error)}, 400)
 
@@ -2819,7 +2828,7 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, OSError) as error:
                 return self._json({'error': str(error)}, 400)
 
-        if parts in (['api', 'cloud', 'saves', 'sync'], ['api', 'cloud', 'saves', 'resolve']):
+        if parts in (['api', 'cloud', 'saves', 'sync'], ['api', 'cloud', 'saves', 'resolve'], ['api','cloud','saves','forget']):
             cfg = load_config(); body = self._read_json_body()
             if not cloud_sync_mod.enabled(cfg):
                 return self._json({'error': 'nuvem não configurada'}, 400)
@@ -2828,6 +2837,9 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if parts[-1] == 'sync':
                     return self._json({'ok': True, **cloud_sync_mod.sync(cfg)})
+                if parts[-1]=='forget':
+                    if body.get('confirm')!='Esquecer este save: '+str(body.get('path')):raise ValueError('confirmação diferente da exibida')
+                    return self._json(cloud_sync_mod.forget(cfg,body.get('path'),body.get('expectedLocal'),body.get('expectedHeads',[]),group=body.get('group','saves')))
                 return self._json({'ok': True, **cloud_sync_mod.resolve(cfg, body.get('path'), body.get('choice'), body.get('sha'), group=body.get('group','saves'))})
             except (ValueError, OSError) as error:
                 return self._json({'error': str(error)}, 400)

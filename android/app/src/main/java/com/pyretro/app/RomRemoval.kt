@@ -51,8 +51,11 @@ class RomRemoval(private val store:LibraryStore) {
             ?: refs?.keys?.filter { GameLogic.fileLabel(it)==game.romName }?.singleOrNull()
         if(scope!="local" && refs!=null && remoteEntry==null && refs.keys.any { GameLogic.fileLabel(it)==GameLogic.fileLabel(game.romName) })protected.add("Mais de uma região/formato no Drive. Vincule o arquivo correto na ficha.")
         val rp=remoteEntry?.let { BundleRules.removalPlan(it,refs!!.keys) { path -> remoteText(refs.getValue(path)) } }
-        // Sem DAT de dependências não remover um possível pai de outros Arcade.
-        if(game.code=="ARCADE" && ((locals.keys.size>1 && scope!="drive") || (refs.orEmpty().keys.size>1 && scope!="local")))protected.add("Arcade: dependências entre jogos ainda não verificadas neste aparelho. Use o notebook.")
+        if(game.code=="ARCADE") {
+            val parents=store.prefs.getString("arcade-parents",null)?.let { org.json.JSONObject(it) }
+            if(scope!="drive" && localEntry!=null)runCatching { ArcadeRules.dependents(localEntry,locals.keys,parents) }.onSuccess { if(it.isNotEmpty())protected.add("Arquivo usado por outros jogos de Arcade deste celular.") }.onFailure { protected.add(it.message.orEmpty()) }
+            if(scope!="local" && remoteEntry!=null)runCatching { ArcadeRules.dependents(remoteEntry,refs!!.keys,parents) }.onSuccess { if(it.isNotEmpty())protected.add("Arquivo usado por outros jogos de Arcade no Drive.") }.onFailure { protected.add(it.message.orEmpty()) }
+        }
         val remote=if(refs==null)null else rp?.remove.orEmpty().map { path -> val ref=refs.getValue(path);RemovalFile(path,ref.id,ref.size,ref.md5) }
         return RemovalRules.plan(scope,local,remote,lp?.preserve.orEmpty()+rp?.preserve.orEmpty(),protected,(lp?.complete!=false && rp?.complete!=false))
     }

@@ -16,8 +16,10 @@ class StorageSmoke:Instrumentation() {
     private var interfaceSuite=false
     private var journalSuite=false
     private var removalSuite=false
-    override fun onCreate(arguments:Bundle?) { super.onCreate(arguments);removalSuite=arguments?.getString("suite")=="removal";journalSuite=arguments?.getString("suite")=="journal";statusSuite=arguments?.getString("suite")=="status";saveReview=arguments?.getString("suite")=="save-review";interfaceSuite=arguments?.getString("suite")=="interface";connectionTest=arguments?.getString("connection")=="true";start() }
+    private var iconsSuite=false
+    override fun onCreate(arguments:Bundle?) { MainActivity.automaticUpdates=false;super.onCreate(arguments);iconsSuite=arguments?.getString("suite")=="icons";removalSuite=arguments?.getString("suite")=="removal";journalSuite=arguments?.getString("suite")=="journal";statusSuite=arguments?.getString("suite")=="status";saveReview=arguments?.getString("suite")=="save-review";interfaceSuite=arguments?.getString("suite")=="interface";connectionTest=arguments?.getString("connection")=="true";start() }
     override fun onStart() {
+        if(iconsSuite) { IconSmoke(this).run();return }
         if(removalSuite) { RemovalSmoke(this).run();return }
         if(journalSuite) { JournalSmoke(this).run();return }
         if(interfaceSuite) { InterfaceSmoke(this).run();return }
@@ -102,6 +104,12 @@ class StorageSmoke:Instrumentation() {
             check(!fixture.prefs.getBoolean("playlist-auto:FC",true))
             fixture.removeLocal(game);check(fixture.files("FC",true).isEmpty())
             QueueSpaceSmoke.run(fixture,sourceFolder)
+            val memory=MemoryCloudStorage();val engine=CloudSavesEngine(memory,"smoke",FileSyncLocalFiles(sync,"retro-saves",resolver,targetContext.cacheDir))
+            check(engine.apply().all { it.ok });val item=engine.plan(true).single { it.path=="Synthetic.srm" }
+            check(engine.forget(item.path,item.local,item.heads.keys).ok);check("Synthetic.srm" !in sync.local("retro-saves"))
+            val preserved=sync.localHistory("retro-saves").first { it.path=="Synthetic.srm" && it.file.sha256==hash("first") };sync.restoreLocal(preserved)
+            check(sync.local("retro-saves").getValue("Synthetic.srm").sha256==hash("first"));check(engine.apply().all { it.ok })
+            fixture.closeJournal();targetContext.deleteDatabase("storage-smoke-catalog-library.db")
             result.putString("stream","PASS: SAF/histórico/conflitos/checksum/playlists, fila sequencial com pausa/retomada/reordenação, deduplicação, espaço e fixação/revalidação de remoção; somente fixtures próprias.")
         } catch(error:Throwable) { result.putString("stream","FAIL: "+error.stackTraceToString()) }
         finally {

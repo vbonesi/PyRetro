@@ -1224,15 +1224,15 @@ function renderTools() {
   report("Ferramentas de organização e manutenção. Ações que mexem em arquivos pedem confirmação.");
 }
 async function toolCloudSaves(body) {
-  let revision = 0, busy = false;
+  let revision = 0, busy = false, showAll = false;
   const draw = async () => {
     const request = ++revision;
     body.replaceChildren(hint("Comparando saves com a nuvem…"));
     try {
-      const status = await api("/api/cloud/saves/status");
+      const status = await api("/api/cloud/saves/status" + (showAll ? "?all=1" : ""));
       if (request !== revision || !body.isConnected) return;
       if (!status.enabled) { body.replaceChildren(hint("Configure a nuvem para sincronizar saves.")); return; }
-      body.replaceChildren(hint("Feche os emuladores. Saves são compartilhados; estados ficam separados por aparelho. Conflitos exigem escolha e a outra versão fica no histórico."));
+      body.replaceChildren(hint("Feche os emuladores. Saves são compartilhados; estados ficam separados por aparelho. Conflitos exigem escolha e a outra versão fica no histórico."),hint("Esquecer este save retira apenas o arquivo escolhido do uso em todos os aparelhos na próxima sincronização. Cópias antigas ficam no histórico; saves de outros jogos ficam."));
       const perform = async (url, data) => {
         if (busy) return; busy = true; body.querySelectorAll("button").forEach(b => b.disabled = true);
         try {
@@ -1244,15 +1244,16 @@ async function toolCloudSaves(body) {
         } catch (e) { if (body.isConnected) { toolStatus(e.message, true); body.querySelectorAll("button").forEach(b => b.disabled = false); } }
         finally { busy = false; }
       };
-      body.append(actions(button("Comparar novamente", draw), button("Sincronizar sem resolver conflitos", () => perform("/api/cloud/saves/sync", {}))));
+      body.append(actions(button("Comparar novamente", draw), button(showAll ? "Mostrar só pendentes" : "Ver também saves em dia", () => { showAll = !showAll; draw(); }), button("Sincronizar sem resolver conflitos", () => perform("/api/cloud/saves/sync", {}))));
       if (!status.items?.length) body.append(hint("Saves em dia com a nuvem."));
       for (const item of status.items || []) {
         const box = document.createElement("section"); box.append(heading(item.path), hint(`${item.group || "saves"} · ${item.action === "conflict" ? "Conflito" : item.action}`));
         if (item.action === "conflict") {
           const choose = (choice, sha) => perform("/api/cloud/saves/resolve", {path: item.path, group: item.group || "saves", choice, ...(sha ? {sha} : {})});
           if (item.local) box.append(confirmButton("Manter deste PC", "Confirmar: manter deste PC", () => choose("local")));
-          for (const [sha, devices] of Object.entries(item.heads || {})) box.append(confirmButton(`Usar da nuvem: ${devices.join(", ")} · ${sha.slice(0, 12)}`, "Confirmar: usar esta versão", () => choose("remote", sha)));
+          for (const [sha, devices] of Object.entries(item.heads || {})) box.append(confirmButton(`${item.deletedHeads?.includes(sha) ? "Usar exclusão confirmada" : "Usar da nuvem"}: ${devices.join(", ")} · ${sha.slice(0, 12)}`, "Confirmar: usar esta versão", () => choose("remote", sha)));
         }
+        if (item.action !== "forget") box.append(confirmButton("Esquecer este save…", `Esquecer este save: ${item.path}`, () => perform("/api/cloud/saves/forget", {path:item.path, group:item.group || "saves", expectedLocal:item.local ?? null, expectedHeads:Object.keys(item.heads || {}), confirm:`Esquecer este save: ${item.path}`})));
         body.append(box);
       }
     } catch (e) { if (request === revision && body.isConnected) { body.replaceChildren(hint(e.message), button("Tentar novamente", draw));toolStatus(e.message, true); } }

@@ -10,8 +10,9 @@ class CloudLibrary(private val store:LibraryStore) {
     val db=AndroidJournalDb(store.context,store.preferenceName+"-library.db")
     val journal=LibraryJournal(db,store.prefs.getString("library-device",null) ?: ("android-"+UUID.randomUUID()).also { store.prefs.edit().putString("library-device",it).commit() })
     val drive=GoogleDrive(store.context,store.prefs)
-    private val remote get()=DriveCloudStorage(drive)
+    private val remote get()=DriveCloudStorage(drive,maxBytes=32*1024*1024)
     fun ready()=db.meta("cloud_loaded")==true
+    fun available()=db.meta("seeded")==true
     fun seed(legacy:List<Game>)=journal.seed(CloudCatalog.libraryFrom(legacy))
     fun game(id:String)=if(id.isBlank())null else db.game(id)
     fun edit(game:Game,fields:JSONObject) {
@@ -55,7 +56,38 @@ class CloudLibrary(private val store:LibraryStore) {
     fun files():Map<String,List<DriveRef>> = store.folders.keys.associateWith { code ->
         val rows=JSONArray(store.prefs.getString("drive-index:$code","[]"));(0 until rows.length()).map { rows.getJSONObject(it) }.map { DriveRef(it.getString("id"),it.getString("name"),it.getLong("size"),it.optString("md5")) }
     }
-    fun catalog()=CloudCatalog.games(journal.library(),store.legacyCached(),files(),store::accepts)
+    fun catalog()=CloudCatalog.games(journal.library(),store.legacyCached(),files(),JSONObject(store.prefs.getString("arcade-names","{}")),store::accepts)
+    fun leaveWishlist(item:WishItem,bought:Boolean) {
+        db.transaction { journal.record(LibraryView.leaveWishlist(journal.library(),item,bought)) }
+        if(store.preferenceName=="pyretro" && MainActivity.automaticUpdates && drive.connected)LibraryWorker.enqueue(store.context)
+    }
+    fun register(game:Game,name:String):JSONObject {
+        seed(store.legacyCached());require(game.code in store.folders && name.isNotBlank())
+        require(!DownloadQueue.get(store).contains(game.key)) { "Aguarde o download ou retire o jogo da fila antes de cadastrar." }
+        var id="";var created=false
+        db.transaction {
+            val data=journal.library();val rows=JournalRules.games(data)
+            val candidates=rows.values.filter { CloudCatalog.code(it)==game.code && CloudCatalog.romName(it.optString("nome"))==CloudCatalog.romName(name) }
+            require(candidates.size<=1) { "Mais de um cadastro com este nome; escolha o correto na Biblioteca." }
+            val row=candidates.singleOrNull() ?: JSONObject().apply {
+                put("id","android-"+UUID.randomUUID());put("nome",name);put("plataforma",store.folders.getValue(game.code))
+                for(field in listOf("subgenero","genero","nota","data_final","tempo","meta","observacoes","lancamento","desenvolvedora","capa"))put(field,JSONObject.NULL)
+                for(field in listOf("iniciado","finalizado","platinado","savestate","oculto"))put(field,false)
+                put("fontes",JSONArray().put("rom:${game.code}"));put("nomes_alt",JSONArray())
+            }.also { rows[it.getString("id")]=it;created=true }
+            id=row.getString("id")
+            store.prefs.getString("pending:${game.key}",null)?.takeUnless { store.prefs.getString("conflict:pending:${game.key}",null)==it }?.let { raw -> val fields=JSONObject(raw).getJSONObject("campos");for(field in fields.keys())row.put(field,fields.get(field)) }
+            if(store.prefs.contains("favorite:${game.key}"))row.put("favorite",store.prefs.getBoolean("favorite:${game.key}",false))
+            journal.record(data.put("games",JSONArray(rows.values.toList())))
+        }
+        if(store.prefs.getString("conflict:pending:${game.key}",null)==null)store.prefs.edit().remove("pending:${game.key}").apply()
+        for((key,raw) in store.prefs.all.filterKeys { it.startsWith("time-event:") }) {
+            val event=JSONObject(raw as String);if(event.optString("key")!=game.key)continue
+            session(game.copy(id=id),event.getInt("minutes"),event.getString("event"));store.prefs.edit().remove(key).apply()
+        }
+        if(store.preferenceName=="pyretro" && MainActivity.automaticUpdates && drive.connected)LibraryWorker.enqueue(store.context)
+        return JSONObject().put("id",id).put("created",created)
+    }
     fun cover(game:Game,publish:Boolean=true):java.io.File? {
         if(game.id.isBlank())return null
         val directory=java.io.File(store.context.cacheDir,"covers").apply { mkdirs() }
@@ -95,6 +127,12 @@ class CloudLibrary(private val store:LibraryStore) {
         }
         migratePending()
         val applied=journal.pull(cloud);val sent=journal.publish(cloud)
+        try {
+            val bytes=cloud.get("catalog/arcade.json");require(bytes.size<=4*1024*1024);val data=JSONObject(String(bytes,Charsets.UTF_8));val parents=ArcadeRules.parse(data)
+            val names=data.optJSONObject("names") ?: JSONObject();require(names.length()<=100000)
+            for(name in names.keys())require(parents.has(name) && names.getString(name).length in 1..512)
+            store.prefs.edit().putString("arcade-parents",parents.toString()).putString("arcade-names",names.toString()).apply()
+        } catch(_:CloudNotFound) { /* Mantém o índice anterior e a proteção conservadora. */ }
         val errors=mutableListOf<String>()
         if(forceIndex || System.currentTimeMillis()-store.prefs.getLong("drive-index-at",0)>6*60*60*1000L) {
             for(code in store.folders.keys)runCatching { drive.romFiles(code) }.onSuccess { rows ->

@@ -84,7 +84,7 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
                 }
                 check(actual==expected) { "Orientação não aplicada; desbloqueie o aparelho para testar retrato/paisagem." }
                 invoke("statusCenter")
-                check(contains("Situação") && contains("Neste celular") && contains("Progresso e tempo") && contains("Saves"))
+                check(contains("Situação") && contains("Neste celular") && contains("Biblioteca, progresso e tempo") && contains("Saves"))
                 val buttons=dialogViews().filterIsInstance<Button>()
                 check(buttons.any { it.text.toString()=="Pastas e permissões" })
                 check(buttons.all { it.minimumHeight>=48*targetContext.resources.displayMetrics.density || it.id==android.R.id.button2 })
