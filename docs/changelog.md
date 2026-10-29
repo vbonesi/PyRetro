@@ -5,6 +5,8 @@
 - Victor confirmou: Moonlight com o PyRetro primeiro no Sunshine e o PyRetro aberto pelo Big Picture da Steam.
   Pendências restantes: atalhos Azahar/Lime3DS no celular, G8 prolongado e perfil do G8, e depois a retirada do
   override `/run/udev:ro` do Chrome (pelo setup).
+- Decisão do Victor: o G8 é só para emergência (PS4 e Xbox são o uso diário) e já foi bem testado na navegação. O perfil
+  de emuladores do G8 (`configure_xbox.py --learn galileo-g8`) fica adiado: corrigir se der problema no uso.
 
 ## 29/10/2026 — Arcade pelo título completo, em todo o PC e no Android 0.22.1
 
