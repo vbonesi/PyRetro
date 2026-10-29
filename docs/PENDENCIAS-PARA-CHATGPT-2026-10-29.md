@@ -5,6 +5,9 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
 
 ## Regras que valem (aprendidas nesta rodada)
 
+- **Saves de jogos finalizados nunca são apagados** (decisão do Victor, 29/10): ficam nos dois aparelhos e na nuvem, mesmo sem a
+  ROM local. A ROM de um jogo finalizado pode sair do aparelho; o save não. Só apagar save quando o Victor pedir, jogo a jogo.
+
 - **Nunca apagar nada do acervo/saves sem prova:** ROM só sai do PC/celular depois de `rclone check`/MD5 idêntico no
   Drive. Saves e estados de teste: comparar a lista de arquivos antes/depois e remover só o que o teste criou.
 - **`~/Downloads` é um link para `~/Drive/Temp`:** nada que não deva ir à nuvem pode morar ali.
