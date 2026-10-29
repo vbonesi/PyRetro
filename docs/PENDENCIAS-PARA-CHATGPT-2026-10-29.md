@@ -54,6 +54,9 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
       `docs/mobile-save-ids.md` desatualizados.
 
 ### Saves / emuladores
+- [ ] **Exclusão explícita de saves na nuvem (tombstone):** o motor nunca propaga exclusão (arquivo que falta é restaurado);
+      apagar um save de verdade exigiu editar `saves/devices/*.json` à mão em 29/10. Criar a operação "esquecer" com teste
+      PC/Android (e confirmação na tela).
 - [ ] **Decidir sobre `Lime3DS/sdmc` do celular no PC:** 27 arquivos de 3DS do celular (Pokémon X/Y extdata, demo Epic
       Mickey, etc.) chegaram a `~/Games/PyRetro/Saves/Lime3DS/sdmc`. Perguntar se ficam ou se o 3DS sai da sincronização
       (`CloudSaves(..., exclude=...)` no PC; `CloudPhone.prefixes` no app).

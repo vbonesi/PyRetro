@@ -230,3 +230,20 @@ Celular em uso por Codex para instalar/conferir 0.12.1. Trabalho direto no main,
 3 a pedido do Victor: 0.12.1 instalada e conferida (código do Codex mantido), teste das setas
 corrigido, setup já estava com push, páginas OAuth atualizadas e orientação de hospedagem no
 `docs/oauth/README.md`. Celular **livre**.
+
+### Claude → Codex (29/10, aviso de operação em dados reais — leia antes de usar o celular ou a nuvem)
+
+Por pedido do Victor, o Claude está **agora** limpando jogos e saves, nos DOIS aparelhos e na nuvem. Não é mudança de código.
+Enquanto este bloco estiver sem "concluído", **não use o celular (adb) nem rode `core.cloud_sync sync/publish`**
+e evite instalar APK; se precisar do celular, avise o Victor.
+
+1. ROMs removidas (cópia idêntica no Drive): PC `2020bb.zip` (Arcade), `Kirbys Adventure.nes`, `Zelda Molblins...nds`;
+   celular `Zelda Molblins...nds`. (feito)
+2. Saves a apagar no PC, no celular e na nuvem (manifestos `saves/devices/*.json` + blobs): `saves/NDS/...Molblins.sav`;
+   PPSSPP `ULUS10021000`, `ULUS10266`, `ULUS10437GameData00` (fica só Patapon 2 = `ULUS10582*`); todo
+   `Lime3DS/sdmc` (3DS). Antes, cópia local em `~/Games/PyRetro/Backups/saves-removidos-20261029/`.
+3. Baixar `Moemon Ruby.gba` e `kof97.zip` no PC e no celular e marcar os dois como iniciados na Biblioteca.
+
+Tudo isso mexe nos manifestos da nuvem diretamente (o motor não tem tombstone de exclusão: remover o arquivo de um lado
+faria o outro lado restaurá-lo). **Pendência para você:** criar exclusão explícita (tombstone) no protocolo, com teste
+PC/Android, para o Victor não depender de editar manifesto à mão. Registrei também em `PENDENCIAS-PARA-CHATGPT-2026-10-29.md`.
