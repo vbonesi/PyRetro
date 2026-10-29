@@ -40,6 +40,11 @@ class FileSync(private val store:LibraryStore,preferenceName:String=if(store.pre
         prefs.edit().putString(if(group=="retroarch")"retroarch-tree" else "tree:$group",uri.toString()).apply()
     }
     fun retroarchTree():Uri?=prefs.getString("retroarch-tree",null)?.let(Uri::parse)
+    fun forget(group:String,path:String,expected:String?) {
+        require(SyncRules.accepted(group,path));val file=local(group)[path]
+        require(file?.sha256==expected) { "Save mudou depois da prévia; histórico preservado." }
+        if(file!=null)require(DocumentsContract.renameDocument(resolver,file.uri,".pyretro-previous-${System.currentTimeMillis()}-${java.util.UUID.randomUUID()}-${store.displayName(file.uri)}")!=null) { "Não foi possível guardar o save no histórico." }
+    }
     fun localHistory(group:String):List<LocalVersion> {
         val root=tree(group) ?: error("Escolha a pasta do grupo.");val result=mutableListOf<LocalVersion>()
         val pattern=Regex("\\.pyretro-previous-([0-9]+)-[0-9a-f-]{36}-(.+)")

@@ -18,6 +18,8 @@ import hashlib
 import json
 import os
 import time
+import math
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -183,17 +185,29 @@ class CloudSaves:
         return result
 
     # --- planejar e aplicar -------------------------------------------------------------
-    def plan(self):
-        local, baseline, heads = self.local_files(), self._baseline(), self.heads(self.manifests())
+    @staticmethod
+    def deleted_heads(manifests):
+        return {entry['sha256'] for manifest in manifests.values() for entry in manifest['files'].values()
+                if isinstance(entry,dict) and entry.get('deleted') is True and entry.get('size')==0 and isinstance(entry.get('sha256'),str)}
+
+    def plan(self, include_same=False):
+        manifests=self.manifests()
+        local, baseline, heads = self.local_files(), self._baseline(), self.heads(manifests)
+        deleted=self.deleted_heads(manifests)
         items = []
         for rel in sorted(set(local) | set(heads)):
             if not self.path_filter(rel):
                 continue
             action = decide(local.get(rel), baseline.get(rel), heads.get(rel, {}))
-            if action == 'same' and baseline.get(rel) == local.get(rel):
+            head_set=set(heads.get(rel,{}))
+            if head_set and head_set<=deleted and local.get(rel) is None and baseline.get(rel) in head_set:
+                continue
+            if head_set and head_set<=deleted and (local.get(rel) is None or local.get(rel)==baseline.get(rel)):action='forget'
+            if not include_same and action == 'same' and baseline.get(rel) == local.get(rel):
                 continue  # já sincronizado: nada a fazer
             if action != 'none':
                 items.append({'path': rel, 'action': action, 'local': local.get(rel), 'baseline': baseline.get(rel),
+                              'deletedHeads': sorted(head_set & deleted),
                               'heads': {sha: sorted(devs) for sha, devs in heads.get(rel, {}).items()}})
         return items
 
@@ -205,14 +219,17 @@ class CloudSaves:
         own = manifests.get(self.device) or {'version': 1, 'device': self.device, 'generation': 0, 'files': {}}
         results, wrote = [], False
         pushes = []
+        stamp=self._next_at(manifests)
         for item in items:
             rel, action = item['path'], item['action']
             try:
                 safe_relative(rel)
                 if action == 'push':
-                    pushes.append(item); continue  # o envio dos blobs roda em paralelo, logo abaixo
+                    pushes.append({**item,'at':stamp}); continue  # o envio dos blobs roda em paralelo, logo abaixo
                 if action == 'pull':
                     self._pull(rel, next(iter(item['heads'])), baseline)
+                elif action == 'forget':
+                    self._forget_local(rel,item['local']);baseline[rel]=sorted(item['heads'])[0]
                 elif action == 'same':
                     baseline[rel] = item['local']
                 results.append({'path': rel, 'action': action, 'ok': action != 'conflict',
@@ -252,7 +269,7 @@ class CloudSaves:
                 self.storage.put(f'{self.group}/blobs/{sha}', data)
             except cloud_mod.Exists:
                 pass  # mesmo hash = mesmo conteúdo
-            return {'sha256': sha, 'size': size, 'base': sorted(item['heads']), 'at': self.now()}, None
+            return {'sha256': sha, 'size': size, 'base': sorted(item['heads']), 'at': item.get('at',self.now())}, None
         except (OSError, ValueError, Conflict) as error:
             return None, str(error)
 
@@ -289,5 +306,38 @@ class CloudSaves:
                 sha = next(iter(heads))
             if sha not in heads:
                 raise ValueError('escolha uma das versões da nuvem')
-            return self.apply([{'path': rel, 'action': 'pull', 'local': local, 'baseline': None, 'heads': {sha: heads[sha]}}])[0]
+            action='forget' if sha in self.deleted_heads(manifests) else 'pull'
+            return self.apply([{'path': rel, 'action': action, 'local': local, 'baseline': None, 'heads': {sha: heads[sha]}}])[0]
+
+    def _next_at(self,manifests):
+        seen=max((float(e.get('at',0)) for m in manifests.values() for e in m['files'].values() if isinstance(e,dict)),default=0)
+        return max(self.now(),math.nextafter(seen,math.inf))
+
+    def _forget_local(self,rel,expected):
+        target=self.root/safe_relative(rel)
+        if target.is_symlink() or not target.resolve().is_relative_to(self.root.resolve()):raise ValueError('arquivo fora da pasta de saves')
+        actual=sha256_file(target) if target.is_file() else None
+        if actual!=expected:raise Conflict('save mudou depois da prévia; nada foi esquecido localmente')
+        if actual is not None:
+            history=self.root/'.pyretro-history'/rel;history.mkdir(parents=True,exist_ok=True)
+            os.replace(target,history/f'{time.time_ns()}.previous')
+
+    def forget(self,rel,expected_local,expected_heads):
+        safe_relative(rel)
+        if not self.path_filter(rel):raise ValueError('save fora deste grupo')
+        manifests=self.manifests();heads=self.heads(manifests).get(rel,{})
+        local=self.local_files().get(rel)
+        if local!=expected_local or set(heads)!=set(expected_heads):raise Conflict('save ou nuvem mudou; confira a prévia novamente')
+        if local is None and not heads:raise ValueError('save não encontrado')
+        if local:
+            _,error=self._upload_blob({'path':rel,'local':local,'heads':heads})
+            if error:raise ValueError(error)
+        marker=hashlib.sha256(('deleted:'+str(uuid.uuid4())).encode()).hexdigest()
+        own=manifests.get(self.device) or {'version':2,'device':self.device,'generation':0,'files':{}}
+        own['version']=2;own['files'][rel]={'sha256':marker,'size':0,'deleted':True,'base':sorted(set(heads)|({local} if local else set())),'at':self._next_at(manifests)}
+        own['generation']=int(own.get('generation',0))+1
+        self.storage.put(self._manifest_path(self.device),json.dumps(own).encode(),overwrite=True)
+        self._forget_local(rel,local)
+        baseline=self._baseline();baseline[rel]=marker;self._save_baseline(baseline)
+        return {'path':rel,'action':'forget','ok':True}
         raise ValueError('escolha desconhecida: ' + str(choice))

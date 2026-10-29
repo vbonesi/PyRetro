@@ -11,9 +11,10 @@ interface LocalFiles {
     fun read(rel:String):ByteArray
     /** Grava o arquivo; se já existia, guarda a versão anterior no histórico antes de substituir. */
     fun write(rel:String,data:ByteArray)
+    fun forget(rel:String,expected:String?) { error("Este adaptador não oferece histórico para exclusão.") }
 }
 
-data class CloudItem(val path:String,val action:String,val local:String?,val baseline:String?,val heads:Map<String,List<String>>)
+data class CloudItem(val path:String,val action:String,val local:String?,val baseline:String?,val heads:Map<String,List<String>>,val deletedHeads:Set<String> = emptySet())
 data class CloudResult(val path:String,val action:String,val ok:Boolean,val error:String?=null,val conflict:Map<String,List<String>>?=null)
 
 object CloudRules {
@@ -93,25 +94,34 @@ class CloudSavesEngine(private val storage:CloudStorage,private val device:Strin
         return out
     }
 
-    fun plan():List<CloudItem> {
-        val files=local.hashes();val heads=heads(manifests());val items=mutableListOf<CloudItem>()
+    fun deletedHeads(manifests:Map<String,JSONObject>):Set<String> = manifests.values.flatMap { m -> val files=m.getJSONObject("files");files.keys().asSequence().mapNotNull { files.optJSONObject(it)?.takeIf { e -> e.optBoolean("deleted") && e.optLong("size",-1)==0L }?.optString("sha256") }.toList() }.toSet()
+    private fun nextAt(manifests:Map<String,JSONObject>):Double {
+        val seen=manifests.values.flatMap { m -> val files=m.getJSONObject("files");files.keys().asSequence().map { files.getJSONObject(it).optDouble("at",0.0) }.filter { it.isFinite() }.toList() }.maxOrNull() ?: 0.0
+        return maxOf(now().toDouble(),Math.nextUp(seen))
+    }
+    fun plan(includeSame:Boolean=false):List<CloudItem> {
+        val manifests=manifests();val files=local.hashes();val heads=heads(manifests);val deleted=deletedHeads(manifests);val items=mutableListOf<CloudItem>()
         for(rel in (files.keys+heads.keys).toSortedSet()) {
-            val h=heads[rel].orEmpty();val action=CloudRules.decide(files[rel],baseline[rel],h.keys)
-            if(action=="none" || (action=="same" && baseline[rel]==files[rel]))continue
-            items.add(CloudItem(rel,action,files[rel],baseline[rel],h.mapValues { it.value.sorted() }))
+            val h=heads[rel].orEmpty();var action=CloudRules.decide(files[rel],baseline[rel],h.keys)
+            if(h.isNotEmpty() && h.keys.all { it in deleted } && files[rel]==null && baseline[rel] in h)continue
+            if(h.isNotEmpty() && h.keys.all { it in deleted } && (files[rel]==null || files[rel]==baseline[rel]))action="forget"
+            if(action=="none" || (!includeSame && action=="same" && baseline[rel]==files[rel]))continue
+            items.add(CloudItem(rel,action,files[rel],baseline[rel],h.mapValues { it.value.sorted() },h.keys intersect deleted))
         }
         return items
     }
 
     fun apply(items:List<CloudItem> = plan()):List<CloudResult> {
-        val own=manifests()[device] ?: JSONObject().put("version",1).put("device",device).put("generation",0).put("files",JSONObject())
+        val manifests=manifests();val stamp=nextAt(manifests)
+        val own=manifests[device] ?: JSONObject().put("version",1).put("device",device).put("generation",0).put("files",JSONObject())
         val results=mutableListOf<CloudResult>();var wrote=false
         for(item in items) {
             try {
                 require(CloudRules.safeRelative(item.path)) { "caminho de save inválido: ${item.path}" }
                 when(item.action) {
-                    "push" -> { push(item,own);wrote=true }
+                    "push" -> { push(item,own,stamp);wrote=true }
                     "pull" -> pull(item.path,item.heads.keys.first())
+                    "forget" -> { local.forget(item.path,item.local);baseline[item.path]=item.heads.keys.sorted().first() }
                     "same" -> baseline[item.path]=item.local!!
                 }
                 results.add(CloudResult(item.path,item.action,item.action!="conflict",conflict=item.heads.takeIf { item.action=="conflict" }))
@@ -124,12 +134,12 @@ class CloudSavesEngine(private val storage:CloudStorage,private val device:Strin
         return results
     }
 
-    private fun push(item:CloudItem,own:JSONObject) {
+    private fun push(item:CloudItem,own:JSONObject,stamp:Double) {
         val data=local.read(item.path);val sha=CloudRules.sha256(data)
         if(sha!=item.local)error("${item.path}: o arquivo mudou durante a sincronização; tente de novo")
         try { storage.put("$group/blobs/$sha",data) } catch(_:CloudExists) {}
         val base=JSONArray();item.heads.keys.sorted().forEach(base::put)
-        own.getJSONObject("files").put(prefix+item.path,JSONObject().put("sha256",sha).put("size",data.size).put("base",base).put("at",now()))
+        own.getJSONObject("files").put(prefix+item.path,JSONObject().put("sha256",sha).put("size",data.size).put("base",base).put("at",stamp))
         baseline[item.path]=sha
     }
 
@@ -142,14 +152,24 @@ class CloudSavesEngine(private val storage:CloudStorage,private val device:Strin
     /** `choice` = "local": esta versão passa a substituir todas as cabeças. "remote": baixa a cabeça `sha`. Nada é apagado. */
     fun resolve(rel:String,choice:String,sha:String?=null):CloudResult {
         require(CloudRules.safeRelative(rel)) { "caminho de save inválido: $rel" }
-        val heads=heads(manifests())[rel].orEmpty();val file=local.hashes()[rel]
+        val manifests=manifests();val heads=heads(manifests)[rel].orEmpty();val file=local.hashes()[rel]
         return when(choice) {
             "local" -> { requireNotNull(file) { "não há versão local para manter" };apply(listOf(CloudItem(rel,"push",file,null,heads.mapValues { it.value }))).first() }
             "remote" -> {
                 val pick=sha ?: heads.keys.singleOrNull(); require(pick!=null && pick in heads) { "escolha uma das versões da nuvem" }
-                apply(listOf(CloudItem(rel,"pull",file,null,mapOf(pick to heads.getValue(pick))))).first()
+                apply(listOf(CloudItem(rel,if(pick in deletedHeads(manifests))"forget" else "pull",file,null,mapOf(pick to heads.getValue(pick))))).first()
             }
             else -> throw IllegalArgumentException("escolha desconhecida: $choice")
         }
+    }
+    fun forget(rel:String,expectedLocal:String?,expectedHeads:Set<String>):CloudResult {
+        require(CloudRules.safeRelative(rel));val manifests=manifests();val heads=heads(manifests)[rel].orEmpty();val current=local.hashes()[rel]
+        require(current==expectedLocal && heads.keys==expectedHeads) { "Save ou nuvem mudou; confira a prévia novamente." };require(current!=null || heads.isNotEmpty())
+        if(current!=null) { val bytes=local.read(rel);require(CloudRules.sha256(bytes)==current);try { storage.put("$group/blobs/$current",bytes) } catch(_:CloudExists) {} }
+        val marker=CloudRules.sha256(("deleted:"+java.util.UUID.randomUUID()).toByteArray())
+        val own=manifests[device] ?: JSONObject().put("device",device).put("generation",0).put("files",JSONObject())
+        own.put("version",2);own.getJSONObject("files").put(prefix+rel,JSONObject().put("sha256",marker).put("size",0).put("deleted",true).put("at",nextAt(manifests)).put("base",JSONArray((heads.keys+listOfNotNull(current)).sorted())))
+        own.put("generation",own.optInt("generation")+1);storage.put(manifestPath(device),own.toString().toByteArray(),overwrite=true)
+        local.forget(rel,current);baseline[rel]=marker;return CloudResult(rel,"forget",true)
     }
 }

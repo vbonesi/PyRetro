@@ -9,6 +9,7 @@ class MemoryLocal:LocalFiles {
     override fun hashes()=files.mapValues { CloudRules.sha256(it.value) }
     override fun read(rel:String)=files.getValue(rel)
     override fun write(rel:String,data:ByteArray) { files[rel]?.let { history.add(rel to it) };files[rel]=data }
+    override fun forget(rel:String,expected:String?) { require(hashes()[rel]==expected);files.remove(rel)?.let { history.add(rel to it) } }
     fun put(rel:String,text:String) { files[rel]=text.toByteArray() }
 }
 
