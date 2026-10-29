@@ -78,6 +78,17 @@ class TestRemoval(unittest.TestCase):
 
 
 class TestRemovalServer(unittest.TestCase):
+    def test_remote_graph_keeps_shared_tracks_and_version_changes_invalidate_token(self):
+        files={'Game.cue':'FILE "shared.bin" BINARY\n TRACK 01 MODE2/2352',
+               'Other.cue':'FILE "shared.bin" BINARY\n TRACK 01 MODE2/2352','shared.bin':'payload'}
+        inventory={k:{'path':k,'id':k,'size':len(v),'hash':{'md5':'first'}} for k,v in files.items()}
+        remove,preserve=removal.remote_members('Game.cue',inventory,files.__getitem__)
+        self.assertEqual(remove,['Game.cue']);self.assertEqual(preserve,['shared.bin'])
+        a=make('both',drive_list=list(inventory.values()))
+        inventory['Game.cue']['hash']['md5']='changed'
+        b=make('both',drive_list=list(inventory.values()))
+        self.assertNotEqual(a['token'],b['token'])
+
     """Rotas de remoção: prévia pelo acervo de mentira e aplicação com lixeira simulada."""
 
     def setUp(self):
@@ -109,6 +120,15 @@ class TestRemovalServer(unittest.TestCase):
                                                     "token": plan["token"], "confirm": plan["confirm_text"]})
         self.assertTrue(outcome["ok"])
         self.assertEqual(sorted(trashed), ["Disco.bin", "Disco.cue"])
+
+    def test_local_version_change_invalidates_confirmation(self):
+        import sys
+        sys.path.insert(0,str(__import__('pathlib').Path(__file__).parent.parent/'gui'))
+        import server as srv
+        before=srv._removal_plan(self.cfg,'local','PS','Disco.cue')
+        (self.root/'ROMs/PS/Disco.bin').write_bytes(b'new content')
+        after=srv._removal_plan(self.cfg,'local','PS','Disco.cue')
+        self.assertNotEqual(before['token'],after['token'])
 
     def test_catalog_style_stem_resolves_to_the_descriptor_file(self):
         import sys

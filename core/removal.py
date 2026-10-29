@@ -24,7 +24,7 @@ class Blocked(ValueError):
 
 
 def _token(plan):
-    keys = {k: plan[k] for k in ('scope', 'code', 'entry', 'local', 'drive')}
+    keys = {k: plan[k] for k in ('scope', 'code', 'entry', 'local', 'drive', 'local_version')}
     return hashlib.sha256(json.dumps(keys, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:24]
 
 
@@ -58,7 +58,8 @@ def plan(scope, code, entry, *, local_plan, drive_list=None, protected=(), can_w
         elif drive_list is None:
             blocked.append('não foi possível consultar o Drive agora; tente de novo online')
         else:
-            drive_files = sorted(({'path': f['path'], 'id': f.get('id', ''), 'size': int(f.get('size', 0))} for f in drive_list),
+            drive_files = sorted(({'path': f['path'], 'id': f.get('id', ''), 'size': int(f.get('size', 0)),
+                                   **{k:f[k] for k in ('hash','mtime') if k in f}} for f in drive_list),
                                  key=lambda f: f['path'])
             if not drive_files:
                 warnings.append('nenhuma cópia deste jogo no Drive')
@@ -67,12 +68,29 @@ def plan(scope, code, entry, *, local_plan, drive_list=None, protected=(), can_w
     if scope == 'drive' and drive_files and not local_plan:
         warnings.append('esta é a última cópia conhecida do jogo (não há cópia neste PC)')
     result = {'version': 1, 'scope': scope, 'code': code, 'entry': entry, 'local': sorted(local_files),
+              'local_version': (local_plan or {}).get('id',''),
               'drive': drive_files, 'preserved': sorted((local_plan or {}).get('preserve', [])),
               'bytes_drive': sum(f['size'] for f in drive_files), 'blocked': blocked, 'warnings': warnings,
               'keeps': ['saves e estados', 'texturas', 'capa', 'cadastro, nota e tempo'], 'requires_confirmation': True}
     result['token'] = _token(result)
     result['confirm_text'] = confirm_text(result)
     return result
+
+
+def remote_members(entry, inventory, read):
+    """Grafo remoto independente do PC: faixas usadas por outro descritor ficam."""
+    from core import rom_bundles
+    def stat(path):
+        row=inventory[path]
+        return {'size':row['size'],'etag':json.dumps(row,sort_keys=True),'source':'drive'}
+    mine={r['file'] for r in rom_bundles.manifest(entry,stat,read)['files']}
+    shared=set()
+    for path in inventory:
+        if path not in mine and path.rsplit('.',1)[-1].lower() in {'cue','m3u','gdi'}:
+            try:other=rom_bundles.manifest(path,stat,read)
+            except (ValueError,LookupError,OSError) as error:raise Blocked('descritor do Drive ilegível; exclusividade não comprovada') from error
+            shared.update(r['file'] for r in other['files'] if r['file'] in mine)
+    return sorted(mine-shared),sorted(shared)
 
 
 def apply(current, token, confirm, *, trash, drive_trash):

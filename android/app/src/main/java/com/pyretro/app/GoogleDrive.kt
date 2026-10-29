@@ -119,7 +119,7 @@ class GoogleDrive(private val context:Context,private val prefs:android.content.
         return parent
     }
     /** Filhos de uma pasta com o SHA-256 que o Drive calcula sobre os bytes. */
-    fun children(parent:String):List<JSONObject> = list("${DriveSource.quoted(parent)} in parents and trashed = false","id,name,size,mimeType,sha256Checksum")
+    fun children(parent:String):List<JSONObject> = list("${DriveSource.quoted(parent)} in parents and trashed = false","id,name,size,mimeType,sha256Checksum,md5Checksum")
     private fun send(method:String,url:String,body:ByteArray?,type:String="application/json; charset=UTF-8"):HttpURLConnection {
         val connection=open(url);connection.requestMethod=method
         if(body!=null) { connection.doOutput=true;connection.setRequestProperty("Content-Type",type);connection.setFixedLengthStreamingMode(body.size);connection.outputStream.use { it.write(body) } }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 29/10/2026 — Remoção com revalidação no Android e prova PC/Drive
+
+Ficha Android oferece celular, Drive ou ambos: prévia por arquivo, versões/hashes, proteção de
+iniciados/fixados/fila, preservação de faixas compartilhadas e resultado por item. ROM local vai
+para nomes .pyretro-trash- na própria pasta e pode ser restaurada em Opções; Drive usa a lixeira.
+Saves, estados e cadastro permanecem. Arcade com dependências não verificadas bloqueia a remoção
+no Android e orienta usar o notebook. Instrumentação SAF descartável preparada; celular desconectado.
+
+PC agora analisa os descritores do próprio Drive, preserva faixas compartilhadas e inclui versão
+local/hash remoto no token. Prova real com arquivo sintético próprio em FC: MD5 igual antes,
+duas remoções aprovadas, arquivo local ausente e ID remoto conferido na lixeira do Drive.
+437 testes Python e testes JVM/build auxiliar/lint aprovados; nenhuma ROM/save real foi removida.
+
 ## 29/10/2026 — Conflitos de saves no modo TV e regressões da interface
 
 Ferramentas → Saves na nuvem compara, sincroniza sem resolver conflitos automaticamente e oferece

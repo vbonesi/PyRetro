@@ -718,7 +718,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(game.code in setOf("PS","PSP","3DS"))add(more,button("Texturas HD deste sistema") { textures(game) })
         if(game.id.isNotBlank())add(more,button("✎ Editar dados (gênero, comentário…)") { editGame(game) })
         ExtrasRules.coverTarget(game.id,game.cover)?.let { target -> add(more,button("🖼 Trocar capa") { coverSearch(game,target) }) }
-        if(game.localUri!=null)add(more,button("Remover ROM deste celular") { offerRomRemoval(game) })
+        if(game.localUri!=null || game.drive)add(more,button("🗑 Remover…") { offerRomRemoval(game) })
         help(more,"Voltar ao PyRetro","Use Recentes → PyRetro para retornar; coleção, busca e posição ficam guardadas. Para encerrar o jogo, use o menu do emulador.")
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
@@ -848,15 +848,38 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         }
     }
     private fun offerRomRemoval(game:Game) {
-        if(SpaceStore(store).pinned(game)) {
-            show(AlertDialog.Builder(this).setTitle("Jogo fixado").setMessage("${game.name} está fixado para manter baixado. Desfixe nos detalhes antes de remover a ROM.").setPositiveButton("Voltar") { _,_ -> details(game) });return
+        val options=arrayOf("Só deste celular", "Só do Drive (lixeira)", "Dos dois")
+        show(AlertDialog.Builder(this).setTitle("Remover ROM: ${game.name}").setItems(options) { _,which -> removalPreview(game,listOf("local","drive","both")[which]) }.setNegativeButton("Voltar") { _,_ -> details(game) })
+    }
+    private fun removalPreview(game:Game,scope:String) {
+        message("Conferindo arquivos exclusivos e proteções…")
+        work.execute {
+            val result=runCatching { RomRemoval(store).plan(game,scope,activeGame?.key==game.key) }
+            runOnUiThread { result.onFailure(::failure).onSuccess { plan ->
+                val description=listOf("Feche os emuladores. Saves, estados, capa, texturas, cadastro e progresso ficam.",
+                    "Celular (${plan.local.size}):\n"+plan.local.joinToString("\n") { "• ${it.path}" },
+                    "Drive (${plan.drive.size}):\n"+plan.drive.joinToString("\n") { "• ${it.path}" },
+                    if(plan.preserved.isEmpty())"" else "Compartilhados preservados: ${plan.preserved.joinToString()}",
+                    plan.warnings.joinToString("\n"),plan.blocked.joinToString("\n"),
+                    "Celular: lixeira recuperável em Opções. Drive: lixeira do Google.").filter { it.isNotBlank() }.joinToString("\n\n")
+                val builder=AlertDialog.Builder(this).setTitle("Prévia: ${game.name}").setMessage(description).setNegativeButton("Manter") { _,_ -> details(game) }
+                if(plan.blocked.isEmpty() && (plan.local.isNotEmpty() || plan.drive.isNotEmpty()))builder.setPositiveButton(plan.confirmation) { _,_ ->
+                    message("Revalidando a prévia e removendo…")
+                    work.execute { val done=runCatching { RomRemoval(store).apply(game,plan,activeGame?.key==game.key) }
+                        runOnUiThread { done.onSuccess { rows -> val failures=rows.filter { it.second.isFailure }
+                            message("${rows.size-failures.size} arquivo(s) para a lixeira. "+if(failures.isEmpty())"Versões recuperáveis; saves preservados." else failures.joinToString { "${it.first}: ${it.second.exceptionOrNull()?.message}" });catalog=store.cached();reloadLocal()
+                        }.onFailure(::failure) }
+                    }
+                };show(builder)
+            } }
         }
-        // Conjunto de discos: remove o principal e as faixas/discos que só ele usa (prévia no celular).
-        if(game.localUri?.let { store.displayName(it) }?.let(BundleRules::isDescriptor)==true) { offerBundleRemoval(game);return }
-        show(AlertDialog.Builder(this).setTitle("Remover ROM do celular?").setMessage("${game.name}\n\nExcluir apenas a ROM local para liberar espaço? Progresso, saves, states, BIOS, texturas e a origem no PC/Drive serão preservados. Você pode baixar o jogo novamente depois.").setNegativeButton("Manter ROM") { _,_ -> details(game) }.setPositiveButton("Excluir ROM local") { _,_ ->
-            message("Removendo somente a ROM local…")
-            work.execute { runCatching { store.removeLocal(game);PlaylistStore(store).afterChange(game.code) }.onSuccess { playlist -> runOnUiThread { message("ROM removida do celular. Histórico e saves preservados. $playlist");reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } }
-        })
+    }
+    private fun romTrash() {
+        val items=store.prefs.all.filterKeys { it.startsWith("rom-trash:") };val box=column();box.addView(text("Lixeira de ROMs deste celular",22f))
+        box.addView(text("Arquivos ficam na pasta original com nome .pyretro-trash-. Saves e estados não entram nesta lixeira. No Drive, recupere pela lixeira do Google.",13f))
+        for((key,value) in items)add(box,button("Restaurar $value") { work.execute { val result=runCatching { RomRemoval(store).restore(key.removePrefix("rom-trash:")) };runOnUiThread { result.onSuccess { reloadLocal();romTrash() }.onFailure(::failure) } } })
+        if(items.isEmpty())box.addView(text("Nenhuma ROM nesta lixeira.",15f))
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun folderState(code:String)=when(StatusStore(store).folders().firstOrNull { it.code==code }?.access) {
         FolderAccess.READ_WRITE -> "✓";FolderAccess.READ_ONLY -> "somente leitura";FolderAccess.RESELECT -> "permissão expirada";else -> "escolher"
@@ -889,6 +912,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         })
         add(box,button("Downloads") { downloads() })
         add(box,button("Espaço e jogos fixados") { spaceManager() })
+        add(box,button("Lixeira de ROMs deste celular") { romTrash() })
         add(box,button("Saves e estados · todos os jogos") { syncFiles() })
         add(box,button("🗂 Organizar ROMs novas (notebook)") { organizeRoms() })
         val advanced=expandable(box,"Avançado")
@@ -1331,8 +1355,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(game.code!="3DS") { open(null);return }
         dialog?.dismiss();message("Conferindo árvores de saves 3DS…")
         work.execute {
-            val result=runCatching { CloudPhone(store,FileSync(store),DriveCloudStorage(drive)).analyze { group,path -> SaveIdRules.matches(group,path,title) }
-                .getValue("3ds-saves").getOrThrow().map { it.path }.let { SaveIdRules.trees(it,title) } }
+            val result=runCatching { CloudPhone(store,FileSync(store),DriveCloudStorage(drive)).paths("3ds-saves").let { SaveIdRules.trees(it,title) } }
             runOnUiThread { result.onSuccess { trees ->
                 if(trees.size<=1)open(trees.singleOrNull())
                 else show(AlertDialog.Builder(this).setTitle("Qual árvore 3DS o emulador usa?").setItems(trees.toTypedArray()) { _,which -> open(trees[which]) }.setNegativeButton("Voltar",null))

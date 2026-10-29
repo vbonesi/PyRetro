@@ -157,7 +157,7 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
             context.contentResolver.query(children,arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,DocumentsContract.Document.COLUMN_DISPLAY_NAME,DocumentsContract.Document.COLUMN_MIME_TYPE,DocumentsContract.Document.COLUMN_SIZE),null,null,null)?.use { cursor ->
                 while(cursor.moveToNext()) {
                     if(strict)require(result.size<20000 && ++visited<=50000) { "Pasta excede os limites da análise." } else if(result.size>=20000)return
-                    val id=cursor.getString(0);val name=cursor.getString(1)
+                    val id=cursor.getString(0);val name=cursor.getString(1);if(name.startsWith(".pyretro-"))continue
                     if(cursor.getString(2)==DocumentsContract.Document.MIME_TYPE_DIR)scan(id,depth+1)
                     else if(accepts(code,name) && (cursor.isNull(3) || cursor.getLong(3)>0))result.add(RomFile(code,name,DocumentsContract.buildDocumentUriUsingTree(root,id)))
                 }

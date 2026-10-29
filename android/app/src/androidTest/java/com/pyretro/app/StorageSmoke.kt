@@ -15,8 +15,10 @@ class StorageSmoke:Instrumentation() {
     private var saveReview=false
     private var interfaceSuite=false
     private var journalSuite=false
-    override fun onCreate(arguments:Bundle?) { super.onCreate(arguments);journalSuite=arguments?.getString("suite")=="journal";statusSuite=arguments?.getString("suite")=="status";saveReview=arguments?.getString("suite")=="save-review";interfaceSuite=arguments?.getString("suite")=="interface";connectionTest=arguments?.getString("connection")=="true";start() }
+    private var removalSuite=false
+    override fun onCreate(arguments:Bundle?) { super.onCreate(arguments);removalSuite=arguments?.getString("suite")=="removal";journalSuite=arguments?.getString("suite")=="journal";statusSuite=arguments?.getString("suite")=="status";saveReview=arguments?.getString("suite")=="save-review";interfaceSuite=arguments?.getString("suite")=="interface";connectionTest=arguments?.getString("connection")=="true";start() }
     override fun onStart() {
+        if(removalSuite) { RemovalSmoke(this).run();return }
         if(journalSuite) { JournalSmoke(this).run();return }
         if(interfaceSuite) { InterfaceSmoke(this).run();return }
         if(saveReview) { SaveReviewSmoke(this).run();return }

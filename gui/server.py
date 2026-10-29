@@ -472,25 +472,22 @@ def _removal_entry(cfg: dict, code: str, entry: str) -> str:
 
 
 def _drive_files_for(cfg: dict, code: str, entry: str, local: dict | None) -> list:
-    """Arquivos do conjunto no Drive: os do plano local quando há cópia no PC; senão o próprio item e,
-    se for descritor de disco, as faixas que ele cita (lidas do Drive)."""
-    relatives = [*local["remove"], *local["preserve"]] if local else [entry]
-    if not local and Path(entry).suffix.lower() in rom_bundles_mod.DESCRIPTORS:
-        try:
-            text = subprocess.run(["rclone", "cat", mobile_roms_mod._drive_remote(cfg, code, entry)],
-                                  capture_output=True, text=True, timeout=120).stdout
-            relatives += [r for r in rom_bundles_mod.references(text, Path(entry).suffix.lower())]
-        except (ValueError, OSError, subprocess.SubprocessError):
-            pass
-    rows = []
-    for relative in relatives:
-        try:
-            row = mobile_roms_mod._rclone_json(["lsjson", "--stat", mobile_roms_mod._drive_remote(cfg, code, relative)])
-        except (ValueError, OSError):
-            row = None
-        if isinstance(row, dict) and not row.get("IsDir"):
-            rows.append({"path": mobile_roms_mod._drive_remote(cfg, code, relative), "id": row.get("ID", ""), "size": row.get("Size", 0)})
-    return rows
+    """Analisa o grafo do próprio Drive; dados compartilhados nunca entram na remoção."""
+    remote=mobile_roms_mod._drive_remote(cfg,code,'').rstrip('/')
+    rows=mobile_roms_mod._rclone_json(['lsjson','-R','--hash','--files-only',remote])
+    if not isinstance(rows,list) or len(rows)>20000:raise ValueError('índice remoto inválido ou grande demais')
+    inventory={}
+    for row in rows:
+        path=row.get('Path','');rom_bundles_mod.relative(path)
+        if path in inventory:raise ValueError('caminho duplicado no Drive')
+        inventory[path]={'path':remote+'/'+path,'id':row.get('ID',''),'size':row.get('Size',0),'hash':row.get('Hashes',{}),'mtime':row.get('ModTime','')}
+    if entry not in inventory:return []
+    def read(path):
+        done=subprocess.run(['rclone','cat',remote+'/'+path],capture_output=True,timeout=120)
+        if done.returncode or len(done.stdout)>1024*1024:raise ValueError('descritor indisponível no Drive')
+        return done.stdout.decode('utf-8-sig')
+    members,_=removal_mod.remote_members(entry,inventory,read)
+    return [inventory[path] for path in members]
 
 
 def _removal_plan(cfg: dict, scope: str, code: str, entry: str) -> dict:

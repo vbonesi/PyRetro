@@ -33,6 +33,7 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
     private val prefs=store.context.getSharedPreferences("cloud-sync",0)
 
     fun groups():List<String> = prefixes.keys.filter { runCatching { sync.tree(it)!=null }.getOrDefault(false) }
+    fun paths(group:String):Set<String> { val engine=engine(group);return sync.local(group).keys+engine.heads(engine.manifests()).keys }
     private fun namespace(group:String)=if(group in setOf("retro-states","psp-states"))"states/$device" else "saves"
     private fun baselineKey(group:String)=if(namespace(group)=="saves")"baseline:$group" else "baseline:${namespace(group)}:$group"
     private fun engine(group:String)=CloudSavesEngine(storage,device,FileSyncLocalFiles(sync,group,store.context.contentResolver,store.context.cacheDir),
