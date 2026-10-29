@@ -220,7 +220,7 @@ repo  = "Nintendo_-_GameCube"
 
 [heavy_systems.WII]
 nome = "Nintendo - Wii"
-exts = ["iso", "rvz", "wbfs"]
+exts = ["iso", "rvz", "wbfs", "wad", "gcz"]
 capas = "Nintendo - Wii"
 repo  = "Nintendo_-_Wii"
 

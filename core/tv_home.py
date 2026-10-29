@@ -15,7 +15,7 @@ def item_key(game):
         suffix = Path(name).suffix.lower()
         exts = {'.zip', '.7z', '.nes', '.sfc', '.smc', '.gb', '.gbc', '.gba', '.nds',
                 '.n64', '.z64', '.v64', '.md', '.gen', '.bin', '.sms', '.gg', '.pce',
-                '.cue', '.gdi', '.m3u', '.chd', '.iso', '.cso', '.pbp', '.rvz', '.wbfs', '.3ds', '.cia'}
+                '.cue', '.gdi', '.m3u', '.chd', '.iso', '.cso', '.pbp', '.rvz', '.wbfs', '.wad', '.gcz', '.3ds', '.cia'}
         return recent.rom_key(game['code'], name if suffix in exts or '/' in name else name + '.rom')
     return recent.pc_key(game['id'])
 
