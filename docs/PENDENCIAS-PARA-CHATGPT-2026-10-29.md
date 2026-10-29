@@ -72,12 +72,18 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
       lançador do setup poderia chamar `configure_xbox.py --detect/--controller`.
 
 ### Interface / produto
+- [x] **Revisão comparativa Android × PC (Codex, 29/10):** matriz, divergências e roteiro reproduzível
+      em `REVISAO-ANDROID-PC-2026-10-29.md`; 48 telas/estados no aparelho, em retrato/paisagem.
+      As diferenças identificadas continuam abertas; navegação aprovada não comprova paridade.
+- [ ] **Aplicar as diferenças da revisão Android:** primeiro erros/confirmações de saves, filtro de Desejados
+      e Ranking em retrato; depois escopo PSP/3DS, glifos/foco/espaço útil e remoção local/Drive.
 - [ ] **Testes automatizados do que só foi conferido no navegador:** pódio do Ranking, filtros recolhíveis, glifos
       Xbox/PS, tela "🗑 Remover…" (modo TV, `tests/test_app.html`).
 - [ ] **Remoção na ficha:** confirmar uma remoção real de ponta a ponta (PC + Drive à lixeira) com um jogo descartável;
       até agora só a prévia foi exercitada. Ligar também ao Android (ficha) com a mesma regra de `core/removal.py`.
 - [ ] **Identidade visual:** conferir os ícones nas máscaras do launcher do Android e no Steam Big Picture (instalados,
-      mas não vistos nesses lugares); falta a variante monocromática no modo escuro do Android 13.
+      mas não vistos nesses lugares). O recurso monocromático já existe em `ic_launcher.xml`; falta conferir o
+      resultado do ícone temático no launcher. O cabeçalho Android ainda usa a estrela.
 - [ ] **Arcade:** nenhum jogo atual depende de outro jogo (só de BIOS em `BIOS/RetroArch`). Se a coleção crescer, a
       resolução de pai (`core/arcade.py`) já baixa os pais; testar com um clone real quando houver.
 - [ ] **Homologação física restante (Victor):** G8 e interrupção de download já testados por ele; ficam atalhos do 3DS e uso

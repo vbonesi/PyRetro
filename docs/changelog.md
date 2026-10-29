@@ -1,5 +1,17 @@
 # Changelog
 
+## 29/10/2026 — revisão da interface Android em comparação com o PC (Codex)
+
+Matriz e fila de correções em [REVISAO-ANDROID-PC-2026-10-29.md](REVISAO-ANDROID-PC-2026-10-29.md).
+Navegação instrumentada em 48 telas/estados, retrato/paisagem, com fontes 80% e 130% e dados sintéticos; 272 arquivos
+de jogos/saves/playlists mantiveram nomes/tamanhos/datas. Paridade ainda incompleta: filtro de
+Desejados com opções do Catálogo, pódio em retrato, glifos/foco, remoção no Drive e escopo de
+saves PSP/3DS; leitura de código também encontrou confirmação de resolução após erro.
+Retirado de `StatusSmoke` o teste de uma API de saves removida, que impedia compilar o APK
+auxiliar. Novo roteiro `-e suite interface` e evidências privadas; APK principal 0.19.0 preservado.
+Esta entrega não aplica as diferenças no produto nem homologa operações reais por navegação.
+435 testes Python, 54 JS e 82 JVM, build/lint e as duas rodadas de instrumentação passaram.
+
 ## 28/10/2026 (noite) — Switch: 21 pastas de Downloads organizadas
 
 Lote de torrents em `~/Downloads` (= `Drive/Temp`) organizado direto no Drive (`rclone moveto`, sem

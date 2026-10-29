@@ -13,8 +13,10 @@ class StorageSmoke:Instrumentation() {
     private var statusSuite=false
     private var connectionTest=false
     private var saveReview=false
-    override fun onCreate(arguments:Bundle?) { super.onCreate(arguments);statusSuite=arguments?.getString("suite")=="status";saveReview=arguments?.getString("suite")=="save-review";connectionTest=arguments?.getString("connection")=="true";start() }
+    private var interfaceSuite=false
+    override fun onCreate(arguments:Bundle?) { super.onCreate(arguments);statusSuite=arguments?.getString("suite")=="status";saveReview=arguments?.getString("suite")=="save-review";interfaceSuite=arguments?.getString("suite")=="interface";connectionTest=arguments?.getString("connection")=="true";start() }
     override fun onStart() {
+        if(interfaceSuite) { InterfaceSmoke(this).run();return }
         if(saveReview) { SaveReviewSmoke(this).run();return }
         if(statusSuite) { StatusSmoke(this,connectionTest).run();return }
         val result=Bundle();var testRoot:android.net.Uri?=null;var temp:File?=null

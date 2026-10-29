@@ -57,12 +57,8 @@ class StatusSmoke(private val runner:Instrumentation,private val connectionTest:
             fixture.setBase("https://example.invalid/");check(fixture.prefs.getLong("last-contact",0)==123L)
             fixture.setBase("https://other.invalid");check(!fixture.prefs.contains("last-contact") && !fixture.prefs.contains("tracking-sync-at"))
             check(StatusStore(fixture).pending().size==2)
-            val sync=FileSync(fixture)
-            sync.setTree("retro-saves",android.net.Uri.parse("content://com.android.externalstorage.documents/tree/primary%3Apyretro-status-smoke"))
-            val record=JSONObject().put("server",fixture.base()).put("tree",sync.tree("retro-saves").toString()).put("at",1L).put("conflicts",0).put("failures",0).put("applied",false)
-            val syncPrefs=targetContext.getSharedPreferences(name+"-file-sync",0)
-            syncPrefs.edit().putString("observation:retro-saves",record.toString()).commit();check(sync.observation("retro-saves")!=null)
-            record.remove("at");syncPrefs.edit().putString("observation:retro-saves",record.toString()).commit();check(sync.observation("retro-saves")==null)
+            // As observações do protocolo HTTP/Insync foram removidas na 0.19.0.
+            // O motor atual é coberto por CloudSavesTest; esta suíte verifica a central e as pastas.
             // Dados do usuário só são lidos. Nenhum botão de sync/download/remoção é acionado.
             val realBefore=real.prefs.all.toMap()
             realUI=realBefore.filterKeys { it.startsWith("ui:") }

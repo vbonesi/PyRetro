@@ -78,12 +78,15 @@ _(vazio)_
 
 ## Situação
 
-- 29/10 — Celular em uso pelo Codex para revisão da interface Android e paridade com o PC.
-  Sem jogos, remoções ou sincronizações reais nesta revisão.
-  Codex encontrou outro publicador do Claude no checkout principal e encerrou somente seu
-  publicador adicional. Não sobrescrever `core/cloud_snapshots.py` do checkout principal:
-  a variante do Codex está isolada em `codex/backups-nuvem` (listagem única e proteção da
-  criação de ancestrais para evitar pastas homônimas em processos rclone paralelos).
+- 29/10 — Codex: revisão Android concluída; **celular livre**, APK principal 0.19.0 preservado.
+  Matriz/fila em `docs/REVISAO-ANDROID-PC-2026-10-29.md`: 48 telas/estados nas duas orientações,
+  repetidos com fontes 80% e 130%; 272 arquivos com metadados iguais; 435 Python/54 JS/82 JVM,
+  build/lint e instrumentação aprovados. Corrigida a compilação da instrumentação antiga.
+  Diferenças de produto continuam abertas; nenhum jogo, remoção ou sync real acionado.
+  Fonte e rotação restauradas, APK auxiliar e fixtures removidos, evidências privadas preservadas.
+  Victor confirmou a divisão: Claude concluiu Biblioteca/Backups (`41af3e7`); Codex conclui a revisão
+  Android. O experimento de Backups `a0673c1`, em `codex/backups-nuvem`, permanece isolado e não
+  foi integrado nesta rodada; o publicador adicional do Codex foi encerrado.
 
 - 23/10 — Claude: Android 0.9.0 **instalada e validada** no celular. Celular **livre**.
   Mexi em `core/library.py` (fora da minha parte, avisando aqui): `search_covers_steamgriddb`
