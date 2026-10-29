@@ -74,12 +74,13 @@ def decide(local, baseline, heads):
 
 
 class CloudSaves:
-    def __init__(self, storage, device, root, group='saves', state_path=None, now=time.time, exclude=(), workers=8):
+    def __init__(self, storage, device, root, group='saves', state_path=None, now=time.time, exclude=(), workers=8, path_filter=None):
         if not device or '/' in device or device.startswith('.'):
             raise ValueError('nome de dispositivo inválido')
         self.storage, self.device, self.root, self.group, self.now = storage, device, Path(root), group, now
         self.workers = workers
         self.exclude = set(exclude)  # pastas de topo que nunca sobem (ex.: runtime-logs)
+        self.path_filter = path_filter or (lambda path: True)
         self.state_path = Path(state_path) if state_path else self.root / '.pyretro-cloud' / f'{group}.json'
 
     # --- estado local -------------------------------------------------------------------
@@ -113,6 +114,8 @@ class CloudSaves:
                 if path.is_symlink() or name.endswith(PART):
                     continue
                 rel = path.relative_to(self.root).as_posix()
+                if not self.path_filter(rel):
+                    continue
                 stat = path.stat()
                 known = cache.get(rel)
                 if known and known[0] == stat.st_size and known[1] == stat.st_mtime_ns:
@@ -184,6 +187,8 @@ class CloudSaves:
         local, baseline, heads = self.local_files(), self._baseline(), self.heads(self.manifests())
         items = []
         for rel in sorted(set(local) | set(heads)):
+            if not self.path_filter(rel):
+                continue
             action = decide(local.get(rel), baseline.get(rel), heads.get(rel, {}))
             if action == 'same' and baseline.get(rel) == local.get(rel):
                 continue  # já sincronizado: nada a fazer

@@ -140,6 +140,7 @@ class InterfaceSmoke(private val runner:Instrumentation) {
                 is String -> edit.putString(key,value);is Int -> edit.putInt(key,value);is Long -> edit.putLong(key,value);is Boolean -> edit.putBoolean(key,value)
             } };edit.commit()
             MainActivity.automaticUpdates=true
+            fixture.closeJournal();targetContext.deleteDatabase(name+"-library.db")
             targetContext.deleteSharedPreferences(name);targetContext.deleteSharedPreferences(name+"-file-sync")
             File(targetContext.filesDir,name+"-downloads").deleteRecursively()
         }

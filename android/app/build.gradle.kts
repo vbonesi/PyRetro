@@ -9,6 +9,7 @@ android {
     signingConfigs.getByName("debug") { storeFile = rootProject.file(".gradle/debug.keystore") }
 }
 dependencies {
+    implementation("androidx.work:work-runtime:2.10.5")
     implementation("com.google.android.gms:play-services-auth:21.2.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

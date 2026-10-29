@@ -14,10 +14,13 @@ O diário local é `library-journal.db` ao lado do `library.json`.
 """
 import contextlib
 import json
+import math
+import re
 import sqlite3
 import time
 
 from core import cloud as cloud_mod
+from core import journal_rules as rules
 
 SEGMENT_MAX = 2000
 
@@ -33,6 +36,11 @@ def diff(old, new):
         if before is None:
             changes.append({'op': 'add', 'id': game_id, 'value': game}); continue
         for field in sorted(set(before) | set(game)):
+            if field == '_play_sessions':
+                for event, seconds in game.get(field, {}).items():
+                    if event not in before.get(field, {}):
+                        changes.append({'op': 'session', 'id': game_id, 'value': {'event': event, 'seconds': seconds}})
+                continue
             if before.get(field) != game.get(field) or (field in before) != (field in game):
                 if field in game:
                     changes.append({'op': 'set', 'id': game_id, 'field': field, 'value': game[field]})
@@ -65,6 +73,9 @@ def apply(base, changes):
             games[game_id].pop(change['field'], None)
         elif op == 'meta':
             library[change['field']] = change['value']
+        elif op == 'session' and game_id in games:
+            game = games[game_id]
+            game.setdefault('_play_sessions', {}).setdefault(change['value']['event'], change['value']['seconds'])
     return library
 
 
@@ -98,16 +109,38 @@ class Journal:
         db.execute('INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
                    (key, json.dumps(value)))
 
+    def _state(self, db):
+        state = self._meta(db, 'state', None)
+        if state is not None:
+            return state
+        state = {'versions': {}, 'deleted': {}}
+        for row in db.execute('SELECT * FROM changes ORDER BY at,device,seq'):
+            op = row['op']
+            stamp = [row['at'], row['device'], row['seq']]
+            if op == 'add':
+                for field in json.loads(row['value'] or '{}'):
+                    state['versions'][rules.key(row['game_id'], field)] = stamp
+            elif op in ('remove', 'set', 'unset', 'meta'):
+                state['versions'][rules.key(row['game_id'], row['field'])] = stamp
+        return state
+
     def record(self, old, new, origin='local', at=None):
         """Registra o que mudou de `old` para `new`. Devolve quantas mudanças entraram."""
         changes = diff(old, new)
         if not changes:
             return 0
-        at = self.now() if at is None else at
         with self._db() as db:
+            state_before = self._state(db)
+            seen = max(float(self._meta(db, 'last_at')), float(db.execute('SELECT COALESCE(MAX(at),0) FROM changes').fetchone()[0]))
+            at = rules.clock(self.now() if at is None else at, seen)
             db.executemany('INSERT INTO changes(at,device,origin,op,game_id,field,value) VALUES(?,?,?,?,?,?,?)',
                            [(c.get('at', at), c.get('device', self.device), origin, c['op'], c.get('id'), c.get('field'),
                              json.dumps(c.get('value'), ensure_ascii=False)) for c in changes])
+            last = db.execute('SELECT MAX(seq) FROM changes').fetchone()[0]
+            stamped = [{**c, 'at': at, 'device': self.device, 'seq': last-len(changes)+i+1} for i, c in enumerate(changes)]
+            _, _, state = rules.merge(old, stamped, state_before, replay_pending=False)
+            self._set_meta(db, 'state', state)
+            self._set_meta(db, 'last_at', at)
         return len(changes)
 
     def rows(self, since=0, origin=None, limit=None):
@@ -141,7 +174,7 @@ class Journal:
         if row['field'] is not None:
             change['field'] = row['field']
         value = json.loads(row['value']) if row['value'] is not None else None
-        if row['op'] in ('add', 'set', 'meta'):
+        if row['op'] in ('add', 'set', 'meta', 'session'):
             change['value'] = value
         return change
 
@@ -159,16 +192,39 @@ class Journal:
             try:
                 storage.put(f'journal/{self.device}/{first:012d}-{last:012d}.json', json.dumps(segment, ensure_ascii=False).encode('utf-8'))
             except cloud_mod.Exists:
-                pass  # mesma faixa já enviada (reenvio depois de falha)
+                if json.loads(storage.get(f'journal/{self.device}/{first:012d}-{last:012d}.json')) != segment:
+                    raise ValueError('segmento do diário diverge da cópia local; nada foi descartado')
             done = last; sent += len(rows)
             with self._db() as db:
                 self._set_meta(db, 'published_seq', done)
 
-    def pull(self, storage, library):
+    def export_state(self):
+        with self._db() as db:
+            state = self._state(db)
+            cursors = {row['device']: row['last'] for row in db.execute('SELECT device,MAX(seq) AS last FROM changes WHERE origin="local" GROUP BY device')}
+            for row in db.execute('SELECT key,value FROM meta WHERE key LIKE "remote:%"'):
+                cursors[row['key'][7:]] = json.loads(row['value'])
+            return {'state': state, 'cursors': cursors, 'last_at': self._meta(db, 'last_at')}
+
+    def fetch(self, storage):
+        """Busca a rede antes de adquirir o lock da Biblioteca; somente segmentos ainda não vistos."""
+        cache = cloud_mod.MemoryStorage()
+        for item in storage.list('journal'):
+            match = re.fullmatch(r'journal/([A-Za-z0-9][A-Za-z0-9_.-]{0,127})/(\d+)-(\d+)\.json', item['path'])
+            if not match or match[1] == self.device:
+                continue
+            with self._db() as db:
+                seen = self._meta(db, f'remote:{match[1]}')
+            if int(match[3]) > seen:
+                cache.put(item['path'], storage.get(item['path']))
+        return cache
+
+    def pull(self, storage, library, save=None):
         """Aplica à `library` as mudanças de OUTROS dispositivos ainda não vistas; por jogo e campo vence a
         mais recente (inclusive contra edições locais). Devolve (nova biblioteca, quantas mudanças valeram)."""
         applied = 0
-        devices = sorted({i['path'].split('/')[1] for i in storage.list('journal') if i['path'].count('/') >= 2} - {self.device})
+        devices = sorted({i['path'].split('/')[1] for i in storage.list('journal') if i['path'].count('/') >= 2
+                          and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', i['path'].split('/')[1])} - {self.device})
         for other in devices:
             with self._db() as db:
                 seen = self._meta(db, f'remote:{other}')
@@ -181,25 +237,38 @@ class Journal:
                     continue
                 if last <= seen:
                     continue
-                wins = []
+                if (first <= 0 or last < first or segment.get('device') != other or not isinstance(segment.get('changes'), list)
+                        or len(segment['changes']) > SEGMENT_MAX):
+                    raise ValueError('segmento inválido do diário; recibo não avançou')
+                changes = []
+                sequences = set()
                 for change in segment['changes']:
-                    if change.get('seq', 0) <= seen or change.get('op') not in ('add', 'remove', 'set', 'unset', 'meta'):
-                        continue
-                    field = change.get('field')
-                    if change['op'] in ('set', 'unset') and self.latest_at(change.get('id'), field) > change.get('at', 0):
-                        continue  # uma edição local mais recente do mesmo campo vence
-                    if change['op'] == 'remove' and self.latest_at(change.get('id'), None) > change.get('at', 0):
-                        continue
-                    wins.append(change)
-                if wins:
-                    library = apply(library, wins)
-                    at_now = self.now()
-                    with self._db() as db:
-                        db.executemany('INSERT INTO changes(at,device,origin,op,game_id,field,value) VALUES(?,?,?,?,?,?,?)',
-                                       [(c.get('at', at_now), other, 'remote', c['op'], c.get('id'), c.get('field'),
-                                         json.dumps(c.get('value'), ensure_ascii=False)) for c in wins])
-                    applied += len(wins)
-                seen = max(seen, last)
+                    if not isinstance(change, dict):
+                        raise ValueError('mudança inválida no diário; recibo não avançou')
+                    if (not rules.valid(change) or type(change.get('seq')) is not int or not first <= change['seq'] <= last
+                            or type(change.get('at')) not in (int, float) or not math.isfinite(change['at']) or change['at'] < 0
+                            or change['seq'] in sequences):
+                        if change.get('op') not in rules.OPS:
+                            continue  # extensão de protocolo desconhecida
+                        raise ValueError('mudança inválida no diário; recibo não avançou')
+                    sequences.add(change['seq'])
+                    if change['seq'] > seen:
+                        changes.append({**change, 'device': other})
                 with self._db() as db:
+                    merged, count, state = rules.merge(library, changes, self._state(db))
+                    if count and save is not None:
+                        save(merged)  # o recibo só confirma depois de o JSON ser salvo
+                    db.executemany('INSERT INTO changes(at,device,origin,op,game_id,field,value) VALUES(?,?,?,?,?,?,?)',
+                                   [(c['at'], other, 'remote', c['op'], c.get('id'), c.get('field'), json.dumps(c.get('value'), ensure_ascii=False)) for c in changes])
+                    self._set_meta(db, 'state', state)
+                    self._set_meta(db, 'last_at', max([float(self._meta(db, 'last_at')), *[float(c['at']) for c in changes]]))
+                    seen = max(seen, last)
                     self._set_meta(db, f'remote:{other}', seen)
-        return library, applied
+                library = merged
+                applied += count
+        with self._db() as db:
+            merged, count, state = rules.merge(library, [], self._state(db))
+            if count and save is not None:
+                save(merged)
+            self._set_meta(db, 'state', state)
+        return merged, applied + count

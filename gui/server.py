@@ -54,6 +54,7 @@ from core import tv_apps as tv_apps_mod
 from core import tv_home as tv_home_mod
 from core import game_actions as game_actions_mod
 from core import playtime as playtime_mod
+from core import library_activity
 from core import tv_media as tv_media_mod
 from core import tv_saves as tv_saves_mod
 from core import mobile_textures as mobile_textures_mod
@@ -94,6 +95,11 @@ def _record_emulator_time(session, seconds):
     if seconds >= 1:
         playtime_mod.record(PLAYTIME_PATH, recent_mod.rom_key(session['code'], session['name']), seconds,
                             source='emulator', event=session['session'])
+        cfg=load_config();path=cloud_sync_mod.library_file(cfg)
+        lib=library_mod.load_library(path)
+        game=library_mod.find_for_rom(library_mod.index_by_rom_name(lib), session['name'], session['code'])
+        if game:
+            library_activity.update(cfg, game['id'],event=session['session'],seconds=seconds)
 
 
 def _cloud_before_play(cfg, code, name):
@@ -107,11 +113,15 @@ def _cloud_before_play(cfg, code, name):
 
 def _cloud_after_play():
     cfg = load_config()
-    if cloud_sync_mod.auto(cfg):
-        cloud_sync_mod.sync(cfg)
+    try:
+        if cloud_sync_mod.auto(cfg):
+            cloud_sync_mod.sync(cfg)
+    finally:
+        LIBRARY_POLLER.trigger()
 
 
 PLAY_SESSIONS = play_mod.Sessions(record=_record_emulator_time, before=_cloud_before_play, after=_cloud_after_play)
+LIBRARY_POLLER = cloud_sync_mod.LibraryPoller(lambda: load_config())
 
 COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
 CSRF_TOKEN = secrets.token_urlsafe(32)
@@ -2421,7 +2431,7 @@ class Handler(BaseHTTPRequestHandler):
                 "jogando": sum(1 for g in visiveis if g["iniciado"] and not g["finalizado"]),
                 "com_nota": len(com_nota),
                 "nota_media": round(sum(com_nota) / len(com_nota), 2) if com_nota else None,
-                "tempo_total_horas": round(sum(library_mod.tempo_para_horas(g["tempo"]) for g in visiveis), 2),
+                "tempo_total_horas": round(sum(library_mod.tempo_para_horas(g["tempo"])+sum(g.get('_play_sessions',{}).values())/3600 for g in visiveis), 2),
                 "com_genero": sum(1 for g in visiveis if g.get("genero")),
             })
 
@@ -2831,6 +2841,9 @@ class Handler(BaseHTTPRequestHandler):
                 if type(minutes) not in (int,float) or not 1 <= minutes <= 1440:
                     raise ValueError('informe entre 1 e 1440 minutos')
                 result = playtime_mod.record(PLAYTIME_PATH, key, minutes * 60, source='manual', event=body.get('event'))
+                selected=next((g for g in self._tv_catalog() if tv_home_mod.item_key(g)==key),None)
+                if selected:
+                    library_activity.update(load_config(),selected.get('id'),event=result['_events'][-1] if not body.get('event') else body['event'],seconds=minutes*60)
                 return self._json(playtime_mod.public(result))
             except (ValueError, OSError) as error: return self._json({'error':str(error)}, 400)
 
@@ -2852,7 +2865,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if parts[-1] == 'sync':
                     return self._json({'ok': True, **cloud_sync_mod.sync(cfg)})
-                return self._json({'ok': True, **cloud_sync_mod.resolve(cfg, body.get('path'), body.get('choice'), body.get('sha'))})
+                return self._json({'ok': True, **cloud_sync_mod.resolve(cfg, body.get('path'), body.get('choice'), body.get('sha'), group=body.get('group','saves'))})
             except (ValueError, OSError) as error:
                 return self._json({'error': str(error)}, 400)
 
@@ -2914,6 +2927,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('jogo não encontrado no catálogo')
                 key = tv_home_mod.item_key(selected)
                 data = tv_home_mod.update(TV_PREFS_PATH, key=key, favorite=body.get('favorite'))
+                library_activity.update(load_config(),selected.get('id'),favorite=body.get('favorite'))
             except ValueError as e:
                 return self._json({'error': str(e)}, 400)
             return self._json({**data, 'key': key})
@@ -4037,11 +4051,14 @@ def main() -> None:
     args = p.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
+    LIBRARY_POLLER.start()
     print(f"PyRetro GUI rodando em http://{args.host}:{args.port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        LIBRARY_POLLER.stop()
 
 
 if __name__ == "__main__":

@@ -93,9 +93,9 @@ class GoogleDrive(private val context:Context,private val prefs:android.content.
         } while(page.isNotEmpty())
         return out
     }
-    private val folders=mutableMapOf<String,String>()
+    private val folders=java.util.concurrent.ConcurrentHashMap<String,String>()
     /** Pasta por caminho a partir da raiz do Drive. Nome repetido nunca é resolvido pelo primeiro. */
-    fun folder(path:List<String>,create:Boolean=false,from:String="root"):String {
+    @Synchronized fun folder(path:List<String>,create:Boolean=false,from:String="root"):String {
         var parent=from
         for((i,name) in path.withIndex()) {
             val key=from+":"+path.take(i+1).joinToString("/")
@@ -107,7 +107,17 @@ class GoogleDrive(private val context:Context,private val prefs:android.content.
         }
         return parent
     }
-    fun folderOrNull(path:List<String>,from:String):String?=runCatching { folder(path,false,from) }.getOrNull()
+    @Synchronized fun folderOrNull(path:List<String>,from:String):String? {
+        var parent=from
+        for((i,name) in path.withIndex()) {
+            val key=from+":"+path.take(i+1).joinToString("/")
+            val found=folders[key] ?: list(DriveSource.childQuery(parent,name,folder=true)).let { rows ->
+                require(rows.size<=1) { "Pasta repetida no Drive; resolva antes de sincronizar." };rows.singleOrNull()?.getString("id")
+            } ?: return null
+            folders[key]=found;parent=found
+        }
+        return parent
+    }
     /** Filhos de uma pasta com o SHA-256 que o Drive calcula sobre os bytes. */
     fun children(parent:String):List<JSONObject> = list("${DriveSource.quoted(parent)} in parents and trashed = false","id,name,size,mimeType,sha256Checksum")
     private fun send(method:String,url:String,body:ByteArray?,type:String="application/json; charset=UTF-8"):HttpURLConnection {
@@ -148,8 +158,10 @@ class GoogleDrive(private val context:Context,private val prefs:android.content.
     fun account():String { val email=json("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)").getJSONObject("user").getString("emailAddress")
         prefs.edit().putBoolean("google:connected",true).putString("google:email",email).apply();return email }
     /** Arquivos da pasta do sistema no Drive (Jogos/ROMs/<código>). */
-    fun romFiles(code:String):List<DriveRef> = list(DriveSource.childQuery(folder(DriveSource.ROMS+code),folder=false))
-        .map { DriveRef(it.getString("id"),it.getString("name"),it.optString("size","0").toLongOrNull() ?: 0,it.optString("md5Checksum")) }
+    fun romFiles(code:String):List<DriveRef> {
+        val folder=folderOrNull(DriveSource.ROMS+code,"root") ?: return emptyList()
+        return list(DriveSource.childQuery(folder,folder=false)).map { DriveRef(it.getString("id"),it.getString("name"),it.optString("size","0").toLongOrNull() ?: 0,it.optString("md5Checksum")) }
+    }
     fun file(id:String):JSONObject=json("https://www.googleapis.com/drive/v3/files/${URLEncoder.encode(id,"UTF-8")}?fields=id,name,size,trashed,sha256Checksum")
     fun metadata(id:String):DriveRef { val it=json("https://www.googleapis.com/drive/v3/files/${URLEncoder.encode(id,"UTF-8")}?fields=id,name,size,md5Checksum,trashed")
         require(!it.optBoolean("trashed")) { "O arquivo foi para a lixeira do Drive." }

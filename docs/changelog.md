@@ -1,5 +1,22 @@
 # Changelog
 
+## 29/10/2026 — Biblioteca local Android, diário e estados por aparelho
+
+Android ganhou SQLite por jogo, bootstrap pelo snapshot e diário imutável compatível com Python.
+Progresso, notas, favoritos e sessões novas são gravados localmente e enviados pelo Drive;
+pendências anteriores com cadastro migram, conflitos antigos ficam disponíveis para conferência.
+Catálogo combina Biblioteca e pastas de ROMs do Drive, preservando ambiguidades para escolha.
+Notebook recebe no início, após jogos e a cada cinco minutos; Android usa WorkManager com rede
+e bateria suficiente (período de 15 minutos, sujeito ao agendamento do sistema).
+
+LWW compara todas as origens por campo; relógio persistente avança mesmo se a hora recuar.
+Recibos só avançam após gravação local. Sessões têm identidade imutável, sem importar totais
+históricos ou repetir eventos do PC. Saves/extdata 3DS continuam compartilhados por decisão do
+Victor; estados novos usam `states/<dispositivo>` e o histórico anterior permanece intacto.
+444 testes Python passaram, fixture Python/Kotlin convergiu nas 24 ordens, JVM passou e teste
+SQLite real do celular comprovou persistência, transações/rollback e replay. Validação completa
+da interface e instalação final seguem nas próximas entregas; ainda há pendências abertas.
+
 ## 29/10/2026 — Android 0.20.0: filtros, Ranking e navegação visual
 
 Desejados agora oferece os seus próprios filtros; filtros são guardados por coleção. Pódio em

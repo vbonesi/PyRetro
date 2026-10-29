@@ -33,8 +33,10 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
     private val prefs=store.context.getSharedPreferences("cloud-sync",0)
 
     fun groups():List<String> = prefixes.keys.filter { runCatching { sync.tree(it)!=null }.getOrDefault(false) }
+    private fun namespace(group:String)=if(group in setOf("retro-states","psp-states"))"states/$device" else "saves"
+    private fun baselineKey(group:String)=if(namespace(group)=="saves")"baseline:$group" else "baseline:${namespace(group)}:$group"
     private fun engine(group:String)=CloudSavesEngine(storage,device,FileSyncLocalFiles(sync,group,store.context.contentResolver,store.context.cacheDir),
-        baselineOf(prefs.getString("baseline:$group",null)),"saves",prefixes.getValue(group))
+        baselineOf(prefs.getString(baselineKey(group),null)),namespace(group),prefixes.getValue(group))
 
     /** Prévia por grupo; um grupo ilegível vira erro de texto, não derruba os outros. */
     fun analyze(filter:((String,String)->Boolean)?=null):Map<String,Result<List<CloudItem>>> = groups().associateWith { group -> runCatching { engine(group).plan().filter { filter==null || filter(group,it.path) } } }
@@ -42,7 +44,7 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
     fun apply(only:Set<String>?=null,filter:((String,String)->Boolean)?=null):Map<String,Result<List<CloudResult>>> = groups().filter { only==null || it in only }.associateWith { group ->
         runCatching {
             val engine=engine(group);val results=engine.apply(engine.plan().filter { filter==null || filter(group,it.path) })
-            val edit=prefs.edit().putString("baseline:$group",JSONObject(engine.baseline as Map<*,*>).toString())
+            val edit=prefs.edit().putString(baselineKey(group),JSONObject(engine.baseline as Map<*,*>).toString())
             if(results.all { it.ok && it.conflict==null })edit.putLong("at",System.currentTimeMillis())
             edit.apply()
             results
@@ -51,7 +53,7 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
 
     fun resolve(group:String,path:String,choice:String,sha:String?=null):CloudResult {
         val engine=engine(group);val result=engine.resolve(path,choice,sha)
-        prefs.edit().putString("baseline:$group",JSONObject(engine.baseline as Map<*,*>).toString()).apply();return result
+        prefs.edit().putString(baselineKey(group),JSONObject(engine.baseline as Map<*,*>).toString()).apply();return result
     }
     fun lastAt():Long=prefs.getLong("at",0)
 }

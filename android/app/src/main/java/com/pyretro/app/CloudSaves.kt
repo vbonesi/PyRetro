@@ -58,7 +58,8 @@ class CloudSavesEngine(private val storage:CloudStorage,private val device:Strin
         for(item in storage.list("$group/devices")) {
             val name=item.path.substringAfterLast('/')
             if(!name.endsWith(".json"))continue
-            val data=runCatching { JSONObject(String(storage.get(item.path),Charsets.UTF_8)) }.getOrNull() ?: continue
+            val bytes=try { storage.get(item.path) } catch(_:CloudNotFound) { continue }
+            val data=runCatching { JSONObject(String(bytes,Charsets.UTF_8)) }.getOrNull() ?: continue
             if(data.optJSONObject("files")!=null)out[name.removeSuffix(".json")]=data
         }
         return out

@@ -242,6 +242,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         networkCallback=object:ConnectivityManager.NetworkCallback() { override fun onAvailable(network:Network) { queueHandler.postDelayed({ if(!isFinishing && !isDestroyed)probeNotebook(force=true) },2_000) } }
         runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).registerDefaultNetworkCallback(networkCallback!!) }
         controllerManager=getSystemService(INPUT_SERVICE) as InputManager;controllerManager.registerInputDeviceListener(this,null);updateControllerOrientation();updateGlyphs()
+        if(automaticUpdates && drive.connected) { LibraryWorker.schedule(this);automaticUpdate(force=true) }
     }
     private fun updateControllerOrientation() {
         val present=InputDevice.getDeviceIds().asSequence().mapNotNull { InputDevice.getDevice(it) }.any { !it.isVirtual && (it.supportsSource(InputDevice.SOURCE_GAMEPAD) || it.supportsSource(InputDevice.SOURCE_JOYSTICK)) }
@@ -331,7 +332,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(compact)card.setPadding(dp(8),dp(4),dp(8),dp(4))
         val cover=ImageView(this).apply { setImageResource(com.pyretro.app.R.drawable.ic_pyretro);scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name }
         card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
-        card.addView(text((if(store.prefs.getBoolean("favorite:${game.key}",false))"★ " else "")+game.name,16f).apply { maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
+        card.addView(text((if(store.favorite(game))"★ " else "")+game.name,16f).apply { maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
         val meta=text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END }
         card.addView(LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL
             addView(platformChip(game.code,game.platform),LinearLayout.LayoutParams(-2,-2).apply { setMargins(dp(4),0,0,0) });addView(meta,LinearLayout.LayoutParams(0,-2,1f)) })
@@ -369,7 +370,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val byKey=games.associateBy { it.key }
         val entries=games.map { game -> val tracking=store.tracking(game)
             HomeEntry(game.key,game.name,game.localUri!=null,tracking.optBoolean("iniciado"),tracking.optBoolean("finalizado"),
-                store.prefs.getBoolean("favorite:${game.key}",false),store.prefs.getLong("played:${game.key}",0),store.prefs.getLong("time:${game.key}",0)) }
+                store.favorite(game),store.prefs.getLong("played:${game.key}",0),store.prefs.getLong("time:${game.key}",0)) }
         val compact=resources.configuration.orientation==2
         val box=column()
         for((title,keys) in HomeRules.rows(entries)) {
@@ -388,7 +389,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun gridEntries(list:List<Game>)=list.map { GridEntry(it.key,it.name,it.platform,it.genre,TrackingRules.value(store.tracking(it),"nota") as Double?,it.id.ifBlank { it.key }) }
     private fun collectionGames():List<Game> {
         val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
-        return (if(collection=="wishlist")wishGames else games).filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.prefs.getBoolean("favorite:${it.key}",false)) && (collection!="kept" || pinned(it)) && (collection!="ranking" || TrackingRules.value(store.tracking(it),"nota")!=null) }
+        return (if(collection=="wishlist")wishGames else games).filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.favorite(it)) && (collection!="kept" || pinned(it)) && (collection!="ranking" || TrackingRules.value(store.tracking(it),"nota")!=null) }
     }
     /** Filtro da coleção aberta: plataformas e gêneros que existem nela. */
     private fun filterDialog() {
@@ -635,7 +636,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         work.execute { runCatching { action { status -> val now=SystemClock.elapsedRealtime();if(now-last>500){last=now;runOnUiThread { message(status) }} } }.onSuccess { count -> runOnUiThread { message("$count textura(s) adicionada(s). Arquivos existentes preservados; confira carregar texturas no emulador.") } }.onFailure { runOnUiThread { failure(it) } } }
     }
     private fun changeCollection(step:Int) { val now=SystemClock.elapsedRealtime();if(dialog==null && now-lastCollectionAt>=180) { lastCollectionAt=now;val ids=COLLECTIONS.map { it.first };selectCollection(ids[(ids.indexOf(collection)+step+ids.size)%ids.size]);grid.getChildAt(0)?.let { (firstEnabledButton(it) ?: it).requestFocus() } } }
-    private fun toggleFavorite(game:Game) { store.prefs.edit().putBoolean("favorite:${game.key}",!store.prefs.getBoolean("favorite:${game.key}",false)).apply();render() }
+    private fun toggleFavorite(game:Game) { store.setFavorite(game,!store.favorite(game));render() }
     private fun linked(game:Game)=store.prefs.contains("cloud:${game.key}")
     private fun queued(game:Game)=runCatching { queue().contains(game.key) }.getOrDefault(false)
     /** Onde o jogo está e o que dá para fazer com ele, em poucas palavras (cartão e ficha). */
@@ -686,7 +687,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(viaNotebook)box.addView(text("Abra o jogo no Switch. O notebook liga o SysDVR e o Moonlight mostra a tela.",13f))
         if(rom && game.localUri==null && !waiting && !linked(game) && !game.downloadable)box.addView(text("O notebook não tem esta ROM. Escolha o arquivo no Drive uma vez; depois o download é direto.",13f))
         val quick=row();horizontal(box,quick)
-        add(quick,button(if(store.prefs.getBoolean("favorite:${game.key}",false))"★ Favorito" else "☆ Favoritar") { toggleFavorite(game);details(game) })
+        add(quick,button(if(store.favorite(game))"★ Favorito" else "☆ Favoritar") { toggleFavorite(game);details(game) })
         if(rom)add(quick,button(if(SpaceStore(store).pinned(game))"📌 Fixado" else "📌 Fixar") {
             runCatching { SpaceStore(store).setPinned(game,!SpaceStore(store).pinned(game));render();details(game) }.onFailure(::failure)
         })
@@ -867,7 +868,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("📁 Pasta Jogos · ${folderState("ROOT")}") { dialog?.dismiss();pickFolder("ROOT") })
         add(box,button("📁 Pasta RetroArch (saves) · ${folderState("retroarch")}") { pickSyncFolder("retroarch") })
         val server=EditText(this).apply { setSingleLine();setText(store.base());hint="https://endereço-do-pyretro";setTextColor(appForeground);setHintTextColor(Color.LTGRAY) };box.addView(server)
-        add(box,button("Salvar endereço e atualizar catálogo") { runCatching { store.setBase(server.text.toString()) }.onFailure { failure(it);return@button };refreshCatalog() })
+        add(box,button("Salvar endereço do notebook") { runCatching { store.setBase(server.text.toString()) }.onFailure { failure(it);return@button };probeNotebook(force=true);message("Endereço salvo.") })
+        add(box,button("Atualizar Biblioteca e catálogo") { refreshCatalog() })
         box.addView(text("Conta Google",18f).apply { setTypeface(null,Typeface.BOLD) })
         if(drive.connected) {
             box.addView(text("Conectada: ${drive.email.ifBlank { "conta Google" }}. ROMs do Drive (Jogos/ROMs) baixam direto, sem o notebook.",13f))
@@ -876,7 +878,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             box.addView(text("Conecte para baixar ROMs do seu Drive (Jogos/ROMs) mesmo com o notebook desligado.",13f))
             add(box,button("Conectar conta Google") { dialog?.dismiss();connectGoogle() })
         }
-        box.addView(text("ROMs ficam em Jogos/<sistema>; saves e estados, por sistema na pasta RetroArch. Emuladores e cores são os padrões do PyRetro. O catálogo e o progresso atualizam sozinhos quando o notebook responde.",12f))
+        box.addView(text("ROMs ficam em Jogos/<sistema>; saves e estados, por sistema na pasta RetroArch. Biblioteca, progresso, favoritos e novas sessões ficam neste celular e sincronizam pelo Drive, mesmo com o notebook desligado.",12f))
         if(!notificationsAllowed()) add(box,button("🔔 Permitir notificações de download") {
             runCatching { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName)) }.onFailure(::failure) })
         box.addView(text("Uso",18f).apply { setTypeface(null,Typeface.BOLD) })
@@ -897,7 +899,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun refreshCatalog(silent:Boolean=false) {
-        if(!silent) { dialog?.dismiss();message("Consultando notebook…") }
+        if(!silent) { dialog?.dismiss();message("Atualizando Biblioteca e catálogo…") }
         work.execute { runCatching { store.refresh() }.onSuccess { fresh -> runOnUiThread {
             catalog=fresh;message(if(silent)"Online · catálogo atualizado agora." else "Catálogo atualizado. As capas são guardadas conforme você navega.");reloadLocal { prefetchCovers() }
         } }.onFailure { store.online=false;runOnUiThread { if(!silent)failure(it) } } }
@@ -915,6 +917,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val now=SystemClock.elapsedRealtime()
         if(!automaticUpdates || (!force && lastAutomaticUpdate>0 && now-lastAutomaticUpdate<15*60*1000L))return
         lastAutomaticUpdate=now
+        if(drive.connected) { LibraryWorker.schedule(this);syncTracking(silent=true);return }
         val stale=System.currentTimeMillis()-store.prefs.getLong("updated",0)>6*60*60*1000L
         if(store.pending()>0)syncTracking(silent=true) else if(stale || catalog.isEmpty())refreshCatalog(silent=true)
     }
@@ -922,7 +925,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun prefetchCovers() {
         if(!store.online)return
         val pinned=SpaceStore(store).pinnedChecker()
-        val wanted=games.filter { it.localUri!=null || store.prefs.getBoolean("favorite:${it.key}",false) || pinned(it) }.take(300)
+        val wanted=games.filter { it.localUri!=null || store.favorite(it) || pinned(it) }.take(300)
         prefetch.execute { for(game in wanted) { if(!store.online)break;runCatching { store.cover(game) } } }
     }
     /** Saves e estados pela nuvem (core/cloud_saves no notebook): compara, mostra e só então sincroniza. */
@@ -982,9 +985,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val notebook=line("🖥 Notebook",notebookSummary())
         val test=button("Testar conexão") {}
         if(store.base().isBlank())add(box,button("Configurar endereço") { settings() }) else add(box,test)
-        val tracking=pending.size
-        line("⏳ Progresso e tempo",if(tracking==0)"Tudo enviado. Última sincronização: ${date("tracking-sync-at")}." else "$tracking alteração(ões) esperando o notebook.${if(pending.any { it.conflict })" Algumas precisam de conferência." else ""}")
-        if(tracking>0)add(box,button("Enviar agora") { syncTracking() })
+        val tracking=store.pending()
+        line("⏳ Biblioteca, progresso e tempo",if(tracking==0)"Tudo enviado. Última sincronização: ${date("library-sync-at")}." else "$tracking alteração(ões) guardada(s) neste celular para enviar pela nuvem.${if(pending.any { it.conflict })" Algumas precisam de conferência." else ""}")
+        add(box,button("Sincronizar Biblioteca agora") { syncTracking() })
         if(pending.any { it.conflict })add(box,button("Conferir pendências") { pendingChanges() })
         val rows=runCatching { queue().snapshot() }.getOrDefault(emptyList()).filter { it.state!=DownloadState.DONE }
         if(rows.isNotEmpty()) {
@@ -1364,7 +1367,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun syncFiles() {
         val sync=FileSync(store);val box=column();box.addView(text("Saves e estados",22f))
         box.addView(text("Sincroniza direto pelo Drive (pasta Jogos/PyRetro-Nuvem), sem o notebook ligado. Feche os emuladores. Conflito nunca sobrescreve: você escolhe; versões substituídas ficam no histórico.",13f))
-        box.addView(text("Estados exigem core/versão compatíveis. 3DS inclui apenas saves/extdata da SDMC, sem jogos instalados.",13f))
+        box.addView(text("Estados ficam separados por aparelho. Saves e extdata de 3DS continuam compartilhados; jogos instalados ficam fora.",13f))
         add(box,button("☁ Comparar e sincronizar tudo") { dialog?.dismiss();cloudSaves() })
         add(box,button("Escolher pasta RetroArch") { pickSyncFolder("retroarch") })
         for((group,label) in sync.groups.filterKeys { it in CloudPhone.prefixes })add(box,button("Pasta de $label") { pickSyncFolder(group) })
@@ -1521,7 +1524,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         super.onPause();scanOnResume=true;if(activeGame!=null)leftForGame=true
     }
     override fun onResume() {
-        super.onResume();queueHandler.removeCallbacks(queueTick);queueHandler.post(queueTick);if(scanOnResume) { scanOnResume=false;reloadLocal();probeNotebook() };val game=activeGame ?: return
+        super.onResume();queueHandler.removeCallbacks(queueTick);queueHandler.post(queueTick);if(scanOnResume) { scanOnResume=false;reloadLocal();probeNotebook();automaticUpdate() };val game=activeGame ?: return
         if(!leftForGame)return
         activeGame=null;leftForGame=false
         val elapsed=(SystemClock.elapsedRealtime()-launchedAt)/60000
@@ -1529,7 +1532,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val minutes=EditText(this).apply { inputType=android.text.InputType.TYPE_CLASS_NUMBER;setText(elapsed.coerceAtMost(1440).toString()) }
         fun save():Boolean {
             val value=minutes.text.toString().toIntOrNull()
-            if(value!=null && value in 1..1440) { store.addTime(game,value);message("Tempo salvo. Vai para o notebook sozinho quando ele responder.");if(store.online)automaticUpdate(force=true);return true }
+            if(value!=null && value in 1..1440) { store.addTime(game,value);message("Tempo salvo neste celular; envio pela nuvem agendado.");automaticUpdate(force=true);return true }
             message("Use entre 1 e 1440 minutos.");return false
         }
         // Voltar de um jogo é o momento natural de levar o save para o notebook.

@@ -75,7 +75,7 @@ class TestTVHomeHTTP(BaseAPI):
         self.assertEqual(home['counts']['pc'], 1)
         self.assertEqual(home['apps'][0]['id'], 'chiaki')
 
-    def test_favorite_and_theme_persist_without_library_write(self):
+    def test_favorite_is_shared_and_theme_stays_local(self):
         before = self.lib_path.read_bytes()
         key = recent.pc_key(self.game['id'])
         self.assertEqual(self.pedir('/api/tv/favorite', {'key': key, 'favorite': True})[0], 200)
@@ -83,7 +83,8 @@ class TestTVHomeHTTP(BaseAPI):
         home = self.pedir('/api/tv/home')[1]
         self.assertEqual(home['favorites'][0]['id'], self.game['id'])
         self.assertEqual(home['preferences']['theme'], 'light')
-        self.assertEqual(self.lib_path.read_bytes(), before)
+        expected=json.loads(before);expected['games'][0]['favorite']=True
+        self.assertEqual(json.loads(self.lib_path.read_bytes()), expected)
         self.assertEqual(self.pedir('/api/tv/favorite', {'id': self.game['id'], 'favorite': False})[0], 200)
         self.assertEqual(self.pedir('/api/tv/home')[1]['favorites'], [])
 

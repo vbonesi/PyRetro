@@ -47,11 +47,17 @@ def versions(storage, name):
 
 def publish(storage, name, path, keep=30, now=time.time, extra=None):
     """Envia `path` como nova versão se o conteúdo mudou. Devolve {'state': 'enviado'|'igual', ...}."""
-    data = Path(path).read_bytes()
+    return publish_bytes(storage, name, Path(path).read_bytes(), keep=keep, now=now, extra=extra)
+
+
+def publish_bytes(storage, name, data, keep=30, now=time.time, extra=None):
+    """Publica bytes capturados junto com o checkpoint do diário, sem reler um JSON em alteração."""
     json.loads(data)  # só publica JSON válido: um arquivo pela metade nunca vira "versão atual"
     sha = _sha(data)
     current = latest(storage, name)
     if current and current.get('sha256') == sha:
+        if extra and any(current.get(key) != value for key, value in extra.items()):
+            storage.put(f'snapshots/{name}/latest.json', json.dumps({**current, **extra}).encode(), overwrite=True)
         return {'state': 'igual', 'sha256': sha}
     leaf = f'{_stamp(now())}-{sha[:12]}'
     try:

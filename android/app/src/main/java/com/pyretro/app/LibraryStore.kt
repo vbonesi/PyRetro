@@ -28,6 +28,9 @@ data class RomFile(val code:String,val name:String,val uri:Uri)
 class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     companion object { const val COVER_CACHE_LIMIT=1500 }
     val prefs=context.getSharedPreferences(preferenceName,Context.MODE_PRIVATE)
+    private val cloudLibraryDelegate=lazy { CloudLibrary(this) }
+    val cloudLibrary get()=cloudLibraryDelegate.value
+    fun closeJournal() { if(cloudLibraryDelegate.isInitialized())cloudLibrary.db.close() }
     val folders=linkedMapOf("NDS" to "Nintendo DS", "3DS" to "Nintendo 3DS", "PS" to "PlayStation", "PSP" to "PSP",
         "FC" to "NES", "SFC" to "Super Nintendo", "GB" to "Game Boy", "GBC" to "Game Boy Color", "GBA" to "Game Boy Advance",
         "MD" to "Mega Drive", "SMS" to "Master System", "GG" to "Game Gear", "N64" to "Nintendo 64", "PCE" to "PC Engine", "PCECD" to "PC Engine CD", "ARCADE" to "Arcade")
@@ -94,7 +97,7 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     }
     fun parse(array:JSONArray):List<Game> = (0 until array.length()).map { i ->
         val row=array.getJSONObject(i);val source=row.optJSONObject("tracking") ?: JSONObject()
-        val tracking=JSONObject();for(field in listOf("iniciado","finalizado","platinado"))tracking.put(field,source.optBoolean(field))
+        val tracking=JournalRules.copy(source);for(field in listOf("iniciado","finalizado","platinado"))tracking.put(field,source.optBoolean(field))
         if(source.has("nota"))tracking.put("nota",source.opt("nota"))
         val aliases=row.optJSONArray("aliases") ?: source.optJSONArray("nomes_alt") ?: JSONArray()
         val id=if(row.isNull("id"))"" else row.optString("id")
@@ -109,8 +112,11 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         val files=JSONObject(request("/api/mobile/rom/options?code=${Uri.encode(game.code)}&name=${Uri.encode(name)}")).getJSONArray("files")
         return (0 until files.length()).map { files.getJSONObject(it) }.map { RomOption(it.getString("file"),it.getLong("size"),it.getString("etag"),it.optString("source")) }
     }
-    fun cached():List<Game> = runCatching { parse(JSONArray(File(context.filesDir,"catalog.json").readText())) }.getOrDefault(emptyList())
+    private fun catalogFile(suffix:String="json")=File(context.filesDir,if(preferenceName=="pyretro")"catalog.$suffix" else "$preferenceName-catalog.$suffix")
+    fun legacyCached():List<Game> = runCatching { parse(JSONArray(catalogFile().readText())) }.getOrDefault(emptyList())
+    fun cached():List<Game> = if(cloudLibrary.ready())cloudLibrary.catalog() else legacyCached()
     fun refresh():List<Game> {
+        if(prefs.getBoolean("google:connected",false)) { cloudLibrary.sync(forceIndex=true);return cached() }
         val games=parse(JSONArray(request("/api/tv/catalog")))
         // ROMs renomeadas no PC: favoritos/fixados/tempo/pendências seguem a chave nova.
         // Servidor antigo sem a rota responde 404; o catálogo segue normalmente.
@@ -131,8 +137,8 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         }
     }
     private fun saveCatalog(games:List<Game>) {
-        val temporary=File(context.filesDir,"catalog.tmp");temporary.writeText(JSONArray(games.map { it.cache() }).toString())
-        require(temporary.renameTo(File(context.filesDir,"catalog.json"))) { "Falha ao guardar catálogo." }
+        val temporary=catalogFile("tmp");temporary.writeText(JSONArray(games.map { it.cache() }).toString())
+        require(temporary.renameTo(catalogFile())) { "Falha ao guardar catálogo." }
     }
     fun extensionsFor(code:String)=extensions[code] ?: emptySet()
     fun accepts(code:String,name:String):Boolean=name.substringAfterLast('.').lowercase() in (extensions[code] ?: emptySet())
@@ -196,10 +202,11 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     }
     fun download(game:Game,progress:(Long)->Unit):Uri = DownloadStore(this).download(game,progress=progress)
     fun tracking(game:Game):JSONObject {
-        val value=JSONObject(game.tracking.toString());val queued=prefs.getString("pending:${game.key}",null)?.let(::JSONObject)?.optJSONObject("campos")
+        val value=cloudLibrary.game(game.id) ?: JSONObject(game.tracking.toString());val queued=prefs.getString("pending:${game.key}",null)?.let(::JSONObject)?.optJSONObject("campos")
         queued?.keys()?.forEach { value.put(it,queued.opt(it)) };return value
     }
     fun setProgress(game:Game,field:String,value:Boolean) {
+        if(game.id.isNotBlank()) { val fields=JSONObject();for((name,state) in GameLogic.progress(field,value))fields.put(name,state);cloudLibrary.edit(game,fields);return }
         val stored=prefs.getString("pending:${game.key}",null)?.let(::JSONObject) ?: JSONObject().put("key",game.key).put("id",game.id).put("campos",JSONObject()).put("base",JSONObject())
         val fields=stored.getJSONObject("campos");val base=stored.getJSONObject("base")
         for((name,state) in GameLogic.progress(field,value)) { if(!base.has(name))base.put(name,game.tracking.optBoolean(name));fields.put(name,state) }
@@ -207,6 +214,8 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     }
     /** Nota 0–11 (null limpa). Fica pendente como o progresso, com o valor visto antes da edição. */
     fun setNota(game:Game,nota:Double?) {
+        require(nota==null || (nota.isFinite() && nota in 0.0..11.0))
+        if(game.id.isNotBlank()) { cloudLibrary.edit(game,JSONObject().put("nota",nota ?: JSONObject.NULL));return }
         val stored=prefs.getString("pending:${game.key}",null)?.let(::JSONObject) ?: JSONObject().put("key",game.key).put("id",game.id).put("campos",JSONObject()).put("base",JSONObject())
         val base=stored.getJSONObject("base")
         if(!base.has("nota"))base.put("nota",TrackingRules.value(game.tracking,"nota") ?: JSONObject.NULL)
@@ -219,33 +228,14 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
     }
     fun addTime(game:Game,minutes:Int) {
         val event=UUID.randomUUID().toString();val value=JSONObject().put("key",game.key).put("minutes",minutes).put("event",event)
+        if(game.id.isNotBlank()) { cloudLibrary.session(game,minutes,event);prefs.edit().putLong("time:${game.key}",prefs.getLong("time:${game.key}",0)+minutes*60L).apply();return }
         prefs.edit().putLong("time:${game.key}",prefs.getLong("time:${game.key}",0)+minutes*60L).putString("time-event:$event",value.toString()).apply()
     }
-    fun pending():Int=prefs.all.keys.count { it.startsWith("pending:") || it.startsWith("time-event:") }
+    fun favorite(game:Game)=cloudLibrary.game(game.id)?.takeIf { it.has("favorite") }?.optBoolean("favorite") ?: prefs.getBoolean("favorite:${game.key}",false)
+    fun setFavorite(game:Game,value:Boolean) { if(game.id.isNotBlank())cloudLibrary.edit(game,JSONObject().put("favorite",value));prefs.edit().putBoolean("favorite:${game.key}",value).apply() }
+    fun pending():Int=cloudLibrary.journal.pending()+prefs.all.keys.count { it.startsWith("pending:") || it.startsWith("time-event:") }
     fun synchronize():String {
-        val fresh=refresh().associateBy { it.key };var sent=0;var conflicts=0
-        fun conflict(key:String,raw:String) { conflicts++;prefs.edit().putString("conflict:$key",raw).apply() }
-        // O catálogo é regravado mesmo se a rede cair no meio: o que já foi enviado sai das
-        // pendências e precisa aparecer no cache, senão o offline mostraria o estado antigo.
-        try {
-            for((key,raw) in prefs.all.filter { it.key.startsWith("pending:") || it.key.startsWith("time-event:") }) {
-                val payload=JSONObject(raw as String);val game=fresh[payload.getString("key")]
-                if(game==null) { conflict(key,raw);continue }
-                try {
-                    if(key.startsWith("pending:")) {
-                        val fields=payload.getJSONObject("campos");val baseline=payload.getJSONObject("base")
-                        if(fields.keys().asSequence().any { field -> val now=TrackingRules.value(game.tracking,field);!TrackingRules.same(now,baseline.opt(field)) && !TrackingRules.same(now,fields.opt(field)) }) { conflict(key,raw);continue }
-                        if(game.id.isBlank()) { conflict(key,raw);continue }
-                        request("/api/library/edit",JSONObject().put("id",game.id).put("campos",fields).put("expected",baseline))
-                        fields.keys().forEach { field -> game.tracking.put(field,fields.get(field)) }
-                    } else request("/api/tv/playtime",payload)
-                } catch(rejected:IllegalArgumentException) { conflict(key,raw);continue } // recusa HTTP (409/400): preserva e segue
-                if(prefs.getString(key,null)==raw)prefs.edit().remove(key).remove("conflict:$key").apply();sent++
-            }
-        } finally { saveCatalog(fresh.values.toList()) }
-        val result="$sent atualização(ões) enviada(s). $conflicts pendência(s) preservada(s) para conferir no notebook."
-        prefs.edit().putLong("tracking-sync-at",System.currentTimeMillis()).putString("tracking-sync-result",result).apply()
-        return result
+        return cloudLibrary.sync()
     }
     fun cover(game:Game):File? {
         if(game.cover.isBlank() || !game.cover.startsWith('/'))return null

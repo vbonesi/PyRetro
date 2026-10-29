@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from core import file_lock, recent, playtime, tv_media, library
+from core import file_lock, recent, playtime, tv_media, library, library_activity
 
 
 def item_key(game):
@@ -66,10 +66,11 @@ def annotate(games, preferences, history, times=None, media_root=None):
         dates = [history.get(key)]
         if game.get('id'):
             dates.append(history.get(recent.pc_key(game['id'])))
-        game.update(key=key, favorite=key in favorites,
+        tracking = game.get('tracking') or {}
+        game.update(key=key, favorite=tracking.get('favorite', key in favorites),
                     mobileCode=game.get('code') or library.rom_code_for_plataforma(game['platform']) or '',
                     lastPlayed=max((d for d in dates if d), default=None),
-                    playtime=playtime.public((times or {}).get(key, {})))
+                    playtime=library_activity.public_time(tracking, (times or {}).get(key, {})))
         if media_root is not None:
             game['media'] = tv_media.describe(media_root, key)
     return games

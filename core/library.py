@@ -999,7 +999,8 @@ def rom_tracking_info(rom_index: dict, nome: str, code: str) -> dict | None:
         return None
     return {"iniciado": g["iniciado"], "finalizado": g["finalizado"],
             "platinado": g["platinado"], "nota": g["nota"], "genero": g.get("genero"),
-            "tempo": g.get("tempo"), "observacoes": g.get("observacoes")}
+            "tempo": g.get("tempo"), "observacoes": g.get("observacoes"),
+            **{k:g[k] for k in ('favorite','_play_sessions') if k in g}}
 
 
 def get_or_create_for_rom(library: dict, nome: str, code: str, plataforma: str, fonte: str) -> dict:

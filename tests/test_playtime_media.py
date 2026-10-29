@@ -110,7 +110,8 @@ class TestTimeMediaHTTP(BaseAPI):
         home=self.pedir('/api/tv/home')[1]
         self.assertEqual(home['mostPlayed'][0]['key'],self.key)
         self.assertEqual(home['mostPlayed'][0]['playtime']['sessions'],1)
-        self.assertEqual(self.lib_path.read_bytes(),before)
+        expected=json.loads(before);expected['games'][0]['_play_sessions']={'android-test':1800}
+        self.assertEqual(json.loads(self.lib_path.read_bytes()),expected)
         self.assertNotIn('_events',self.pedir('/api/tv/playtime')[1][self.key])
         for minutes in (0,True,-1,1441,'30'):
             self.assertEqual(self.pedir('/api/tv/playtime',{'key':self.key,'minutes':minutes})[0],400)

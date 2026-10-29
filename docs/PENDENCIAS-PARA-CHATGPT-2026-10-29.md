@@ -35,17 +35,24 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
       conferir `python3 -m core.cloud_sync status` = `{}` e que o último snapshot da Biblioteca está na nuvem.
 
 ### Celular independente do notebook (o que o Victor quer)
-- [ ] **Biblioteca local no celular + diário em Kotlin:** portar `core/library_journal.py` (diff, apply, LWW por jogo/campo,
+- [x] **Biblioteca local no celular + diário em Kotlin:** SQLite transacional, bootstrap do snapshot e diário Kotlin;
+      fixture compartilhada Python/Kotlin e teste no SQLite real do aparelho passaram. Portado `core/library_journal.py` (diff, apply, LWW por jogo/campo,
       segmentos imutáveis em `journal/<dispositivo>/`) para o app, com testes JVM de paridade (como `CloudSavesTest`).
       Base inicial = último `snapshots/library/latest.json` da nuvem (`DriveCloudStorage`).
-- [ ] **Trocar a fila de progresso/tempo para o diário:** hoje o celular manda nota/iniciado/finalizado/tempo/favoritos por
+- [x] **Trocar a fila de progresso/tempo para o diário:** nota/progresso/favoritos e novas sessões usam o diário;
+      pendências antigas com ID migram sem duplicar tempo. Pendências sem cadastro ou em conflito ficam preservadas.
+      Antes o celular mandava nota/iniciado/finalizado/tempo/favoritos por
       HTTP ao notebook (`StatusStore`/`pending`). Deve gravar no diário e subir pela nuvem; o notebook junta com
       `cloud_sync.pull_library` (já existe e é testado).
-- [ ] **Agendar o `pull_library` no notebook** (ao iniciar, depois de cada jogo e a cada poucos minutos) e o equivalente
+- [x] **Agendar o `pull_library` no notebook** (início, pós-jogo e cinco minutos) e WorkManager Android
+      (rede disponível/bateria suficiente, período mínimo de 15 minutos). Implementado e testado; instalação final pendente.
+      Requisito original: (ao iniciar, depois de cada jogo e a cada poucos minutos) e o equivalente
       no celular (WorkManager, respeitando bateria). Hoje é manual: `python3 -c "from core import cloud_sync..."`.
-- [ ] **Relógio híbrido:** LWW usa `at` de cada aparelho; um relógio errado ganha edições indevidas. Guardar o maior `at`
+- [x] **Relógio híbrido:** PC e Kotlin persistem o maior `at` e avançam estritamente após ele; desempate estável
+      por dispositivo/sequência e comparação contra todas as origens. Guardar o maior `at`
       já visto e nunca usar um menor (PC e Android).
-- [ ] **Catálogo sem o notebook:** montar a lista a partir da Biblioteca local + listagem direta das pastas do Drive
+- [x] **Catálogo sem o notebook:** Biblioteca local + listagem direta do Drive, incluindo ROMs sem cadastro;
+      ambiguidades de nome/região não criam vínculo automático. Montada a lista a partir da Biblioteca local + listagem direta das pastas do Drive
       (`CloudIndex`/`GoogleDrive`); hoje vem de `/api/tv/catalog`.
 - [ ] **Capas sob demanda pela nuvem:** decidir com o Victor (recomendado: subir para `capas/` da nuvem só as dos jogos
       exibidos; as 2,1 GB de `Biblioteca/capas` não estão na nuvem e saem do Insync).
@@ -54,10 +61,13 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
       `docs/mobile-save-ids.md` desatualizados.
 
 ### Saves / emuladores
-- [ ] **Decidir sobre `Lime3DS/sdmc` do celular no PC:** 27 arquivos de 3DS do celular (Pokémon X/Y extdata, demo Epic
+- [x] **Decidir sobre `Lime3DS/sdmc` do celular no PC:** Victor escolheu manter saves/extdata compartilhados.
+      27 arquivos de 3DS do celular (Pokémon X/Y extdata, demo Epic
       Mickey, etc.) chegaram a `~/Games/PyRetro/Saves/Lime3DS/sdmc`. Perguntar se ficam ou se o 3DS sai da sincronização
       (`CloudSaves(..., exclude=...)` no PC; `CloudPhone.prefixes` no app).
-- [ ] **Estados entre PC e celular:** `savestate_auto_load` com `.state.auto` vindo do outro aparelho pode carregar estado
+- [x] **Estados entre PC e celular:** Victor escolheu separação por aparelho; novos manifestos em `states/<dispositivo>`.
+      Teste PC/celular prova isolamento de estados e manutenção dos saves compartilhados. Histórico antigo preservado.
+      `savestate_auto_load` com `.state.auto` vindo do outro aparelho pode carregar estado
       de core incompatível. Avaliar excluir `states/` da sincronização automática ou separar por dispositivo.
 - [ ] **Zelda Molblins (DS):** o erro "write to your cart" some com um `.sav` em branco de 512 KB em
       `Saves/saves/NDS/` (já criado). Pedir ao Victor para confirmar jogando.
