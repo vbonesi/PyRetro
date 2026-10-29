@@ -19,6 +19,8 @@ import posixpath
 import subprocess
 import tempfile
 from pathlib import Path
+import hashlib
+from core import file_lock
 
 
 class Exists(FileExistsError):
@@ -88,6 +90,20 @@ class RcloneStorage(Storage):
 
     def __init__(self, base, run=subprocess.run, timeout=600):
         self.base, self.run, self.timeout = base.rstrip('/'), run, timeout
+        self._ready_parents=set()
+
+    def _write_lock(self,path):
+        digest=hashlib.sha256((self.base+'\0'+path).encode()).hexdigest()
+        return file_lock.exclusive(Path(tempfile.gettempdir())/('pyretro-cloud-write-'+digest))
+
+    def _ensure_dir(self,path):
+        parent=posixpath.dirname(path)
+        if parent in self._ready_parents:return
+        # mkdir recursivo no Drive não é único por nome. Serializar a criação da árvore,
+        # inclusive entre processos, antes dos uploads paralelos evita pastas duplicadas.
+        with self._write_lock(''):
+            if parent not in self._ready_parents:
+                self._rclone('mkdir',self._remote(parent));self._ready_parents.add(parent)
 
     def _remote(self, path=''):
         return self.base + ('/' + path if path else '')
@@ -122,6 +138,11 @@ class RcloneStorage(Storage):
 
     def put(self, path, data, overwrite=False):
         _clean(path)
+        with self._write_lock(path):
+            self._ensure_dir(path)
+            return self._put(path,data,overwrite)
+
+    def _put(self,path,data,overwrite):
         if not overwrite and self.exists(path):
             raise Exists(path)
         with tempfile.TemporaryDirectory(prefix='pyretro-cloud-') as tmp:

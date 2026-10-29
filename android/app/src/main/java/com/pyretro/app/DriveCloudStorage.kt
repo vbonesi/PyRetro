@@ -5,6 +5,7 @@ package com.pyretro.app
  * a mesma que o notebook usa pelo rclone (`drive:Jogos/PyRetro-Nuvem`). Nunca apaga de vez: `trash` usa a lixeira.
  */
 class DriveCloudStorage(private val drive:GoogleDrive,private val root:List<String> = listOf("Jogos","PyRetro-Nuvem"),private val maxBytes:Int=512*1024*1024):CloudStorage {
+    companion object { private val writeLock=Any() }
     private val folderMime="application/vnd.google-apps.folder"
 
     private fun folderOf(dirs:List<String>,create:Boolean):String? =
@@ -12,12 +13,16 @@ class DriveCloudStorage(private val drive:GoogleDrive,private val root:List<Stri
 
     private fun split(path:String):Pair<List<String>,String> { val parts=CloudStorage.clean(path).split('/');return parts.dropLast(1) to parts.last() }
 
-    private fun find(path:String):org.json.JSONObject? {
-        val (dirs,name)=split(path);val folder=folderOf(dirs,false) ?: return null
+    private fun matches(path:String):List<org.json.JSONObject> {
+        val (dirs,name)=split(path);val folder=folderOf(dirs,false) ?: return emptyList()
         val matches=drive.children(folder).filter { it.getString("name")==name && it.optString("mimeType")!=folderMime }
-        require(matches.size<=1) { "$path está duplicado no Drive; resolva antes de sincronizar." }
-        return matches.singleOrNull()
+        if(matches.size>1) {
+            val hash=if(matches.all { it.optString("sha256Checksum").isNotBlank() })"sha256Checksum" else "md5Checksum"
+            require(matches.all { it.optString(hash).isNotBlank() } && matches.map { it.optString("size")+":"+it.optString(hash) }.distinct().size==1) { "$path tem cópias divergentes no Drive; versões preservadas." }
+        }
+        return matches
     }
+    private fun find(path:String)=matches(path).minByOrNull { it.getString("id") }
 
     override fun list(prefix:String):List<CloudEntry> {
         val dirs=if(prefix.isEmpty())emptyList() else CloudStorage.clean(prefix.trimEnd('/')).split('/')
@@ -47,14 +52,14 @@ class DriveCloudStorage(private val drive:GoogleDrive,private val root:List<Stri
         } finally { connection.disconnect() }
     }
 
-    override fun put(path:String,data:ByteArray,overwrite:Boolean) {
-        val (dirs,name)=split(path);val existing=find(path)
-        if(existing!=null) {
+    override fun put(path:String,data:ByteArray,overwrite:Boolean)=synchronized(writeLock) {
+        val (dirs,name)=split(path);val existing=matches(path)
+        if(existing.isNotEmpty()) {
             if(!overwrite)throw CloudExists(path)
-            drive.replaceBytes(existing.getString("id"),data);return
+            existing.forEach { drive.replaceBytes(it.getString("id"),data) };return@synchronized
         }
         drive.createBytes(folderOf(dirs,true)!!,name,data)
     }
 
-    override fun trash(path:String) { find(path)?.let { drive.trash(it.getString("id")) } }
+    override fun trash(path:String)=synchronized(writeLock) { matches(path).forEach { drive.trash(it.getString("id")) } }
 }
