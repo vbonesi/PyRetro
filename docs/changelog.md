@@ -1,5 +1,15 @@
 # Changelog
 
+## 29/10/2026 (noite) — Sinopses: lojas, Google e ScreenScraper (1ª leva)
+
+- **1.263 de 2.264 jogos** da Biblioteca já têm `sinopse` (máx. 297 caracteres, 2–3 frases em pt-BR). Origem: Steam pt-BR (97),
+  busca no Google por dois agentes (332 jogos de Epic, GOG, Xbox, PS, Amazon, Android, iOS) e ScreenScraper (765 jogos retrô,
+  arcade e Switch, textos condensados/traduzidos por seis agentes). A outra conversa cadastrou 67 jogos a repor já com sinopse.
+- Regra mantida: gravação só em jogo sem sinopse, por `/api/library/edit`; nada sobrescrito. Textos de fonte ruim (notas de patch,
+  comentário de usuário) não foram usados; esses jogos ficam para a rodada do Google.
+- Pendente: coleta do ScreenScraper em curso (~1.125 de 1.764 jogos consultados, 1 consulta por vez), segunda leva dos que sobrarem,
+  e Google para os jogos sem texto em qualquer fonte (Switch 106 sem, arcade 15 de 231, Mega Drive 6 de 200, etc.).
+
 ## 29/10/2026 (noite) — Limpeza das coletâneas do Switch e 1 pasta = 1 jogo
 
 - Victor decidiu ficar na emulação (sem ports nativos). Saíram da Biblioteca 262 registros de coletâneas de Switch cobertas
