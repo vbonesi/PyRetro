@@ -4573,3 +4573,8 @@ filtros unificados).
 - **3DS (Azahar):** layout e troca de tela passaram de Back+L3/R3 para LT/RT sozinhos (hotkey por eixo do gatilho);
   ZL/ZR do New 3DS foram para L3/R3. `configure_xbox.py` atualizado com teste; **ainda não aplicado** (Azahar aberto) nem
   validado fisicamente. Celular não alterado.
+- **Atalhos de tela no celular (conferido por adb, nada alterado):** DS (RetroArch/melonDS) já usa `melonds_swapscreen_mode =
+  "Toggle"` como no PC. Lime3DS 2123.3 tem atalhos próprios (trocar tela, alternar layouts, turbo, quick load, pausar, fechar),
+  mas as atribuições ficam nas preferências privadas do app (`/data/data`, app não depurável): não dá para gravar por arquivo/adb;
+  configurar em Controles › Atalhos no próprio app. O `config.ini` em `/sdcard/Jogos/3DS/config/` é só modelo, sem os botões.
+  Atalhos de tela no PC (LT/RT no Azahar) foram validados pelo Victor em 29/10.
