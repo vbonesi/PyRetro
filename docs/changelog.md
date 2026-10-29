@@ -1,5 +1,13 @@
 # Changelog
 
+## 29/10/2026 (noite) — Sinopses dos jogos da Steam
+
+- Preenchida a `sinopse` de 97 jogos de loja (Steam e relacionados): textos da Steam em pt-BR (`appdetails`, `l=brazilian`) resumidos
+  em 2–3 frases por Claude; os que vieram em inglês/espanhol foram traduzidos. Para Civ V, Papers Please, Rise of the Tomb Raider,
+  Super Meat Boy, Football Manager, Sims, Witcher 3 CE e outros em que o texto da Steam não descrevia o jogo, o resumo é do conhecimento do Claude
+  (jogos bem conhecidos). Em aberto na Steam: Fishing Planet e Business Tour (para a rodada do Google).
+- Próximas fontes: ScreenScraper (retrô/arcade) e Google para o restante. Gravação por `/api/library/edit` com o servidor no ar.
+
 ## 29/10/2026 (noite) — Campo Sinopse em todos os apps (Android 0.23.0)
 
 - Novo campo `sinopse` no registro da Biblioteca: resumo do jogo em português, 2–3 frases, **separado** de `observacoes`
