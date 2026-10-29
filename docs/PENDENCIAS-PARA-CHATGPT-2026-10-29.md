@@ -94,8 +94,10 @@ e as entradas de 28–29/10 do `docs/changelog.md`. Responder sempre em portugu�
 - [ ] **Galileo G8 no notebook:** `python3 tools/configure_xbox.py --learn galileo-g8` com SÓ ele conectado. Já medidos:
       Xbox One (principal), Series S ("Xbox Series X Controller") e WGP16 (aparece como "Sony Interactive Entertainment
       Wireless Controller", GUID 054c:09cc). Aplicar o perfil de outro controle: `--controller <id> --apply` (emuladores fechados).
-- [ ] **Escolha automática do perfil pelo controle conectado** (Dolphin/Azahar dependem do modelo): hoje é manual; o
-      lançador do setup poderia chamar `configure_xbox.py --detect/--controller`.
+- [x] **Escolha automática do perfil pelo controle conectado:** `configure_xbox.py --auto --apply` e lançador
+      do setup escolhem somente um GUID/nome já medido para Dolphin/Azahar. Sem controle, com dois ou
+      emulador aberto, preservam o perfil. Nove testes de configuração + nove do lançador passaram.
+      Nenhum controle estava conectado à sondagem; alternância física e G8 continuam pendentes.
 
 ### Interface / produto
 - [x] **Correção de falhas/confirmacões de saves (0.19.1):** falhas de grupo/arquivo/exceção preservam a tela;

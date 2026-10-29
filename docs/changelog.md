@@ -1,5 +1,14 @@
 # Changelog
 
+## 29/10/2026 — Perfil automático do controle antes de Dolphin/Azahar
+
+`configure_xbox.py --auto --apply` exige um único controle com GUID/nome já medidos. Configuração
+fica bloqueada com emulador aberto, é idempotente, grava com cópia anterior e preserva o perfil
+em ausência/ambiguidade/erro. Só bindings dependentes do modelo são selecionados, sem reaplicar
+o layout do 3DS. Setup chama esse modo antes de GC/Wii/3DS, com prazo limitado; simulação não chama.
+Nove testes do configurador e nove do lançador passaram. Sondagem física não encontrou controles;
+G8 e alternância entre aparelhos ainda não homologados.
+
 ## 29/10/2026 — Remoção com revalidação no Android e prova PC/Drive
 
 Ficha Android oferece celular, Drive ou ambos: prévia por arquivo, versões/hashes, proteção de

@@ -4,6 +4,27 @@ from tools.configure_xbox import edit
 
 
 class TestControllerConfig(unittest.TestCase):
+    def test_auto_requires_one_measured_device_and_preserves_running_emulator(self):
+        from tools.configure_xbox import connected_profile,auto_profile
+        import tempfile
+        entry={'id':'x','guid':'a'*32,'sdl_name':'Known'};registry={'controllers':[entry]};pad={'controller':True,'guid':'a'*32,'name':'Known'}
+        self.assertEqual(connected_profile(registry,[pad]),entry)
+        for pads in ([],[pad,pad],[{**pad,'guid':'b'*32}],[{**pad,'name':'Other'}]):self.assertIsNone(connected_profile(registry,pads))
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(auto_profile(directory,registry,[pad],apply=True,running=lambda:True)['state'],'preservado')
+
+    def test_auto_is_idempotent_and_only_changes_model_bindings(self):
+        from tools import configure_xbox as cx
+        from unittest.mock import patch
+        from pathlib import Path
+        import tempfile
+        entry={'id':'x','guid':'a'*32,'sdl_name':'Known'};pad={'controller':True,'guid':'a'*32,'name':'Known'}
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);bindings=home/'GCPadNew.ini';other=home/'video.ini';bindings.write_text('old');other.write_text('keep')
+            with patch.object(cx,'planned',return_value={bindings:'new',other:'wrong'}):
+                result=cx.auto_profile(home,{'controllers':[entry]},[pad],apply=True,running=lambda:False)
+                self.assertEqual(result['changed'],1);self.assertEqual(other.read_text(),'keep')
+                self.assertEqual(cx.auto_profile(home,{'controllers':[entry]},[pad],apply=True,running=lambda:False)['changed'],0)
     def test_multibind_keeps_keyboard_and_unknown_sections_idempotently(self):
         original = '[Pad1]\nCross = Keyboard/K\nOther = keep\n\n[GPU]\nAdapter = keep too\n'
         values = {'Cross': 'SDL-0/FaceSouth'}

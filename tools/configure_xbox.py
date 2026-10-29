@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import json
+import fcntl
 
 
 def edit(text, section, values, append=False):
@@ -85,11 +86,11 @@ def dolphin_device(controller):
     return 'SDL/0/' + controller['sdl_name']
 
 
-def probe_pads():
+def probe_pads(timeout=60):
     """Controles como o SDL do sandbox do Azahar os vê (ver tools/sdl_probe.py)."""
     probe = Path(__file__).with_name('sdl_probe.py')
     result = subprocess.run(['flatpak', 'run', '--filesystem=' + str(probe.parent) + ':ro', '--command=python3',
-                             'org.azahar_emu.Azahar', str(probe)], capture_output=True, text=True, timeout=60)
+                             'org.azahar_emu.Azahar', str(probe)], capture_output=True, text=True, timeout=timeout)
     return [json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
 
 
@@ -102,6 +103,40 @@ def choose_pad(pads, controller):
         usable = [pad for pad in usable if 'xbox' in pad['name'].lower()]
     guid = usable[0]['guid'] if usable else ''
     return guid if len(guid) == 32 else None
+
+
+EMULATORS=('retroarch','pcsx2-qt','dolphin-emu','duckstation-qt','PPSSPPSDL','azahar')
+
+
+def connected_profile(registry,pads):
+    """Só um controle físico e medido; GUID e nome devem concordar com o registro."""
+    usable=[p for p in pads if p.get('controller')]
+    if len(usable)!=1:return None
+    pad=usable[0]
+    matches=[c for c in registry['controllers'] if c.get('guid') and c.get('guid')==pad.get('guid') and c.get('sdl_name')==pad.get('name')]
+    return matches[0] if len(matches)==1 else None
+
+
+def auto_profile(home,registry,pads,apply=False,running=None):
+    home=Path(home);controller=connected_profile(registry,pads)
+    if controller is None:return {'state':'preservado','reason':'nenhum controle único e medido'}
+    running=running or (lambda:any(subprocess.run(['pgrep','-x',name],capture_output=True).returncode==0 for name in EMULATORS))
+    lock=home/'.local/state/pyretro/controller.lock';lock.parent.mkdir(parents=True,exist_ok=True)
+    with lock.open('a') as handle:
+        fcntl.flock(handle,fcntl.LOCK_EX)
+        if running():return {'state':'preservado','reason':'emulador em execução'}
+        # Só bindings dependentes do modelo; não reaplica vídeo, cores ou preferências gerais.
+        wanted={'GCPadNew.ini','WiimoteNew.ini','qt-config.ini'}
+        changes={p:text for p,text in planned(home,controller,model_only=True).items() if p.name in wanted and p.read_text(encoding='utf-8')!=text}
+        originals={p:p.read_text(encoding='utf-8') for p in changes}
+        if running():return {'state':'preservado','reason':'emulador em execução'}
+        backup=home/'.local/state/pyretro/controller-backups'/datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+        for i,(path,text) in enumerate(changes.items()):
+            if apply:
+                if path.read_text(encoding='utf-8')!=originals[path]:raise ValueError('configuração mudou durante a análise')
+                backup.mkdir(parents=True,exist_ok=True);shutil.copy2(path,backup/f'{i}-{path.name}')
+                temporary=path.with_name(path.name+'.pyretro-new');temporary.write_text(text,encoding='utf-8');temporary.replace(path)
+        return {'state':'aplicado' if apply else 'simulado','controller':controller['id'],'changed':len(changes)}
 
 
 def azahar_guid(home, controller=None):
@@ -156,7 +191,7 @@ PAD = dict(Up='DPadUp', Down='DPadDown', Left='DPadLeft', Right='DPadRight',
            RLeft='-RightX', RRight='+RightX')
 
 
-def planned(home, controller=None):
+def planned(home, controller=None,model_only=False):
     out = {}
     def change(path, section, values, append=False):
         path = path.resolve()
@@ -241,7 +276,8 @@ def planned(home, controller=None):
         else:
             controls, ui, layout = azahar_values(guid)
             text = out.get(azahar.resolve(), azahar.read_text(encoding='utf-8'))
-            for section, values in (('Controls', controls), ('UI', ui), ('Layout', layout)):
+            sections=[('Controls',controls),('UI',ui)]+([] if model_only else [('Layout',layout)])
+            for section, values in sections:
                 text = qt_edit(text, section, values)
             out[azahar.resolve()] = text
     nds = home / '.var/app/org.libretro.RetroArch/config/retroarch/config/melonDS/NDS.opt'
@@ -258,11 +294,18 @@ def planned(home, controller=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--auto', action='store_true', help='seleciona só o controle único medido, sem alterar configurações com emulador em execução')
     parser.add_argument('--controller', help='id do controle no registro (padrão: o principal, Xbox One)')
     parser.add_argument('--learn', metavar='ID', help='mede o controle conectado e grava no registro')
     parser.add_argument('--detect', action='store_true', help='lista os controles que o SDL vê e o que já está medido')
     args = parser.parse_args()
     registry = load_registry()
+    if args.auto:
+        try:
+            result=auto_profile(Path.home(),registry,probe_pads(timeout=8),apply=args.apply)
+        except (OSError,ValueError,subprocess.SubprocessError) as error:
+            result={'state':'preservado','reason':str(error)}
+        print(json.dumps(result,ensure_ascii=False));return
     if args.detect or args.learn:
         pads = probe_pads()
         if args.detect:
@@ -274,7 +317,7 @@ def main():
         REGISTRY.write_text(json.dumps(registry, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
         print(f"Medido: {entry['label']} = {entry['sdl_name']} ({entry['guid']})")
         return
-    for name in ('retroarch', 'pcsx2-qt', 'dolphin-emu', 'duckstation-qt', 'PPSSPPSDL', 'azahar'):
+    for name in EMULATORS:
         if subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0:
             raise SystemExit('Feche o emulador antes de configurar: ' + name)
     changes = planned(Path.home(), pick_controller(registry, args.controller))
