@@ -970,17 +970,65 @@ def index_by_rom_name(library: dict) -> dict:
     return by_norm
 
 
+_ARCADE_TITLES = {'stamp': None, 'data': {}}
+
+
+def _arcade_titles() -> dict:
+    """{código do set (minúsculo): [títulos completos]} só do que já está em disco (tabela do libretro
+    em cache e DAT do FBNeo): nunca acessa a rede nem derruba quem chama. Memoizado pela data dos
+    arquivos, porque `find_for_rom` roda para cada jogo de uma listagem."""
+    try:
+        import retrosync
+        from core import arcade
+        folder = arcade.dat_dir(retrosync.load_config())
+        libretro = covers_mod.TREE_CACHE_DIR / (covers_mod.ROMNAME_DATS['ARCADE'][1] + '.dat')
+        files = [libretro, *(p for g in arcade.DAT_GLOBS for p in sorted(folder.glob(g)))]
+        stamp = tuple((str(f), f.stat().st_mtime_ns) for f in files if f.is_file())
+    except (Exception, SystemExit):  # sem config (testes) ou pasta ausente: só o nome do arquivo vale
+        return {}
+    if _ARCADE_TITLES['stamp'] != stamp:
+        data = {}
+        try:
+            for short, name in covers_mod.load_romname_dat('', covers_mod.ROMNAME_DATS['ARCADE'][1]).items():
+                data.setdefault(short, []).append(covers_mod._clean_dat_name(name))
+        except Exception:  # sem a tabela em cache; o DAT do FBNeo abaixo ainda vale
+            pass
+        for short, name in arcade.load_titles(folder).items():
+            data.setdefault(short.lower(), []).append(name)
+        _ARCADE_TITLES.update(stamp=stamp, data=data)
+    return _ARCADE_TITLES['data']
+
+
+def rom_name_keys(nome: str, code: str) -> list:
+    """Chaves normalizadas pelas quais uma ROM pode ser reconhecida na Biblioteca. Normalmente só o nome;
+    no Arcade o arquivo é o código do set (`kof97`) e o jogo é o título completo, que o DAT traz com o
+    código de revisão entre parênteses ("... '97 (NGM-2320)") - esse sufixo não faz parte do nome."""
+    keys = [covers_mod.normalize(nome)]
+    if code == 'ARCADE':
+        for title in _arcade_titles().get(nome.lower(), []):
+            keys += [covers_mod.normalize(title), covers_mod.normalize(title, loose=True)]
+    return list(dict.fromkeys(k for k in keys if k))
+
+
+def records_for_rom(rom_index: dict, nome: str, code: str) -> list:
+    """Todos os registros que representam a MESMA ROM (ver find_for_rom), sem repetir."""
+    out = []
+    for key in rom_name_keys(nome, code):
+        for g in rom_index.get(key, []):
+            if rom_code_for_plataforma(g["plataforma"]) == code and g not in out:
+                out.append(g)
+    return out
+
+
 def find_for_rom(rom_index: dict, nome: str, code: str) -> dict | None:
     """Acha, dentro de um índice já construído por index_by_rom_name,
     o registro que representa a MESMA ROM: nome normalizado igual E
     plataforma gravada mapeando pro mesmo `code` (via
     rom_code_for_plataforma) - nunca só nome (ver PLATAFORMA_ROM_CODES).
-    Sem bater nenhum (nome não existe, ou existe só em plataforma(s)
-    diferente(s) desse `code`), devolve None."""
-    for g in rom_index.get(covers_mod.normalize(nome), []):
-        if rom_code_for_plataforma(g["plataforma"]) == code:
-            return g
-    return None
+    No Arcade, o código do set também vale pelo título completo do DAT
+    (ver rom_name_keys). Sem bater nenhum, devolve None."""
+    found = records_for_rom(rom_index, nome, code)
+    return found[0] if found else None
 
 
 def rom_tracking_info(rom_index: dict, nome: str, code: str) -> dict | None:
@@ -1050,10 +1098,10 @@ def add_mobile_rom(library, cfg, body):
         raise ValueError('sistema sem plataforma de Biblioteca compatível')
     nome = nome.strip()
     candidates = [g for g in library['games'] if rom_code_for_plataforma(g['plataforma']) == code]
-    key = covers_mod.normalize(nome)
-    matched = [g for g in candidates if covers_mod.normalize(g['nome']) == key]
+    keys = rom_name_keys(nome, code)
+    matched = [g for g in candidates if covers_mod.normalize(g['nome']) in keys]
     if not matched:
-        matched = [g for g in candidates if any(covers_mod.normalize(n) == key for n in g.get('nomes_alt', []))]
+        matched = [g for g in candidates if any(covers_mod.normalize(n) in keys for n in g.get('nomes_alt', []))]
     if len(matched) > 1:
         raise AmbiguousROM('mais de um cadastro compatível; resolva a duplicidade na Biblioteca')
     source = 'rom:' + code

@@ -333,6 +333,11 @@ def rom_normalized_names_by_code(cfg: dict) -> dict:
 
     for code, info in cfg["systems"].items():
         by_code[code] = {covers_mod.normalize(d) for d in light_rom_display_names(code, info, roms_root)}
+        if code == "ARCADE":
+            # Sem a tabela de nomes em cache, o display cai no código do set; os títulos do DAT local cobrem.
+            from core import playlist as playlist_mod
+            for n in playlist_mod.list_local_names(code, roms_root, info.get("exts", [])):
+                by_code[code].update(library_mod.rom_name_keys(Path(n).stem, code))
 
     heavy = heavy_mod.load_heavy_systems(cfg)
     catalog = sortear_mod.load_heavy_catalog(HEAVY_CATALOG_PATH)
@@ -519,8 +524,8 @@ def _removal_plan(cfg: dict, scope: str, code: str, entry: str) -> dict:
     lib_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
     if lib_path.is_file():
         index = library_mod.index_by_rom_name(library_mod.load_library(lib_path))
-        for record in index.get(covers_mod.normalize(Path(entry).stem), []):
-            if library_mod.rom_code_for_plataforma(record.get("plataforma")) == code and record.get("iniciado") and not record.get("finalizado"):
+        for record in library_mod.records_for_rom(index, Path(entry).stem, code):
+            if record.get("iniciado") and not record.get("finalizado"):
                 protected.append(f"jogo iniciado e não finalizado: {record.get('nome')}")
     can_write = bool(cfg.get("rclone", {}).get("can_write"))
     drive_list = _drive_files_for(cfg, code, entry, local) if scope in ("drive", "both") and can_write else None

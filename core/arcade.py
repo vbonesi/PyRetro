@@ -33,6 +33,24 @@ def load_dat(folder):
     return parents
 
 
+def load_titles(folder):
+    """{nome do jogo: título completo} (`<description>` do DAT do FBNeo), vazio se não houver DAT.
+    Ex.: kof97 -> "The King of Fighters '97 (NGM-2320)"."""
+    import xml.etree.ElementTree as ET
+    titles = {}
+    for pattern in DAT_GLOBS:
+        for path in sorted(Path(folder).glob(pattern)):
+            try:
+                root = ET.parse(path).getroot()
+            except (OSError, ET.ParseError):
+                continue
+            for game in root.iter('game'):
+                name, description = game.get('name'), (game.findtext('description') or '').strip()
+                if name and description:
+                    titles[name] = description
+    return titles
+
+
 def chain(name, parents):
     """Conjuntos necessários além do próprio: pai, avô, BIOS… em ordem. Ciclo ou profundidade absurda para."""
     out, current = [], parents.get(name, '')

@@ -1,5 +1,21 @@
 # Changelog
 
+## 29/10/2026 — Arcade pelo título completo, em todo o PC e no Android 0.22.1
+
+O arquivo de Arcade é o código do set (`kof97`), e o DAT traz o título com o código de revisão
+(`The King of Fighters '97 (NGM-2320)`). O Android 0.22.0 só tirava etiquetas conhecidas, então o nome
+não batia com o cadastro e o jogo ficava sem capa. Corrigido no Android (0.22.1, só Arcade, edições dos
+outros sistemas continuam separadas) e no PC por uma regra única, `library.rom_name_keys`/`records_for_rom`/
+`find_for_rom`, que usa a tabela do libretro em cache e a `<description>` do DAT do FBNeo (`arcade.load_titles`),
+sem rede. Isso passa a valer para tempo de jogo ao abrir um Arcade (antes `kof97` não achava o cadastro),
+Sortear, gêneros, renomear, cadastro explícito de ROM e **proteção de remoção de jogo iniciado**, que também
+não reconhecia o código curto. Reinicie o `pyretro-gui` (com o modo TV fechado) para valer no servidor.
+
+Nuvem: criação da pasta-pai uma vez antes dos envios paralelos (o Drive aceita pastas com o mesmo nome e o
+upload paralelo criou 8 `states/`); árvores reorganizadas e verificadas por hash por outra sessão; 57 blobs
+de saves repetidos (idênticos por MD5) removidos para a lixeira do Drive. Pastas antigas `Saves`, `Biblioteca`
+e `Backups` do Drive comparadas por hash com o PC: sem perda.
+
 ## 29/10/2026 — Android 0.22.0 instalado e fechamento da revisão
 
 Biblioteca, Desejados, cadastro, edição e estatísticas usam dados locais; novas sessões e alterações
