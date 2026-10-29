@@ -5,6 +5,8 @@ O servidor continua sendo o serviço `pyretro-gui` (o celular também o usa); es
 janela só o inicia se não estiver no ar e mostra a interface em QtWebEngine.
 """
 import argparse
+import fcntl
+import os
 import subprocess
 import sys
 import time
@@ -12,6 +14,18 @@ import urllib.request
 
 URL = 'http://127.0.0.1:8000'
 APP_ID = 'pyretro-tv'
+RAISE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'tools/raise-window.sh')
+
+
+def single_instance():
+    """Trava por sessão: o botão Guide pode chamar o app de novo; a segunda chamada só traz a janela."""
+    path = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'pyretro-tv.lock')
+    handle = open(path, 'w')
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return None
+    return handle
 
 
 def server_up():
@@ -49,6 +63,11 @@ def main(argv=None):
         print('PyQt6 ausente: instale python-pyqt6-webengine (pacman) ou use tools/pyretro-tv.sh.',
               file=sys.stderr)
         return 3
+    lock = single_instance()
+    if lock is None:
+        if os.environ.get('DBUS_SESSION_BUS_ADDRESS') and os.path.isfile(RAISE):
+            subprocess.run([RAISE, APP_ID, '3'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return 0
     if not ensure_server():
         print('Servidor do PyRetro não respondeu em 30 s (systemctl --user status pyretro-gui).',
               file=sys.stderr)

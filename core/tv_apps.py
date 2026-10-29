@@ -11,6 +11,16 @@ REMOTE_IDS = {'sysdvr', 'chiaki', 'greenlight'}
 _launch_lock = threading.Lock()
 _remote_processes = {}
 
+# Argumentos para abrir cada app na interface de controle/tela cheia. Só flags conferidas no
+# --help ou no pacote de cada app (29/10/2026); Dolphin e Azahar não têm modo sem jogo.
+TV_ARGS = {
+    'steam': ['steam://open/bigpicture'],
+    'heroic': ['--console', '--fullscreen'],
+    'retroarch': ['-f'],
+    'pcsx2': ['-bigpicture', '-fullscreen'],
+    'ppsspp': ['--fullscreen'],
+}
+
 DEFAULTS = {
     'steam': ('Steam', 'com.valvesoftware.Steam', '🎮'),
     'heroic': ('Heroic', 'com.heroicgameslauncher.hgl', '🚀'),
@@ -33,7 +43,7 @@ def entries(cfg):
                                        capture_output=True, text=True, timeout=10).stdout.splitlines())
     for key, (name, app, icon) in DEFAULTS.items():
         if app in installed:
-            result[key] = {'nome': name, 'icone': icon, 'comando': ['flatpak', 'run', app] + (['-gamepadui'] if key == 'steam' else [])}
+            result[key] = {'nome': name, 'icone': icon, 'comando': ['flatpak', 'run', app, *TV_ARGS.get(key, [])]}
     try:
         data = json.loads(REMOTES_PATH.read_text())
         if not isinstance(data, dict):
@@ -58,7 +68,7 @@ def entries(cfg):
             result['chiaki']['comando'] += ['--fullscreen', '--exit-app-on-stream-exit', 'stream', nickname, address]
     duck = Path.home() / 'AppImages/DuckStation-x64.AppImage'
     if duck.is_file():
-        result['duckstation'] = {'nome': 'DuckStation', 'icone': '🎮', 'comando': [str(duck)]}
+        result['duckstation'] = {'nome': 'DuckStation', 'icone': '🎮', 'comando': [str(duck), '-bigpicture', '-fullscreen']}
     for key, value in cfg.get('apps', {}).items():
         command = value.get('comando')
         if not isinstance(command, list) or not command or not all(isinstance(x, str) and x and '\0' not in x for x in command):

@@ -4557,3 +4557,9 @@ filtros unificados).
   `core/play.py` traz de volta a janela nativa ou a do Chrome após o jogo. Android inalterado.
 - Pendente: confirmar o controle (Gamepad API) e o Steam Link com a janela nativa antes de retirar o
   override `/run/udev` do Chrome e a web `/`. Requer `python-pyqt6-webengine` (setup).
+- **Correção:** logo e ícones do `/tv` e da web davam 404 desde a identidade visual (28/10): a rota só servia
+  `static/<arquivo>`, sem `static/brand/`. Rota ampliada (PNG/ICO com tipo correto); 51/51 imagens do `/tv` carregam.
+- **Apps na TV (`core/tv_apps.py`):** Steam em Big Picture por URL, Heroic em `--console --fullscreen`, PCSX2 e DuckStation
+  em `-bigpicture -fullscreen`, PPSSPP `--fullscreen`, RetroArch `-f`; todos conferidos em tela cheia pelo KWin.
+- **Janela nativa:** instância única (a segunda chamada traz a janela). Orientação ao setup para abandonar o Plasma
+  Bigscreen e abrir o PyRetro pelo Guide do Xbox e pelo botão PS do WGP16 Nova II: `docs/setup-pyretro-unico.md`.

@@ -1969,10 +1969,11 @@ class Handler(BaseHTTPRequestHandler):
                               "text/html; charset=utf-8", no_cache=True,
                               allow_inline_script=True)
 
-        if parts[:1] == ["static"] and len(parts) == 2:
-            ext = parts[1].rsplit(".", 1)[-1]
-            ctype = {"js": "application/javascript", "css": "text/css", "svg": "image/svg+xml"}.get(ext, "application/octet-stream")
-            return self._file(STATIC_DIR / parts[1], ctype, no_cache=True)
+        if parts[:1] == ["static"] and (len(parts) == 2 or (len(parts) == 3 and parts[1] == "brand")):
+            ext = parts[-1].rsplit(".", 1)[-1]
+            ctype = {"js": "application/javascript", "css": "text/css", "svg": "image/svg+xml",
+                     "png": "image/png", "ico": "image/x-icon"}.get(ext, "application/octet-stream")
+            return self._file(STATIC_DIR.joinpath(*parts[1:]), ctype, no_cache=True)
 
         if parts[:2] == ["api", "systems"]:
             cfg = load_config()
