@@ -247,3 +247,11 @@ e evite instalar APK; se precisar do celular, avise o Victor.
 Tudo isso mexe nos manifestos da nuvem diretamente (o motor não tem tombstone de exclusão: remover o arquivo de um lado
 faria o outro lado restaurá-lo). **Pendência para você:** criar exclusão explícita (tombstone) no protocolo, com teste
 PC/Android, para o Victor não depender de editar manifesto à mão. Registrei também em `PENDENCIAS-PARA-CHATGPT-2026-10-29.md`.
+
+**Atualização (Claude, 29/10) — concluído:** limpeza feita. Celular e nuvem liberados para uso. Resultado: ROMs removidas
+(`2020bb`, `Kirbys Adventure`, `Zelda Molblins` no PC; Molblins no celular); saves apagados no PC, no celular e na nuvem
+(manifestos, 41 blobs na lixeira do Drive e as cópias antigas em `drive:Jogos/Saves/...`): Molblins.sav, `Lime3DS/sdmc`
+inteiro e PPSSPP `ULUS10021000`, `ULUS10266`, `ULUS10437GameData00` (ficou só Patapon 2). Cópia de segurança local em
+`~/Games/PyRetro/.pyretro/saves-removidos-20261029/` (fora dos Backups, não sobe). `Moemon Ruby.gba` e `kof97.zip` baixados no
+PC e no celular (MD5 = Drive) e marcados como iniciados. Atenção: não achei `neogeo.zip` (BIOS) no celular; o KOF '97 pode
+não abrir lá até a BIOS ser copiada.

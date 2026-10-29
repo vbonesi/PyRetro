@@ -4413,3 +4413,11 @@ filtros unificados).
 - Biblioteca (2,2 GB com capas) e Backups copiados e verificados para `~/Games/PyRetro`; `[storage] migrated`
   inclui `biblioteca` e `backups`. Primeiro snapshot enviado; Backups subindo.
 - Xbox Series S medido (SDL: "Xbox Series X Controller"). Registro: Xbox One, Series S e WGP16 medidos; G8 não.
+
+## 29/10/2026 — limpeza de jogos e saves a pedido do Victor
+
+- ROMs removidas (cópia idêntica no Drive): `2020bb.zip`, `Kirbys Adventure.nes`, Zelda Molblins (PC e celular).
+- Saves apagados no PC, no celular e na nuvem: Molblins.sav, `Lime3DS/sdmc` (3DS) e PPSSPP `ULUS10021000`, `ULUS10266`,
+  `ULUS10437GameData00`; ficou Patapon 2. Foi preciso editar os manifestos à mão (o motor não propaga exclusão): pendência
+  de "tombstone" registrada para o Codex.
+- Moemon Ruby e KOF '97 baixados em ambos e marcados como iniciados.
