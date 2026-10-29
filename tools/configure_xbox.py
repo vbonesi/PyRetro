@@ -168,17 +168,19 @@ def azahar_values(guid):
     buttons = dict(a='B', b='A', x='Y', y='X', l='LB', r='RB', start='Start', select='Back',
                    up='Up', down='Down', left='Left', right='Right')
     controls = {f'profiles\\1\\button_{k}': sdl(button=SDL_BUTTON[v]) for k, v in buttons.items()}
-    controls['profiles\\1\\button_zl'] = sdl(axis=4, direction='+', threshold=0.5)
-    controls['profiles\\1\\button_zr'] = sdl(axis=5, direction='+', threshold=0.5)
+    # ZL/ZR só existem no New 3DS; os gatilhos viram atalho de tela, então ZL/ZR ficam nos cliques dos analógicos.
+    controls['profiles\\1\\button_zl'] = sdl(button=SDL_BUTTON['LS'])
+    controls['profiles\\1\\button_zr'] = sdl(button=SDL_BUTTON['RS'])
     controls['profiles\\1\\circle_pad'] = sdl(axis_x=0, axis_y=1, deadzone=0.1)
     controls['profiles\\1\\c_stick'] = sdl(axis_x=2, axis_y=3, deadzone=0.1)
     combo = lambda button: '"' + sdl(button=SDL_BUTTON['Back'])[1:-1] + '||' + sdl(button=SDL_BUTTON[button])[1:-1] + '"'
-    hotkeys = {'Toggle%20Screen%20Layout': 'LS', 'Swap%20Screens': 'RS', 'Quick%20Save': 'LB',
-               'Quick%20Load': 'RB', 'Toggle%20Turbo%20Mode': 'Right', 'Capture%20Screenshot': 'X',
-               'Exit%20Azahar': 'Start'}
+    hotkeys = {'Quick%20Save': 'LB', 'Quick%20Load': 'RB', 'Toggle%20Turbo%20Mode': 'Right',
+               'Capture%20Screenshot': 'X', 'Exit%20Azahar': 'Start'}
     ui = {f'Shortcuts\\Main%20Window\\{name}\\controller_keyseq': combo(button) for name, button in hotkeys.items()}
-    # Back+L3 alterna entre Tela grande (2: a de cima grande, a outra menor ao lado) e uma tela
-    # (1); Back+R3 troca qual aparece/qual é a grande. Empilhadas (0) ficavam pequenas em 16:9.
+    # Tela sem Back, num toque só: LT alterna entre Tela grande (2: a de cima grande, a outra menor ao
+    # lado) e uma tela (1); RT troca qual aparece/qual é a grande. Empilhadas (0) ficavam pequenas em 16:9.
+    ui['Shortcuts\\Main%20Window\\Toggle%20Screen%20Layout\\controller_keyseq'] = sdl(axis=4, direction='+', threshold=0.5)
+    ui['Shortcuts\\Main%20Window\\Swap%20Screens\\controller_keyseq'] = sdl(axis=5, direction='+', threshold=0.5)
     layout = {'layout_option': '2', 'layouts_to_cycle': '2, 1'}
     return controls, ui, layout
 

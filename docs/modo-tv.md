@@ -211,6 +211,9 @@ lista o que o SDL vê, `--learn <id>` mede e grava no registro, e
 | Back + Start | Encerrar o jogo/emulador |
 | Back + Y | Menu de pausa no RetroArch, PCSX2, DuckStation e PPSSPP |
 
+**3DS (Azahar), sem Back:** LT alterna Tela grande ↔ uma tela; RT troca qual tela aparece/é a grande.
+ZL/ZR do New 3DS ficam em L3/R3. No DS (melonDS) o RT já troca as telas.
+
 Guide fica livre para o Bigscreen. O script não aciona save/load; a validação
 inicial conferiu sintaxe oficial e acesso ao dispositivo nos quatro Flatpaks.
 DuckStation é AppImage e acessa o dispositivo diretamente. Confirmação física

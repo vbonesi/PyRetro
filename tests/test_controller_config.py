@@ -1,6 +1,6 @@
 """O perfil preserva teclado/dados desconhecidos e não duplica combinações."""
 import unittest
-from tools.configure_xbox import edit
+from tools.configure_xbox import azahar_values, edit
 
 
 class TestControllerConfig(unittest.TestCase):
@@ -82,3 +82,14 @@ class TestControllerRegistry(unittest.TestCase):
         self.assertEqual(self.cx.choose_pad(pads, {'sdl_name': 'Xbox One S Controller'}), 'c' * 32)
         self.assertEqual(self.cx.choose_pad(pads, {}), 'c' * 32)
         self.assertIsNone(self.cx.choose_pad(pads, {'sdl_name': 'Outro'}))
+
+
+class TestAzaharScreens(unittest.TestCase):
+    def test_gatilhos_trocam_a_tela_sem_back_e_zl_zr_vao_para_os_analogicos(self):
+        controls, ui, _ = azahar_values('0300aa')
+        key = lambda name: ui['Shortcuts\\Main%20Window\\' + name + '\\controller_keyseq']
+        self.assertIn('axis:4', key('Toggle%20Screen%20Layout'))
+        self.assertIn('axis:5', key('Swap%20Screens'))
+        self.assertNotIn('||', key('Toggle%20Screen%20Layout') + key('Swap%20Screens'))
+        self.assertIn('||', key('Quick%20Save'))
+        self.assertNotIn('axis', controls['profiles\\1\\button_zl'] + controls['profiles\\1\\button_zr'])

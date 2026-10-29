@@ -4570,3 +4570,6 @@ filtros unificados).
 - **Foco do emulador:** o jogo aberto pelo PyRetro (tela cheia) surgia atrás dele e exigia Alt-Tab. `tools/raise-new-window.sh`
   (KWin) ativa a próxima janela de emulador; `core/play.py` o chama antes de abrir o jogo (40 s). A classe só chega depois
   de a janela existir no Wayland, por isso escuta `windowClassChanged`. Conferido com o Azahar: ativa passa de pyretro-tv a Azahar.
+- **3DS (Azahar):** layout e troca de tela passaram de Back+L3/R3 para LT/RT sozinhos (hotkey por eixo do gatilho);
+  ZL/ZR do New 3DS foram para L3/R3. `configure_xbox.py` atualizado com teste; **ainda não aplicado** (Azahar aberto) nem
+  validado fisicamente. Celular não alterado.
