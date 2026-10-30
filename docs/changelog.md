@@ -4694,3 +4694,8 @@ filtros unificados).
   `[storage]`, modo 600, nunca sobrescreve) e pastas vazias; não instala programas: o que faltar é listado e fica com o
   `setup-linux-bonesi`. Numa instalação sem `config.toml` o `/tv` abre os Primeiros passos sozinho; o servidor deixou de
   encerrar com `sys.exit` quando falta a configuração. 7 testes novos (466 no total). Login do Drive continua manual (`rclone config`).
+- **Metadados da Biblioteca (30/10):** desenvolvedora e lançamento preenchidos só em campos vazios, pelo servidor
+  (`/api/library/edit`), com ScreenScraper (211 jogos de ROM/Switch, 40 gravados) e pesquisa na web (Google) com fonte
+  confirmada. De 2.796 jogos visíveis: sem desenvolvedora 339 → 107; sem lançamento 319 → 165. Datas só com o ano não foram
+  gravadas (o editor exige data completa). Capas: 239 dos 245 registros com `capa` vazio já têm imagem na pasta do sistema;
+  só 6 não têm em lugar nenhum. Critério de data: Switch/modernos pela plataforma, retrô pelo primeiro lançamento conhecido.
