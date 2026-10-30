@@ -1,5 +1,13 @@
 # Changelog
 
+## 29/10/2026 (noite) — Sinopses dos Desejados
+
+- Os 239 jogos de Desejados (Steam 115, PSN 26, Xbox 98) ganharam `sinopse` em pt-BR (3 agentes com busca na web, mais fechamento de KAKU - Ancient Seal,
+  Geoplanetical e retoque de Onimusha: Way of the Sword). Os lançamentos de 2026 (Pragmata, RE Requiem, Reanimal, Replaced, Life is Strange: Reunion,
+  Blood of Dawnwalker, Subnautica 2) foram conferidos por busca. Menos verificados: Moss: The Forgotten Relic, Gestalt: Steam & Cinder, Fate Seeker II,
+  Esoteric Ebb, Shutter Story, Witchbrook, Dead Static Drive, Transference, Visage, The Ninja Saviors, Out of Words.
+- Observação aberta: Tropico 7 está com desenvolvedora Limbic; a busca indica Gaming Minds (não alterado).
+
 ## 29/10/2026 — Sinopses: levas complementares e conferência do catálogo completo
 
 - Preenchidas **885 sinopses novas** em português, com textos completos ScreenScraper, páginas
