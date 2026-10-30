@@ -1,5 +1,23 @@
 # Changelog
 
+## 29/10/2026 — Sinopses: levas complementares e conferência do catálogo completo
+
+- Preenchidas **885 sinopses novas** em português, com textos completos ScreenScraper, páginas
+  de editoras/autores, manuais e LaunchBox; fontes secundárias identificadas quando necessárias.
+  Textos anteriores preservados e seis resumos desta própria rodada refinados. Os recibos privados
+  conferem a preservação dos demais campos, dos IDs e da quantidade de registros.
+- A lista `/api/library` omite ROMs já apresentadas nas abas dos sistemas. A conferência também
+  considerou o catálogo completo e encontrou outros 305 campos vazios fora dessa lista inicial.
+  Resultado: **2.549 de 2.568 jogos visíveis**, excluídos os registros somente de Desejados, com
+  sinopse; **19 pendentes** por identidade, plataforma ou fonte insuficiente. Nenhum cadastro foi
+  corrigido por aproximação de nome. Listas e fontes detalhadas permanecem na auditoria privada.
+- Descrições incorretas de The Last Revelation e Digital Devil Saga 2 foram recusadas antes da
+  gravação; as fontes corretas sustentam os novos textos. A leitura completa também recuperou
+  Armadillo e Pokémon Water Blue, antes rejeitados a partir de trechos incompletos.
+- 469 testes Python e 58 de interface aprovados. Escritas pela API normal, com diário da Biblioteca;
+  sincronização automática conferida sem erro. Sem mudança funcional, instalação de APK, execução
+  de jogos, remoção ou alteração de saves/ROMs.
+
 ## 29/10/2026 — Conclusão do lote Mega Man
 
 - Conferidos os nove arquivos de sete jogos no Drive: Mega Man 8/X5/X6 (PS), ZX/ZX Advent (DS)
