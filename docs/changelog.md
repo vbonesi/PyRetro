@@ -4699,3 +4699,4 @@ filtros unificados).
   confirmada. De 2.796 jogos visíveis: sem desenvolvedora 339 → 107; sem lançamento 319 → 165. Datas só com o ano não foram
   gravadas (o editor exige data completa). Capas: 239 dos 245 registros com `capa` vazio já têm imagem na pasta do sistema;
   só 6 não têm em lugar nenhum. Critério de data: Switch/modernos pela plataforma, retrô pelo primeiro lançamento conhecido.
+- **Metadados (30/10, 2ª rodada):** mais ~47 jogos preenchidos pela web e 27 homebrews/hacks/traduções sem data com `1970-01-01` (valor genérico pedido pelo Victor). Datas só com o ano e conflitos entre fontes continuam vazios.
