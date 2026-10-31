@@ -4712,3 +4712,8 @@ filtros unificados).
   mesma navegação linear na grade. Não testado no aparelho. 469 Python, 58 JS, JVM e lint passaram.
 - **Android 0.24.1 (code 36, 31/10):** aba Fixados removida da barra (a proteção contra remoção continua nos detalhes do jogo e no gerenciador de espaço);
   LB/RB andam uma linha por vez (só no fim da página trocam de página); arquivos de índice com nome de uma letra (sobra "A") não viram jogo.
+- **Android 0.24.2 (code 37, 31/10):** Sortear/Estatísticas continuam visíveis em Stream; cache local de capas guarda a biblioteca inteira
+  (até 4000, reduzidas a 640 px em WebP, ~100–150 MB; com Wi-Fi o app baixa as capas em segundo plano).
+  **Origem do "A":** os testes Python (`test_cloud_snapshots`) gravavam um `library.json` temporário com o jogo id `a`/nome `A`, e o gancho do
+  `gui/server.py` registrava isso no diário real da nuvem; o celular recebia o jogo. O gancho agora só vale para a Biblioteca real, e os registros
+  `a` e `a-steam` foram removidos do diário (op remove).

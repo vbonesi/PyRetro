@@ -26,7 +26,7 @@ data class Game(val id:String, val key:String, val name:String, val platform:Str
 data class RomFile(val code:String,val name:String,val uri:Uri)
 
 class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
-    companion object { const val COVER_CACHE_LIMIT=1500 }
+    companion object { const val COVER_CACHE_LIMIT=4000 }
     val prefs=context.getSharedPreferences(preferenceName,Context.MODE_PRIVATE)
     private val cloudLibraryDelegate=lazy { CloudLibrary(this) }
     val cloudLibrary get()=cloudLibraryDelegate.value

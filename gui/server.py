@@ -464,8 +464,14 @@ def _organize_trash(cfg: dict):
 
 
 # Cada gravação da Biblioteca agenda um snapshot na nuvem (se [cloud] estiver configurado).
-library_mod.AFTER_SAVE.append(lambda _path: cloud_sync_mod.schedule_library_snapshot(lambda: load_config()))
-library_mod.AFTER_SAVE_DIFF.append(lambda _path, before, after: cloud_sync_mod.record_library_change(load_config(), before, after))
+# Só a Biblioteca real entra no diário/nuvem: testes que gravam outro library.json (ex.: id "a", nome "A") não podem poluí-lo.
+def _is_real_library(path):
+    try:
+        return Path(path).resolve() == cloud_sync_mod.library_file(load_config()).resolve()
+    except Exception:
+        return False
+library_mod.AFTER_SAVE.append(lambda _path: cloud_sync_mod.schedule_library_snapshot(lambda: load_config()) if _is_real_library(_path) else None)
+library_mod.AFTER_SAVE_DIFF.append(lambda _path, before, after: cloud_sync_mod.record_library_change(load_config(), before, after) if _is_real_library(_path) else None)
 
 
 def _removal_entry(cfg: dict, code: str, entry: str) -> str:

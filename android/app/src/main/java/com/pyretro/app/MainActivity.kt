@@ -286,7 +286,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         filterButton.visibility=if(streaming)View.GONE else View.VISIBLE
         refreshStatusButton()
         pagingBar.visibility=if(streaming)View.GONE else View.VISIBLE
-        drawShortcut.visibility=if(streaming)View.GONE else View.VISIBLE
+        drawShortcut.visibility=View.VISIBLE
         statsShortcut.visibility=drawShortcut.visibility
         controlHint.visibility=if(streaming || resources.configuration.orientation==2 || !store.prefs.getBoolean("ui:show-hint",true))View.GONE else View.VISIBLE
         if(streaming) { renderStream();return }
@@ -1022,7 +1022,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun prefetchCovers() {
         if(!store.online && !drive.connected)return
         val pinned=SpaceStore(store).pinnedChecker()
-        val wanted=games.filter { it.localUri!=null || store.favorite(it) || pinned(it) }.take(300)
+        val metered=(getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).isActiveNetworkMetered
+        // Primeiro o que é seu (no celular, favoritos, fixados); depois, com Wi-Fi, o resto da biblioteca.
+        val wanted=games.filter { it.id.isNotBlank() }.sortedByDescending { it.localUri!=null || store.favorite(it) || pinned(it) }.let { if(metered)it.filter { g -> g.localUri!=null || store.favorite(g) || pinned(g) }.take(300) else it }
         prefetch.execute { for(game in wanted) { if(!store.online && !drive.connected)break;runCatching { store.cover(game,publish=false) } } }
     }
     /** Saves e estados pela nuvem (core/cloud_saves no notebook): compara, mostra e só então sincroniza. */

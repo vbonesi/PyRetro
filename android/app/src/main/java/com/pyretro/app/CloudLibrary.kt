@@ -88,6 +88,16 @@ class CloudLibrary(private val store:LibraryStore) {
         if(store.preferenceName=="pyretro" && MainActivity.automaticUpdates && drive.connected)LibraryWorker.enqueue(store.context)
         return JSONObject().put("id",id).put("created",created)
     }
+    /** Cache local em até 640 px (WebP): a biblioteca inteira cabe em ~100–150 MB em vez dos ~500 MB dos originais. */
+    private fun shrink(bytes:ByteArray):ByteArray {
+        val bounds=android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds=true };android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.size,bounds)
+        val longest=maxOf(bounds.outWidth,bounds.outHeight);if(longest<=640)return bytes
+        var sample=1;while(longest/(sample*2)>=640)sample*=2
+        val bitmap=android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.size,android.graphics.BitmapFactory.Options().apply { inSampleSize=sample }) ?: return bytes
+        val out=java.io.ByteArrayOutputStream()
+        @Suppress("DEPRECATION") bitmap.compress(android.graphics.Bitmap.CompressFormat.WEBP,85,out)
+        bitmap.recycle();return out.toByteArray().takeIf { it.isNotEmpty() && it.size<bytes.size } ?: bytes
+    }
     fun cover(game:Game,publish:Boolean=true):java.io.File? {
         if(game.id.isBlank())return null
         val directory=java.io.File(store.context.cacheDir,"covers").apply { mkdirs() }
@@ -104,7 +114,7 @@ class CloudLibrary(private val store:LibraryStore) {
                 original
             }
             val temp=java.io.File.createTempFile("cover-",".tmp",directory)
-            try { temp.writeBytes(bytes);check(temp.renameTo(file)) } finally { temp.delete() }
+            try { temp.writeBytes(shrink(bytes));check(temp.renameTo(file)) } finally { temp.delete() }
             // Pré-busca não suprime o envio quando o jogo for de fato exibido.
             if(publish)store.prefs.edit().putLong(checked,System.currentTimeMillis()).apply()
             directory.listFiles()?.sortedBy { it.lastModified() }?.dropLast(LibraryStore.COVER_CACHE_LIMIT)?.forEach { it.delete() }
