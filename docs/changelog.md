@@ -4700,3 +4700,6 @@ filtros unificados).
   gravadas (o editor exige data completa). Capas: 239 dos 245 registros com `capa` vazio já têm imagem na pasta do sistema;
   só 6 não têm em lugar nenhum. Critério de data: Switch/modernos pela plataforma, retrô pelo primeiro lançamento conhecido.
 - **Metadados (30/10, 2ª rodada):** mais ~47 jogos preenchidos pela web e 27 homebrews/hacks/traduções sem data com `1970-01-01` (valor genérico pedido pelo Victor). Datas só com o ano e conflitos entre fontes continuam vazios.
+- **Metadados (30/10, 3ª rodada):** mais ~51 jogos preenchidos pela web (quatro agentes), datas só com o ano gravadas como
+  `aaaa-01-01` e homebrew/hack sem data como `1970-01-01`, ambos por decisão do Victor. De 2.796 visíveis, restam 44 sem
+  desenvolvedora e 47 sem lançamento: jogos ainda não lançados/cancelados, datas da Epic/GOG não confirmadas, hacks sem fonte.
