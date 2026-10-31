@@ -180,7 +180,8 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
             game.localUri?.let(used::add)
         }
         for(rom in roms.filter { it.uri !in used })games.add(Game("",GameLogic.localKey(rom.code,rom.uri.toString()),GameLogic.fileLabel(rom.name),folders[rom.code] ?: rom.code,rom.code,rom.name,localUri=rom.uri))
-        return games.sortedBy { it.name.lowercase() }
+        // Sobras sem sistema, sem id e sem arquivo (fixtures/índice antigo) não são jogos.
+        return games.filterNot { it.id.isBlank() && it.localUri==null && (it.platform.isBlank() || it.platform=="?") }.sortedBy { it.name.lowercase() }
     }
     private fun localReadable(uri:Uri):Boolean = uri.authority=="com.android.externalstorage.documents" && runCatching {
         context.contentResolver.query(uri,arrayOf(OpenableColumns.SIZE),null,null,null)?.use { it.moveToFirst() && (it.isNull(0) || it.getLong(0)>0) } ?: false

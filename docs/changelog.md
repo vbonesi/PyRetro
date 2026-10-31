@@ -4703,3 +4703,10 @@ filtros unificados).
 - **Metadados (30/10, 3ª rodada):** mais ~51 jogos preenchidos pela web (quatro agentes), datas só com o ano gravadas como
   `aaaa-01-01` e homebrew/hack sem data como `1970-01-01`, ambos por decisão do Victor. De 2.796 visíveis, restam 44 sem
   desenvolvedora e 47 sem lançamento: jogos ainda não lançados/cancelados, datas da Epic/GOG não confirmadas, hacks sem fonte.
+- **Android 0.24.0 (code 35, 31/10):** Buscar e Filtro foram para o cabeçalho, ao lado de Situação e Opções; aba ativa
+  centralizada na barra de abas; cartões compactos horizontais em paisagem (capa à esquerda, sem repetir o nome do sistema);
+  nova visão **Sistemas** (uma ficha por plataforma, toca e abre o Catálogo filtrado); Stream em três colunas em paisagem;
+  capas com nova tentativa se a rede falhar; textos de Favoritos/Fixados explicam a diferença. Direcional/analógico agora anda
+  na grade em ordem (esquerda/direita quebram de linha, no fim da página vai para a próxima, não sobe às abas); RB/LB no fim
+  da lista focam o último/primeiro cartão. Sobras sem sistema e sem arquivo deixam de aparecer como jogo. Modo TV (`tv.js`):
+  mesma navegação linear na grade. Não testado no aparelho. 469 Python, 58 JS, JVM e lint passaram.

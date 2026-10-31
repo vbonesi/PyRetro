@@ -38,7 +38,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     companion object {
         /** Catálogo e progresso atualizam sozinhos quando o notebook responde; a instrumentação desliga. */
         @Volatile var automaticUpdates=true
-        private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","kept" to "Fixados","stream" to "Stream")
+        private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","systems" to "Sistemas","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","kept" to "Fixados","stream" to "Stream")
     }
     private lateinit var store:LibraryStore
     private lateinit var pageRoot:LinearLayout
@@ -219,7 +219,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         }
         // Um só lugar para Situação e Opções, nas duas orientações; a barra abaixo é só de coleções.
         val heading=row();heading.addView(ImageView(this).apply { setImageResource(R.drawable.ic_pyretro);contentDescription=null;scaleType=ImageView.ScaleType.FIT_CENTER },LinearLayout.LayoutParams(dp(32),dp(32)))
-        titleView=text("PyRetro",25f).apply { setTypeface(null,Typeface.BOLD) };add(heading,titleView,1f);statusButton=button("Situação") { statusCenter() };add(heading,statusButton);add(heading,button("Opções") { settings() });pageRoot.addView(heading);headingBar=heading
+        titleView=text("PyRetro",25f).apply { setTypeface(null,Typeface.BOLD) };add(heading,titleView,1f);statusButton=button("Situação") { statusCenter() };headingBar=heading
         val collections=row()
         for((id,label) in COLLECTIONS)add(collections,button(label) { selectCollection(id) }.also { tab -> collectionButtons[id]=tab;tab.setOnFocusChangeListener { _,focused -> tab.background=shape(collection==id,focused) } })
         horizontal(pageRoot,collections)
@@ -229,8 +229,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         search.addTextChangedListener(object:TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){};override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){page=0;render()};override fun afterTextChanged(s:Editable?){} })
         // Filtro por plataforma/gênero ao lado da busca; vale para a coleção aberta.
         val searchRow=row();searchRow.addView(search,LinearLayout.LayoutParams(0,dp(52),1f))
-        searchToggle=button("⌕ Buscar") { store.prefs.edit().putBoolean("ui:search-open",true).apply();render();search.requestFocus();(getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(search,InputMethodManager.SHOW_IMPLICIT) };add(searchRow,searchToggle)
-        filterButton=button("Filtro") { filterDialog() };add(searchRow,filterButton);pageRoot.addView(searchRow,LinearLayout.LayoutParams(-1,-2))
+        val optionsButton=button("Opções") { settings() }
+        searchToggle=button("⌕ Buscar") { store.prefs.edit().putBoolean("ui:search-open",true).apply();render();search.requestFocus();(getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(search,InputMethodManager.SHOW_IMPLICIT) };filterButton=button("Filtro") { filterDialog() }
+        for(b in listOf(searchToggle,filterButton,statusButton,optionsButton)) { b.minHeight=dp(40);b.minWidth=0;b.textSize=14f;b.setPadding(dp(10),dp(2),dp(10),dp(2));add(heading,b) }
+        pageRoot.addView(heading,0);pageRoot.addView(searchRow,LinearLayout.LayoutParams(-1,-2))
         status=text("Modo offline · selecione suas pastas ou carregue o catálogo do notebook.",13f);pageRoot.addView(status)
         queueBanner=button("Downloads") { downloads() }.apply { textSize=13f;maxLines=2;visibility=View.GONE };pageRoot.addView(queueBanner,LinearLayout.LayoutParams(-1,-2))
         seenQueueCompletion=runCatching { queue().completedAt }.getOrDefault(0L)
@@ -276,7 +278,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun render() {
         if(!::grid.isInitialized)return
         for((id,tab) in collectionButtons)tab.background=shape(id==collection,tab.hasFocus())
-        if(renderedCollection!=collection) { renderedCollection=collection;collectionButtons[collection]?.let { tab -> tab.post { (tab.parent?.parent as? HorizontalScrollView)?.smoothScrollTo((tab.left-dp(16)).coerceAtLeast(0),0) } } }
+        if(renderedCollection!=collection) { renderedCollection=collection;collectionButtons[collection]?.let { tab -> tab.post { (tab.parent?.parent as? HorizontalScrollView)?.let { bar -> bar.smoothScrollTo((tab.left+tab.width/2-bar.width/2).coerceAtLeast(0),0) } } } }
         val streaming=collection=="stream"
         val compactSearch=resources.configuration.orientation==2 && search.text.isBlank() && !store.prefs.getBoolean("ui:search-open",false)
         search.visibility=if(streaming || compactSearch)View.GONE else View.VISIBLE
@@ -292,6 +294,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         pagingBar.visibility=if(home)View.GONE else View.VISIBLE
         filterButton.visibility=if(home || streaming)View.GONE else View.VISIBLE
         if(home) { renderHome();return }
+        if(collection=="systems" && search.text.isBlank()) { pagingBar.visibility=View.GONE;filterButton.visibility=View.GONE;renderSystems();return }
         val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
         val query=GameLogic.normalized(search.text.toString())
         val base=collectionGames().filter { query.isBlank() || GameLogic.normalized(it.name+it.platform+it.genre).contains(query) }
@@ -322,7 +325,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(gameCard(game,compact),params)
         }
         if(visible.isEmpty() && base.isNotEmpty() && (filterPlatform.isNotBlank() || filterGenre.isNotBlank()))grid.addView(text("Nenhum jogo com este filtro. Toque em Filtro para limpar.",17f))
-        else if(visible.isEmpty())grid.addView(text(when(collection) { "cell" -> "Escolha a pasta Jogos em Opções. Jogos do Catálogo podem ser baixados direto pela ficha do jogo.";"kept" -> "Fixe jogos nos detalhes para encontrá-los aqui e proteger as ROMs contra remoção.";"wishlist" -> if(store.online)"Nenhum jogo nos Desejados." else "Os Desejados vêm do notebook. Conecte uma vez (Tailscale ligado) e eles ficam guardados para ver offline.";"ranking" -> "Dê nota aos jogos da Biblioteca em Progresso e tempo, na ficha. O ranking mostra a maior nota primeiro.";else -> "Carregue o catálogo uma vez ou marque seus favoritos. Sem conexão, o cache continua disponível." },17f))
+        else if(visible.isEmpty())grid.addView(text(when(collection) { "cell" -> "Escolha a pasta Jogos em Opções. Jogos do Catálogo podem ser baixados direto pela ficha do jogo.";"kept" -> "Fixar (nos detalhes do jogo) protege a ROM contra a remoção para liberar espaço. É diferente de favoritar, que só marca o jogo.";"favorites" -> "Marque jogos com ★ (botão X no controle ou Favoritar nos detalhes). Favorito é só um atalho para achar o jogo.";"wishlist" -> if(store.online)"Nenhum jogo nos Desejados." else "Os Desejados vêm do notebook. Conecte uma vez (Tailscale ligado) e eles ficam guardados para ver offline.";"ranking" -> "Dê nota aos jogos da Biblioteca em Progresso e tempo, na ficha. O ranking mostra a maior nota primeiro.";else -> "Carregue o catálogo uma vez ou marque seus favoritos. Sem conexão, o cache continua disponível." },17f))
         if(focusedKey!=null) {
             val next=(0 until grid.childCount).map { grid.getChildAt(it) }.firstOrNull { (it.tag as? Game)?.key==focusedKey } ?: grid.getChildAt(0)
             next?.requestFocus()
@@ -331,16 +334,24 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun gameCard(game:Game,compact:Boolean):LinearLayout {
         val card=column().apply { isFocusable=true;isClickable=true;descendantFocusability=ViewGroup.FOCUS_BLOCK_DESCENDANTS;tag=game;background=shape();setOnClickListener { details(game) };setOnFocusChangeListener { _,focused -> background=shape(focused=focused) } }
-        if(compact)card.setPadding(dp(8),dp(4),dp(8),dp(4))
+        if(compact) { card.orientation=LinearLayout.HORIZONTAL;card.gravity=Gravity.CENTER_VERTICAL;card.setPadding(dp(6),dp(4),dp(8),dp(4)) }
         val cover=ImageView(this).apply { setImageResource(com.pyretro.app.R.drawable.ic_pyretro);scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name }
-        card.addView(cover,LinearLayout.LayoutParams(-1,dp(if(compact)70 else 150)))
-        card.addView(text((if(store.favorite(game))"★ " else "")+game.name,16f).apply { maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD) })
-        val meta=text((if(compact)store.folders[game.code] ?: game.platform else game.platform)+" · "+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END }
-        card.addView(LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL
+        val info=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        if(compact)card.addView(cover,LinearLayout.LayoutParams(dp(60),dp(60)).apply { setMargins(0,0,dp(8),0) }) else card.addView(cover,LinearLayout.LayoutParams(-1,dp(150)))
+        info.addView(text((if(store.favorite(game))"★ " else "")+game.name,if(compact)15f else 16f).apply { maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(2),dp(4),dp(2)) })
+        val meta=text((if(compact) "" else game.platform+" · ")+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setPadding(dp(4),dp(2),dp(4),dp(2)) }
+        info.addView(LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL
             addView(platformChip(game.code,game.platform),LinearLayout.LayoutParams(-2,-2).apply { setMargins(dp(4),0,0,0) });addView(meta,LinearLayout.LayoutParams(0,-2,1f)) })
-        val badges=text(coloredBadges(game),12f).apply { maxLines=3;setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
-        card.addView(badges);downloadBadges[game.key]=badges
-        images.execute { val file=runCatching { store.cover(game) }.getOrNull();if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } } }
+        val badges=text(coloredBadges(game),12f).apply { maxLines=if(compact)2 else 3;ellipsize=android.text.TextUtils.TruncateAt.END;setPadding(dp(4),dp(2),dp(4),dp(2));setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
+        info.addView(badges);downloadBadges[game.key]=badges
+        if(compact)card.addView(info,LinearLayout.LayoutParams(0,-2,1f)) else card.addView(info,LinearLayout.LayoutParams(-1,-2))
+        // Capa vem do Drive/notebook: se falhar (rede em transição), tenta de novo duas vezes.
+        fun loadCover(attempt:Int) {
+            images.execute { val file=runCatching { store.cover(game) }.getOrNull()
+                if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } }
+                else if(attempt<2)runOnUiThread { cover.postDelayed({ if(cover.isAttachedToWindow && !isDestroyed)loadCover(attempt+1) },4000L*(attempt+1)) } }
+        }
+        loadCover(0)
         return card
     }
     /** Selos do cartão: progresso, nota, tempo no celular, save e download em andamento. */
@@ -378,7 +389,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         for((title,keys) in HomeRules.rows(entries)) {
             box.addView(text(title,18f).apply { setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(10),dp(4),dp(2)) })
             val line=row()
-            for(key in keys)byKey[key]?.let { game -> line.addView(gameCard(game,compact),LinearLayout.LayoutParams(dp(if(compact)150 else 170),-2).apply { setMargins(dp(4),dp(4),dp(4),dp(4)) }) }
+            for(key in keys)byKey[key]?.let { game -> line.addView(gameCard(game,compact),LinearLayout.LayoutParams(dp(if(compact)240 else 170),-2).apply { setMargins(dp(4),dp(4),dp(4),dp(4)) }) }
             box.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(line) },LinearLayout.LayoutParams(-1,-2))
         }
         if(box.childCount==0)box.addView(text("Escolha a pasta Jogos em Opções ou carregue o catálogo. Jogos iniciados, abertos por aqui e favoritos aparecem em fileiras.",17f))
@@ -530,6 +541,44 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(id=="wishlist")loadWishlist()
         collection=id;page=0;restorePosition=false;restoredPage=null;render();gridScroll.scrollTo(0,0)
     }
+    /** Visão por sistema (como no PC): uma ficha por plataforma, com contagem; tocar abre o Catálogo filtrado. */
+    private fun renderSystems() {
+        page=0;pageCount=1;grid.removeAllViews();downloadBadges.clear()
+        val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
+        val columns=if(width>=900)4 else if(width>=600)3 else 2;grid.columnCount=columns
+        val groups=games.filter { !it.key.startsWith("wish:") && it.platform.isNotBlank() && it.platform!="?" }.groupBy { it.platform }.toList().sortedBy { it.first.lowercase() }
+        for((platform,list) in groups) {
+            val card=column().apply { isFocusable=true;isClickable=true;descendantFocusability=ViewGroup.FOCUS_BLOCK_DESCENDANTS;background=shape();setPadding(dp(10),dp(8),dp(10),dp(8))
+                setOnClickListener { store.prefs.edit().putString("ui:filter:catalog:platform",platform).putString("ui:filter:catalog:genre","").apply();selectCollection("catalog") }
+                setOnFocusChangeListener { _,focused -> background=shape(focused=focused) } }
+            val head=row();head.addView(platformChip(list.first().code,platform));head.addView(text(store.folders[list.first().code] ?: platform,15f).apply { setTypeface(null,Typeface.BOLD);maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END },LinearLayout.LayoutParams(0,-2,1f))
+            card.addView(head)
+            val onPhone=list.count { it.localUri!=null }
+            card.addView(text("${list.size} jogos"+if(onPhone>0)" · $onPhone no celular" else "",12f))
+            grid.addView(card,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) })
+        }
+        if(groups.isEmpty())grid.addView(text("Carregue o catálogo ou escolha a pasta Jogos para ver os sistemas.",17f))
+        counter.text="${groups.size} sistemas · ${games.size} jogos"
+        grid.getChildAt(0)?.requestFocus()
+        if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
+    }
+    private fun gridCards():List<View> = (0 until grid.childCount).map { grid.getChildAt(it) }.filter { it.tag is Game || (collection=="systems" && it.isFocusable) }
+    /** Direcional na grade: linear na linha, coluna nas setas verticais; no fim da página segue para a próxima em vez de subir às abas. */
+    private fun gridMove(code:Int):Boolean {
+        if(dialog!=null || collection=="home" || collection=="stream")return false
+        val focused=currentFocus ?: return false
+        val cards=gridCards();val index=cards.indexOf(focused);if(index<0)return false
+        val columns=grid.columnCount.coerceAtLeast(1)
+        val target=when(code) { KeyEvent.KEYCODE_DPAD_RIGHT -> index+1;KeyEvent.KEYCODE_DPAD_LEFT -> index-1;KeyEvent.KEYCODE_DPAD_DOWN -> index+columns;KeyEvent.KEYCODE_DPAD_UP -> index-columns;else -> return false }
+        when {
+            target in cards.indices -> cards[target].requestFocus()
+            code==KeyEvent.KEYCODE_DPAD_UP -> return false
+            code==KeyEvent.KEYCODE_DPAD_DOWN && index/columns<(cards.size-1)/columns -> cards.last().requestFocus()
+            code==KeyEvent.KEYCODE_DPAD_LEFT -> if(page>0) { changePage(-1);gridScroll.post { gridCards().lastOrNull()?.requestFocus() } }
+            else -> if(page<pageCount-1)changePage(1)
+        }
+        return true
+    }
     private fun renderStream() {
         page=0;pageCount=1;grid.removeAllViews();grid.columnCount=1
         val box=column();box.addView(text("Stream",23f))
@@ -538,12 +587,17 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             Triple("PS4 · Remote Play","com.playstation.remoteplay","Conecte ao seu PS4 pelo aplicativo oficial."),
             Triple("PC e Switch · Moonlight","com.limelight","Escolha o notebook no Moonlight. O vídeo do Switch passa pelo notebook.")
         )
+        val side=resources.configuration.orientation==2
+        val line=LinearLayout(this).apply { orientation=if(side)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
         for((label,target,description) in clients) {
-            box.addView(platformChip(if(target=="com.grill.xbxplay")"Xbox Series S" else if(target=="com.playstation.remoteplay")"PlayStation 4" else "PC"))
+            val part=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(2),dp(4),dp(2)) }
+            part.addView(platformChip(if(target=="com.grill.xbxplay")"Xbox Series S" else if(target=="com.playstation.remoteplay")"PlayStation 4" else "PC"))
             val installed=packageManager.getLaunchIntentForPackage(target)!=null
-            box.addView(button(label+(if(installed)"" else " · não encontrado")) { openPackage(target) }.apply { isEnabled=installed;alpha=if(installed)1f else .55f },LinearLayout.LayoutParams(-1,-2).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) })
-            box.addView(text(description,14f))
+            part.addView(button(label+(if(installed)"" else " · não encontrado")) { openPackage(target) }.apply { isEnabled=installed;alpha=if(installed)1f else .55f },LinearLayout.LayoutParams(-1,-2).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) })
+            part.addView(text(description,if(side)12f else 14f))
+            line.addView(part,if(side)LinearLayout.LayoutParams(0,-2,1f) else LinearLayout.LayoutParams(-1,-2))
         }
+        box.addView(line)
         help(box,"Conexões e jogos","Login, pareamento e escolha do console/computador ficam nos clientes. Para solicitar um jogo ou transmissão ao notebook, use a ação nos detalhes do título. Abrir esta aba não liga consoles nem inicia transmissão.")
         grid.addView(box,GridLayout.LayoutParams().apply { width=ViewGroup.LayoutParams.MATCH_PARENT })
         if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
@@ -554,7 +608,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         else {
             val top=(gridScroll.scrollY+delta*gridScroll.height*4/5).coerceIn(0,(grid.height-gridScroll.height).coerceAtLeast(0))
             gridScroll.scrollTo(0,top)
-            (0 until grid.childCount).map { grid.getChildAt(it) }.firstOrNull { it.top>=top && it.top<top+gridScroll.height }?.requestFocus()
+            val cards=(0 until grid.childCount).map { grid.getChildAt(it) }.filter { it.isFocusable }
+            (cards.firstOrNull { it.top>=top && it.top<top+gridScroll.height } ?: (if(delta>0)cards.lastOrNull() else cards.firstOrNull()))?.requestFocus()
         }
     }
     private fun controllerSearch() {
@@ -1627,6 +1682,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     override fun onKeyDown(keyCode:Int,event:KeyEvent):Boolean {
         if(event.repeatCount>0 && keyCode in setOf(KeyEvent.KEYCODE_BUTTON_A,KeyEvent.KEYCODE_BUTTON_X,KeyEvent.KEYCODE_BUTTON_START))return true
+        if(keyCode in setOf(KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_LEFT,KeyEvent.KEYCODE_DPAD_RIGHT) && gridMove(keyCode))return true
         when(keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> { currentFocus?.performClick();return true }
             KeyEvent.KEYCODE_BUTTON_B -> { if(dialog!=null)dialog?.dismiss() else if(collection=="stream")selectCollection("home") else if(search.text.isNotEmpty())search.text.clear() else { collection="home";page=0;render() };return true }
@@ -1656,6 +1712,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 val code=when { y>.55 -> KeyEvent.KEYCODE_DPAD_DOWN;y<-.55 -> KeyEvent.KEYCODE_DPAD_UP;x>.55 -> KeyEvent.KEYCODE_DPAD_RIGHT;else -> KeyEvent.KEYCODE_DPAD_LEFT }
                 lastMotion=now;focused.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code));focused.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code));return true
             }
+            val moveCode=when { x>.55 -> KeyEvent.KEYCODE_DPAD_RIGHT;x<-.55 -> KeyEvent.KEYCODE_DPAD_LEFT;y>.55 -> KeyEvent.KEYCODE_DPAD_DOWN;y<-.55 -> KeyEvent.KEYCODE_DPAD_UP;else -> 0 }
+            if(moveCode!=0 && gridMove(moveCode)) { lastMotion=now;return true }
             val next=when { x>.55 -> focused?.focusSearch(View.FOCUS_RIGHT);x<-.55 -> focused?.focusSearch(View.FOCUS_LEFT);y>.55 -> focused?.focusSearch(View.FOCUS_DOWN);y<-.55 -> focused?.focusSearch(View.FOCUS_UP);else -> return false }
             lastMotion=now;next?.requestFocus() ?: pageRoot.requestFocus(View.FOCUS_DOWN);return true
         }

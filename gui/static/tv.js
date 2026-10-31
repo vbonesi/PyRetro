@@ -1471,9 +1471,24 @@ function focusable() {
   const root = document.querySelector("dialog[open]") || document;
   return [...root.querySelectorAll("button:not(:disabled),a[href],input")].filter(e => !e.hidden && e.getClientRects().length);
 }
+function galleryMove(direction, current) {
+  // Na grade: esquerda/direita seguem a ordem dos cards (quebrando de linha); no fim da lista ficam onde estão em vez de subir aos menus.
+  const gallery = $("gallery"); if (!gallery || state.kind === "home" || !gallery.contains(current)) return false;
+  const cards = [...gallery.querySelectorAll("button")].filter(e => !e.hidden && e.getClientRects().length);
+  const index = cards.indexOf(current); if (index < 0) return false;
+  const top = cards[0].getBoundingClientRect().top;
+  const columns = Math.max(1, cards.filter(e => Math.abs(e.getBoundingClientRect().top - top) < 5).length);
+  let target = direction === "right" ? index + 1 : direction === "left" ? index - 1 : direction === "down" ? index + columns : index - columns;
+  if (direction === "up" && target < 0) return false;
+  if (target >= cards.length) target = direction === "down" && Math.floor(index / columns) < Math.floor((cards.length - 1) / columns) ? cards.length - 1 : index;
+  if (target < 0) target = 0;
+  cards[target].focus({preventScroll: true}); cards[target].scrollIntoView({block: "nearest", inline: "nearest"});
+  return true;
+}
 function move(direction) {
   const nodes = focusable(); const current = document.activeElement;
   if (!nodes.includes(current)) { nodes[0]?.focus(); return; }
+  if (galleryMove(direction, current)) return;
   const r = current.getBoundingClientRect(); const x = r.x + r.width / 2, y = r.y + r.height / 2;
   let best, score = Infinity;
   for (const e of nodes) {
