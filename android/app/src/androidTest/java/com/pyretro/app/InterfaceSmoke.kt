@@ -90,7 +90,7 @@ class InterfaceSmoke(private val runner:Instrumentation) {
                     Thread.sleep(100)
                 }
                 check(activity!!.resources.configuration.orientation==if(label=="portrait")1 else 2) { "Desbloqueie o aparelho para aplicar a orientação." }
-                for(collection in listOf("home","catalog","cell","favorites","ranking","wishlist","kept","stream")) {
+                for(collection in listOf("home","catalog","cell","favorites","ranking","wishlist","systems","stream")) {
                     dismiss()
                     runOnMainSync {
                         field("collection").set(activity,collection);field("page").setInt(activity,0)

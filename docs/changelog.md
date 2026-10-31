@@ -4710,3 +4710,5 @@ filtros unificados).
   na grade em ordem (esquerda/direita quebram de linha, no fim da página vai para a próxima, não sobe às abas); RB/LB no fim
   da lista focam o último/primeiro cartão. Sobras sem sistema e sem arquivo deixam de aparecer como jogo. Modo TV (`tv.js`):
   mesma navegação linear na grade. Não testado no aparelho. 469 Python, 58 JS, JVM e lint passaram.
+- **Android 0.24.1 (code 36, 31/10):** aba Fixados removida da barra (a proteção contra remoção continua nos detalhes do jogo e no gerenciador de espaço);
+  LB/RB andam uma linha por vez (só no fim da página trocam de página); arquivos de índice com nome de uma letra (sobra "A") não viram jogo.

@@ -65,7 +65,7 @@ class CloudIndex(private val store:LibraryStore) {
         val linked=catalog.mapNotNull { store.prefs.getString("cloud:${it.key}",null) }.toSet()
         return store.folders.keys.flatMap { code ->
             val rows=JSONArray(store.prefs.getString("cloud-records:$code","[]")!!)
-            (0 until rows.length()).map { rows.getJSONObject(it) }.filter { it.getString("uri") !in linked }.map { row ->
+            (0 until rows.length()).map { rows.getJSONObject(it) }.filter { it.getString("uri") !in linked && GameLogic.fileLabel(it.getString("name")).length>1 }.map { row ->
                 Game("",GameLogic.localKey("cloud-$code",row.getString("uri")),GameLogic.fileLabel(row.getString("name")),store.folders.getValue(code),code,row.getString("name"))
             }
         }

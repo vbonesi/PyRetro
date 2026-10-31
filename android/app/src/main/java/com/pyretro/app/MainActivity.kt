@@ -38,7 +38,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     companion object {
         /** Catálogo e progresso atualizam sozinhos quando o notebook responde; a instrumentação desliga. */
         @Volatile var automaticUpdates=true
-        private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","systems" to "Sistemas","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","kept" to "Fixados","stream" to "Stream")
+        private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","systems" to "Sistemas","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","stream" to "Stream")
     }
     private lateinit var store:LibraryStore
     private lateinit var pageRoot:LinearLayout
@@ -561,6 +561,19 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         counter.text="${groups.size} sistemas · ${games.size} jogos"
         grid.getChildAt(0)?.requestFocus()
         if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
+    }
+    /** LB/RB: uma linha por vez; só no fim da página trocam de página. */
+    private fun bumper(delta:Int) {
+        val cards=gridCards();val index=cards.indexOf(currentFocus)
+        if(collection=="home" || collection=="stream" || index<0) { changePage(delta);return }
+        val columns=grid.columnCount.coerceAtLeast(1);val target=index+delta*columns
+        when {
+            target in cards.indices -> cards[target].requestFocus()
+            delta>0 && index/columns<(cards.size-1)/columns -> cards.last().requestFocus()
+            delta>0 -> changePage(1)
+            page>0 -> { changePage(-1);gridScroll.post { gridCards().lastOrNull()?.requestFocus() } }
+            else -> cards.first().requestFocus()
+        }
     }
     private fun gridCards():List<View> = (0 until grid.childCount).map { grid.getChildAt(it) }.filter { it.tag is Game || (collection=="systems" && it.isFocusable) }
     /** Direcional na grade: linear na linha, coluna nas setas verticais; no fim da página segue para a próxima em vez de subir às abas. */
@@ -1688,8 +1701,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             KeyEvent.KEYCODE_BUTTON_B -> { if(dialog!=null)dialog?.dismiss() else if(collection=="stream")selectCollection("home") else if(search.text.isNotEmpty())search.text.clear() else { collection="home";page=0;render() };return true }
             KeyEvent.KEYCODE_BUTTON_X -> { (currentFocus?.tag as? Game)?.let(::toggleFavorite);return true }
             KeyEvent.KEYCODE_BUTTON_Y -> { if(event.repeatCount==0 && collection!="stream")controllerSearch();return true }
-            KeyEvent.KEYCODE_BUTTON_L1 -> { changePage(-1);return true }
-            KeyEvent.KEYCODE_BUTTON_R1 -> { changePage(1);return true }
+            KeyEvent.KEYCODE_BUTTON_L1 -> { bumper(-1);return true }
+            KeyEvent.KEYCODE_BUTTON_R1 -> { bumper(1);return true }
             KeyEvent.KEYCODE_BUTTON_L2,KeyEvent.KEYCODE_BUTTON_R2 -> { if(event.repeatCount==0)changeCollection(if(keyCode==KeyEvent.KEYCODE_BUTTON_R2)1 else -1);return true }
             KeyEvent.KEYCODE_BUTTON_START -> { settings();return true }
         }
