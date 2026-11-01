@@ -247,7 +247,7 @@ class LibraryStore(val context:Context,val preferenceName:String="pyretro") {
         val url=base()+game.cover
         // Chave só pelo caminho (com ?v=mtime): trocar LAN ↔ Tailscale não esvazia o cache offline.
         val name=MessageDigest.getInstance("SHA-256").digest(game.cover.toByteArray()).joinToString("") { "%02x".format(it) }
-        val directory=File(context.cacheDir,"covers").apply { mkdirs() };val file=File(directory,name)
+        val directory=File(context.filesDir,"covers").apply { mkdirs() };val file=File(directory,name)
         if(file.exists()) { file.setLastModified(System.currentTimeMillis());return file }
         if(!online || base().isBlank())return null
         val connection=URL(url).openConnection() as HttpURLConnection;connection.connectTimeout=10000;connection.readTimeout=15000;connection.instanceFollowRedirects=false
