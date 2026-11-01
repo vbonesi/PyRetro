@@ -164,12 +164,17 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun column()=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(8),dp(12),dp(8)) }
     private fun add(parent:LinearLayout,view:View,weight:Float=0f) { parent.addView(view,LinearLayout.LayoutParams(if(weight>0)0 else ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT,weight).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) }) }
     private fun horizontal(parent:LinearLayout,content:LinearLayout) { parent.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(content) },LinearLayout.LayoutParams(-1,-2)) }
-    private fun message(value:String) {
+    private fun message(raw:String) {
+        // Erros de rede do Java ("Unable to resolve host…") viram um aviso comum de sem internet.
+        val value=if(Regex("Unable to resolve host|UnknownHost|Failed to connect|timed out|No address associated",RegexOption.IGNORE_CASE).containsMatchIn(raw))"Offline · sem internet agora. Mostrando o que está salvo no celular; o app tenta de novo sozinho." else raw
         status.text=value
         val notice=value.startsWith("Offline") || value.startsWith("Modo offline") || value.startsWith("Online ·")
         status.visibility=if(notice && (resources.configuration.orientation==2 || !store.prefs.getBoolean("ui:show-notice",true)))View.GONE else View.VISIBLE
     }
-    private fun failure(error:Throwable) { message(error.message ?: "Não foi possível concluir.") }
+    private fun failure(error:Throwable) {
+        val offline=generateSequence(error) { it.cause }.any { it is java.net.UnknownHostException || it is java.net.ConnectException || it is java.net.SocketTimeoutException }
+        message(if(offline)"Sem conexão com a internet agora. Mostrando o que está salvo no celular; o app tenta de novo sozinho." else error.message ?: "Não foi possível concluir.")
+    }
     private fun firstEnabledButton(view:View):Button? {
         if(view.visibility!=View.VISIBLE)return null
         if(view is Button && view.isEnabled)return view

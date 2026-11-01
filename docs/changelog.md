@@ -4719,3 +4719,4 @@ filtros unificados).
   `a` e `a-steam` foram removidos do diário (op remove).
 - **Android 0.24.3 (code 38, 01/11):** cache de capas movido de `cacheDir` (o Android pode esvaziar sozinho) para `filesDir/covers` (permanente); uma capa já baixada vale 24 h sem consultar o Drive
   (antes revalidava a cada 5 min e a pré-busca nunca marcava como conferida). Limite 4000 capas.
+- **Android 0.24.4 (code 39, 01/11):** erros de rede crus ("Unable to resolve host www.googleapis.com…") viram "Offline · sem internet agora" na barra de status.
