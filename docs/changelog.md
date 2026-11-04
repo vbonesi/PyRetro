@@ -4723,3 +4723,6 @@ filtros unificados).
 - **Capas na nuvem (01/11):** as 2.590 capas da biblioteca foram publicadas em `capas/` do Drive (protocolo `core/cloud_covers.py`, limite de 8 MB por capa),
   para o celular manter tudo em cache. Três PNGs de 5911 px/18–68 MB (Metroid Zero Mission Revamp e ProjectZM, Dragon Quest V) foram reduzidos a 1400 px;
   originais em `~/Games/PyRetro/Backups/capa-grande-metroid-revamp/`. A pasta local `capas/items` ganhou ~790 arquivos "(2)" do Insync que não existem no Drive; não apagados.
+- **Metadados (04/11):** completados desenvolvedora/lançamento de ~70 jogos (ScreenScraper/Google, 3 lotes). Convenção do Victor: sem autor identificado = "Desconhecido";
+  hack/homebrew/protótipo sem data = 1970-01-01; sem data própria da edição/plataforma usa-se a do jogo original ou a mais próxima do console.
+  "Sphynx" (Xbox) era Sphinx and the Cursed Mummy (Eurocom, 2003-11-10): nome corrigido, "Sphynx" ficou em nomes_alt. Sem lançamento: 8 jogos ainda não lançados + Eye of the Match + Geoplanetical.
