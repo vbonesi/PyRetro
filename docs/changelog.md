@@ -4720,3 +4720,6 @@ filtros unificados).
 - **Android 0.24.3 (code 38, 01/11):** cache de capas movido de `cacheDir` (o Android pode esvaziar sozinho) para `filesDir/covers` (permanente); uma capa já baixada vale 24 h sem consultar o Drive
   (antes revalidava a cada 5 min e a pré-busca nunca marcava como conferida). Limite 4000 capas.
 - **Android 0.24.4 (code 39, 01/11):** erros de rede crus ("Unable to resolve host www.googleapis.com…") viram "Offline · sem internet agora" na barra de status.
+- **Capas na nuvem (01/11):** as 2.590 capas da biblioteca foram publicadas em `capas/` do Drive (protocolo `core/cloud_covers.py`, limite de 8 MB por capa),
+  para o celular manter tudo em cache. Três PNGs de 5911 px/18–68 MB (Metroid Zero Mission Revamp e ProjectZM, Dragon Quest V) foram reduzidos a 1400 px;
+  originais em `~/Games/PyRetro/Backups/capa-grande-metroid-revamp/`. A pasta local `capas/items` ganhou ~790 arquivos "(2)" do Insync que não existem no Drive; não apagados.
