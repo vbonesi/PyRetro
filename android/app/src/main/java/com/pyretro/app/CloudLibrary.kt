@@ -98,14 +98,24 @@ class CloudLibrary(private val store:LibraryStore) {
         @Suppress("DEPRECATION") bitmap.compress(android.graphics.Bitmap.CompressFormat.WEBP,85,out)
         bitmap.recycle();return out.toByteArray().takeIf { it.isNotEmpty() && it.size<bytes.size } ?: bytes
     }
+    private val refresher=java.util.concurrent.Executors.newSingleThreadExecutor()
+    /** Exibir uma capa nunca espera o Drive quando ela já está guardada: devolve o arquivo na hora e, se passou 24 h, reconfere em segundo plano. */
     fun cover(game:Game,publish:Boolean=true):java.io.File? {
         if(game.id.isBlank())return null
         val directory=java.io.File(store.context.filesDir,"covers").apply { mkdirs() }
         val file=java.io.File(directory,"cloud-"+CloudRules.sha256(game.id.toByteArray()))
+        val checked="cover-checked:"+game.id;val day=24*60*60*1000L;val now=System.currentTimeMillis()
+        if(file.isFile) {
+            val at=store.prefs.getLong(checked,0)
+            if(at==0L)store.prefs.edit().putLong(checked,now).apply() // capa guardada pela pré-busca: vale como conferida agora
+            else if(publish && now-at>=day && drive.connected)refresher.execute { runCatching { download(game,file,directory,true) } }
+            return file
+        }
+        if(!drive.connected)return null
+        return download(game,file,directory,publish)
+    }
+    private fun download(game:Game,file:java.io.File,directory:java.io.File,publish:Boolean):java.io.File? {
         val checked="cover-checked:"+game.id
-        val day=24*60*60*1000L;val prefetched="cover-prefetched:"+game.id
-        if(file.isFile && (System.currentTimeMillis()-store.prefs.getLong(checked,0)<day || (!publish && System.currentTimeMillis()-store.prefs.getLong(prefetched,0)<day)))return file
-        if(!drive.connected)return file.takeIf { it.isFile }
         try {
             val remote=DriveCloudStorage(drive,maxBytes=CloudCovers.MAX_BYTES)
             val bytes=try { CloudCovers.get(remote,game.id) } catch(_:CloudNotFound) {
@@ -116,8 +126,7 @@ class CloudLibrary(private val store:LibraryStore) {
             }
             val temp=java.io.File.createTempFile("cover-",".tmp",directory)
             try { temp.writeBytes(shrink(bytes));check(temp.renameTo(file)) } finally { temp.delete() }
-            // Capa conferida: o cache local vale 24 h sem perguntar ao Drive de novo. Pré-busca não suprime o envio quando o jogo for exibido.
-            store.prefs.edit().putLong(if(publish)checked else prefetched,System.currentTimeMillis()).apply()
+            store.prefs.edit().putLong(checked,System.currentTimeMillis()).apply()
             directory.listFiles()?.sortedBy { it.lastModified() }?.dropLast(LibraryStore.COVER_CACHE_LIMIT)?.forEach { it.delete() }
             return file
         } catch(error:Exception) { if(file.isFile)return file;throw error }
