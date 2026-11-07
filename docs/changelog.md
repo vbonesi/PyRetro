@@ -22,6 +22,10 @@
   a cada segundo por 25 s (contra o Big Picture); um jogo aberto nesse intervalo perdia a frente (medido
   pelo KWin: RetroArch ativo e o PyRetro de volta 27 ms depois). Agora ativa quando a janela surge e só
   volta a trazê-la se a Steam tomar o foco.
+- **Jogos ocupam a tela inteira.** RetroArch sem escala inteira (o KOF '97 ficava pequeno no centro);
+  widescreen ligado no DuckStation (hack, com o banco de jogos dele desligando os incompatíveis), no Dolphin
+  para GameCube e nos cheats do Flycast. PS2, N64 e PSP já estavam. Detalhes e como desfazer em
+  `docs/emuladores-graficos.md`.
 - 475 testes Python e 58 JS passaram.
 
 ## 07/11/2026 — GameSir Nova 2 Lite como controle principal do PC

@@ -116,6 +116,23 @@ por núcleo, no PC e no celular (`sort_savefiles_enable` e `sort_savestates_enab
 **Não copie** os `.ini` do espelho do Drive para o PC nem o contrário: os caminhos
 (`content://` no Android) e as escolhas de desempenho são diferentes.
 
+## Tela cheia e widescreen (07/11/2026)
+
+Pedido do Victor: aproveitar a tela inteira. A resolução interna dos 3D já passa da tela de
+1920×1080 (DuckStation 5×, PCSX2 3×, Dolphin 3×, PPSSPP 5×, N64/Dreamcast 1440p), então ela não
+mudou; mudou o enquadramento:
+
+| Onde | Antes | Agora |
+|---|---|---|
+| RetroArch (todos os núcleos) | `video_scale_integer = "true"`: 224 linhas viravam 896, com borda em volta | `"false"`: a imagem ocupa a altura inteira. 2D continua em 4:3 (esticar para 16:9 distorce) |
+| PS1 (DuckStation) | `AspectRatio = Auto (Game Native)` | `WidescreenHack = true` + `AspectRatio = 16:9`. O banco de jogos do DuckStation desliga o hack nos títulos conhecidos por quebrar; cenários pré-renderizados (Resident Evil, Final Fantasy) podem sair esticados: desligar por jogo |
+| GameCube (Dolphin) | sem hack | `wideScreenHack = True` em `GFX.ini`. Pode cortar objetos nas bordas; desligar por jogo (Propriedades → Gráficos). Wii já saía em 16:9 pelo sistema |
+| Dreamcast (Flycast) | 4:3 | `reicast_widescreen_cheats = "enabled"`: 16:9 só nos jogos com correção conhecida. `reicast_widescreen_hack` ficou desligado (estica e corta nos demais) |
+| PS2 / N64 / PSP | já em widescreen (patches do PCSX2, GLideN64 "16:9 adjusted", PSP nativo) | sem mudança |
+| DS / 3DS | duas telas | sem mudança: a tela de baixo é a de toque |
+
+Cópia do antes: `auditoria/graficos-widescreen-20261107/` (privada). Celular não mudou nesta rodada.
+
 ## Backup e como desfazer
 
 Cópia de tudo antes da mudança: `~/Drive/Jogos/Backups/emuladores_pc_2026-10-16_antes/`
