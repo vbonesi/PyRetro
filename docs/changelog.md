@@ -6,15 +6,17 @@
   do usuário antes da sessão gráfica e ficava sem `WAYLAND_DISPLAY`/`DISPLAY`; o RetroArch herdava isso,
   abria sem janela e fechava em ~2 s (achado com o KOF '97). `core/desktop_env.py` lê a tela atual em
   `systemctl --user show-environment` a cada lançamento, usado por emuladores, apps da TV e jogos de PC.
-  Conferido pelo modo TV: o KOF '97 abriu. A espera antes de abrir é a sincronização de saves com a nuvem
-  (até 30 s), que já existia.
+  Conferido pelo modo TV: o KOF '97 abriu.
 - **Analógico direito no modo TV** rola na vertical e na horizontal a área em foco (ficha, ferramenta,
   página, fileira de capas), com zona morta e velocidade pela inclinação. Pedido do Victor: a cruz só
   mudava o foco e um texto comprido ficava sem como subir.
-- **Jogar avisa que está sincronizando.** O A funcionava, mas o jogo só abria 30 s depois: a sincronização
-  de saves com a nuvem antes de abrir (prévia sozinha ~15 s) batia o limite, sem nada na tela; o Menu
-  apertado depois coincidia com a abertura. Agora a ficha mostra "sincronizando os saves" na hora.
-- 473 testes Python e 58 JS passaram.
+- **Jogar abre na hora; os saves vêm da nuvem ao baixar o jogo.** O A funcionava, mas o jogo só abria
+  30 s depois: a sincronização de saves antes de abrir (prévia sozinha ~15 s) batia o limite, sem nada na
+  tela, e o Menu apertado depois coincidia com a abertura. Por decisão do Victor, a sincronização saiu da
+  abertura e passou para o fim do download do jogo (não roda com emulador aberto); ao fechar o jogo
+  continua igual. Save novo do celular depois do download chega na próxima sincronização; se o PC jogar
+  antes, vira conflito na tela de Saves, sem sobrescrever.
+- 475 testes Python e 58 JS passaram.
 
 ## 07/11/2026 — GameSir Nova 2 Lite como controle principal do PC
 

@@ -204,3 +204,22 @@ class TestBuscaDeCapaComIndiceDeGenero(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CloudAfterDownloadTest(unittest.TestCase):
+    """Saves vêm da nuvem ao baixar o jogo, não ao abrir (o Jogar esperava até 30 s, 07/11/2026)."""
+
+    def test_play_no_longer_waits_for_the_cloud(self):
+        self.assertIsNone(srv.PLAY_SESSIONS.before)
+
+    def test_download_pulls_saves_only_when_auto_and_no_game_is_open(self):
+        cfg = {'cloud': {'remote': 'drive:x', 'auto': True}}
+        with patch.object(srv.cloud_sync_mod, 'sync', return_value={'errors': [], 'conflicts': []}) as sync, \
+                patch.object(srv.PLAY_SESSIONS, 'status', return_value={'status': 'idle'}):
+            self.assertEqual(srv._cloud_after_download(cfg), {'errors': [], 'conflicts': []})
+            sync.assert_called_once_with(cfg)
+        with patch.object(srv.cloud_sync_mod, 'sync') as sync, \
+                patch.object(srv.PLAY_SESSIONS, 'status', return_value={'status': 'running'}):
+            self.assertIsNone(srv._cloud_after_download(cfg))  # emulador aberto: fica para o fechamento
+            self.assertIsNone(srv._cloud_after_download({'cloud': {'remote': 'drive:x'}}))
+            sync.assert_not_called()

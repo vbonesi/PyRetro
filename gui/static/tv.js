@@ -1031,9 +1031,8 @@ async function startPcGame(g) {
 async function startGame(g, name) {
   if (state.busy) return;
   state.busy = true;
-  // O servidor sincroniza os saves com a nuvem antes de abrir (até 30 s); sem aviso parecia que o A não
-  // tinha funcionado (07/11/2026).
-  const waiting = "Abrindo… sincronizando os saves com a nuvem antes (pode levar até 30 s).";
+  // Retorno imediato ao A: o emulador pode levar alguns segundos para mostrar a janela.
+  const waiting = `Abrindo ${g.name}…`;
   report(waiting, false, "play-status"); if (state.selected === g) report(waiting, false, "detail-status");
   try {
     const session = await api("/api/play/start", {code: g.code, name, ...(g.emulator ? {emulator: g.emulator} : {})});

@@ -105,13 +105,13 @@ def _record_emulator_time(session, seconds):
             library_activity.update(cfg, game['id'],event=session['session'],seconds=seconds)
 
 
-def _cloud_before_play(cfg, code, name):
-    """Antes de abrir o jogo: traz da nuvem o que mudou em outros dispositivos (só pulls e pushes; conflito
-    fica para a tela). Limitado a ~30 s para a nuvem lenta não segurar o jogo."""
-    if not cloud_sync_mod.auto(cfg):
-        return
-    worker = threading.Thread(target=lambda: cloud_sync_mod.sync(cfg), daemon=True)
-    worker.start(); worker.join(30)
+def _cloud_after_download(cfg):
+    """Ao terminar o download de um jogo: traz da nuvem os saves de outros dispositivos (pulls e pushes;
+    conflito fica para a tela). Antes isso rodava ao abrir o jogo e segurava o Jogar por até 30 s
+    (07/11/2026). Com um jogo aberto não mexe nos saves: a sincronização ao fechar cuida disso."""
+    if not cloud_sync_mod.auto(cfg) or PLAY_SESSIONS.status().get('status') == 'running':
+        return None
+    return cloud_sync_mod.sync(cfg)
 
 
 def _cloud_after_play():
@@ -123,7 +123,7 @@ def _cloud_after_play():
         LIBRARY_POLLER.trigger()
 
 
-PLAY_SESSIONS = play_mod.Sessions(record=_record_emulator_time, before=_cloud_before_play, after=_cloud_after_play)
+PLAY_SESSIONS = play_mod.Sessions(record=_record_emulator_time, after=_cloud_after_play)
 LIBRARY_POLLER = cloud_sync_mod.LibraryPoller(lambda: load_config())
 
 COVERS_EXCLUDED = covers_mod.COVERS_EXCLUDED
@@ -920,6 +920,14 @@ def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
 
         emit({"type": "progress", "code": code, "label": name, "status": "baixando", "i": 0, "total": 1})
         ok, msg = heavy_mod.download_from_drive(code, name, roms_root, cfg)
+        if ok:
+            try:
+                emit({"type": "progress", "code": code, "label": name, "status": "baixando saves", "i": 1, "total": 1})
+                synced = _cloud_after_download(cfg)
+                if synced and (synced["errors"] or synced["conflicts"]):
+                    msg += f" Saves: {len(synced['conflicts'])} conflito(s) e {len(synced['errors'])} erro(s); veja em Saves."
+            except Exception as error:  # noqa: BLE001 - o jogo já baixou; save fica para a próxima sincronização
+                msg += f" Saves não sincronizados: {error}"
         emit({"type": "system_done", "code": code, "result": {"ok": ok, "message": msg}})
     except Exception as e:
         emit({"type": "error", "message": str(e)})

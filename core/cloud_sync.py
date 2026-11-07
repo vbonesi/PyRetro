@@ -40,7 +40,7 @@ def saves_root(cfg):
 
 
 def auto(cfg):
-    """Sincronizar sozinho ao abrir e ao fechar um jogo (`[cloud] auto = true`; desligado por padrão)."""
+    """Sincronizar sozinho ao terminar o download de um jogo e ao fechá-lo (`[cloud] auto = true`; desligado por padrão)."""
     return enabled(cfg) and bool((cfg.get('cloud') or {}).get('auto'))
 
 
