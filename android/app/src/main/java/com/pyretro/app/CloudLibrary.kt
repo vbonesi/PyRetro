@@ -67,7 +67,7 @@ class CloudLibrary(private val store:LibraryStore) {
         var id="";var created=false
         db.transaction {
             val data=journal.library();val rows=JournalRules.games(data)
-            val candidates=rows.values.filter { CloudCatalog.code(it)==game.code && CloudCatalog.romName(it.optString("nome"))==CloudCatalog.romName(name) }
+            val candidates=rows.values.filter { CloudCatalog.code(it)==game.code && CloudCatalog.titleKey(it.optString("nome"))==CloudCatalog.titleKey(name) }
             require(candidates.size<=1) { "Mais de um cadastro com este nome; escolha o correto na Biblioteca." }
             val row=candidates.singleOrNull() ?: JSONObject().apply {
                 put("id","android-"+UUID.randomUUID());put("nome",name);put("plataforma",store.folders.getValue(game.code))

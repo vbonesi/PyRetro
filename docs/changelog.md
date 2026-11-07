@@ -1,5 +1,19 @@
 # Changelog
 
+## 07/11/2026 — Android 0.25.3: fim das capas "R" no catálogo do celular
+
+- O "R" é o logo mostrado quando o app não liga um arquivo do Drive a um cadastro. Causas corrigidas no `CloudCatalog`:
+  título com ponto era cortado como se fosse extensão ("Super Mario Bros. 2" virava "Super Mario Bros", e os três Mario
+  disputavam o mesmo arquivo; idem G.I. Joe e Show do Milhão); rótulo de arcade com títulos alternativos ("Samurai Shodown /
+  Samurai Spirits (NGM-045)") não casava; discos 2+ de PS1 apareciam soltos — agora herdam o cadastro do disco 1, como no PC.
+  3 testes JVM novos (108 no total). Instalada no celular.
+- Dados: código do set como nome alternativo em 225 cadastros de arcade (205 apelidos; ex. `mmatrix` em Mars Matrix), para
+  o celular casar mesmo quando o título do DAT difere do cadastro. Cadastrados 31 jogos que estavam no Drive sem registro
+  (29 de 3DS em `.cci`, Mario Galaxy 2 e FF Crystal Chronicles - My Life as a King no Wii), com capa, gênero, desenvolvedora,
+  lançamento (LaunchBox) e sinopse.
+- Resultado: catálogo do celular de 2.668 para 2.608 itens, sem duplicatas; PC sem item sem cadastro ou sem capa. Sobram só
+  Terranigma (`.sfc` e `.smc`) e Vagrant Story (`.cue` e `.chd`), duplicados no Drive, à espera da escolha do Victor.
+
 ## 07/11/2026 — Reposição das ROMs das coletâneas de Switch (lote 2)
 
 - 38 ROMs de Downloads conferidas pelo CRC (No-Intro e DAT do FBNeo) e enviadas ao Drive com o nome do cadastro,
