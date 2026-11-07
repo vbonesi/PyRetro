@@ -1226,6 +1226,7 @@ teste('modo TV: pódio ordena empates, filtros recolhem e glifos mudam sem troca
     for(let i=0;i<3 && glyphs.textContent!=='Botões: PlayStation';i++)glyphs.click();
     verdade(doc.getElementById('hints-extra').textContent.includes('□ Favoritar'),'glifos PlayStation não aplicaram');
     igual(app.padFamily('Sony DualSense'),'ps');igual(app.padFamily('Xbox Series Controller'),'xbox');
+    igual(app.padFamily('Sony Computer Entertainment Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)'),'xbox');igual(app.padFamily('Sony Interactive Entertainment Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)'),'ps');
   } finally {frame.remove();}
 });
 

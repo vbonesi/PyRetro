@@ -22,7 +22,12 @@ const GLIFOS = {xbox: {A: "A", B: "B", X: "X", Y: "Y", L: "LB", R: "RB", LT: "LT
 const GLIFO_NOMES = {auto: "Automático", xbox: "Xbox", ps: "PlayStation"};
 let glifoPref = "auto", glifoDetectado = "xbox";
 try { glifoPref = localStorage.getItem("pyretro-glifos") || "auto"; } catch (_) {}
-function padFamily(id = "") { return /054c|sony|dualshock|dualsense|wireless controller/i.test(id) ? "ps" : "xbox"; }
+// GameSir Nova 2 Lite: letras Xbox, mas no Linux só funciona no modo PS4 (pelo cabo aparece com o nome
+// antigo "Sony Computer Entertainment" e o PID 09cc do DS4 v2, combinação que o DS4 original não usa).
+function padFamily(id = "") {
+  if (/sony computer entertainment wireless controller.*09cc/i.test(id)) return "xbox";
+  return /054c|sony|dualshock|dualsense|wireless controller/i.test(id) ? "ps" : "xbox";
+}
 function glifos() { return GLIFOS[glifoPref === "auto" ? glifoDetectado : glifoPref] || GLIFOS.xbox; }
 function applyGlyphs() {
   const g = glifos();

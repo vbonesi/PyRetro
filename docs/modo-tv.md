@@ -192,15 +192,27 @@ direito e sacudir no RB. Wii pode exigir ajuste específico de movimento/Classic
 
 ### Outros controles
 
-O controle principal é o Xbox One; o registro `assets/controllers/controllers.json` também lista
-Xbox Series S, Galileo G8 (no notebook) e WGP16 Nova II. Só o Dolphin (nome do dispositivo) e o
-Azahar (GUID) dependem do modelo; PCSX2, DuckStation, RetroArch e PPSSPP usam o mapeamento
-padrão do SDL. Com o controle conectado (e só ele): `python3 tools/configure_xbox.py --detect`
-lista o que o SDL vê, `--learn <id>` mede e grava no registro, e
-`python3 tools/configure_xbox.py --controller <id> [--apply]` reaplica o perfil para ele
-(emuladores fechados). Entrada sem medida recusa em vez de chutar o nome.
+Desde 07/11/2026 o controle principal do PC é o **GameSir Nova 2 Lite** (pelo cabo). No Linux ele
+tenta o modo Xbox, a USB recusa e ele fica no **modo PS4** (luz branca; `054c:09cc`, nome SDL
+`Sony Computer Entertainment Wireless Controller`), com vibração pelo driver `hid-playstation`. As
+letras físicas são de Xbox: o modo TV reconhece esse nome e mostra A/B/X/Y (por Bluetooth o nome é
+só `Wireless Controller`; use **Botões: Xbox** em Ferramentas). O Home abre o PyRetro como o Guide.
+Os botões de círculo e M são internos do GameSir e não chegam ao sistema.
 
-| Combinação Xbox | Ação |
+O registro `assets/controllers/controllers.json` também lista Xbox One, Xbox Series S, Galileo G8 (no
+notebook) e WGP16 Nova II. Dependem do modelo o Dolphin (nome do dispositivo), o Azahar (GUID) e os
+**atalhos do RetroArch** (campo `retroarch`): o driver udev numera os botões pela ordem evdev, e no
+modo PS4 o índice 6 é o LT digital. Com os números do Xbox, LT virava o Back dos atalhos e LT+RB
+carregava o estado no meio do jogo. `ds4` usa View=8, Menu=9, Y=2, X=3; `xpad` usa View=6, Menu=7.
+Como o lançador só reaplica Dolphin/Azahar (`--auto`), o RetroArch segue o último perfil aplicado
+explicitamente; os índices `ds4` num Xbox apenas mudam o "Back" dos atalhos para o Guide, sem conflito
+com os gatilhos. PCSX2, DuckStation e PPSSPP usam o mapeamento padrão do SDL. Com o controle conectado
+(e só ele): `python3 tools/configure_xbox.py --detect` lista o que o SDL vê, `--learn <id>` mede e grava
+no registro, e `python3 tools/configure_xbox.py --controller <id> [--apply]` reaplica o perfil para ele
+(emuladores fechados; sem `--controller`, usa o principal). Entrada sem medida recusa em vez de chutar
+o nome.
+
+| Combinação (letras Xbox; View = Back, Menu = Start) | Ação |
 |---|---|
 | Back + LB | Salvar estado no slot selecionado |
 | Back + RB | Carregar estado do slot selecionado |

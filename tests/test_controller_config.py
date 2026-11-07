@@ -56,11 +56,25 @@ class TestControllerRegistry(unittest.TestCase):
         self.cx = cx
         self.registry = cx.load_registry()
 
-    def test_primary_is_xbox_one_and_all_requested_controllers_are_listed(self):
-        self.assertEqual(self.registry['primary'], 'xbox-one')
+    def test_primary_is_gamesir_nova_2_lite_and_all_requested_controllers_are_listed(self):
+        self.assertEqual(self.registry['primary'], 'gamesir-nova-2-lite')
         self.assertEqual({c['id'] for c in self.registry['controllers']},
-                         {'xbox-one', 'xbox-series-s', 'galileo-g8', 'wgp16-nova-ii'})
-        self.assertEqual(self.cx.dolphin_device(self.cx.pick_controller(self.registry)), 'SDL/0/Xbox One S Controller')
+                         {'gamesir-nova-2-lite', 'xbox-one', 'xbox-series-s', 'galileo-g8', 'wgp16-nova-ii'})
+        self.assertEqual(self.cx.dolphin_device(self.cx.pick_controller(self.registry)),
+                         'SDL/0/Sony Computer Entertainment Wireless Controller')
+        self.assertEqual(self.cx.dolphin_device(self.cx.pick_controller(self.registry, 'xbox-one')), 'SDL/0/Xbox One S Controller')
+
+    def test_retroarch_hotkeys_follow_the_kernel_driver_of_the_controller(self):
+        # 07/11/2026: no modo PS4 (hid-playstation) o índice 6 é LT; com os números do Xbox,
+        # LT+RB carregava o estado no meio do jogo.
+        ds4 = self.cx.retroarch_hotkeys(self.cx.pick_controller(self.registry, 'gamesir-nova-2-lite'))
+        xpad = self.cx.retroarch_hotkeys(self.cx.pick_controller(self.registry, 'xbox-one'))
+        self.assertEqual((ds4['input_enable_hotkey_btn'], ds4['input_exit_emulator_btn']), ('"8"', '"9"'))
+        self.assertEqual((ds4['input_menu_toggle_btn'], ds4['input_screenshot_btn']), ('"2"', '"3"'))
+        self.assertNotIn(ds4['input_enable_hotkey_btn'], ('"6"', '"7"'), 'LT/RT digitais no DS4')
+        self.assertEqual((xpad['input_enable_hotkey_btn'], xpad['input_exit_emulator_btn'], xpad['input_menu_toggle_btn']),
+                         ('"6"', '"7"', '"3"'))
+        self.assertEqual(self.cx.pick_controller(self.registry, 'wgp16-nova-ii')['retroarch'], 'ds4')
 
     def test_unmeasured_controller_refuses_instead_of_guessing_a_device_name(self):
         with self.assertRaises(SystemExit):

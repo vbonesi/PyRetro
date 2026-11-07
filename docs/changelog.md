@@ -1,5 +1,22 @@
 # Changelog
 
+## 07/11/2026 — GameSir Nova 2 Lite como controle principal do PC
+
+- O Nova 2 Lite (23501-N2LITE) passa a ser o principal no registro de controles. Pelo cabo ele tenta o
+  modo Xbox, a USB recusa (erro -71) e ele fica no modo PS4 (`054c:09cc`), que no Linux tem vibração e
+  giroscópio pelo `hid-playstation`. Medido: nome SDL `Sony Computer Entertainment Wireless Controller`,
+  GUID `0300e8fe4c050000cc09000011810000`; A/B/X/Y, View e Menu conferidos botão a botão.
+- **Corrigido risco nos atalhos do RetroArch** com controles em modo PS4 (Nova 2 Lite e WGP16 Nova II):
+  os índices eram os do Xbox, então LT fazia o papel do Back e LT+RB carregava o estado, LT+RT encerrava
+  o jogo. `configure_xbox.py` agora escolhe os índices pelo driver (`retroarch: xpad|ds4` no registro).
+- Perfil aplicado (cópia em `auditoria/controle-xbox-20261107-124453`): RetroArch (atalhos), Dolphin
+  (GameCube, Wii e atalhos) e Azahar (GUID). PCSX2, DuckStation e PPSSPP já serviam pelo SDL.
+- Modo TV mostra letras Xbox para o Nova pelo cabo (nome antigo "Sony Computer Entertainment" com o
+  PID do DS4 v2). Home abre o PyRetro; a falha da janela ao abrir pelo botão foi do serviço
+  `pyretro-guide` (sem `WAYLAND_DISPLAY`), corrigido no setup-linux-bonesi.
+- 470 testes Python e 58 JS aprovados. Nenhum jogo aberto e nenhum estado criado ou carregado: os
+  atalhos novos ainda precisam de confirmação em jogo.
+
 ## 29/10/2026 (noite) — Sinopses dos Desejados
 
 - Os 239 jogos de Desejados (Steam 115, PSN 26, Xbox 98) ganharam `sinopse` em pt-BR (3 agentes com busca na web, mais fechamento de KAKU - Ancient Seal,

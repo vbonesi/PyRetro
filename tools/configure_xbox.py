@@ -185,6 +185,28 @@ def azahar_values(guid):
     return controls, ui, layout
 
 
+# RetroArch (driver udev) numera os botões pela ordem dos códigos evdev presentes, então o índice
+# depende do driver do kernel. xpad/Xbox: A B X Y LB RB Back Start = 0..7. hid-playstation (DS4 e
+# controles em modo PS4, como o GameSir Nova 2 Lite): X/Y trocados (BTN_WEST=3, BTN_NORTH=2),
+# LT/RT digitais em 6/7 e Back/Start em 8/9. Com os índices do Xbox num DS4, LT virava o "Back"
+# dos atalhos e LT+RB carregava o estado no meio do jogo (achado em 07/11/2026).
+RA_BUTTONS = {
+    'xpad': dict(A='0', B='1', X='2', Y='3', LB='4', RB='5', Back='6', Start='7'),
+    'ds4': dict(A='0', B='1', X='3', Y='2', LB='4', RB='5', Back='8', Start='9'),
+}
+
+
+def retroarch_hotkeys(controller):
+    index = RA_BUTTONS[(controller or {}).get('retroarch', 'xpad')]
+    values = {'input_enable_hotkey_btn': index['Back'], 'input_save_state_btn': index['LB'],
+              'input_load_state_btn': index['RB'], 'input_state_slot_increase_btn': 'h0up',
+              'input_state_slot_decrease_btn': 'h0down', 'input_exit_emulator_btn': index['Start'],
+              'input_menu_toggle_btn': index['Y'], 'input_pause_toggle_btn': index['B'],
+              'input_screenshot_btn': index['X'], 'input_toggle_fast_forward_btn': 'h0right',
+              'input_rewind_btn': 'nul', 'input_toggle_slowmotion_btn': 'nul'}
+    return {k: '"' + v + '"' for k, v in values.items()}
+
+
 PAD = dict(Up='DPadUp', Down='DPadDown', Left='DPadLeft', Right='DPadRight',
            Cross='A', Circle='B', Square='X', Triangle='Y', Select='Back', Start='Start',
            L1='LeftShoulder', R1='RightShoulder', L2='+LeftTrigger', R2='+RightTrigger',
@@ -218,13 +240,7 @@ def planned(home, controller=None,model_only=False):
         change(path, 'Hotkeys', {key: 'SDL-0/Back & SDL-0/' + buttons.get(value, value) for key, value in bindings.items()}, True)
     ra = home / '.var/app/org.libretro.RetroArch/config/retroarch/retroarch.cfg'
     if ra.is_file():
-        values = {'input_enable_hotkey_btn': '6', 'input_save_state_btn': '4',
-                  'input_load_state_btn': '5', 'input_state_slot_increase_btn': 'h0up',
-                  'input_state_slot_decrease_btn': 'h0down', 'input_exit_emulator_btn': '7',
-                  'input_menu_toggle_btn': '3', 'input_pause_toggle_btn': '1',
-                  'input_screenshot_btn': '2', 'input_toggle_fast_forward_btn': 'h0right',
-                  'input_rewind_btn': 'nul', 'input_toggle_slowmotion_btn': 'nul'}
-        change(ra, '', {k: '"' + v + '"' for k, v in values.items()})
+        change(ra, '', retroarch_hotkeys(controller or pick_controller(load_registry())))
     dolphin = home / '.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu'
     if dolphin.is_dir():
         change(dolphin / 'Dolphin.ini', 'Interface', {'ConfirmStop': 'False'})
@@ -297,7 +313,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--auto', action='store_true', help='seleciona só o controle único medido, sem alterar configurações com emulador em execução')
-    parser.add_argument('--controller', help='id do controle no registro (padrão: o principal, Xbox One)')
+    parser.add_argument('--controller', help='id do controle no registro (padrão: o principal do registro)')
     parser.add_argument('--learn', metavar='ID', help='mede o controle conectado e grava no registro')
     parser.add_argument('--detect', action='store_true', help='lista os controles que o SDL vê e o que já está medido')
     args = parser.parse_args()

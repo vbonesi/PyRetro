@@ -1,14 +1,24 @@
 {
- "primary": "xbox-one",
- "note": "Só o Dolphin (nome do dispositivo) e o Azahar (GUID) dependem do modelo; PCSX2, DuckStation, RetroArch e PPSSPP usam o mapeamento padrão do SDL e já servem a qualquer controle reconhecido. Entradas com sdl_name vazio ainda não foram medidas: conecte o controle e rode `python3 tools/configure_xbox.py --learn <id>`.",
+ "primary": "gamesir-nova-2-lite",
+ "note": "Só o Dolphin (nome do dispositivo), o Azahar (GUID) e os atalhos do RetroArch (campo retroarch: 'xpad' para Xbox, 'ds4' para controles no modo PS4) dependem do modelo; PCSX2, DuckStation e PPSSPP usam o mapeamento padrão do SDL e já servem a qualquer controle reconhecido. Entradas com sdl_name vazio ainda não foram medidas: conecte o controle e rode `python3 tools/configure_xbox.py --learn <id>`.",
  "controllers": [
+  {
+   "id": "gamesir-nova-2-lite",
+   "label": "GameSir Nova 2 Lite (cabo, modo PS4)",
+   "layout": "xbox",
+   "sdl_name": "Sony Computer Entertainment Wireless Controller",
+   "guid": "0300e8fe4c050000cc09000011810000",
+   "measured": "2026-11-07",
+   "retroarch": "ds4"
+  },
   {
    "id": "xbox-one",
    "label": "Xbox One (Bluetooth)",
    "layout": "xbox",
    "sdl_name": "Xbox One S Controller",
    "guid": null,
-   "measured": "2026-10-20"
+   "measured": "2026-10-20",
+   "retroarch": "xpad"
   },
   {
    "id": "xbox-series-s",
@@ -16,7 +26,8 @@
    "layout": "xbox",
    "sdl_name": "Xbox Series X Controller",
    "guid": "0300f5a35e040000120b000017050000",
-   "measured": "2026-10-29"
+   "measured": "2026-10-29",
+   "retroarch": "xpad"
   },
   {
    "id": "galileo-g8",
@@ -24,7 +35,8 @@
    "layout": "xbox",
    "sdl_name": null,
    "guid": null,
-   "measured": null
+   "measured": null,
+   "retroarch": "xpad"
   },
   {
    "id": "wgp16-nova-ii",
@@ -32,7 +44,8 @@
    "layout": "xbox",
    "sdl_name": "Sony Interactive Entertainment Wireless Controller",
    "guid": "0300d0424c050000cc09000011810000",
-   "measured": "2026-10-28"
+   "measured": "2026-10-28",
+   "retroarch": "ds4"
   }
  ]
 }
