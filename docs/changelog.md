@@ -11,7 +11,12 @@
 - Victor desistiu dos arcades não encontrados: saíram Puyo Puyo, Contra, Super Contra, Salamander, Life Force,
   Ultimate Mortal Kombat 3, Wonder Boy e Wonder Boy III: Monster Lair (sem progresso). mk4 não roda no FBNeo.
 - Saves automáticos de teste do KOF '97 apagados (estado automático e `.fs` no PC, `.fs` no celular).
-- Backups em `~/Games/PyRetro/Backups/Reposicao 2026-11-07/`. Celular sincronizado (2.816 jogos).
+- Fechamento (Victor: "não vamos mais baixar nada"): Aladdin passou de Game Boy para GBA (veio a versão de GBA);
+  Mortal Kombat (GG) e Wonder Boy III (SMS) entraram em espanhol, com o nome do cadastro; entraram também Mortal Kombat 3
+  (SMS, Brasil), Mortal Kombat II (GG, espanhol) e mk4 (Arcade; não roda no FBNeo, o Victor ajusta depois). Saíram os que
+  ficariam sem ROM: Triple Trouble (só beta), Sonic Drift (só demo), Sonic Chaos, Tails' Skypatrol, Wonder Boy (GG) e os
+  5 de PS1. Nenhum cadastro de ROM ficou sem arquivo; lista de reposição apagada.
+- Backups em `~/Games/PyRetro/Backups/Reposicao 2026-11-07/`. Celular sincronizado (2.809 jogos).
 
 ## 07/11/2026 — Jogos voltam a abrir pelo modo TV; analógico direito rola a tela
 
