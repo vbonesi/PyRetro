@@ -298,8 +298,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val home=collection=="home" && search.text.isBlank()
         pagingBar.visibility=if(home)View.GONE else View.VISIBLE
         filterButton.visibility=if(home || streaming)View.GONE else View.VISIBLE
+        titleView.visibility=if(filterButton.visibility==View.VISIBLE && resources.configuration.orientation!=2)View.GONE else View.VISIBLE
         if(home) { renderHome();return }
-        if(collection=="systems" && search.text.isBlank()) { pagingBar.visibility=View.GONE;filterButton.visibility=View.GONE;renderSystems();return }
+        if(collection=="systems" && search.text.isBlank()) { pagingBar.visibility=View.GONE;filterButton.visibility=View.GONE;titleView.visibility=View.VISIBLE;renderSystems();return }
         val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
         val query=GameLogic.normalized(search.text.toString())
         val base=collectionGames().filter { query.isBlank() || GameLogic.normalized(it.name+it.platform+it.genre).contains(query) }
@@ -559,7 +560,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             val head=row();head.addView(platformChip(list.first().code,platform));head.addView(text(store.folders[list.first().code] ?: platform,15f).apply { setTypeface(null,Typeface.BOLD);maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END },LinearLayout.LayoutParams(0,-2,1f))
             card.addView(head)
             val onPhone=list.count { it.localUri!=null }
-            card.addView(text("${list.size} jogos"+if(onPhone>0)" · $onPhone no celular" else "",12f))
+            card.addView(text((if(list.size==1)"1 jogo" else "${list.size} jogos")+if(onPhone>0)" · $onPhone no celular" else "",12f))
             grid.addView(card,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) })
         }
         if(groups.isEmpty())grid.addView(text("Carregue o catálogo ou escolha a pasta Jogos para ver os sistemas.",17f))

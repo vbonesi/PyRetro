@@ -15,7 +15,7 @@ class DriveCloudStorage(private val drive:GoogleDrive,private val root:List<Stri
 
     private fun matches(path:String):List<org.json.JSONObject> {
         val (dirs,name)=split(path);val folder=folderOf(dirs,false) ?: return emptyList()
-        val matches=drive.children(folder).filter { it.getString("name")==name && it.optString("mimeType")!=folderMime }
+        val matches=drive.childrenNamed(folder,name).filter { it.getString("name")==name && it.optString("mimeType")!=folderMime }
         if(matches.size>1) {
             val hash=if(matches.all { it.optString("sha256Checksum").isNotBlank() })"sha256Checksum" else "md5Checksum"
             require(matches.all { it.optString(hash).isNotBlank() } && matches.map { it.optString("size")+":"+it.optString(hash) }.distinct().size==1) { "$path tem cópias divergentes no Drive; versões preservadas." }
