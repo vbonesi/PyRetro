@@ -18,6 +18,10 @@
   antes, vira conflito na tela de Saves, sem sobrescrever.
 - Modo TV mostra letras Xbox no Nova 2 Lite também pelo Bluetooth (`Wireless Controller` 054c:09cc, só ele
   no registro); um DS4 de verdade usa "Botões: PlayStation".
+- **PyRetro não passa mais por cima do jogo.** Ao abrir pelo Home, `tools/raise-window.sh` reativava a janela
+  a cada segundo por 25 s (contra o Big Picture); um jogo aberto nesse intervalo perdia a frente (medido
+  pelo KWin: RetroArch ativo e o PyRetro de volta 27 ms depois). Agora ativa quando a janela surge e só
+  volta a trazê-la se a Steam tomar o foco.
 - 475 testes Python e 58 JS passaram.
 
 ## 07/11/2026 — GameSir Nova 2 Lite como controle principal do PC
