@@ -131,7 +131,14 @@ mudou; mudou o enquadramento:
 | PS2 / N64 / PSP | já em widescreen (patches do PCSX2, GLideN64 "16:9 adjusted", PSP nativo) | sem mudança |
 | DS / 3DS | duas telas | sem mudança: a tela de baixo é a de toque |
 
-Cópia do antes: `auditoria/graficos-widescreen-20261107/` (privada). Celular não mudou nesta rodada.
+Cópia do antes: `auditoria/graficos-widescreen-20261107/` (privada).
+
+**Celular (07/11, via `adb`, com Victor autorizando; backup em `~/Games/PyRetro/Backups/emuladores_celular_2026-11-07_antes/`):**
+`Android/data/com.retroarch/files/retroarch.cfg`: `video_scale_integer = "false"` (era `"true"`); SwanStation (PS1)
+`RetroArch/config/SwanStation/SwanStation.opt`: `swanstation_GPU_WidescreenHack = "true"` e `swanstation_Display_AspectRatio = "16:9"`.
+**Não aplicado:** Flycast (as opções de núcleo do Dreamcast ficam na área interna do RetroArch, sem acesso por `adb`; só existe `ARCADE.opt`
+por pasta), Dolphin/PS2 (não há Dolphin nem NetherSX2 instalados neste celular) e PPSSPP/DS/3DS (sem mudança no PC). Nenhum jogo foi aberto
+para conferir o resultado (abrir/fechar regrava o `.state.auto`). Para desfazer: copiar de volta os dois arquivos do backup com o RetroArch fechado.
 
 ## Backup e como desfazer
 
