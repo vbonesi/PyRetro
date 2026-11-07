@@ -12,6 +12,15 @@
    "retroarch": "ds4"
   },
   {
+   "id": "gamesir-nova-2-lite-bt",
+   "label": "GameSir Nova 2 Lite (Bluetooth, modo PS4)",
+   "layout": "xbox",
+   "sdl_name": "Wireless Controller",
+   "guid": "05009b514c050000cc09000000810000",
+   "measured": "2026-11-07",
+   "retroarch": "ds4"
+  },
+  {
    "id": "xbox-one",
    "label": "Xbox One (Bluetooth)",
    "layout": "xbox",

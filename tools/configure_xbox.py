@@ -117,6 +117,11 @@ def connected_profile(registry,pads):
     return matches[0] if len(matches)==1 else None
 
 
+# Só bindings dependentes do modelo; não reaplica vídeo, cores ou preferências gerais. Hotkeys.ini
+# entrou em 07/11/2026: sem ele, trocar cabo↔Bluetooth deixava os atalhos do Dolphin no outro nome.
+AUTO_FILES={'GCPadNew.ini','WiimoteNew.ini','Hotkeys.ini','qt-config.ini'}
+
+
 def auto_profile(home,registry,pads,apply=False,running=None):
     home=Path(home);controller=connected_profile(registry,pads)
     if controller is None:return {'state':'preservado','reason':'nenhum controle único e medido'}
@@ -125,9 +130,7 @@ def auto_profile(home,registry,pads,apply=False,running=None):
     with lock.open('a') as handle:
         fcntl.flock(handle,fcntl.LOCK_EX)
         if running():return {'state':'preservado','reason':'emulador em execução'}
-        # Só bindings dependentes do modelo; não reaplica vídeo, cores ou preferências gerais.
-        wanted={'GCPadNew.ini','WiimoteNew.ini','qt-config.ini'}
-        changes={p:text for p,text in planned(home,controller,model_only=True).items() if p.name in wanted and p.read_text(encoding='utf-8')!=text}
+        changes={p:text for p,text in planned(home,controller,model_only=True).items() if p.name in AUTO_FILES and p.read_text(encoding='utf-8')!=text}
         originals={p:p.read_text(encoding='utf-8') for p in changes}
         if running():return {'state':'preservado','reason':'emulador em execução'}
         backup=home/'.local/state/pyretro/controller-backups'/datetime.now().strftime('%Y%m%d-%H%M%S-%f')

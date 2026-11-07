@@ -14,7 +14,12 @@
 - Modo TV mostra letras Xbox para o Nova pelo cabo (nome antigo "Sony Computer Entertainment" com o
   PID do DS4 v2). Home abre o PyRetro; a falha da janela ao abrir pelo botão foi do serviço
   `pyretro-guide` (sem `WAYLAND_DISPLAY`), corrigido no setup-linux-bonesi.
-- 470 testes Python e 58 JS aprovados. Nenhum jogo aberto e nenhum estado criado ou carregado: os
+- Bluetooth medido como entrada própria (`gamesir-nova-2-lite-bt`: `Wireless Controller`,
+  `05009b514c050000cc09000000810000`); o `--auto` do lançador escolhe cabo ou Bluetooth e agora também
+  atualiza o `Hotkeys.ini` do Dolphin (antes os atalhos do Dolphin ficavam no nome da outra conexão).
+- Círculo (Screenshot) e M não geram evento algum no PC, nem como clique do touchpad: não podem ativar
+  atalhos. Alternativa: mapear um botão traseiro para View pelo app GameSir.
+- 471 testes Python e 58 JS aprovados. Nenhum jogo aberto e nenhum estado criado ou carregado: os
   atalhos novos ainda precisam de confirmação em jogo.
 
 ## 29/10/2026 (noite) — Sinopses dos Desejados

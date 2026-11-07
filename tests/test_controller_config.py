@@ -25,6 +25,11 @@ class TestControllerConfig(unittest.TestCase):
                 result=cx.auto_profile(home,{'controllers':[entry]},[pad],apply=True,running=lambda:False)
                 self.assertEqual(result['changed'],1);self.assertEqual(other.read_text(),'keep')
                 self.assertEqual(cx.auto_profile(home,{'controllers':[entry]},[pad],apply=True,running=lambda:False)['changed'],0)
+    def test_auto_follows_the_dolphin_hotkeys_device_too(self):
+        from tools import configure_xbox as cx
+        self.assertIn('Hotkeys.ini', cx.AUTO_FILES)
+        self.assertNotIn('retroarch.cfg', cx.AUTO_FILES, 'o lançador só roda --auto para GC/Wii/3DS')
+
     def test_multibind_keeps_keyboard_and_unknown_sections_idempotently(self):
         original = '[Pad1]\nCross = Keyboard/K\nOther = keep\n\n[GPU]\nAdapter = keep too\n'
         values = {'Cross': 'SDL-0/FaceSouth'}
@@ -59,7 +64,7 @@ class TestControllerRegistry(unittest.TestCase):
     def test_primary_is_gamesir_nova_2_lite_and_all_requested_controllers_are_listed(self):
         self.assertEqual(self.registry['primary'], 'gamesir-nova-2-lite')
         self.assertEqual({c['id'] for c in self.registry['controllers']},
-                         {'gamesir-nova-2-lite', 'xbox-one', 'xbox-series-s', 'galileo-g8', 'wgp16-nova-ii'})
+                         {'gamesir-nova-2-lite', 'gamesir-nova-2-lite-bt', 'xbox-one', 'xbox-series-s', 'galileo-g8', 'wgp16-nova-ii'})
         self.assertEqual(self.cx.dolphin_device(self.cx.pick_controller(self.registry)),
                          'SDL/0/Sony Computer Entertainment Wireless Controller')
         self.assertEqual(self.cx.dolphin_device(self.cx.pick_controller(self.registry, 'xbox-one')), 'SDL/0/Xbox One S Controller')

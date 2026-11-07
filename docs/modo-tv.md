@@ -197,7 +197,14 @@ tenta o modo Xbox, a USB recusa e ele fica no **modo PS4** (luz branca; `054c:09
 `Sony Computer Entertainment Wireless Controller`), com vibração pelo driver `hid-playstation`. As
 letras físicas são de Xbox: o modo TV reconhece esse nome e mostra A/B/X/Y (por Bluetooth o nome é
 só `Wireless Controller`; use **Botões: Xbox** em Ferramentas). O Home abre o PyRetro como o Guide.
-Os botões de círculo e M são internos do GameSir e não chegam ao sistema.
+O registro tem duas entradas, porque nome e GUID mudam com a conexão: `gamesir-nova-2-lite` (cabo) e
+`gamesir-nova-2-lite-bt` (Bluetooth, nome `Wireless Controller`); o lançador escolhe sozinho pelo
+`--auto`, que desde 07/11 também atualiza o `Hotkeys.ini` do Dolphin. Os botões extras são do próprio
+GameSir e não chegam ao PC: o círculo é o **Screenshot** (Home+Screenshot entra em pareamento) e o M
+faz turbo (M + botão), hair trigger (M + LT/RT por 2 s) e zona morta. Não servem de ativador de
+atalhos. Os dois botões traseiros, configurados pelo app GameSir, só imitam outro botão ou uma macro;
+um deles mapeado para View vira ativador de atalhos sem mudar nada no PC. A chave dos gatilhos deixa
+LT/RT digitais (curso curto) ou analógicos; os emuladores aceitam os dois, e corrida pede analógico.
 
 O registro `assets/controllers/controllers.json` também lista Xbox One, Xbox Series S, Galileo G8 (no
 notebook) e WGP16 Nova II. Dependem do modelo o Dolphin (nome do dispositivo), o Azahar (GUID) e os
