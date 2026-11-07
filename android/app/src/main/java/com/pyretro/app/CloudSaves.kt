@@ -29,6 +29,9 @@ object CloudRules {
         return rel.split('/').none { it.isEmpty() || it=="." || it==".." || it in skipDirs || it.endsWith(PART) }
     }
 
+    /** Ações que o app pode aplicar sozinho (sem perguntar): nunca sobrescrevem versão diferente nem apagam arquivo. */
+    fun automatic(action:String)=action=="push" || action=="pull" || action=="same"
+
     /** 'none' | 'same' | 'push' | 'pull' | 'conflict'. Mesma tabela do notebook (`decide` em core/cloud_saves.py). */
     fun decide(local:String?,baseline:String?,heads:Set<String>):String {
         if(local==null)return if(heads.isEmpty())"none" else if(heads.size==1)"pull" else "conflict"

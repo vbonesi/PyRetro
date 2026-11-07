@@ -43,9 +43,9 @@ class CloudPhone(private val store:LibraryStore,private val sync:FileSync,privat
     /** Prévia por grupo; um grupo ilegível vira erro de texto, não derruba os outros. */
     fun analyze(filter:((String,String)->Boolean)?=null,includeSame:Boolean=false):Map<String,Result<List<CloudItem>>> = groups().associateWith { group -> runCatching { engine(group).plan(includeSame).filter { filter==null || filter(group,it.path) } } }
 
-    fun apply(only:Set<String>?=null,filter:((String,String)->Boolean)?=null):Map<String,Result<List<CloudResult>>> = groups().filter { only==null || it in only }.associateWith { group ->
+    fun apply(only:Set<String>?=null,filter:((String,String)->Boolean)?=null,safeOnly:Boolean=false):Map<String,Result<List<CloudResult>>> = groups().filter { only==null || it in only }.associateWith { group ->
         runCatching {
-            val engine=engine(group);val results=engine.apply(engine.plan().filter { filter==null || filter(group,it.path) })
+            val engine=engine(group);val results=engine.apply(engine.plan().filter { (filter==null || filter(group,it.path)) && (!safeOnly || CloudRules.automatic(it.action)) })
             val edit=prefs.edit().putString(baselineKey(group),JSONObject(engine.baseline as Map<*,*>).toString())
             if(results.all { it.ok && it.conflict==null })edit.putLong("at",System.currentTimeMillis())
             edit.apply()

@@ -108,7 +108,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     updateQueueStatus?.invoke();refreshStatusButton()
                 }
                 if(helper.completedAt>seenQueueCompletion) {
-                    seenQueueCompletion=helper.completedAt;reloadLocal { message("Download concluído. Escolha Jogar quando quiser abrir o jogo.") }
+                    seenQueueCompletion=helper.completedAt;val savesNote=store.prefs.getString("save-sync-note","").orEmpty();reloadLocal { message("Download concluído. Escolha Jogar quando quiser abrir o jogo."+if(savesNote.isNotBlank())" $savesNote" else "") }
                 }
             }.onFailure { queueBanner.visibility=View.VISIBLE;queueBanner.text="Fila indisponível · abrir Downloads para conferir" }
             queueHandler.postDelayed(this,500)
@@ -1689,6 +1689,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         super.onResume();queueHandler.removeCallbacks(queueTick);queueHandler.post(queueTick);if(scanOnResume) { scanOnResume=false;reloadLocal();probeNotebook();automaticUpdate() };val game=activeGame ?: return
         if(!leftForGame)return
         activeGame=null;leftForGame=false
+        // Voltou do jogo: envia os saves dele sem perguntar (conflito nunca é sobrescrito).
+        work.execute { runCatching { GameSaveSync.run(store,drive,game) }.getOrNull()?.takeIf { it.any }?.let { outcome -> runOnUiThread { message(outcome.text()) } } }
         val elapsed=(SystemClock.elapsedRealtime()-launchedAt)/60000
         if(elapsed<1)return
         val minutes=EditText(this).apply { inputType=android.text.InputType.TYPE_CLASS_NUMBER;setText(elapsed.coerceAtMost(1440).toString()) }

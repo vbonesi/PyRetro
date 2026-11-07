@@ -87,6 +87,9 @@ class DownloadQueue private constructor(private val store:LibraryStore) {
                         next.game.localUri=uri;SpaceStore(store).attachPin(next.game)
                         val playlist=PlaylistStore(store).afterChange(next.game.code)
                         update { it.copy(state=DownloadState.DONE,bytes=SpaceStore(store).stamp(uri).size ?: it.bytes,error=playlist) }
+                        // Baixou a ROM: traz/envia os saves dela agora (seguro, sem sobrescrever conflito). Falha aqui nunca derruba o download.
+                        val saves=runCatching { GameSaveSync.run(store,GoogleDrive(store.context,store.prefs),next.game)?.takeIf { it.any }?.text() }.getOrNull()
+                        store.prefs.edit().putString("save-sync-note",saves ?: "").apply()
                         completedAt=System.currentTimeMillis();store.prefs.edit().putLong("queue-completed-at",completedAt).apply()
                     } catch(error:Exception) {
                         val paused=stop.get() || error is ResumableCopy.Paused

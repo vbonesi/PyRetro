@@ -21,6 +21,18 @@ class CloudSavesTest {
     private val b=CloudSavesEngine(store,"celular",phone,now={ clock++ })
     private fun actions(e:CloudSavesEngine)=e.plan().associate { it.path to it.action }
 
+    @Test fun automaticApplyNeverTouchesConflicts() {
+        pc.put("x","1");a.apply();b.apply()
+        pc.put("x","2");phone.put("x","3");a.apply()
+        val items=b.plan();assertEquals("conflict",items.single { it.path=="x" }.action)
+        phone.put("y","novo")
+        val results=b.apply(b.plan().filter { CloudRules.automatic(it.action) })
+        assertEquals(listOf("y" to "push"),results.map { it.path to it.action })
+        assertEquals("3",String(phone.files.getValue("x")))
+        assertEquals("conflict",b.plan().single { it.path=="x" }.action)
+        assertTrue(CloudRules.automatic("pull") && !CloudRules.automatic("conflict") && !CloudRules.automatic("forget"))
+    }
+
     @Test fun decideTableMatchesTheNotebook() {
         val cases=listOf(
             listOf(null,null,setOf<String>(),"none"),listOf("a",null,setOf<String>(),"push"),listOf("a","a",setOf("a"),"same"),
