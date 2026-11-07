@@ -16,6 +16,8 @@
   abertura e passou para o fim do download do jogo (não roda com emulador aberto); ao fechar o jogo
   continua igual. Save novo do celular depois do download chega na próxima sincronização; se o PC jogar
   antes, vira conflito na tela de Saves, sem sobrescrever.
+- Modo TV mostra letras Xbox no Nova 2 Lite também pelo Bluetooth (`Wireless Controller` 054c:09cc, só ele
+  no registro); um DS4 de verdade usa "Botões: PlayStation".
 - 475 testes Python e 58 JS passaram.
 
 ## 07/11/2026 — GameSir Nova 2 Lite como controle principal do PC

@@ -26,6 +26,9 @@ try { glifoPref = localStorage.getItem("pyretro-glifos") || "auto"; } catch (_) 
 // antigo "Sony Computer Entertainment" e o PID 09cc do DS4 v2, combinação que o DS4 original não usa).
 function padFamily(id = "") {
   if (/sony computer entertainment wireless controller.*09cc/i.test(id)) return "xbox";
+  // Pelo Bluetooth o Nova 2 Lite vem sem fabricante no nome, igual a um DS4 v2; no registro esse nome
+  // só existe para ele (letras Xbox). Um DS4 de verdade usa "Botões: PlayStation" em Ferramentas.
+  if (/^wireless controller \(.*054c.*09cc/i.test(id)) return "xbox";
   return /054c|sony|dualshock|dualsense|wireless controller/i.test(id) ? "ps" : "xbox";
 }
 function glifos() { return GLIFOS[glifoPref === "auto" ? glifoDetectado : glifoPref] || GLIFOS.xbox; }

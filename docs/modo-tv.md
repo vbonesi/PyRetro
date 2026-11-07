@@ -198,7 +198,8 @@ Desde 07/11/2026 o controle principal do PC é o **GameSir Nova 2 Lite** (pelo c
 tenta o modo Xbox, a USB recusa e ele fica no **modo PS4** (luz branca; `054c:09cc`, nome SDL
 `Sony Computer Entertainment Wireless Controller`), com vibração pelo driver `hid-playstation`. As
 letras físicas são de Xbox: o modo TV reconhece esse nome e mostra A/B/X/Y (por Bluetooth o nome é
-só `Wireless Controller`; use **Botões: Xbox** em Ferramentas). O Home abre o PyRetro como o Guide.
+só `Wireless Controller`, também tratado como Xbox; um DualShock 4 de verdade pelo Bluetooth teria o
+mesmo nome e pede **Botões: PlayStation** em Ferramentas). O Home abre o PyRetro como o Guide.
 O registro tem duas entradas, porque nome e GUID mudam com a conexão: `gamesir-nova-2-lite` (cabo) e
 `gamesir-nova-2-lite-bt` (Bluetooth, nome `Wireless Controller`); o lançador escolhe sozinho pelo
 `--auto`, que desde 07/11 também atualiza o `Hotkeys.ini` do Dolphin. Os botões extras são do próprio
