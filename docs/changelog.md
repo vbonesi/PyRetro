@@ -1,5 +1,18 @@
 # Changelog
 
+## 07/11/2026 — Jogos voltam a abrir pelo modo TV; analógico direito rola a tela
+
+- **Corrigido: nenhum jogo abria pelo modo TV depois de ligar o PC.** O `pyretro-gui` sobe com o systemd
+  do usuário antes da sessão gráfica e ficava sem `WAYLAND_DISPLAY`/`DISPLAY`; o RetroArch herdava isso,
+  abria sem janela e fechava em ~2 s (achado com o KOF '97). `core/desktop_env.py` lê a tela atual em
+  `systemctl --user show-environment` a cada lançamento, usado por emuladores, apps da TV e jogos de PC.
+  Conferido pelo modo TV: o KOF '97 abriu. A espera antes de abrir é a sincronização de saves com a nuvem
+  (até 30 s), que já existia.
+- **Analógico direito no modo TV** rola na vertical e na horizontal a área em foco (ficha, ferramenta,
+  página, fileira de capas), com zona morta e velocidade pela inclinação. Pedido do Victor: a cruz só
+  mudava o foco e um texto comprido ficava sem como subir.
+- 473 testes Python e 58 JS passaram.
+
 ## 07/11/2026 — GameSir Nova 2 Lite como controle principal do PC
 
 - O Nova 2 Lite (23501-N2LITE) passa a ser o principal no registro de controles. Pelo cabo ele tenta o

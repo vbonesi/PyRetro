@@ -20,6 +20,8 @@ class TestPlay(unittest.TestCase):
         self.launcher.write_text('#!/bin/sh\nexit 0\n'); self.launcher.chmod(0o755)
         self.patch = patch.object(play, 'LAUNCHER', self.launcher)
         self.patch.start(); self.addCleanup(self.patch.stop)
+        env = patch.object(play, 'session_env', return_value={'WAYLAND_DISPLAY': 'wayland-1'})
+        env.start(); self.addCleanup(env.stop)
 
     def file(self, name, data=b'rom'):
         path = self.root / name
@@ -56,6 +58,8 @@ class TestPlay(unittest.TestCase):
             sessions = play.Sessions()
             self.assertEqual(sessions.start(self.cfg, 'PS2', rom.name)['status'], 'running')
             self.assertNotIn('shell', launch.call_args.kwargs)
+            # O servidor sobe antes da sessão gráfica: a tela vem do systemd a cada jogo.
+            self.assertEqual(launch.call_args.kwargs['env'], {'WAYLAND_DISPLAY': 'wayland-1'})
             with self.assertRaisesRegex(ValueError, 'já existe'):
                 sessions.start(self.cfg, 'PS2', rom.name)
             process.poll.return_value = 0

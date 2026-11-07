@@ -1549,6 +1549,23 @@ const RAW_PAD = {
   // índice padrão -> índice cru: A, B, X, Y, LB, RB, LT, RT, Back, Start
   buttons: {0: 0, 1: 1, 2: 3, 3: 4, 4: 6, 5: 7, 6: 8, 7: 9, 8: 10, 9: 11},
 };
+// Analógico direito: rola a área com foco (ficha, ferramenta, página, fileira de capas). A cruz só move o
+// foco entre botões; num texto comprido não havia como subir/descer (pedido de 07/11/2026).
+function stickScroll(value, ms) {
+  const dead = .25, magnitude = Math.abs(value);
+  if (magnitude <= dead) return 0;
+  return Math.sign(value) * ((magnitude - dead) / (1 - dead)) ** 1.5 * 1500 * Math.min(ms, 50) / 1000;
+}
+function scrollTarget(start = document.activeElement, horizontal = false) {
+  const [overflow, size, client] = horizontal ? ["overflowX", "scrollWidth", "clientWidth"] : ["overflowY", "scrollHeight", "clientHeight"];
+  const scrollable = el => /(auto|scroll)/.test(getComputedStyle(el)[overflow]) && el[size] > el[client] + 1;
+  for (let el = start; el && el !== document.body && el !== document.documentElement; el = el.parentElement)
+    if (scrollable(el)) return el;
+  const dialog = [...document.querySelectorAll("dialog[open]")].pop();
+  if (dialog) return [dialog, ...dialog.querySelectorAll("*")].find(scrollable) || dialog;
+  return document.scrollingElement || document.documentElement;
+}
+let lastPadFrame = null, scrollCarry = {x: 0, y: 0};
 function pollGamepad(now) {
   const pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false && p.buttons.length >= 10);
   const pad = pads.find(p => p.mapping === "standard") || pads[0];
@@ -1571,6 +1588,13 @@ function pollGamepad(now) {
     if (pressed(6)) keys.add("previous"); if (pressed(7)) keys.add("next");
     if (pressed(9)) keys.add("submit");
     if (!foreground || document.hidden || emulatorRunning) { held.clear(); awaitNeutral = true; requestAnimationFrame(pollGamepad); return; }
+    const frame = lastPadFrame == null ? 16 : now - lastPadFrame; lastPadFrame = now;
+    for (const [axis, index] of [["x", raw ? 3 : 2], ["y", raw ? 4 : 3]]) {
+      scrollCarry[axis] += stickScroll(pad.axes[index] || 0, frame);
+      if (Math.abs(scrollCarry[axis]) < 1) continue;
+      const step = Math.trunc(scrollCarry[axis]); scrollCarry[axis] -= step;
+      scrollTarget(document.activeElement, axis === "x").scrollBy({[axis === "x" ? "left" : "top"]: step, behavior: "instant"});
+    }
     if (awaitNeutral) { if (!keys.size) awaitNeutral = false; requestAnimationFrame(pollGamepad); return; }
     for (const k of keys) {
       if (!held.has(k)) { action(k); repeatAt.set(k, now + 380); }

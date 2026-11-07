@@ -11,6 +11,8 @@ import subprocess
 import threading
 import time
 
+from core.desktop_env import session_env
+
 SYSTEMS = {
     'FC': 'nes', 'SFC': 'snes', 'GB': 'gb', 'GBC': 'gbc', 'GBA': 'gba',
     'MD': 'megadrive', 'SMS': 'mastersystem', 'GG': 'gamegear', 'N64': 'n64',
@@ -237,7 +239,7 @@ class Sessions:
                 self._safe(self.before, cfg, code, name)
             # Sem shell e sem herdar stdin; os erros do lançador vão para o journal.
             raise_emulator_window()
-            process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, close_fds=True)
+            process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, close_fds=True, env=session_env())
             self.process = process
             self.started = time.monotonic()
             self.state = {'status': 'running', 'code': code, 'name': name,

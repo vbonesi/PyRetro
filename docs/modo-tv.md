@@ -18,6 +18,8 @@ Direcional ou analógico esquerdo navegam entre os botões e as capas. A confirm
 B volta. O mapeamento segue o padrão Gamepad do navegador; teclado também funciona
 com setas, Enter, Tab e Esc. Pressione um botão para o navegador reconhecer o controle.
 Y abre a busca com teclado na tela (X apaga, Menu confirma e B cancela).
+O analógico direito rola a área em foco (ficha, ferramenta, página ou fileira de capas), nas duas
+direções e mais rápido quanto mais inclinado; a cruz só troca o botão em foco.
 LB/RB pulam páginas da grade ou da fileira de capas; LT/RT trocam coleções. Page Up/Page Down também
 funcionam pelo teclado. **Início** reúne recentes, continuar jogando, favoritos,
 instalações Steam/Heroic e ROMs locais em fileiras, com destaque do jogo selecionado.

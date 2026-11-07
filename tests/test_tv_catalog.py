@@ -71,7 +71,8 @@ class TestTVCatalog(BaseAPI):
 
     def test_apps_launch_only_registered_id_and_fixed_argv(self):
         apps = {'exemplo': {'nome': 'Exemplo', 'comando': ['/usr/bin/exemplo', '--tv']}}
-        with patch.object(tv_apps, 'entries', return_value=apps), patch.object(tv_apps.subprocess, 'Popen') as launch:
+        with patch.object(tv_apps, 'entries', return_value=apps), patch.object(tv_apps, 'session_env', return_value={}), \
+                patch.object(tv_apps.subprocess, 'Popen') as launch:
             self.assertEqual(self.pedir('/api/tv/apps')[1], [{'id': 'exemplo', 'name': 'Exemplo', 'icon': '▣'}])
             self.assertEqual(self.pedir('/api/tv/apps/launch', {'id': 'exemplo', 'command': 'ignored'})[0], 200)
             self.assertEqual(launch.call_args.args[0], ['/usr/bin/exemplo', '--tv'])

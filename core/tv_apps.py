@@ -6,6 +6,8 @@ import ipaddress
 import json
 import threading
 
+from core.desktop_env import session_env
+
 REMOTES_PATH = Path(__file__).resolve().parent.parent / 'cache/tv_remotes.json'
 REMOTE_IDS = {'sysdvr', 'chiaki', 'greenlight'}
 _launch_lock = threading.Lock()
@@ -104,7 +106,8 @@ def launch(cfg, key):
                 except (OSError, subprocess.SubprocessError):
                     raise ValueError('não foi possível conferir se o cliente remoto já está aberto; tente novamente')
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                   stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+                                   stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True,
+                                   env=session_env())
         if key in REMOTE_IDS:
             _remote_processes[identity] = process
         return {'already_running': False}

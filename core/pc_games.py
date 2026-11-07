@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 from core import covers as covers_mod
+from core.desktop_env import session_env
 from core import library as library_mod
 
 STEAM_ROOTS = ('~/.var/app/com.valvesoftware.Steam/.local/share/Steam', '~/.local/share/Steam')
@@ -152,4 +153,5 @@ def launch(found):
     # Steam e Heroic entregam o pedido à instância aberta e retornam; não há
     # processo do jogo para acompanhar, então não vira sessão de emulador.
     subprocess.Popen(command(found), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+                     stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True,
+                     env=session_env())

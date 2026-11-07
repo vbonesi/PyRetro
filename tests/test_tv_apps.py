@@ -12,7 +12,7 @@ class TestRemoteLaunch(unittest.TestCase):
         self.command = ['flatpak', 'run', 'com.github.exelix11.sysdvr', 'bridge', '192.0.2.20', '--fullscreen']
         for target, kwargs in (
                 ('entries', {'return_value': {'sysdvr': {'comando': self.command}}}),
-                ('subprocess.run', {}), ('subprocess.Popen', {})):
+                ('subprocess.run', {}), ('subprocess.Popen', {}), ('session_env', {'return_value': {}})):
             mock = patch('core.tv_apps.' + target, **kwargs)
             setattr(self, target.split('.')[-1] + '_mock', mock.start())
             self.addCleanup(mock.stop)
