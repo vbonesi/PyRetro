@@ -1,5 +1,18 @@
 # Changelog
 
+## 07/11/2026 — Reposição das ROMs das coletâneas de Switch (lote 2)
+
+- 38 ROMs de Downloads conferidas pelo CRC (No-Intro e DAT do FBNeo) e enviadas ao Drive com o nome do cadastro,
+  conferidas byte a byte: 28 de NES/SNES/Mega Drive/Master System/Game Boy/GBA/Game Gear, 3 de Master System e 7 sets
+  de arcade (gradius, gradius2, gradius3, hcastle, mk, mk3, puyopuy2; os clones vieram completos). Catálogo do Drive
+  atualizado; os 38 aparecem ligados ao cadastro, com capa (copiada para a pasta de capas do sistema) e sinopse.
+- Sonic 2, Mean Bean Machine e Sonic Blast vieram de Master System: os cadastros passaram de Game Gear para Master System
+  (mesmo ID), com capa e data da versão de Master System. O Sonic 1 de Master System já existia; saiu o cadastro de Game Gear.
+- Victor desistiu dos arcades não encontrados: saíram Puyo Puyo, Contra, Super Contra, Salamander, Life Force,
+  Ultimate Mortal Kombat 3, Wonder Boy e Wonder Boy III: Monster Lair (sem progresso). mk4 não roda no FBNeo.
+- Saves automáticos de teste do KOF '97 apagados (estado automático e `.fs` no PC, `.fs` no celular).
+- Backups em `~/Games/PyRetro/Backups/Reposicao 2026-11-07/`. Celular sincronizado (2.816 jogos).
+
 ## 07/11/2026 — Jogos voltam a abrir pelo modo TV; analógico direito rola a tela
 
 - **Corrigido: nenhum jogo abria pelo modo TV depois de ligar o PC.** O `pyretro-gui` sobe com o systemd
