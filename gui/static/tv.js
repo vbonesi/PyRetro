@@ -1031,6 +1031,10 @@ async function startPcGame(g) {
 async function startGame(g, name) {
   if (state.busy) return;
   state.busy = true;
+  // O servidor sincroniza os saves com a nuvem antes de abrir (até 30 s); sem aviso parecia que o A não
+  // tinha funcionado (07/11/2026).
+  const waiting = "Abrindo… sincronizando os saves com a nuvem antes (pode levar até 30 s).";
+  report(waiting, false, "play-status"); if (state.selected === g) report(waiting, false, "detail-status");
   try {
     const session = await api("/api/play/start", {code: g.code, name, ...(g.emulator ? {emulator: g.emulator} : {})});
     sessionGame = g; report(`Em jogo: ${g.name}. Ao sair, volte aqui para registrar progresso e nota.`, false, "play-status");

@@ -11,6 +11,9 @@
 - **Analógico direito no modo TV** rola na vertical e na horizontal a área em foco (ficha, ferramenta,
   página, fileira de capas), com zona morta e velocidade pela inclinação. Pedido do Victor: a cruz só
   mudava o foco e um texto comprido ficava sem como subir.
+- **Jogar avisa que está sincronizando.** O A funcionava, mas o jogo só abria 30 s depois: a sincronização
+  de saves com a nuvem antes de abrir (prévia sozinha ~15 s) batia o limite, sem nada na tela; o Menu
+  apertado depois coincidia com a abertura. Agora a ficha mostra "sincronizando os saves" na hora.
 - 473 testes Python e 58 JS passaram.
 
 ## 07/11/2026 — GameSir Nova 2 Lite como controle principal do PC
