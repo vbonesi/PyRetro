@@ -90,11 +90,9 @@ def status(config_path, example_path, home=None, flatpaks=None, remotes=None, wh
     steps.append({'id': 'cloud', 'label': 'Nuvem (Google Drive)', 'state': state, 'detail': detail, 'fixable': False})
     installed = _flatpaks(which=which) if flatpaks is None else set(flatpaks)
     programs = [(name, app, need) for name, app, need in PROGRAMS if app not in installed]
-    # PS1 abre no SwanStation (núcleo do RetroArch); o DuckStation é só a alternativa por jogo.
+    # PS1 abre no SwanStation (núcleo do RetroArch); o DuckStation saiu do PC em 08/11/2026.
     if not (home / SWANSTATION).is_file():
         programs.append(('Núcleo SwanStation do RetroArch (PS1)', '', True))
-    if not (home / 'AppImages/DuckStation-x64.AppImage').is_file():
-        programs.append(('DuckStation (alternativa para PS1)', '', False))
     if not which('bonisarch-emulator') and not (home / '.local/bin/bonisarch-emulator').is_file():
         programs.append(('Lançador de jogos (bonisarch-emulator)', '', True))
     required = [name for name, _app, need in programs if need]

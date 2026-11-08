@@ -7,7 +7,7 @@ TV para navegar pelo controle, abrir jogos e acessar transmissões dos consoles.
 
 Na manutenção, o script só mexe em duas coisas — a pasta sincronizada
 (`~/Drive/Jogos`, via Insync/Google Drive) e o celular Android via `adb`.
-Os comandos de manutenção não precisam que RetroArch, DuckStation, PCSX2 etc. estejam
+Os comandos de manutenção não precisam que RetroArch, PCSX2 etc. estejam
 instalados na máquina onde rodam, porque esses emuladores já foram configurados
 pra ler/escrever direto na pasta sincronizada. Isso é proposital: dá pra
 rodar o PyRetro de qualquer computador que tenha acesso à pasta e ao celular,
@@ -1082,7 +1082,7 @@ PyRetro/
 │   ├── memcard.py          # editor de memory card PS1/PS2 (ps1vmc-tool/ps2vmc-tool) - implementado e testado
 │   ├── serials.py          # serial -> nome do jogo (DAT de redump), usado por memcard.py/emu_saves.py - implementado e testado
 │   ├── emu_saves.py         # backup de save individualizado PPSSPP via adb - implementado e testado
-│   ├── texturas.py          # pacotes de textura HD (PCSX2, Dolphin, PPSSPP e DuckStation) - aba 🎨 Texturas
+│   ├── texturas.py          # pacotes de textura HD (PCSX2, Dolphin e PPSSPP; o PS1 saiu com o DuckStation) - aba 🎨 Texturas
 │   ├── sortear.py           # sorteio aleatorio (leve local + pesado via catalogo cacheado) - implementado
 │   ├── library.py           # biblioteca de jogos fora de ROM (lojas + planilha importada) - implementado
 │   └── adb.py              # wrapper de adb com retry - implementado

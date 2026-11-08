@@ -75,13 +75,14 @@ class TexturasTest(unittest.TestCase):
         with self.assertRaises(tx.TexturaErro):
             tx.extrair(z, self.dir / "out")
 
-    def test_ps1_usa_replacements_e_serial(self):
-        cfg = {"texturas": {"ps1": str(self.dir / "ps1")}}
-        p = {"id": "ps1-sles-00049", "sistema": "PS1", "id_jogo": "SLES-00049", "nome": "Rayman", "arquivo": "x.zip"}
-        z = _zip(self.dir / "p.zip", {"SLES-00049/vram-write-AB.png": "1"})
-        with mock.patch.object(tx, "CACHE_DIR", self.dir / "cache"):
-            tx.instalar(p, cfg, arquivo=z)
-        self.assertTrue((self.dir / "ps1/SLES-00049/replacements/vram-write-AB.png").is_file())
+    def test_ps1_nao_e_mais_alvo_de_texturas(self):
+        """O PS1 abre no SwanStation (RetroArch) e o DuckStation saiu do PC e do celular em 08/11/2026."""
+        self.assertNotIn("PS1", tx.sistemas_suportados())
+        self.assertNotIn("PS1", tx.sistemas_celular())
+        with self.assertRaises(tx.TexturaErro):
+            tx.pasta_base("PS1")
+        with self.assertRaises(tx.TexturaErro):
+            tx._cel_destino("PS1", "SLES-00049")
 
     def test_psp_usa_pasta_do_id_sem_replacements(self):
         p = {"id": "psp-ulus10000", "sistema": "PSP", "id_jogo": "ULUS10000", "nome": "Jogo", "arquivo": "x.zip"}
@@ -150,7 +151,7 @@ class TexturasTest(unittest.TestCase):
 class TexturasFontesTest(unittest.TestCase):
     """Índice de fontes externas (planilha): só casa com jogos da Biblioteca."""
     fontes = [
-        {"sistema": "PS1", "nome": "Castlevania: Symphony of the Night", "url": "https://gbatemp.net/a", "serial": "SLUS-00067"},
+        {"sistema": "PS1", "nome": "Castlevania: Symphony of the Night", "url": "https://gbatemp.net/a", "serial": "SLUS-00067"},  # sem alvo desde 08/11
         {"sistema": "PS2", "nome": "Need for Speed: Underground 2", "url": "https://gbatemp.net/b", "serial": ""},
         {"sistema": "PS2", "nome": "Need for Speed: Underground", "url": "https://gbatemp.net/c", "serial": ""},
         {"sistema": "GC", "nome": "Harry Potter & the Chamber of Secrets", "url": "https://gbatemp.net/d", "serial": ""},
@@ -168,8 +169,7 @@ class TexturasFontesTest(unittest.TestCase):
     def test_casa_por_nome_e_nome_alternativo_no_mesmo_sistema(self):
         r = tx.fontes_da_biblioteca(self.jogos, list(tx.PLATAFORMAS), self.fontes, self.catalogo)
         por = {f["url"]: f for f in r}
-        self.assertEqual(set(por), {"https://gbatemp.net/a", "https://gbatemp.net/b", "https://gbatemp.net/d", "https://gbatemp.net/e"})
-        self.assertEqual(por["https://gbatemp.net/a"]["id_jogo"], "SLUS-00067")
+        self.assertEqual(set(por), {"https://gbatemp.net/b", "https://gbatemp.net/d", "https://gbatemp.net/e"})  # PS1 não tem mais alvo
         self.assertEqual(por["https://gbatemp.net/b"]["id_jogo"], "SLUS-21065")  # veio do catálogo
         self.assertTrue(por["https://gbatemp.net/b"]["no_catalogo"])
         self.assertEqual(por["https://gbatemp.net/b"]["jogo"], "NFSU2")
@@ -177,7 +177,7 @@ class TexturasFontesTest(unittest.TestCase):
 
     def test_filtra_pelos_sistemas_do_alvo(self):
         r = tx.fontes_da_biblioteca(self.jogos, tx.sistemas_celular(), self.fontes, self.catalogo)
-        self.assertEqual({f["sistema"] for f in r}, {"PS1", "PSP"})
+        self.assertEqual({f["sistema"] for f in r}, {"PSP"})
 
     def test_indice_real_sem_pagos_e_so_https(self):
         fontes = tx.carregar_fontes()
@@ -242,7 +242,6 @@ class TexturasCelularTest(unittest.TestCase):
         self.addCleanup(c.stop)
 
     def test_destinos_do_celular(self):
-        self.assertTrue(tx._cel_destino("PS1", "SLES-00049").endswith("/textures/SLES-00049/replacements"))
         self.assertEqual(tx._cel_destino("PSP", "ULUS10307"), "/sdcard/Jogos/PSP/PSP/TEXTURES/ULUS10307")
         self.assertEqual(tx._cel_destino("3DS", "000400000008F800"), "/sdcard/Jogos/3DS/load/textures/000400000008F800")
         for sis, ruim in (("3DS", "../x"), ("3DS", "123"), ("PSP", "ULUS-10307"), ("GC", "G2MP01")):
@@ -276,9 +275,8 @@ class TexturasCelularTest(unittest.TestCase):
         self.assertIn("EnableVRAMWriteReplacements = true", t3)
 
     def test_set_loading_celular_cria_arquivo_que_nao_existe(self):
-        self.assertEqual(tx.set_loading_celular("PS1", "SLUS-00619"), "ligado")
-        self.assertIn("EnableVRAMWriteReplacements = true",
-                      self.remoto[tx._CEL_DUCK + "/gamesettings/SLUS-00619.ini"])
+        self.assertEqual(tx.set_loading_celular("PSP", "ULUS10307"), "ligado")
+        self.assertIn("ReplaceTextures = True", self.remoto[tx._CEL_INI_PSP])
         self.assertEqual(tx.set_loading_celular("3DS", "0004000000055D00"), "ligado")
         self.assertIn("custom_textures = 1", self.remoto[tx._CEL_INI_3DS])
 

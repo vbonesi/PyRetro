@@ -1,5 +1,22 @@
 # Changelog
 
+## 08/11/2026 — DuckStation removido do PC: PS1 só no RetroArch (PC e celular)
+
+- Pedido do Victor: poucos jogos de PS1 têm pacote de textura, então tudo fica no RetroArch/SwanStation e os atalhos que ele já domina. O que saiu do PC
+  foi para a **lixeira**: `~/AppImages/DuckStation-x64.AppImage`, `~/.local/share/duckstation`, o atalho do menu e o ícone; `settings.ini`,
+  `playtime.dat` e o atalho ficaram em `~/Games/PyRetro/Backups/DuckStation PC 2026-11-08/`. Os memory cards e estados em `Saves/PS1-DuckStation` foram
+  mantidos (há saves de jogos que não estão na biblioteca, como Yu-Gi-Oh!, Crash 3 e Driver).
+- PyRetro: o PS1 não tem mais alternativa de emulador (`core/play.py`), o DuckStation saiu dos apps da TV (`core/tv_apps.py`) e das capas
+  (`core/capas_emuladores.py`; o job passou a se chamar "Capas do PyRetro no PCSX2 e Dolphin"), o assistente de primeiros passos não o cobra mais
+  (`core/firstrun.py`), a aba **Texturas** deixou de oferecer PS1 no PC e no celular (o catálogo nunca teve pacote de PS1; as 58 fontes de fórum
+  ficam escondidas) e o exemplo `[memcards.ps1]` aponta para `.srm` do RetroArch. 477 testes Python e 58 de JavaScript passam.
+- Setup (`setup-linux-bonesi`): saíram `step_duckstation`, o ícone e o tratamento do DuckStation em `install-emulator-library.py`; 214 testes. Correção à parte:
+  o plano do `install-emulator-extras.py` propunha devolver ao Azahar o acesso à pasta antiga do Drive porque o link `sdmc` apontava para uma pasta inexistente
+  do acervo novo; agora ele só recria a pasta (aplicado: `~/Games/PyRetro/Saves/Lime3DS/sdmc`).
+- O preset CRT global (crt-royale) fica valendo para o PS1 no PC, por decisão do Victor. No celular ele também está ativo: os backups da configuração
+  dele (07/11) têm `video_shader_enable = "true"` e `global.slangp` com o crt-royale, e o log do Castlevania de hoje mostrou os passes do shader sendo compilados.
+- Pendente para o próximo APK: o aviso "DuckStation guarda texturas em Android/data..." na ficha de jogos de PS do app já não faz sentido.
+
 ## 08/11/2026 — PS1 do PC no RetroArch/SwanStation (mesmo princípio do celular)
 
 - Pedido do Victor: o PS1 do PC passa a abrir no RetroArch com o SwanStation, como no celular, com as mesmas escolhas do DuckStation.

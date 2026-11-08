@@ -4,8 +4,7 @@ dentro dos emuladores, sem copiar nada: tudo vira symlink para a pasta de
 capas, então uma capa nova ou trocada no PyRetro aparece sozinha. (O ES-DE saiu
 do PC em 22/10/2026; o modo TV do PyRetro é o frontend.)
 
-  DuckStation  covers/<nome-da-ROM>.<ext>        (um link por ROM que existe)
-  PCSX2        covers/<nome-da-ROM>.<ext>        (idem; convive com as capas que
+  PCSX2        covers/<nome-da-ROM>.<ext>        (um link por ROM que existe; convive com as capas que
                o próprio PCSX2 baixou, nomeadas pelo serial)
   Dolphin      cache/GameCovers/<ID DE 6 LETRAS>.png (o ID vem do cabeçalho da ROM;
                só .iso e .wbfs - os outros formatos ficam de fora e são avisados)
@@ -16,7 +15,6 @@ import re
 from pathlib import Path
 
 HOME = Path.home()
-DUCKSTATION_COVERS = HOME / ".local/share/duckstation/covers"
 PCSX2_COVERS = HOME / ".var/app/net.pcsx2.PCSX2/config/PCSX2/covers"
 DOLPHIN_COVERS = HOME / ".var/app/org.DolphinEmu.dolphin-emu/cache/dolphin-emu/GameCovers"
 EXTS_CAPA = (".png", ".jpg", ".jpeg", ".webp")
@@ -180,6 +178,5 @@ def plano_dolphin(cfg: dict, apply: bool, pasta: Path = DOLPHIN_COVERS) -> list[
 
 def plano(cfg: dict, apply: bool) -> list[dict]:
     """Relatório (e, com apply, criação) dos links de capa para todos os destinos."""
-    return (_por_rom(cfg, "PS", DUCKSTATION_COVERS, "DuckStation", apply)
-            + _por_rom(cfg, "PS2", PCSX2_COVERS, "PCSX2", apply, serial_ps2)
+    return (_por_rom(cfg, "PS2", PCSX2_COVERS, "PCSX2", apply, serial_ps2)
             + plano_dolphin(cfg, apply))

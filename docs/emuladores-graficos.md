@@ -22,7 +22,7 @@ fica nítido na TV por HDMI). Nada de opção que custa muito e quase não apare
 
 | Sistema | Emulador | Antes | Agora |
 |---|---|---|---|
-| PS1 | **RetroArch / SwanStation** desde 08/11/2026 (era DuckStation; ver a seção "PS1 no RetroArch/SwanStation" abaixo) | — | Mesmas escolhas do DuckStation (5x, PGXP, true color, 16:9 com hack de widescreen) nas opções do núcleo; o DuckStation segue como alternativa por jogo. Config antiga do DuckStation, que continua valendo para ele: Vulkan **fixado na RTX** (`[GPU] Adapter`), **5x** (1200p), PGXP (geometria/textura/cor + culling), true color sem dithering, suavização de croma em FMV, FMV forçado 4:3, deinterlace adaptativo, VSync |
+| PS1 | **RetroArch / SwanStation** desde 08/11/2026 (era DuckStation, **removido do PC** no mesmo dia; ver a seção "PS1 no RetroArch/SwanStation" abaixo) | — | Mesmas escolhas do DuckStation (5x, PGXP, true color, 16:9 com hack de widescreen) nas opções do núcleo. Config que o DuckStation tinha (histórico; cópia em `Backups/DuckStation PC 2026-11-08/`): Vulkan **fixado na RTX** (`[GPU] Adapter`), **5x** (1200p), PGXP (geometria/textura/cor + culling), true color sem dithering, suavização de croma em FMV, FMV forçado 4:3, deinterlace adaptativo, VSync |
 | PS2 | PCSX2 (Flatpak) | 1x nativo, renderer automático, sem VSync | Vulkan **fixado na RTX** (`Adapter`; vazio caía na Intel, ver NFSU2 abaixo), **3x** (~1344p), anisotrópico 16x, CAS só nitidez (40), VSync, **patches de widescreen e de remover entrelaçamento** ligados |
 | GC / Wii | Dolphin (Flatpak) | padrão de fábrica (1x) | Vulkan, **3x** (1584p/1440p), MSAA 2x, anisotrópico 16x, detecção de mipmap arbitrário, shaders assíncronos (ubershaders) + pré-compilação no início, VSync |
 | PSP | PPSSPP (Flatpak) | sem `ppsspp.ini` (nunca aberto) | Vulkan, **5x** (1360p), anisotrópico 16x, filtragem 2D inteligente, VSync, tela cheia |
@@ -107,7 +107,7 @@ contados pelo `dumpsys SurfaceFlinger --latency`, intervalo mediano de 16,6 ms, 
 | PCSX2 | `~/.var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini` | Não |
 | Dolphin | `~/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/{Dolphin,GFX}.ini` | Não. `Saves/Dolphin/Config` no Drive é o espelho do **celular**; o Flatpak do PC enxerga o Drive só como leitura |
 | PPSSPP | `~/.var/app/org.ppsspp.PPSSPP/config/ppsspp/PSP/SYSTEM/ppsspp.ini` | Não. `Saves/PPSSPP/SYSTEM` é o espelho do celular |
-| DuckStation | `~/.local/share/duckstation/settings.ini` | Não (memory cards e save states sim, em `Saves/PS1-DuckStation`) |
+| ~~DuckStation~~ | removido em 08/11/2026 (`settings.ini` guardado em `Backups/DuckStation PC 2026-11-08/`) | Os memory cards e estados antigos seguem em `Saves/PS1-DuckStation` |
 
 Saves e states do RetroArch ficam soltos em `Saves/saves` e `Saves/states`, sem subpasta
 por núcleo, no PC e no celular (`sort_savefiles_enable` e `sort_savestates_enable` =
@@ -143,12 +143,12 @@ para conferir o resultado (abrir/fechar regrava o `.state.auto`). Para desfazer:
 ## PS1 no RetroArch/SwanStation (08/11/2026)
 
 Pedido do Victor, depois do celular: o PS1 passa a abrir no RetroArch com o núcleo SwanStation (fork do DuckStation), com
-as mesmas escolhas visuais. No celular o DuckStation foi desinstalado (só abria o menu: sem "acesso a todos os arquivos" ele
-não carrega o disco). No PC ele continua instalado como alternativa por jogo.
+as mesmas escolhas visuais. O DuckStation foi **desinstalado do celular** (só abria o menu: sem "acesso a todos os arquivos" ele
+não carrega o disco) e **removido do PC** (decisão do Victor: poucos jogos de PS1 têm pacote de textura, então tudo fica no RetroArch).
+O AppImage, `~/.local/share/duckstation`, o atalho do menu e o ícone foram para a lixeira; os saves ficaram.
 
-- **Lançador:** `bonisarch-emulator psx` → `flatpak run org.libretro.RetroArch -f -L swanstation_libretro.so <ROM>`; `psx-duckstation`
-  abre o AppImage. No PyRetro, "Padrão do sistema" é o SwanStation e a lista de emuladores do PS1 oferece "DuckStation"
-  (`core/play.py`, `STANDALONE`; só aparece se o AppImage existir). Setup: `tools/bonisarch-emulator.py`.
+- **Lançador:** `bonisarch-emulator psx` → `flatpak run org.libretro.RetroArch -f -L swanstation_libretro.so <ROM>`. Não há mais
+  alternativa avulsa para o PS1 no PyRetro. Setup: `tools/bonisarch-emulator.py`.
 - **Núcleo e BIOS:** `swanstation_libretro.so` do buildbot oficial do libretro (zip de 1,5 MB, build de 07/11/2026, sem pilha
   executável) em `.../retroarch/cores/`; `scph5500/5501/5502.bin` copiadas de `BIOS/PS1` para `BIOS/RetroArch` (MD5 iguais aos
   do arquivo de informações do núcleo). `tools/install-emulator-extras.py` do setup faz tudo isso e é idempotente.
@@ -181,9 +181,12 @@ não carrega o disco). No PC ele continua instalado como alternativa por jogo.
   `~/.local/state/bonisarch/backups/ps1-retroarch-20261108-102952/`.
 - **O que não é equivalente:** o preset CRT global (`config/global.slangp`, crt-royale) vale para o PS1 também; sem rewind nem run-ahead
   (o núcleo se declara `savestate_features = "basic"`); o SwanStation é um fork antigo, sem as correções e recursos novos do
-  DuckStation; a aba **Texturas** do PyRetro (PS1) e o editor de cartões seguem apontando para o DuckStation.
-- **Voltar ao DuckStation como padrão:** no lançador (`tools/bonisarch-emulator.py` do setup), tirar `'psx': 'swanstation'` de `CORES`
-  e voltar `'psx-duckstation'` para `'psx'` em `standalone`; reinstalar em `~/.local/bin/bonisarch-emulator`.
+  DuckStation. **Texturas de PS1 não têm mais destino**: a aba Texturas do PyRetro (PC e celular) deixou de oferecer PS1 (o catálogo
+  não tinha nenhum pacote de PS1; só as 58 fontes de fórum, que ficam escondidas). O editor de cartões lista o que estiver em
+  `[memcards.ps1]` do `config.toml` (o exemplo agora aponta para `Saves/saves/PS/<jogo>.srm`; os `.mcd` do DuckStation podem continuar na lista).
+- **Para voltar ao DuckStation (não recomendado):** baixar o AppImage de github.com/stenzek/duckstation (o passo `step_duckstation` do setup foi
+  removido), restaurar o `settings.ini` de `Backups/DuckStation PC 2026-11-08/` e, no lançador do setup, trocar `'psx': 'swanstation'` de
+  `CORES` por `'psx': [AppImage, '-batch', '-fullscreen', rom]` em `standalone`. Os itens da lixeira ainda podem ser restaurados.
 
 ## Backup e como desfazer
 

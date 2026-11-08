@@ -145,7 +145,7 @@ descartável; o `deletefile` vai para a lixeira, não apaga de vez) e `[rclone] 
 - Cópia verificada (418 arquivos) e **todos os 405 conteúdos distintos já estão na nuvem**
   (`drive:Jogos/PyRetro-Nuvem/saves`, 0 erros). Nada diferia entre o Drive e a cópia no momento da troca.
 - Aplicado (setup `install-emulator-library.py --saves`, cópia em `~/.local/state/bonisarch/backups/paths-20261028-202843`):
-  RetroArch (saves/states), DuckStation, PCSX2 e o link do sdmc do Azahar apontam para `~/Games/PyRetro/Saves`.
+  RetroArch (saves/states), DuckStation (removido em 08/11/2026; os saves dele seguem em `Saves/PS1-DuckStation`), PCSX2 e o link do sdmc do Azahar apontam para `~/Games/PyRetro/Saves`.
   Dolphin e PPSSPP usam as próprias pastas de dados (nada a trocar).
 - PyRetro: `[storage] migrated` inclui `saves`; `memcards.*` do `config.toml` apontam para a pasta nova.
 - **Falta (Victor):** abrir um jogo com save em cada emulador e conferir que o save aparece em

@@ -940,7 +940,7 @@ def run_heavy_download_job(job_id: str, code: str, name: str) -> None:
 # baixando o mesmo pacote de GB ao mesmo tempo.
 _texturas_em_andamento: set = set()
 _texturas_lock = threading.Lock()
-_TEXTURAS_PASTA_ROM = {"PS1": "PS", "PS2": "PS2", "GC": "NGC", "WII": "WII", "PSP": "PSP", "3DS": "3DS"}
+_TEXTURAS_PASTA_ROM = {"PS2": "PS2", "GC": "NGC", "WII": "WII", "PSP": "PSP", "3DS": "3DS"}
 _TEXTURAS_EXTS = (".zip", ".7z", ".rar")
 
 
@@ -1463,7 +1463,7 @@ def run_heavy_catalog_job(emit) -> None:
 
 
 def run_capas_emuladores_job(emit, apply: bool) -> None:
-    """Liga as capas do PyRetro ao DuckStation, PCSX2 e Dolphin (symlinks)."""
+    """Liga as capas do PyRetro ao PCSX2 e Dolphin (symlinks)."""
     contagem: dict = {}
     for a in capas_emu_mod.plano(load_config(), apply):
         contagem[a["estado"]] = contagem.get(a["estado"], 0) + 1

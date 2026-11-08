@@ -689,7 +689,7 @@ async function applyCover(g, item, source) {
 }
 // 🎨 Texturas no PC: pacotes do catálogo deste sistema com nome parecido; instalar baixa e
 // extrai como na web (/api/texturas/instalar). Importar arquivo ou link continua na web.
-const TEXTURE_SYSTEMS = {PS: "PS1", PS2: "PS2", NGC: "GC", WII: "WII", PSP: "PSP"};
+const TEXTURE_SYSTEMS = {PS2: "PS2", NGC: "GC", WII: "WII", PSP: "PSP"};
 const looseName = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\(.*?\)|\[.*?\]/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
 // 2 = mesmo nome (sem região/pontuação) ou serial; 1 = um nome começa pelo outro; 0 = outro jogo.
 function textureMatch(pack, g) {
@@ -1422,7 +1422,7 @@ async function toolCovers(body) {
       choice(state.light.map(s => [s.code, s.code]), light.code, v => light.code = v), choice([["0", "Normal"], ["launchbox", "LaunchBox"], ["screenscraper", "ScreenScraper"]], light.fallback, v => light.fallback = v))}),
     jobRow("ROMs pesadas: atualizar o catálogo do Drive", "/api/heavy_catalog", {apply: false}),
     jobRow("ROMs pesadas: buscar capas", a => q("/api/heavy/fetch_covers", {code: heavy.code}, a), {extra: choice(state.systems.map(s => [s.code, s.code]), heavy.code, v => heavy.code = v)}),
-    jobRow("Capas do PyRetro no DuckStation, PCSX2 e Dolphin", a => q("/api/capas_emuladores", {}, a)));
+    jobRow("Capas do PyRetro no PCSX2 e Dolphin", a => q("/api/capas_emuladores", {}, a)));
 }
 async function toolMaintenance(body) {
   const o = {config: "all", sanitize: "all", playlist: state.light[0]?.code || "", playlistTarget: "all", sync: "all"};

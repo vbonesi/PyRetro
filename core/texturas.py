@@ -12,7 +12,7 @@ o PyRetro instalou (dumps e pacotes manuais ficam intactos).
 Pastas de destino (confirmadas em 16/10/2026 só para o PCSX2 - NFS Underground 2,
 SLUS-21065, com troca de textura vista em jogo; Dolphin e PPSSPP seguem a
 convenção documentada deles e ainda NÃO foram testados aqui):
-  PS1   textures/<SERIAL>/replacements/     (DuckStation; troca "vram-write-<hash>.png")
+  (PS1 saiu em 08/11/2026: o PS1 abre no SwanStation, do RetroArch, e o DuckStation foi removido do PC e do celular)
   PS2   textures/<SERIAL>/replacements/     (PCSX2, Flatpak)
   GC/Wii Load/Textures/<ID DE 6 LETRAS>/    (Dolphin, Flatpak)
   PSP   PSP/TEXTURES/<ID DO DISCO>/         (PPSSPP, Flatpak)
@@ -43,15 +43,13 @@ EXTENSOES = (".zip", ".7z", ".rar")
 
 _FLATPAK = Path.home() / ".var/app"
 _PADRAO = {
-    "PS1": Path.home() / ".local/share/duckstation/textures",
     "PS2": _FLATPAK / "net.pcsx2.PCSX2/config/PCSX2/textures",
     "GC": _FLATPAK / "org.DolphinEmu.dolphin-emu/data/dolphin-emu/Load/Textures",
     "WII": _FLATPAK / "org.DolphinEmu.dolphin-emu/data/dolphin-emu/Load/Textures",
     "PSP": _FLATPAK / "org.ppsspp.PPSSPP/config/ppsspp/PSP/TEXTURES",
 }
-_PROCESSO = {"PS1": "DuckStation-x64", "PS2": "pcsx2-qt", "GC": "dolphin-emu", "WII": "dolphin-emu", "PSP": "PPSSPPSDL"}
+_PROCESSO = {"PS2": "pcsx2-qt", "GC": "dolphin-emu", "WII": "dolphin-emu", "PSP": "PPSSPPSDL"}
 _ID_JOGO = {
-    "PS1": re.compile(r"^[A-Z]{4}-\d{5}$"),
     "PS2": re.compile(r"^[A-Z]{4}-\d{5}$"),
     "GC": re.compile(r"^[A-Z0-9]{6}$"),
     "WII": re.compile(r"^[A-Z0-9]{6}$"),
@@ -96,7 +94,7 @@ def pasta_jogo(sistema: str, id_jogo: str, cfg: dict | None = None) -> Path:
 
 def _destino_arquivos(sistema: str, id_jogo: str, cfg: dict | None) -> Path:
     base = pasta_jogo(sistema, id_jogo, cfg)
-    return base / "replacements" if sistema in ("PS1", "PS2") else base
+    return base / "replacements" if sistema == "PS2" else base
 
 
 def estado(pacote: dict, cfg: dict | None = None) -> dict:
@@ -311,7 +309,7 @@ def instalar_de_pasta(extraido: Path, sistema: str, id_jogo: str, pacote_id: str
     Devolve quantos arquivos foram copiados."""
     destino = _destino_arquivos(sistema, id_jogo, cfg)
     raiz = _achar_raiz(extraido, id_jogo)
-    if sistema in ("PS1", "PS2") and (raiz / "replacements").is_dir():
+    if sistema == "PS2" and (raiz / "replacements").is_dir():
         raiz = raiz / "replacements"
     copiados = []
     destino.mkdir(parents=True, exist_ok=True)
@@ -394,8 +392,6 @@ def emulador_aberto(sistema: str) -> bool:
 
 
 _CHAVES = {
-    "PS1": ("~/.local/share/duckstation/settings.ini", "TextureReplacements",
-            "EnableVRAMWriteReplacements", "true"),
     "PS2": ("~/.var/app/net.pcsx2.PCSX2/config/PCSX2/inis/PCSX2.ini", "EmuCore/GS",
             "LoadTextureReplacements", "true"),
     "GC": ("~/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu/GFX.ini", "Settings",
@@ -462,7 +458,6 @@ def tem_rom(pacote: dict, nomes_rom: list[str]) -> bool:
 # da Biblioteca, e a instalação vai pela importação local (arquivo baixado à mão).
 # ---------------------------------------------------------------------------
 PLATAFORMAS = {
-    "PS1": ("Sony - PlayStation", "PlayStation"),
     "PS2": ("Sony - PlayStation 2", "PlayStation 2"),
     "PSP": ("Sony - PSP",),
     "GC": ("Nintendo - GameCube",),
@@ -474,7 +469,8 @@ PLATAFORMAS = {
 def carregar_fontes(path: Path = FONTES_PATH) -> list[dict]:
     if not path.is_file():
         return []
-    return json.loads(path.read_text(encoding="utf-8"))["fontes"]
+    # O índice vem pronto da planilha; só valem os sistemas que ainda têm alvo (o PS1 saiu em 08/11/2026).
+    return [f for f in json.loads(path.read_text(encoding="utf-8"))["fontes"] if f.get("sistema") in PLATAFORMAS]
 
 
 def _chave_nome(s: str) -> frozenset:
@@ -514,15 +510,10 @@ def fontes_da_biblioteca(jogos: list[dict], sistemas: list[str], fontes: list[di
 # Celular (Android, via adb). Mesma ideia do PC: copia as texturas para a pasta
 # do emulador e grava um manifesto. Pastas confirmadas por `adb shell ls` em
 # 16/10/2026; a troca de textura em jogo no celular AINDA NÃO foi testada.
-#   PS1  DuckStation  Android/data/com.github.stenzek.duckstation/files/textures/<SERIAL>/replacements
 #   PSP  PPSSPP Gold  /sdcard/Jogos/PSP/PSP/TEXTURES/<ID>
 #   3DS  Lime3DS      /sdcard/Jogos/3DS/load/textures/<TITLE ID DE 16 HEX>
-# O DuckStation do Android guarda o settings.ini na área privada do app, então a
-# opção "trocar texturas" vai por jogo, em gamesettings/<SERIAL>.ini.
 # ---------------------------------------------------------------------------
-_CEL_DUCK = "/sdcard/Android/data/com.github.stenzek.duckstation/files"
 _CELULAR = {
-    "PS1": _CEL_DUCK + "/textures",
     "PSP": "/sdcard/Jogos/PSP/PSP/TEXTURES",
     "3DS": "/sdcard/Jogos/3DS/load/textures",
 }
@@ -541,7 +532,7 @@ def _cel_destino(sistema: str, id_jogo: str) -> str:
     if not _CEL_ID[sistema].match(id_jogo or ""):
         raise TexturaErro(f"ID de jogo inválido para {sistema}: {id_jogo!r}")
     base = f"{_CELULAR[sistema]}/{id_jogo}"
-    return base + "/replacements" if sistema == "PS1" else base
+    return base
 
 
 def estado_celular(pacote: dict, serial: str | None = None) -> dict:
@@ -572,8 +563,6 @@ def instalar_celular(pacote: dict, serial: str | None = None, emit=None, arquivo
                 emit({"type": "progress", "status": "extraindo"})
             extrair(arquivo, Path(tmp))
             raiz = _achar_raiz(Path(tmp), id_jogo)
-            if sistema == "PS1" and (raiz / "replacements").is_dir():
-                raiz = raiz / "replacements"
             arquivos = [f.relative_to(raiz).as_posix() for f in sorted(raiz.rglob("*"))
                         if f.is_file() and not f.is_symlink() and f.name != MANIFESTO]
             if not arquivos:
@@ -639,12 +628,10 @@ def _ini_valor(texto: str, secao: str, chave: str, valor: str) -> tuple[str, boo
 
 def set_loading_celular(sistema: str, id_jogo: str, serial: str | None = None) -> str:
     """Liga a troca de textura no emulador do celular. Devolve 'ligado' ou 'ja_ligado'.
-    PS1: gamesettings/<SERIAL>.ini do DuckStation; PSP: ppsspp.ini; 3DS: config.ini do Lime3DS."""
+    PSP: ppsspp.ini; 3DS: config.ini do Lime3DS."""
     from core import adb as adb_mod
     _cel_destino(sistema, id_jogo)
-    if sistema == "PS1":
-        remoto, secao, chave, valor = f"{_CEL_DUCK}/gamesettings/{id_jogo}.ini", "TextureReplacements", "EnableVRAMWriteReplacements", "true"
-    elif sistema == "PSP":
+    if sistema == "PSP":
         remoto, secao, chave, valor = _CEL_INI_PSP, "Graphics", "ReplaceTextures", "True"
     else:
         remoto, secao, chave, valor = _CEL_INI_3DS, "Utility", "custom_textures", "1"

@@ -68,9 +68,6 @@ def entries(cfg):
             pass
         else:
             result['chiaki']['comando'] += ['--fullscreen', '--exit-app-on-stream-exit', 'stream', nickname, address]
-    duck = Path.home() / 'AppImages/DuckStation-x64.AppImage'
-    if duck.is_file():
-        result['duckstation'] = {'nome': 'DuckStation', 'icone': '🎮', 'comando': [str(duck), '-bigpicture', '-fullscreen']}
     for key, value in cfg.get('apps', {}).items():
         command = value.get('comando')
         if not isinstance(command, list) or not command or not all(isinstance(x, str) and x and '\0' not in x for x in command):

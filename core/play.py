@@ -22,21 +22,16 @@ SYSTEMS = {
 }
 LAUNCHER = Path.home() / '.local/bin/bonisarch-emulator'
 CORE_ROOT = Path.home() / '.var/app/org.libretro.RetroArch/config/retroarch/cores'
-# Somente alternativas compatíveis conhecidas, se o core já estiver instalado. O padrão do PS1 é o
-# SwanStation no RetroArch (desde 08/11/2026, como no celular); o DuckStation fica como alternativa.
+# Somente alternativas compatíveis conhecidas, se o core já estiver instalado. O PS1 abre só no
+# SwanStation (RetroArch), como no celular: o DuckStation saiu do PC em 08/11/2026.
 ALTERNATIVES = {'MD': {'picodrive': 'PicoDrive'}, 'SMS': {'picodrive': 'PicoDrive'},
                 'GG': {'picodrive': 'PicoDrive'}}
-# Emuladores avulsos: {sistema: {id: (nome, id do sistema no lançador, arquivo que prova a instalação)}}.
-STANDALONE = {'PS': {'duckstation': ('DuckStation', 'psx-duckstation',
-                                     Path.home() / 'AppImages/DuckStation-x64.AppImage')}}
 
 
 def emulators(code):
     return [{'id': '', 'name': 'Padrão do sistema'}, *[
         {'id': key, 'name': name} for key, name in ALTERNATIVES.get(code, {}).items()
-        if (CORE_ROOT / (key + '_libretro.so')).is_file()], *[
-        {'id': key, 'name': name} for key, (name, _system, exe) in STANDALONE.get(code, {}).items()
-        if exe.is_file()]]
+        if (CORE_ROOT / (key + '_libretro.so')).is_file()]]
 
 
 EMULATOR_CLASSES = ('retroarch', 'pcsx2', 'ppsspp', 'duckstation', 'dolphin', 'azahar')
@@ -189,13 +184,11 @@ def prepare(cfg, code, name, emulator=''):
     if emulator:
         if not isinstance(emulator, str) or emulator not in {g['id'] for g in emulators(code)}:
             raise ValueError('emulador alternativo não disponível neste sistema')
-        if emulator not in STANDALONE.get(code, {}):
-            return ['flatpak', 'run', 'org.libretro.RetroArch', '-f', '-L',
-                    str(CORE_ROOT / (emulator + '_libretro.so')), str(rom.resolve())]
+        return ['flatpak', 'run', 'org.libretro.RetroArch', '-f', '-L',
+                str(CORE_ROOT / (emulator + '_libretro.so')), str(rom.resolve())]
     if not LAUNCHER.is_file() or not os.access(LAUNCHER, os.X_OK):
         raise ValueError('lançador bonisarch-emulator não instalado')
-    system = STANDALONE[code][emulator][1] if emulator else SYSTEMS[code]
-    return [str(LAUNCHER), system, str(rom.resolve())]
+    return [str(LAUNCHER), SYSTEMS[code], str(rom.resolve())]
 
 
 class Sessions:

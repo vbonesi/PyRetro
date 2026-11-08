@@ -11,7 +11,7 @@ Decisão do Victor: **deixar de usar o Plasma Bigscreen** (modo TV do KDE). O Py
   `$XDG_RUNTIME_DIR/pyretro-tv.lock`). Classe da janela no KWin: `pyretro-tv`.
 - Apps abertos pela tela de apps, conferidos em 29/10 pelo KWin (todos `fs=true`, 1920×1080):
   Steam em Big Picture (`steam://open/bigpicture`), Heroic em Console Mode (`--console --fullscreen`),
-  PCSX2 e DuckStation em Big Picture (`-bigpicture -fullscreen`), PPSSPP (`--fullscreen`), RetroArch (`-f`).
+  PCSX2 em Big Picture (`-bigpicture -fullscreen`), PPSSPP (`--fullscreen`), RetroArch (`-f`). O DuckStation saiu do PC em 08/11/2026.
   Jogos abertos pelo PyRetro continuam passando pelo `bonisarch-emulator` (tela cheia por emulador).
   Dolphin e Azahar não têm modo sem jogo; abrem pela janela normal.
 

@@ -216,7 +216,7 @@ modo PS4 o índice 6 é o LT digital. Com os números do Xbox, LT virava o Back 
 carregava o estado no meio do jogo. `ds4` usa View=8, Menu=9, Y=2, X=3; `xpad` usa View=6, Menu=7.
 Como o lançador só reaplica Dolphin/Azahar (`--auto`), o RetroArch segue o último perfil aplicado
 explicitamente; os índices `ds4` num Xbox apenas mudam o "Back" dos atalhos para o Guide, sem conflito
-com os gatilhos. PCSX2, DuckStation e PPSSPP usam o mapeamento padrão do SDL. Com o controle conectado
+com os gatilhos. PCSX2 e PPSSPP usam o mapeamento padrão do SDL. Com o controle conectado
 (e só ele): `python3 tools/configure_xbox.py --detect` lista o que o SDL vê, `--learn <id>` mede e grava
 no registro, e `python3 tools/configure_xbox.py --controller <id> [--apply]` reaplica o perfil para ele
 (emuladores fechados; sem `--controller`, usa o principal). Entrada sem medida recusa em vez de chutar
@@ -231,14 +231,14 @@ o nome.
 | Back + X | Captura de tela |
 | Back + → | Acelerar (segurar no Dolphin; alternar nos demais) |
 | Back + Start | Encerrar o jogo/emulador |
-| Back + Y | Menu de pausa no RetroArch, PCSX2, DuckStation e PPSSPP |
+| Back + Y | Menu de pausa no RetroArch, PCSX2 e PPSSPP |
 
 **3DS (Azahar), sem Back:** LT alterna Tela grande ↔ uma tela; RT troca qual tela aparece/é a grande.
 ZL/ZR do New 3DS ficam em L3/R3. No DS (melonDS) o RT já troca as telas.
 
 Guide fica livre para o Bigscreen. O script não aciona save/load; a validação
 inicial conferiu sintaxe oficial e acesso ao dispositivo nos quatro Flatpaks.
-DuckStation é AppImage e acessa o dispositivo diretamente. Confirmação física
+(O DuckStation, que era AppImage, saiu do PC em 08/11/2026; o PS1 abre no RetroArch.) Confirmação física
 nos jogos e Steam Link continua com o usuário. Não foram criados/carregados estados
 reais durante essa configuração.
 

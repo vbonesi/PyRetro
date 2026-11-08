@@ -84,21 +84,14 @@ class TestPlay(unittest.TestCase):
             core.unlink()
             with self.assertRaises(ValueError): play.prepare(self.cfg, 'MD', 'Jogo.md', 'picodrive')
 
-    def test_ps1_default_is_the_launcher_system_psx_and_duckstation_is_an_explicit_alternative(self):
+    def test_ps1_opens_only_through_the_launcher_system_psx(self):
+        """PS1 = SwanStation no RetroArch (o lançador decide); sem alternativa avulsa desde 08/11/2026."""
         self.file('PS/Jogo.chd')
-        duck = self.file('AppImages/DuckStation-x64.AppImage')
-        entry = ('DuckStation', 'psx-duckstation', duck)
-        with patch.dict(play.STANDALONE, {'PS': {'duckstation': entry}}):
-            self.assertEqual(play.prepare(self.cfg, 'PS', 'Jogo.chd'),
-                             [str(self.launcher), 'psx', str(self.root / 'PS/Jogo.chd')])
-            self.assertEqual(play.prepare(self.cfg, 'PS', 'Jogo.chd', 'duckstation'),
-                             [str(self.launcher), 'psx-duckstation', str(self.root / 'PS/Jogo.chd')])
-            self.assertEqual([g['id'] for g in play.emulators('PS')], ['', 'duckstation'])
-            with self.assertRaises(ValueError): play.prepare(self.cfg, 'PS', 'Jogo.chd', 'swanstation')
-            with self.assertRaises(ValueError): play.prepare(self.cfg, 'PS2', 'Jogo.chd', 'duckstation')
-            duck.unlink()
-            self.assertEqual([g['id'] for g in play.emulators('PS')], [''])
-            with self.assertRaises(ValueError): play.prepare(self.cfg, 'PS', 'Jogo.chd', 'duckstation')
+        self.assertEqual(play.prepare(self.cfg, 'PS', 'Jogo.chd'),
+                         [str(self.launcher), 'psx', str(self.root / 'PS/Jogo.chd')])
+        self.assertEqual([g['id'] for g in play.emulators('PS')], [''])
+        for other in ('duckstation', 'swanstation', 'psx-duckstation'):
+            with self.assertRaises(ValueError): play.prepare(self.cfg, 'PS', 'Jogo.chd', other)
 
     def test_emulator_failure_is_visible(self):
         self.file('PS2/Jogo.iso')
