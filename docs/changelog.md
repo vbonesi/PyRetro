@@ -11,8 +11,10 @@
   o celular casar mesmo quando o título do DAT difere do cadastro. Cadastrados 31 jogos que estavam no Drive sem registro
   (29 de 3DS em `.cci`, Mario Galaxy 2 e FF Crystal Chronicles - My Life as a King no Wii), com capa, gênero, desenvolvedora,
   lançamento (LaunchBox) e sinopse.
-- Resultado: catálogo do celular de 2.668 para 2.608 itens, sem duplicatas; PC sem item sem cadastro ou sem capa. Sobram só
-  Terranigma (`.sfc` e `.smc`) e Vagrant Story (`.cue` e `.chd`), duplicados no Drive, à espera da escolha do Victor.
+- Resultado: catálogo do celular de 2.668 para 2.608 itens, sem duplicatas; PC sem item sem cadastro ou sem capa. Terranigma e
+  Vagrant Story estavam duplicados no Drive; Victor escolheu manter `Terranigma.sfc` (tradução PT-BR) e `Vagrant Story.chd`.
+  `Terranigma.smc` (original em inglês), `Vagrant Story.cue` e `Vagrant Story.bin` foram para a lixeira do Drive (nenhuma
+  outra CUE usava o `.bin`); cache do catálogo do PC atualizado e réplica do catálogo do celular com zero itens "R".
 
 ## 07/11/2026 — Reposição das ROMs das coletâneas de Switch (lote 2)
 
