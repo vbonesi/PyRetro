@@ -22,7 +22,7 @@ fica nítido na TV por HDMI). Nada de opção que custa muito e quase não apare
 
 | Sistema | Emulador | Antes | Agora |
 |---|---|---|---|
-| PS1 | DuckStation (AppImage) | padrão de fábrica; **não iniciava jogo** pelo lançador | Vulkan **fixado na RTX** (`[GPU] Adapter`), **5x** (1200p), PGXP (geometria/textura/cor + culling), true color sem dithering, suavização de croma em FMV, FMV forçado 4:3, deinterlace adaptativo, VSync |
+| PS1 | **RetroArch / SwanStation** desde 08/11/2026 (era DuckStation; ver a seção "PS1 no RetroArch/SwanStation" abaixo) | — | Mesmas escolhas do DuckStation (5x, PGXP, true color, 16:9 com hack de widescreen) nas opções do núcleo; o DuckStation segue como alternativa por jogo. Config antiga do DuckStation, que continua valendo para ele: Vulkan **fixado na RTX** (`[GPU] Adapter`), **5x** (1200p), PGXP (geometria/textura/cor + culling), true color sem dithering, suavização de croma em FMV, FMV forçado 4:3, deinterlace adaptativo, VSync |
 | PS2 | PCSX2 (Flatpak) | 1x nativo, renderer automático, sem VSync | Vulkan **fixado na RTX** (`Adapter`; vazio caía na Intel, ver NFSU2 abaixo), **3x** (~1344p), anisotrópico 16x, CAS só nitidez (40), VSync, **patches de widescreen e de remover entrelaçamento** ligados |
 | GC / Wii | Dolphin (Flatpak) | padrão de fábrica (1x) | Vulkan, **3x** (1584p/1440p), MSAA 2x, anisotrópico 16x, detecção de mipmap arbitrário, shaders assíncronos (ubershaders) + pré-compilação no início, VSync |
 | PSP | PPSSPP (Flatpak) | sem `ppsspp.ini` (nunca aberto) | Vulkan, **5x** (1360p), anisotrópico 16x, filtragem 2D inteligente, VSync, tela cheia |
@@ -77,7 +77,7 @@ com adaptador vazio (`VulkanDevice =` no PPSSPP): não medi qual GPU eles usam; 
 
 | Sistema | PC | Celular (último espelho/backup) |
 |---|---|---|
-| PS1 | DuckStation 5x, PGXP completo | SwanStation (RetroArch) **1x**, PGXP desligado |
+| PS1 | SwanStation (RetroArch) **5x**, PGXP completo, fast boot (desde 08/11; antes DuckStation) | SwanStation (RetroArch) **1x**, PGXP desligado, fast boot (08/11) |
 | PS2 | PCSX2 3x + widescreen | NetherSX2 (config não espelhada) |
 | GC / Wii | Dolphin 3x, MSAA 2x, aniso 16x | Dolphin **3x**, Vulkan, sem MSAA (GFX.ini de 15/08) |
 | PSP | PPSSPP 5x (Vulkan), sem upscale de textura | PPSSPP **5x**, Vulkan, aniso 16x, **upscale de textura xBRZ 2x** |
@@ -125,7 +125,7 @@ mudou; mudou o enquadramento:
 | Onde | Antes | Agora |
 |---|---|---|
 | RetroArch (todos os núcleos) | `video_scale_integer = "true"`: 224 linhas viravam 896, com borda em volta | `"false"`: a imagem ocupa a altura inteira. 2D continua em 4:3 (esticar para 16:9 distorce) |
-| PS1 (DuckStation) | `AspectRatio = Auto (Game Native)` | `WidescreenHack = true` + `AspectRatio = 16:9`. O banco de jogos do DuckStation desliga o hack nos títulos conhecidos por quebrar; cenários pré-renderizados (Resident Evil, Final Fantasy) podem sair esticados: desligar por jogo |
+| PS1 (DuckStation; no SwanStation de 08/11 as mesmas opções) | `AspectRatio = Auto (Game Native)` | `WidescreenHack = true` + `AspectRatio = 16:9`. O banco de jogos do DuckStation desliga o hack nos títulos conhecidos por quebrar; cenários pré-renderizados (Resident Evil, Final Fantasy) podem sair esticados: desligar por jogo |
 | GameCube (Dolphin) | sem hack | `wideScreenHack = True` em `GFX.ini`. Pode cortar objetos nas bordas; desligar por jogo (Propriedades → Gráficos). Wii já saía em 16:9 pelo sistema |
 | Dreamcast (Flycast) | 4:3 | `reicast_widescreen_cheats = "enabled"`: 16:9 só nos jogos com correção conhecida. `reicast_widescreen_hack` ficou desligado (estica e corta nos demais) |
 | PS2 / N64 / PSP | já em widescreen (patches do PCSX2, GLideN64 "16:9 adjusted", PSP nativo) | sem mudança |
@@ -139,6 +139,51 @@ Cópia do antes: `auditoria/graficos-widescreen-20261107/` (privada).
 **Não aplicado:** Flycast (as opções de núcleo do Dreamcast ficam na área interna do RetroArch, sem acesso por `adb`; só existe `ARCADE.opt`
 por pasta), Dolphin/PS2 (não há Dolphin nem NetherSX2 instalados neste celular) e PPSSPP/DS/3DS (sem mudança no PC). Nenhum jogo foi aberto
 para conferir o resultado (abrir/fechar regrava o `.state.auto`). Para desfazer: copiar de volta os dois arquivos do backup com o RetroArch fechado.
+
+## PS1 no RetroArch/SwanStation (08/11/2026)
+
+Pedido do Victor, depois do celular: o PS1 passa a abrir no RetroArch com o núcleo SwanStation (fork do DuckStation), com
+as mesmas escolhas visuais. No celular o DuckStation foi desinstalado (só abria o menu: sem "acesso a todos os arquivos" ele
+não carrega o disco). No PC ele continua instalado como alternativa por jogo.
+
+- **Lançador:** `bonisarch-emulator psx` → `flatpak run org.libretro.RetroArch -f -L swanstation_libretro.so <ROM>`; `psx-duckstation`
+  abre o AppImage. No PyRetro, "Padrão do sistema" é o SwanStation e a lista de emuladores do PS1 oferece "DuckStation"
+  (`core/play.py`, `STANDALONE`; só aparece se o AppImage existir). Setup: `tools/bonisarch-emulator.py`.
+- **Núcleo e BIOS:** `swanstation_libretro.so` do buildbot oficial do libretro (zip de 1,5 MB, build de 07/11/2026, sem pilha
+  executável) em `.../retroarch/cores/`; `scph5500/5501/5502.bin` copiadas de `BIOS/PS1` para `BIOS/RetroArch` (MD5 iguais aos
+  do arquivo de informações do núcleo). `tools/install-emulator-extras.py` do setup faz tudo isso e é idempotente.
+- **Opções** (`config/SwanStation/SwanStation.opt`), na ordem do `settings.ini` do DuckStation do PC:
+
+| DuckStation | SwanStation |
+|---|---|
+| `ResolutionScale = 5` | `swanstation_GPU_ResolutionScale = "5"` (log: 1280×1195 = 5× de 256×239) |
+| PGXP geometria/textura/cor + culling | `swanstation_GPU_PGXPEnable/Culling/TextureCorrection/ColorCorrection = "true"` |
+| `TextureFilter = Nearest` | `swanstation_GPU_TextureFilter = "Nearest"` |
+| `WidescreenHack`, `AspectRatio = 16:9`, `Force4_3For24Bit` | `swanstation_GPU_WidescreenHack`, `swanstation_Display_AspectRatio = "16:9"`, `swanstation_Display_Force4_3For24Bit` |
+| `ChromaSmoothing24Bit = true` | `swanstation_GPU_ChromaSmoothing24Bit = "true"` |
+| `DitheringMode = TrueColor` | `swanstation_GPU_TrueColor = "true"` |
+| `DeinterlacingMode = Adaptive` | `swanstation_GPU_DisableInterlacing = "true"` (o SwanStation não tem o adaptativo) |
+| `EnableVRAMWriteReplacements = true` | igual (a pasta de texturas é outra; ver abaixo) |
+| `Renderer = Vulkan` + `Adapter` RTX | `Auto`: segue o driver Vulkan do RetroArch (log: "Renderer = Vulkan"); a RTX vem do PRIME do lançador |
+| (padrão) | `swanstation_BIOS_PatchFastBoot = "true"`: a BIOS japonesa não passava do menu com o Castlevania PT-BR (SLPM-86023) no SwanStation; o DuckStation passava |
+
+- **Controle:** `config/remaps/SwanStation/PS.rmp` (remap da pasta `ROMs/PS`): controle 1 como DualShock (`261`) e
+  `input_player1_analog_dpad_mode = "0"`, para o analógico continuar analógico como no DuckStation (com `"1"` o RetroArch deixa
+  de mandá-lo ao jogo; o remap do celular continua com `"1"`). Atalhos: os do RetroArch por driver (`configure_xbox.py`), os mesmos
+  do DuckStation (Back+LB salva, Back+RB carrega, Back+Start sai).
+- **Saves:** cartão de memória em `Saves/saves/PS/<jogo>.srm` (128 KB brutos, o mesmo formato do `.mcd`; pasta igual à do
+  celular, então a sincronização do PyRetro trata como qualquer save do RetroArch). Migrado o Gran Turismo 2: cópia do `Mcd001.mcd`
+  de 16/10 (dois saves do GT2). Castlevania e Toy Story Racer não tinham saves nos cartões. Os cartões e estados do DuckStation
+  ficam intactos em `Saves/PS1-DuckStation`; **estados do DuckStation não abrem no SwanStation**.
+- **Teste (08/11, com a tela bloqueada, por `--max-frames` + `--max-frames-ss` e saves/estados numa pasta descartável):**
+  Castlevania (tradução PT-BR) chega ao título em 16:9; GT2 abre em NTSC-U (BIOS 5501), mostra "Memory Card 1 / Loading Save Data" e
+  o `.srm` volta idêntico (MD5) depois de o núcleo carregá-lo. Cópia do `PS.rmp` e do `retroarch.cfg` de antes em
+  `~/.local/state/bonisarch/backups/ps1-retroarch-20261108-102952/`.
+- **O que não é equivalente:** o preset CRT global (`config/global.slangp`, crt-royale) vale para o PS1 também; sem rewind nem run-ahead
+  (o núcleo se declara `savestate_features = "basic"`); o SwanStation é um fork antigo, sem as correções e recursos novos do
+  DuckStation; a aba **Texturas** do PyRetro (PS1) e o editor de cartões seguem apontando para o DuckStation.
+- **Voltar ao DuckStation como padrão:** no lançador (`tools/bonisarch-emulator.py` do setup), tirar `'psx': 'swanstation'` de `CORES`
+  e voltar `'psx-duckstation'` para `'psx'` em `standalone`; reinstalar em `~/.local/bin/bonisarch-emulator`.
 
 ## Backup e como desfazer
 

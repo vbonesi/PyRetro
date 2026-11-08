@@ -67,9 +67,19 @@ class FirstRun(unittest.TestCase):
 
     def test_so_loja_ausente_e_opcional(self):
         firstrun.apply(self.config, EXAMPLE)
-        (self.home / 'AppImages').mkdir(); (self.home / 'AppImages/DuckStation-x64.AppImage').write_bytes(b'')
+        core = self.home / firstrun.SWANSTATION
+        core.parent.mkdir(parents=True); core.write_bytes(b'')
         step = {s['id']: s for s in self.status(flatpaks=ALL - {'org.freedesktop.fake', 'com.heroicgameslauncher.hgl'})['steps']}['programs']
         self.assertEqual(step['state'], 'optional')
+        self.assertIn('DuckStation (alternativa para PS1)', step['detail'])  # opcional: não derruba o estado
+
+    def test_ps1_exige_o_nucleo_swanstation_e_nao_mais_o_duckstation(self):
+        firstrun.apply(self.config, EXAMPLE)
+        (self.home / 'AppImages').mkdir(); (self.home / 'AppImages/DuckStation-x64.AppImage').write_bytes(b'')
+        step = {s['id']: s for s in self.status(flatpaks=ALL)['steps']}['programs']
+        self.assertEqual(step['state'], 'missing')
+        self.assertIn('Núcleo SwanStation do RetroArch (PS1)', step['detail'])
+        self.assertNotIn('DuckStation', step['detail'])
 
     def test_nuvem_so_cobra_quando_configurada(self):
         firstrun.apply(self.config, EXAMPLE)

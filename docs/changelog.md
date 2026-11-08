@@ -1,5 +1,24 @@
 # Changelog
 
+## 08/11/2026 — PS1 do PC no RetroArch/SwanStation (mesmo princípio do celular)
+
+- Pedido do Victor: o PS1 do PC passa a abrir no RetroArch com o SwanStation, como no celular, com as mesmas escolhas do DuckStation.
+  `bonisarch-emulator psx` agora usa o núcleo `swanstation` e `psx-duckstation` abre o AppImage; no PyRetro o "Padrão do sistema" do PS1
+  é o SwanStation e a lista de emuladores oferece "DuckStation" por jogo (`core/play.py` `STANDALONE`; testes novos em `test_play.py`).
+  O assistente de primeiros passos (`core/firstrun.py`) passou a exigir o núcleo SwanStation e trata o DuckStation como opcional.
+- Instalado no PC (com autorização do Victor para o download): núcleo `swanstation_libretro.so` do buildbot oficial (1,5 MB; ELF x86-64,
+  `GNU_STACK RW`), BIOS `scph5500/5501/5502.bin` copiadas de `BIOS/PS1` para `BIOS/RetroArch`, `SwanStation.opt` com as opções
+  equivalentes (5x, PGXP, true color, 16:9 + widescreen, fast boot) e `PS.rmp` com o analógico como analógico. Detalhes e a tabela
+  DuckStation → SwanStation em `docs/emuladores-graficos.md`.
+- Saves: o Gran Turismo 2 (único jogo do PC com progresso) foi copiado do `Mcd001.mcd` do DuckStation para `Saves/saves/PS/Gran Turismo 2.srm`
+  (cartão bruto de 128 KB, mesmo formato). Originais intactos; estados do DuckStation não migram.
+- Teste real no PC (tela bloqueada, por `--max-frames` + captura do RetroArch, saves/estados numa pasta descartável): Castlevania PT-BR chega
+  ao título em 16:9 e o GT2 abre, lê o cartão migrado ("Loading Save Data") e o devolve idêntico. Não testei com controle nem em gameplay.
+- Desvantagens conhecidas: SwanStation é um fork antigo do DuckStation (sem rewind/run-ahead, deinterlace adaptativo e correções novas), o preset
+  CRT global do RetroArch vale para o PS1, e a aba Texturas e o editor de cartões do PyRetro ainda apontam para o DuckStation.
+- Setup: `setup-linux-bonesi` ganhou o mesmo (lançador, `install-emulator-extras.py`, testes, docs). Achado à parte: o link `sdmc` do Azahar
+  aponta para `~/Games/PyRetro/Saves/Lime3DS/sdmc`, que não existe; não mexi.
+
 ## 08/11/2026 — Android 0.25.4: foco do controle reescrito e PS1 no RetroArch
 
 - Navegação por controle (G8): o direcional e o analógico passam a escolher o próximo botão pela posição na tela
