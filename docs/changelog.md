@@ -1,5 +1,29 @@
 # Changelog
 
+## 08/11/2026 — Android 0.25.4: foco do controle reescrito e PS1 no RetroArch
+
+- Navegação por controle (G8): o direcional e o analógico passam a escolher o próximo botão pela posição na tela
+  (`padNavigate`), em vez da busca de foco do Android. Antes, Sortear e Estatísticas (fora da vista na fileira de abas)
+  só abriam por toque, o direcional parava com o campo de pesquisa selecionado e o pop-up Filtro não respondia.
+  Agora: as abas, Sortear e Estatísticas são alcançadas; na pesquisa o direcional sai do campo e o A abre o teclado do
+  controle; Filtro e os demais diálogos navegam. Esquerda/direita só andam na mesma linha. Uma trava única (60/110/180 ms)
+  garante um passo por toque mesmo se o controle mandar tecla e eixo juntos, e, depois de tocar na tela, o analógico deixa
+  o sistema sair do modo toque.
+- Teste no S24 Ultra com eventos simulados (`adb shell input gamepad keyevent`; o G8 não estava no celular) e o foco lido
+  pelo `uiautomator`: abas → Sortear/Estatísticas, pesquisa ↔ grade, teclado do controle, Filtro, Estatísticas e Situação.
+  A trava única e o analógico em modo toque foram compilados, mas não rodados no aparelho. **Falta homologar com o G8 físico.**
+- PS1 continua no RetroArch/SwanStation. O DuckStation do celular só abre jogo por caminho de arquivo e exige "Acesso a todos
+  os arquivos"; com endereço de conteúdo (do arquivo ou da pasta) ele abre sem o disco, e o switch dessa permissão ficou
+  travado no aparelho do Victor. O botão "Abrir DuckStation" só aparece se ele estiver instalado.
+- Castlevania (SLPM-86023, tradução PT-BR do japonês) parava no menu da BIOS no SwanStation. Os arquivos de BIOS estavam
+  certos (scph5500/5501/5502, MD5 iguais aos do DuckStation); o disco iniciava com `swanstation_BIOS_PatchFastBoot = "true"`
+  (valor no `SwanStation.opt` do celular, vale para todo PS1). O estado automático antigo, gravado na tela da BIOS a cada 10 s,
+  foi movido para `states/Backup/` no celular. Observação: há um preset de shader CRT (crt-royale) global no RetroArch do celular.
+- Backup do DuckStation do celular em `Backups/DuckStation celular 2026-11-08` (Drive): cartões com nome (idênticos aos do PC),
+  capas, tempo de jogo, estado automático antigo do Castlevania e as opções do SwanStation e do RetroArch de antes.
+  **O DuckStation não foi desinstalado:** `Mcd001/002.mcd` e os estados `*_resume.sav`/`*_0.sav` do celular pertencem só ao
+  app (o `adb` não lê) e não existem no PC nem no Drive; o app não sincroniza DuckStation.
+
 ## 07/11/2026 — Android 0.25.3: fim das capas "R" no catálogo do celular
 
 - O "R" é o logo mostrado quando o app não liga um arquivo do Drive a um cadastro. Causas corrigidas no `CloudCatalog`:

@@ -9,6 +9,7 @@ import android.content.pm.ActivityInfo
 import android.hardware.input.InputManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.ConnectivityManager
@@ -187,6 +188,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             dialog=opened;opened.setOnDismissListener { if(dialog===opened) { dialog=null;updateLocalStatus=null;updateQueueStatus=null } }
             opened.setOnKeyListener { _,code,event ->
                 when(code) {
+                    KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_LEFT,KeyEvent.KEYCODE_DPAD_RIGHT ->
+                        event.action==KeyEvent.ACTION_DOWN && opened.currentFocus !is ListView && (!navReady(if(event.repeatCount>0)110L else 60L) || padNavigate(opened.window?.decorView,code))
                     KeyEvent.KEYCODE_BUTTON_A -> {
                         if(event.action==KeyEvent.ACTION_DOWN && event.repeatCount==0) {
                             val list=opened.listView;val focused=opened.currentFocus
@@ -642,7 +645,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         add(box,button("Espaço") { append(" ") });add(box,button("Apagar") { if(input.length()>0)input.text.delete(input.length()-1,input.length()) })
         val opened=show(AlertDialog.Builder(this).setView(box).setPositiveButton("Pesquisar") { _,_ -> search.setText(input.text.toString()) }.setNegativeButton("Voltar",null))
         opened.setOnKeyListener { _,code,event ->
-            if(code !in setOf(KeyEvent.KEYCODE_BUTTON_A,KeyEvent.KEYCODE_BUTTON_B,KeyEvent.KEYCODE_BUTTON_X,KeyEvent.KEYCODE_BUTTON_START))false
+            if(code in setOf(KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_LEFT,KeyEvent.KEYCODE_DPAD_RIGHT))event.action==KeyEvent.ACTION_DOWN && (!navReady(if(event.repeatCount>0)110L else 60L) || padNavigate(opened.window?.decorView,code))
+            else if(code !in setOf(KeyEvent.KEYCODE_BUTTON_A,KeyEvent.KEYCODE_BUTTON_B,KeyEvent.KEYCODE_BUTTON_X,KeyEvent.KEYCODE_BUTTON_START))false
             else {
                 if(event.action==KeyEvent.ACTION_DOWN && event.repeatCount==0)when(code) {
                     KeyEvent.KEYCODE_BUTTON_A -> opened.currentFocus?.performClick()
@@ -789,7 +793,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         progress.addView(text("$minutes min neste celular · ${sessions/60} min em sessões compartilhadas na Biblioteca. Novas sessões sincronizam pela nuvem.",12f))
         val more=expandable(box,"Mais opções")
         if(rom && game.pcLocal && game.code !in setOf("NDS","3DS"))add(more,button("🖥 Jogar no notebook · Moonlight") { dialog?.dismiss();notebook(game) })
-        if(game.code=="PS")add(more,button("Abrir DuckStation · escolher jogo") { dialog?.dismiss();openPackage("com.github.stenzek.duckstation") })
+        if(game.code=="PS" && packageManager.getLaunchIntentForPackage("com.github.stenzek.duckstation")!=null)add(more,button("Abrir DuckStation · escolher jogo") { dialog?.dismiss();openPackage("com.github.stenzek.duckstation") })
         if(rom) {
             add(more,button("Usar outra ROM deste celular") { dialog?.dismiss();pickRom(game,false) })
             add(more,button("Escolher o arquivo no Drive") { driveSearch(game) })
@@ -1619,20 +1623,25 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     val target=listOf("org.ppsspp.ppssppgold","org.ppsspp.ppsspp").firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null } ?: error("PPSSPP não encontrado.")
                     Intent(Intent.ACTION_VIEW).setPackage(target).setDataAndType(uri,"application/octet-stream")
                 }
-                else -> {
-                    val pkg=listOf("com.retroarch","com.retroarch.aarch64").firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null } ?: error("RetroArch não encontrado.")
-                    val id=DocumentsContract.getDocumentId(uri);val parts=id.split(':',limit=2)
-                    require(uri.authority=="com.android.externalstorage.documents" && parts.size==2) { "Copie a ROM para uma pasta do armazenamento interno antes de abrir no RetroArch." }
-                    val path=(if(parts[0]=="primary")"/storage/emulated/0/" else "/storage/${parts[0]}/")+parts[1]
-                    val core=coreId(game.code)
-                    val target=packageManager.getApplicationInfo(pkg,0)
-                    Intent().setComponent(ComponentName(pkg,"com.retroarch.browser.retroactivity.RetroActivityFuture")).putExtra("ROM",path).putExtra("LIBRETRO","${target.dataDir}/cores/${core}_libretro_android.so").putExtra("CONFIGFILE","/storage/emulated/0/Android/data/$pkg/files/retroarch.cfg")
-                }
+                else -> retroArchIntent(game,uri)
             }
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);intent.clipData=ClipData.newRawUri("ROM",uri)
             activeGame=game;launchedAt=SystemClock.elapsedRealtime();leftForGame=false;startActivity(intent)
             store.prefs.edit().putLong("played:${game.key}",System.currentTimeMillis()).apply() // fileira Recentes do Início
         } catch(error:Exception) { activeGame=null;failure(error) }
+    }
+    /** Caminho real do arquivo (armazenamento interno ou cartão) a partir do endereço do seletor de pastas. */
+    private fun filePath(uri:Uri):String {
+        val parts=DocumentsContract.getDocumentId(uri).split(':',limit=2)
+        require(uri.authority=="com.android.externalstorage.documents" && parts.size==2) { "Copie a ROM para uma pasta do armazenamento interno antes de abrir no emulador." }
+        return (if(parts[0]=="primary")"/storage/emulated/0/" else "/storage/${parts[0]}/")+parts[1]
+    }
+    private fun retroArchIntent(game:Game,uri:Uri):Intent {
+        val pkg=listOf("com.retroarch","com.retroarch.aarch64").firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null } ?: error("RetroArch não encontrado.")
+        val path=filePath(uri)
+        val core=coreId(game.code)
+        val target=packageManager.getApplicationInfo(pkg,0)
+        return Intent().setComponent(ComponentName(pkg,"com.retroarch.browser.retroactivity.RetroActivityFuture")).putExtra("ROM",path).putExtra("LIBRETRO","${target.dataDir}/cores/${core}_libretro_android.so").putExtra("CONFIGFILE","/storage/emulated/0/Android/data/$pkg/files/retroarch.cfg")
     }
     private fun notebook(game:Game) {
         show(AlertDialog.Builder(this).setTitle("Jogar no notebook").setMessage("Iniciar o jogo no notebook e abrir o Moonlight? Você escolhe o computador no Moonlight. Essa opção precisa de conexão; os jogos locais continuam offline.").setNegativeButton("Só Moonlight") { _,_ -> openPackage("com.limelight") }.setPositiveButton("Iniciar no PC") { _,_ ->
@@ -1711,6 +1720,58 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         show(AlertDialog.Builder(this).setTitle("Registrar tempo de ${game.name}?").setMessage("Confirme os minutos que jogou. O tempo em outros apps pode estar incluído.").setView(minutes).setNegativeButton("Descartar",null)
             .setNeutralButton("Salvar e ver saves") { _,_ -> if(save())gameSaves(game) }.setPositiveButton("Salvar") { _,_ -> save() })
     }
+    private fun isDpad(code:Int)=code==KeyEvent.KEYCODE_DPAD_UP || code==KeyEvent.KEYCODE_DPAD_DOWN || code==KeyEvent.KEYCODE_DPAD_LEFT || code==KeyEvent.KEYCODE_DPAD_RIGHT
+    private fun fromPad(event:KeyEvent)=event.source and (InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK)!=0
+    override fun dispatchKeyEvent(event:KeyEvent):Boolean {
+        if(dialog==null && event.action==KeyEvent.ACTION_DOWN && !pageRoot.isInTouchMode) {
+            val focused=currentFocus
+            // Na pesquisa, o campo de texto (e o teclado) comem o direcional: o controle sempre navega.
+            if(isDpad(event.keyCode) && (focused !is EditText || fromPad(event) || event.keyCode==KeyEvent.KEYCODE_DPAD_UP || event.keyCode==KeyEvent.KEYCODE_DPAD_DOWN)) {
+                if(focused is EditText)(getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(focused.windowToken,0)
+                if(!navReady(if(event.repeatCount>0)110L else 60L))return true
+                if(gridMove(event.keyCode) || padNavigate(pageRoot,event.keyCode))return true
+            }
+            if(focused===search && event.keyCode==KeyEvent.KEYCODE_BUTTON_A && fromPad(event)) { if(event.repeatCount==0)controllerSearch();return true }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+    /** Um passo por vez: se o controle manda tecla e eixo juntos para o mesmo toque, só o primeiro vale. */
+    private fun navReady(gap:Long):Boolean { val now=SystemClock.elapsedRealtime();if(now-lastMotion<gap)return false;lastMotion=now;return true }
+    /** Foco por geometria (ignora recortes de rolagem): alcança as abas ocultas à direita, Sortear, Estatísticas e os botões de diálogos. */
+    private fun padNavigate(root:View?,code:Int):Boolean {
+        root ?: return false
+        val items=ArrayList<View>();collectFocusable(root,items)
+        if(items.isEmpty())return false
+        val current=root.findFocus()?.takeIf { it in items }
+        val target=if(current==null) (collectionButtons[collection]?.takeIf { it in items && root===pageRoot } ?: items.first())
+        else {
+            val c=boundsOf(current);var best:View?=null;var bestScore=Long.MAX_VALUE
+            for(view in items) {
+                if(view===current)continue
+                val r=boundsOf(view)
+                val ahead=when(code) { KeyEvent.KEYCODE_DPAD_RIGHT -> r.centerX()>c.centerX() && r.right>c.right;KeyEvent.KEYCODE_DPAD_LEFT -> r.centerX()<c.centerX() && r.left<c.left
+                    KeyEvent.KEYCODE_DPAD_DOWN -> r.centerY()>c.centerY() && r.bottom>c.bottom;else -> r.centerY()<c.centerY() && r.top<c.top }
+                if(!ahead)continue
+                // Esquerda/direita só andam na mesma linha; entre linhas é com cima/baixo.
+                if((code==KeyEvent.KEYCODE_DPAD_LEFT || code==KeyEvent.KEYCODE_DPAD_RIGHT) && (r.top>=c.bottom || r.bottom<=c.top))continue
+                val horizontal=code==KeyEvent.KEYCODE_DPAD_LEFT || code==KeyEvent.KEYCODE_DPAD_RIGHT
+                val major=(if(horizontal) (if(code==KeyEvent.KEYCODE_DPAD_RIGHT)r.left-c.right else c.left-r.right) else (if(code==KeyEvent.KEYCODE_DPAD_DOWN)r.top-c.bottom else c.top-r.bottom)).let { if(it>0)it else (if(horizontal)Math.abs(r.centerX()-c.centerX()) else Math.abs(r.centerY()-c.centerY())) }.toLong()
+                val minor=(if(horizontal)Math.abs(r.centerY()-c.centerY()) else Math.abs(r.centerX()-c.centerX())).toLong()
+                val score=13*major*major+minor*minor
+                if(score<bestScore) { bestScore=score;best=view }
+            }
+            best ?: return true
+        }
+        target.requestFocus();target.requestRectangleOnScreen(Rect(0,0,target.width,target.height),false)
+        return true
+    }
+    private fun boundsOf(view:View):Rect { val at=IntArray(2);view.getLocationOnScreen(at);return Rect(at[0],at[1],at[0]+view.width,at[1]+view.height) }
+    private fun collectFocusable(view:View,out:MutableList<View>) {
+        if(view.visibility!=View.VISIBLE)return
+        val container=view is ScrollView || view is HorizontalScrollView || view is AbsListView
+        if(!container && view.isFocusable && view.isEnabled && view.width>0 && view.height>0)out.add(view)
+        if(view is ViewGroup && view.descendantFocusability!=ViewGroup.FOCUS_BLOCK_DESCENDANTS)for(index in 0 until view.childCount)collectFocusable(view.getChildAt(index),out)
+    }
     override fun onKeyDown(keyCode:Int,event:KeyEvent):Boolean {
         if(event.repeatCount>0 && keyCode in setOf(KeyEvent.KEYCODE_BUTTON_A,KeyEvent.KEYCODE_BUTTON_X,KeyEvent.KEYCODE_BUTTON_START))return true
         if(keyCode in setOf(KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_LEFT,KeyEvent.KEYCODE_DPAD_RIGHT) && gridMove(keyCode))return true
@@ -1736,17 +1797,16 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             if(lt && !leftTrigger)changeCollection(-1)
             if(rt && !rightTrigger)changeCollection(1)
             leftTrigger=lt;rightTrigger=rt
-            val now=SystemClock.elapsedRealtime();if(now-lastMotion<180)return true
             val x=event.getAxisValue(MotionEvent.AXIS_X)+event.getAxisValue(MotionEvent.AXIS_HAT_X)
             val y=event.getAxisValue(MotionEvent.AXIS_Y)+event.getAxisValue(MotionEvent.AXIS_HAT_Y)
-            if(focused is ListView && (x>.55 || x<-.55 || y>.55 || y<-.55)) {
-                val code=when { y>.55 -> KeyEvent.KEYCODE_DPAD_DOWN;y<-.55 -> KeyEvent.KEYCODE_DPAD_UP;x>.55 -> KeyEvent.KEYCODE_DPAD_RIGHT;else -> KeyEvent.KEYCODE_DPAD_LEFT }
-                lastMotion=now;focused.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code));focused.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code));return true
-            }
-            val moveCode=when { x>.55 -> KeyEvent.KEYCODE_DPAD_RIGHT;x<-.55 -> KeyEvent.KEYCODE_DPAD_LEFT;y>.55 -> KeyEvent.KEYCODE_DPAD_DOWN;y<-.55 -> KeyEvent.KEYCODE_DPAD_UP;else -> 0 }
-            if(moveCode!=0 && gridMove(moveCode)) { lastMotion=now;return true }
-            val next=when { x>.55 -> focused?.focusSearch(View.FOCUS_RIGHT);x<-.55 -> focused?.focusSearch(View.FOCUS_LEFT);y>.55 -> focused?.focusSearch(View.FOCUS_DOWN);y<-.55 -> focused?.focusSearch(View.FOCUS_UP);else -> return false }
-            lastMotion=now;next?.requestFocus() ?: pageRoot.requestFocus(View.FOCUS_DOWN);return true
+            val moveCode=when { y>.55 -> KeyEvent.KEYCODE_DPAD_DOWN;y<-.55 -> KeyEvent.KEYCODE_DPAD_UP;x>.55 -> KeyEvent.KEYCODE_DPAD_RIGHT;x<-.55 -> KeyEvent.KEYCODE_DPAD_LEFT;else -> return false }
+            val root=dialog?.window?.decorView ?: pageRoot
+            // Depois de um toque na tela o Android está em modo toque: deixa o sistema virar o eixo em tecla, o que o tira desse modo.
+            if(root.isInTouchMode)return false
+            if(!navReady(180))return true
+            if(focused is ListView) { focused.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,moveCode));focused.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,moveCode));return true }
+            if(!(dialog==null && gridMove(moveCode)))padNavigate(root,moveCode)
+            return true
         }
         return false
     }
