@@ -3,21 +3,108 @@
 Estado atual e próximos passos do PyRetro. Histórico detalhado (bugs
 achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
-pronto" (resumo) e "o que vem a seguir". Atualizado em 28/10/2026.
+pronto" (resumo) e "o que vem a seguir". Atualizado em 09/11/2026.
 
-## Estado em 28/10/2026
+## Estado em 09/11/2026
 
-- Android **0.14.0 (code 22)** instalado. Consumidor CUE/M3U (0.13.0), saves pelo Drive,
-  Organizar a partir dos Downloads e conta Google estão implementados; falta homologar no
-  aparelho G8, atalhos 3DS, interrupção de download e uso prolongado.
-- Páginas OAuth publicadas no GitHub Pages e app OAuth fora do modo Teste (23/10).
-- Auditoria de 28/10 ([registro](AUDITORIA-2026-10-28.md)): AUD28-01 a 04 corrigidas nesta
-  base com testes sintéticos; plano de melhorias em [`plano-melhorias-2026-10-28.md`](plano-melhorias-2026-10-28.md).
-- As seções de 23/10 abaixo são histórico: onde dizem "pendente", vale este bloco.
+- Android **0.25.4 (code 46)**. Biblioteca local em SQLite com diário convergente entre PC e
+  Android, catálogo direto do Drive, capas sob demanda com cache permanente e saves pelo
+  protocolo v2 ([`nuvem.md`](nuvem.md)). Foco do controle por geometria: testado com eventos
+  simulados, falta o G8 físico.
+- PC: acervo em `~/Games/PyRetro`, só com os jogos em andamento ([`armazenamento.md`](armazenamento.md)).
+  A nuvem é direta, por rclone, e o Insync não transporta mais ROMs, BIOS, saves, capas,
+  Biblioteca nem backups. O modo TV é a janela nativa (PyQt6/QtWebEngine), aberta pelo
+  Guide/PS/Home; o Bigscreen foi aposentado. O controle principal é o GameSir Nova 2 Lite. O
+  PS1 roda no RetroArch/SwanStation, e o DuckStation saiu do PC.
+- Testes em 09/11: **477 Python, 58 JS e 108 JVM**, todos verdes; lint com 0 erros e 122 avisos.
+  AUD28-01 a 04 fechados e conferidos de novo no código atual (auditoria pessoal de 09/11).
 - **Plano de evolução de 08/11/2026** ([`plano-evolucao-2026-11-08.md`](plano-evolucao-2026-11-08.md)): uso só do
   Victor, só Linux e Android, só os consoles atuais. Ordem: identificação por hash, Descobrir (no lugar de um
   catálogo/baixador de ROMs, que não será feito), conquistas, patches, mídia e coleções, opções por sistema/jogo e
   protótipo do player Android. Proposta aprovada, sem implementação.
+- Estado de 28/10 (histórico): Android 0.14.0, OAuth publicado em 23/10, [registro da auditoria](AUDITORIA-2026-10-28.md)
+  e [plano de melhorias](plano-melhorias-2026-10-28.md), cujas etapas de armazenamento e nuvem foram concluídas
+  em 28–29/10. As seções abaixo da revisão de 09/11 são histórico: onde dizem "pendente", vale o plano revisado.
+
+## Plano revisado — 09/11/2026
+
+Revisão feita com o modelo maior (Opus) a partir da auditoria de 09/11. Ela complementa o plano
+de evolução e não o substitui. **Ciclo:** **P** = pesado (modelo maior: desenho, risco, dado
+real ou revisão); **L** = leve (execução com critério de pronto claro); **V** = Victor
+(equipamento, conta ou decisão).
+
+### 🔴 Agora: higiene e risco
+
+- [ ] **L — Repositório público sem artefatos do Drive.** Tirar do índice
+  `docs/REVISAO-DRIVE-GITHUB-NITRO-2026-10-15.md.gddoc` (atalho do Insync com e-mail e ID de
+  documento) e `docs/pyretro-revisao-nitro-2026-10-15.zip`. Ignorar `*.gddoc`, `*.gdsheet` e
+  `*.gdslides`. Ampliar `tests/test_public_docs.py` para recusar esses atalhos, arquivos
+  compactados em `docs/` e endereços de e-mail. *Pronto quando:* o teste falha com um atalho
+  rastreado e passa no `main`.
+- [ ] **L — Testes no GitHub Actions.** O repositório é público e só tem o workflow do Pages. Um
+  workflow de `unittest` (stdlib, segundos) faz a guarda de privacidade rodar em todo push.
+  *Pronto quando:* o Actions estiver verde no `main`. Os testes JS e o Android ficam locais por
+  enquanto.
+- [ ] **L — Testes órfãos do Codex.** `codex/backups-nuvem` (`a0673c1`) tem 106 linhas de testes
+  de envio paralelo e retomada de `publish_tree` que nunca chegaram ao `main`; a implementação
+  equivalente entrou por `41af3e7`. Portar o que ainda valer e, depois, apagar as `codex/*` já
+  integradas e a ref ambígua `codex/rodada-2` (as remotas, só com OK do Victor).
+- [ ] **V/L — DuckStation do celular.** `Mcd001/002.mcd` e os estados existem só dentro do
+  app. Exportar pelo próprio DuckStation e guardar em `Backups/` antes de qualquer
+  desinstalação. No próximo APK, tirar o aviso do DuckStation da ficha de PS.
+
+### 🟡 Próximas entregas (ordem do plano de evolução, com ajustes)
+
+1. **P→L — Item 1, identificação por hash.** Começar pelos cartuchos com DAT No-Intro sem
+   cabeçalho (SNES, GBA, NES, MD, GB/GBC) e pelo MD5 das BIOS. Os discos continuam por serial
+   (`core/serials.py`), e o CHD fica fora da primeira entrega. O relatório é só leitura e os
+   critérios de pronto estão no plano de evolução.
+2. **L — Item 2, Descobrir.** Sugestão para a pergunta em aberto: promover para a Biblioteca
+   **por clique**, coerente com "nada sozinho". Decisão do Victor.
+3. **P→L — Item 3, conquistas.** Softcore por padrão (sugestão a confirmar). Chave só no
+   `config.toml`, com teste de que ela não aparece em `/diagnostics` nem nos logs.
+4. **L — Item 4, patches.** Como está no plano.
+5. **L — Item 5, mídia.** Sugestão de limite padrão: 5 GB com remoção dos menos usados, sem
+   tocar a mídia escolhida à mão. Decisão do Victor.
+6. **P — Item 6, opções por sistema.** Desenhar antes, com o setup, quais chaves são de quem.
+7. **P — Item 7, player Android.** Limitar o protótipo a duas sessões, com o go/no-go do plano.
+   Fazer só depois dos itens 1 a 3, porque é o de maior risco e o único que mexe no fluxo de saves.
+
+### 🟢 Robustez contínua
+
+- [ ] **P→L — Ensaio de restauração.** Sem o histórico de versões do Insync, a nuvem do PyRetro
+  é a única cópia fora do disco da Biblioteca, dos saves e dos backups. Proposta: um comando que
+  restaura o snapshot mais recente da Biblioteca e uma amostra de saves numa pasta temporária,
+  confere os hashes e registra a data do último ensaio bem-sucedido. `/diagnostics` avisaria
+  quando o ensaio passasse de 30 dias ou houvesse pendências de `cloud_sync` com mais de 24 h.
+  *Pronto quando:* o ensaio rodar em fixtures e uma vez com dados reais, com autorização.
+- [ ] **L — Regras de 29/10 no `AGENTS.md`.** Levar ao `AGENTS.md` versionado as regras que
+  hoje só estão em `PENDENCIAS-PARA-CHATGPT-2026-10-29.md`: ROM só sai depois de `rclone check`
+  ou MD5 idêntico, nada de `pkill -f` com padrão da própria linha, um agente por vez no
+  celular. Só então mover esse documento para histórico; o destinatário original não existe mais.
+- [ ] **L — Documentação enxuta.** Este roadmap tem mais de 400 linhas de seções superadas.
+  Mover para `docs/historico/` tudo o que está abaixo desta revisão, deixando aqui estado,
+  plano e decisões. Pôr as entradas 0.24.x do `changelog.md`, hoje no fim, na ordem do arquivo.
+- [ ] **L — Lint Android.** Corrigir os 2 `ApplySharedPref`, levar os 41 `SetTextI18n` para
+  recursos com marcadores e tratar `UseKtx` em lote. `OldTargetApi` não importa para uso pessoal.
+
+### Homologação física (V)
+
+| Fluxo | Onde | Situação em 09/11 |
+|---|---|---|
+| Atalhos do Nova 2 Lite em jogo (salvar e carregar estado, sair) | RetroArch, Dolphin, Azahar | pendente |
+| PS1 no SwanStation com controle, gravando no cartão | PC → celular | pendente (só captura sem controle) |
+| Foco por geometria (abas, Sortear, pesquisa, Filtro) | Android 0.25.4 com o G8 | pendente (eventos simulados ok) |
+| Atalhos de tela e sessão longa no 3DS | celular | pendente |
+| Moonlight → Sunshine com o PyRetro primeiro | cliente Moonlight | validado em 29/10; o app caiu em 09/11, reconfirmar |
+
+Registrar data, aparelho e resultado nesta tabela ao homologar.
+
+### Decisões do Victor
+
+- DS e 3DS no PC: a divisão de 15/10 ("somente celular") continua? O PC já abre os dois.
+- Retirar o override `/run/udev:ro` do Chrome Flatpak e o fallback web do modo TV?
+- Perguntas abertas do plano de evolução: promoção do "Quero jogar", softcore e limite da mídia.
 
 ## Entrega de backend e apoio — 23/10/2026
 
@@ -146,7 +233,7 @@ Feito nesta conversa (detalhe no changelog de 21–22/10):
 - Avaliar o RomM como referência para sincronização de saves e metadados.
 - Consolidar o setup: itens em `setup-linux-bonesi/docs/PENDENTE-CONSOLIDAR.md`.
 
-## Plano após 22/10/2026 (noite) — melhorias e um app só
+## Plano após 22/10/2026 (noite) — melhorias e um app só (histórico; vale o plano revisado de 09/11)
 
 **Onde estamos:** Android **0.7.0 instalada** (Início com fileiras, nota 0–11, selos no
 cartão, online percebido sem reiniciar); 0.6 validada no aparelho (download do PC e do
@@ -320,7 +407,7 @@ função ter lugar no app; nada é removido antes disso. Ordem proposta:
 4. **Quando a web não tiver nada exclusivo**, o atalho do navegador vira só
    diagnóstico.
 
-## Próximos passos (em ordem)
+## Próximos passos (em ordem) — histórico; vale o plano revisado de 09/11
 
 1. **Homologação de uso:** executar a matriz acima e corrigir os atritos. No PC,
    Xbox físico, retorno de foco, Steam Link e sessões PS4/Xbox remoto; no Android,
