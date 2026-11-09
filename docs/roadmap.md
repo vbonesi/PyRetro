@@ -14,6 +14,10 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 28/10/2026.
 - Auditoria de 28/10 ([registro](AUDITORIA-2026-10-28.md)): AUD28-01 a 04 corrigidas nesta
   base com testes sintéticos; plano de melhorias em [`plano-melhorias-2026-10-28.md`](plano-melhorias-2026-10-28.md).
 - As seções de 23/10 abaixo são histórico: onde dizem "pendente", vale este bloco.
+- **Plano de evolução de 08/11/2026** ([`plano-evolucao-2026-11-08.md`](plano-evolucao-2026-11-08.md)): uso só do
+  Victor, só Linux e Android, só os consoles atuais. Ordem: identificação por hash, Descobrir (no lugar de um
+  catálogo/baixador de ROMs, que não será feito), conquistas, patches, mídia e coleções, opções por sistema/jogo e
+  protótipo do player Android. Proposta aprovada, sem implementação.
 
 ## Entrega de backend e apoio — 23/10/2026
 
