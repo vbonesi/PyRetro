@@ -1,5 +1,18 @@
 # Changelog
 
+## 10/11/2026 — 28 jogos novos de Switch (NSW) no Drive e na Biblioteca
+
+- Lote da lista de desejos que o Victor baixou: 28 jogos organizados como `ROMs/NSW/<Jogo>/` (base, update e DLC juntos, nomes de pasta
+  sem `[NSZ]/[NSP]`). Traduções/mods em russo e sobras foram para a lixeira; Adventures of Mana é um port caseiro e ficou inteiro, como o do Duke Nukem.
+- **Achado:** o Insync subiu arquivos enquanto o torrent ainda gravava, e parte das cópias do Drive ficou com o tamanho certo e o conteúdo
+  diferente (trechos zerados). Tamanho não prova nada: a conferência foi por MD5 contra o original local, reenvio dos divergentes e só então
+  lixeira do original. (A checagem só por tamanho em arquivos pequenos deixou passar 15 arquivos do Adventures of Mana; reenviados da
+  lixeira após validar por decodificação e conferidos por MD5.) Final: 125 arquivos, todos com MD5 igual ao original.
+- Cadastro pelo servidor (`refresh?source=switch`): 28 novos, 2.873 registros no total. Gênero, desenvolvedora, lançamento e sinopse preenchidos
+  (LaunchBox e páginas das lojas). Capas: 23 de 28 (SteamGridDB/ScreenScraper, duas escolhidas à mão). **Sem capa:** Final Fantasy Resonance,
+  Hole Digging Simulator 2025, Hole Digging Beach Simulator, Hole Digging Master e Village in the Shade (sem imagem nas fontes).
+- Avisos "possível duplicata" do refresh (Graveyard Keeper × 2, Hole Digging Simulator × Beach Simulator) são jogos distintos. Nenhum código alterado.
+
 ## 10/11/2026 — Wishlist da Steam: progresso e novas tentativas
 
 - A sincronização da Steam consulta a loja jogo a jogo (115 jogos levaram ~190 s) sem mandar nada à tela; a conexão de progresso podia
