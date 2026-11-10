@@ -1,5 +1,13 @@
 # Changelog
 
+## 09–10/11/2026 — Os 5 jogos de PS1 retirados na reposição voltaram
+
+- Victor baixou os 5 de PS1 cujos cadastros saíram em 07/11 por falta de ROM: Mortal Kombat Mythologies - Sub-Zero,
+  Mortal Kombat - Special Forces, Mortal Kombat Trilogy (Rev 1), RayCrisis - Series Termination e RayStorm (todos USA, `.chd`).
+- Organizados de Downloads para PS pelo Organizar, renomeados sem a região (convenção da pasta) e enviados ao Drive com MD5 conferido.
+  Cadastros novos com gênero, sinopse, desenvolvedora e lançamento recuperados dos antigos (nenhum tinha progresso); capas NTSC-U pelo
+  LaunchBox. Catálogo do Drive atualizado. Jogos não testados no emulador.
+
 ## 08/11/2026 — DuckStation removido do PC: PS1 só no RetroArch (PC e celular)
 
 - Pedido do Victor: poucos jogos de PS1 têm pacote de textura, então tudo fica no RetroArch/SwanStation e os atalhos que ele já domina. O que saiu do PC
