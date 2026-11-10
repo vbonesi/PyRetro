@@ -778,7 +778,8 @@ $("cover-flag").onclick = async () => {
 async function wishlistJob(source, texto) {
   if (state.busy) return; state.busy = true; report(source === "steam" ? "Sincronizando a lista da Steam…" : `Adicionando "${texto}"…`);
   try {
-    const result = await runJob("/api/wishlist/sync", {source, texto, apply: true});
+    const result = await runJob("/api/wishlist/sync", {source, texto, apply: true},
+      d => { if (d.type === "log" && /^Steam: \d+ de \d+/.test(d.line)) report(`Sincronizando a lista da Steam… ${d.line.slice(7)}`); });
     state.busy = false;
     await reloadSelection($(source === "steam" ? "wishlist-steam" : `wishlist-add-${source}`));
     const summary = result.lines.filter(l => /novo|saiu|erro|vazia/.test(l)).join(" · ");

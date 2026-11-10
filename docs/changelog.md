@@ -1,5 +1,15 @@
 # Changelog
 
+## 10/11/2026 — Wishlist da Steam: progresso e novas tentativas
+
+- A sincronização da Steam consulta a loja jogo a jogo (115 jogos levaram ~190 s) sem mandar nada à tela; a conexão de progresso podia
+  ser cortada no caminho e a tela dizia que tinha caído, embora o job terminasse. Um 429 da loja (~200 consultas por 5 min) cancelava tudo.
+- `core/library.py`: `_steam_get_json` tenta de novo em 429, 5xx e falha de rede (5, 20 e 60 s, respeitando `Retry-After`); falha que
+  persiste continua cancelando a sincronização sem gravar, para uma lista parcial não tirar jogos. `read_steam_wishlist` aceita `progress`.
+- `gui/server.py`: o job mostra "Steam: N de M jogos" a cada 10 e o stream SSE manda `: ping` a cada 15 s sem evento (vale para todos os
+  jobs). Modo TV mostra o andamento na linha de status. 489 testes Python passam (6 novos).
+- Rodado de verdade: 117 itens na Steam (115 jogos), entrou moon: Remix RPG Adventure e saiu The Gardens Between, que deixou a wishlist.
+
 ## 09–10/11/2026 — Os 5 jogos de PS1 retirados na reposição voltaram
 
 - Victor baixou os 5 de PS1 cujos cadastros saíram em 07/11 por falta de ROM: Mortal Kombat Mythologies - Sub-Zero,

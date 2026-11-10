@@ -160,6 +160,9 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+SSE_KEEPALIVE_SECONDS = 15
+
+
 def _new_job_queue() -> "queue.Queue":
     return queue.Queue(maxsize=JOB_QUEUE_SIZE)
 
@@ -1141,7 +1144,13 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
 
     if source == "steam":
         try:
-            itens = library_mod.read_steam_wishlist(cfg.get("steam", {}))
+            emit({"type": "log", "line": "consultando a lista da Steam (leva alguns minutos)..."})
+
+            def progresso(feitos, total):
+                if total and (feitos % 10 == 0 or feitos == total):
+                    emit({"type": "log", "line": f"Steam: {feitos} de {total} jogos"})
+
+            itens = library_mod.read_steam_wishlist(cfg.get("steam", {}), progress=progresso)
         except (ValueError, RuntimeError) as e:
             emit({"type": "log", "line": f"erro: {e}"})
             return
@@ -2750,7 +2759,18 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             while True:
-                event = q.get()
+                # Comentário SSE a cada 15 s sem evento: job longo e calado
+                # (wishlist da Steam, ~3 min) tinha a conexão cortada no
+                # caminho e a tela dizia que caiu, embora o job terminasse.
+                try:
+                    event = q.get(timeout=SSE_KEEPALIVE_SECONDS)
+                except queue.Empty:
+                    try:
+                        self.wfile.write(b": ping\n\n")
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        return
+                    continue
                 chunk = f"data: {json.dumps(event)}\n\n".encode()
                 try:
                     self.wfile.write(chunk)

@@ -26,6 +26,7 @@ import http.client
 import json
 import re
 import subprocess
+import time
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -393,7 +394,38 @@ def steam_genero(appid) -> str | None:
     return generos[0]["description"] if generos else None
 
 
-def read_steam_wishlist(steam_cfg: dict) -> list:
+# Espera entre tentativas da Steam (s). A loja limita `appdetails` a
+# ~200 consultas por 5 min e responde 429; a wishlist faz uma por jogo.
+_STEAM_RETRY_WAITS = (5, 20, 60)
+_STEAM_RETRY_MAX_WAIT = 120
+_sleep = time.sleep  # trocado nos testes
+
+
+def _steam_get_json(url: str, timeout: int):
+    """GET com novas tentativas para 429, 5xx e falha de rede/prazo.
+    Respeita `Retry-After` (limitado). Outros erros HTTP e JSON inválido
+    sobem na hora: repetir não muda a resposta."""
+    req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_USER_AGENT})
+    for tentativa in range(len(_STEAM_RETRY_WAITS) + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code != 429 and e.code < 500 or tentativa == len(_STEAM_RETRY_WAITS):
+                raise
+            espera = _STEAM_RETRY_WAITS[tentativa]
+            try:
+                espera = max(espera, int(e.headers.get("Retry-After", "")))
+            except (TypeError, ValueError, AttributeError):
+                pass
+        except (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException):
+            if tentativa == len(_STEAM_RETRY_WAITS):
+                raise
+            espera = _STEAM_RETRY_WAITS[tentativa]
+        _sleep(min(espera, _STEAM_RETRY_MAX_WAIT))
+
+
+def read_steam_wishlist(steam_cfg: dict, progress=None) -> list:
     """[{"nome","appid","genero","capa_url"}] da lista de desejos
     pública da Steam (pedido do usuário 11/09: "sincronizar com a
     Wishlist da Steam ... ela atualiza automático"). O endpoint antigo
@@ -407,16 +439,17 @@ def read_steam_wishlist(steam_cfg: dict) -> list:
     adivinhar nome depois no SteamGridDB. Só importa o tipo `game`:
     DLC, software, demos e outros produtos não contam como jogos.
     Tipo ausente cancela a coleta, para uma resposta parcial não
-    autorizar retiradas."""
+    autorizar retiradas. Cada consulta tenta de novo em 429/5xx/rede
+    (`_steam_get_json`) antes de cancelar. `progress(feitos, total)`,
+    se dado, é chamado a cada jogo: a coleta leva minutos (10/11/2026:
+    115 jogos em ~190 s) e o job precisa dar sinal de vida à tela."""
     steamid64 = steam_cfg.get("steamid64")
     if not steamid64:
         raise ValueError("faltando steamid64 em [steam] no config.toml")
     url = f"https://api.steampowered.com/IWishlistService/GetWishlist/v1/?steamid={steamid64}"
-    req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_USER_AGENT})
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            data = json.loads(r.read())
-    except (OSError, ValueError) as e:
+        data = _steam_get_json(url, timeout=30)
+    except (OSError, ValueError, http.client.HTTPException) as e:
         raise RuntimeError(f"falha ao consultar a wishlist da Steam: {e}") from e
     response = data.get("response") if isinstance(data, dict) else None
     if not isinstance(response, dict) or not isinstance(response.get("items"), list):
@@ -424,18 +457,19 @@ def read_steam_wishlist(steam_cfg: dict) -> list:
     itens = response["items"]
 
     resultado = []
-    for item in itens:
+    total = len(itens)
+    for feitos, item in enumerate(itens):
+        if progress:
+            progress(feitos, total)
         if not isinstance(item, dict):
             raise RuntimeError("wishlist da Steam contém item inválido; sincronização cancelada")
         appid = item.get("appid")
         if not appid:
             raise RuntimeError("wishlist da Steam contém item sem appid; sincronização cancelada")
         detail_url = f"https://store.steampowered.com/api/appdetails?appids={appid}&l=portuguese"
-        req = urllib.request.Request(detail_url, headers={"User-Agent": _BROWSER_USER_AGENT})
         try:
-            with urllib.request.urlopen(req, timeout=15) as r:
-                detail = json.loads(r.read())
-        except (OSError, ValueError) as e:
+            detail = _steam_get_json(detail_url, timeout=15)
+        except (OSError, ValueError, http.client.HTTPException) as e:
             raise RuntimeError(f"falha ao resolver appid {appid} da wishlist; sincronização cancelada: {e}") from e
         if not isinstance(detail, dict):
             raise RuntimeError(f"appid {appid} da wishlist teve resposta inválida; sincronização cancelada")
@@ -457,6 +491,8 @@ def read_steam_wishlist(steam_cfg: dict) -> list:
             "genero": generos[0]["description"] if generos else None,
             "capa_url": find_cover_steam_cdn(appid),
         })
+    if progress:
+        progress(total, total)
     return resultado
 
 
