@@ -5,6 +5,11 @@ achados, testes, o raciocínio por trás de cada decisão) fica em
 [`docs/changelog.md`](changelog.md) - este arquivo é só "o que está
 pronto" (resumo) e "o que vem a seguir". Atualizado em 09/11/2026.
 
+## PyRetro Shop para o Switch — 11/11/2026
+
+Plano em `docs/plano-switch-shop.md`. **P1/L1 feitos:** gerador do índice do Tinfoil (`core/switch_shop.py`, CLI `switch-shop`, botão no
+modo TV, gancho no `switch_upload`). **Faltam, do Victor:** V1 (teste do Tinfoil com OAuth no Switch, fora de casa) e V2 (uso real).
+
 ## Estado em 09/11/2026
 
 - Android **0.25.4 (code 46)**. Biblioteca local em SQLite com diário convergente entre PC e

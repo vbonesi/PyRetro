@@ -1414,7 +1414,8 @@ async function toolLibrary(body) {
   };
   drawAdd();
   body.replaceChildren(jobRow("Atualizar do Heroic", a => q("/api/library/refresh", {source: "heroic"}, a)), jobRow("Atualizar da Steam", a => q("/api/library/refresh", {source: "steam"}, a)),
-    jobRow("Atualizar do Switch (pastas do Drive)", a => q("/api/library/refresh", {source: "switch"}, a)), jobRow("Buscar capas que faltam na Biblioteca", a => q("/api/library/fetch_covers", {}, a)), addBox);
+    jobRow("Atualizar do Switch (pastas do Drive)", a => q("/api/library/refresh", {source: "switch"}, a)), jobRow("Buscar capas que faltam na Biblioteca", a => q("/api/library/fetch_covers", {}, a)),
+    jobRow("Atualizar índice do Switch (Tinfoil)", "/api/switch/shop", {apply: false}), addBox);
 }
 async function toolCovers(body) {
   const light = {code: state.light[0]?.code || "", fallback: "0"}, heavy = {code: state.systems[0]?.code || ""};

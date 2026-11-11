@@ -47,6 +47,7 @@ from core import library as library_mod
 from core import memcard as memcard_mod
 from core import organize as organize_mod
 from core import switch_upload as switch_upload_mod
+from core import switch_shop as switch_shop_mod
 from core import pc_backup as pc_backup_mod
 from core import play as play_mod
 from core import pc_games as pc_games_mod
@@ -3727,13 +3728,27 @@ class Handler(BaseHTTPRequestHandler):
                                                  library_update, genero=genero, emit=emit)
                     emit({"type": "system_done", "result": {"ok": True, "message":
                           f"{r['pasta']}: {r['arquivos']} arquivo(s) no Drive; capa {'ok' if r.get('capa') else 'não achada'}; "
-                          f"gênero {r.get('genero') or 'não achado (defina no ✎)'}"}})
+                          f"gênero {r.get('genero') or 'não achado (defina no ✎)'}; "
+                          f"índice do Switch {'atualizado' if r.get('indice') else 'NÃO atualizado (use Atualizar índice do Switch)'}"}})
                 except (ValueError, LookupError, OSError, subprocess.SubprocessError) as e:
                     emit({"type": "system_done", "result": {"ok": False, "message": str(e).strip("'")}})
 
             if not _transfer_lock.acquire(blocking=False):
                 return self._json({"error": "já existe uma transferência/sincronização em andamento"}, 409)
             _transfer_lock.release()
+            return self._json({"job": _start_job(worker)})
+
+        if parts == ["api", "switch", "shop"]:
+            cfg = load_config()
+
+            def worker(emit):
+                try:
+                    r = switch_shop_mod.gerar(cfg, emit=emit)
+                    emit({"type": "system_done", "result": {"ok": True, "message":
+                          f"Índice do Switch atualizado: {r['arquivos']} arquivo(s)."}})
+                except OSError as e:
+                    emit({"type": "system_done", "result": {"ok": False, "message": str(e)}})
+
             return self._json({"job": _start_job(worker)})
 
         if parts == ["api", "organize", "discard"]:

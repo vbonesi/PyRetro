@@ -1,5 +1,15 @@
 # Changelog
 
+## 11/11/2026 — PyRetro Shop: índice do Tinfoil para o Switch
+
+- `core/switch_shop.py`: uma chamada `rclone lsjson -R` na pasta `NSW` do Drive gera o índice de shop do Tinfoil
+  (`{"files":[{"url":"gdrive:/<ID>#<nome>","size":N}],"success":"…"}`), sem parciais nem extensões fora de `.nsp .nsz .xci .xcz`, e o grava em
+  `PyRetro-Nuvem/switch/shop.json` (`rclone rcat`, substitui o anterior). Se o rclone falhar, nada é gravado.
+- Chamado por `retrosync switch-shop`, pelo botão **Atualizar índice do Switch (Tinfoil)** em 🛠 Ferramentas › Biblioteca do modo TV
+  (`POST /api/switch/shop`, com CSRF) e ao fim do `switch_upload`; falha do índice ali não desfaz o envio, só avisa.
+- O índice tem nomes e IDs do acervo: fica só no Drive, nunca no Git. Plano: `docs/plano-switch-shop.md`. Falta o teste real no Switch (V1/V2, do Victor).
+  Testes: `tests/test_switch_shop.py`.
+
 ## 10/11/2026 — 28 jogos novos de Switch (NSW) no Drive e na Biblioteca
 
 - Lote da lista de desejos que o Victor baixou: 28 jogos organizados como `ROMs/NSW/<Jogo>/` (base, update e DLC juntos, nomes de pasta

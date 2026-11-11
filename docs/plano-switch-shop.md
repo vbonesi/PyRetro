@@ -1,0 +1,67 @@
+# Plano: "PyRetro Shop" para o Switch (11/11/2026)
+
+Só planejado; nada implementado.
+
+## Objetivo
+
+Instalar no Switch (Atmosphère) os dumps de Switch do próprio acervo, que estão na pasta
+`NSW` do Drive, **de qualquer rede**, sem o PC ligado. A emulação e o catálogo continuam no
+celular: o Switch só recebe os jogos dele.
+
+## Decisões
+
+- O PyRetro **não** vira app de Switch. O PC gera um índice no formato de "shop" do
+  Tinfoil, e o Switch lê os arquivos direto do Drive por OAuth (`gdrive:/<ID do arquivo>`).
+- O cliente no Switch é o **Tinfoil**: entre as opções pesquisadas, é o único com leitura do
+  Google Drive autenticada documentada. CyberFoil e Sphaira ficam como alternativa se um dia
+  lerem o Drive.
+- A pasta não fica pública: OAuth com cliente próprio do Switch e escopo somente leitura,
+  revogável se o console sumir.
+- O índice traz nomes e IDs do acervo e por isso **fica só no Drive**, nunca no repositório
+  (mesma regra do mapa do NSW).
+
+## Base existente
+
+- Os arquivos em `NSW/<Jogo>/` já trazem `[TitleID][vVersão]` no nome (base `…000`, update
+  `…800`, DLC o resto). Isso é o que o Tinfoil usa para identificar o jogo e buscar a capa.
+- `rclone lsjson` devolve o `ID` de cada arquivo no Drive (`core/heavy_roms.py`,
+  `list_drive_items`). `core/switch_upload.py` define as extensões (`.nsp .nsz .xci .xcz`)
+  e é o caminho de entrada dos dumps.
+
+## Itens
+
+**V1. Teste à mão no Switch (Victor). Pronto quando:** o Tinfoil com `credentials.json` e
+token no SD lista a pasta `gdrive:/<ID da pasta NSW>` e instala um jogo pequeno fora da rede
+de casa (por exemplo, roteado do celular). Anotar se o Tinfoil aceita um índice `.json`
+lido pelo `gdrive:/` e que escopo o token pede.
+
+**P1. Gerador do índice (`core/switch_shop.py`). Pronto quando:**
+- uma única chamada `rclone lsjson -R` na pasta `NSW` gera o JSON do Tinfoil, com
+  `files: [{"url": "gdrive:/<ID>#<nome do arquivo>", "size": N}]` e uma mensagem `success`
+  com a data e a contagem;
+- ficam de fora arquivos parciais (`.part`, `.crdownload` etc.) e as extensões não
+  suportadas;
+- o índice sobe para `PyRetro-Nuvem/switch/` no Drive com `rclone rcat`/`copyto`, com a
+  versão anterior substituída;
+- é chamado pela CLI, por um botão "Atualizar índice do Switch" em 🛠 Ferramentas no modo TV
+  e ao fim de `switch_upload` quando um jogo novo sobe;
+- os testes usam `lsjson` falso (nomes, IDs, parciais, pasta vazia, falha do rclone sem
+  gravar nada) e passam junto com a suíte inteira;
+- nenhum nome ou ID real entra no Git.
+
+**V2. Uso real (Victor). Pronto quando:** o Tinfoil aponta para o índice no Drive, mostra
+os jogos com nome e capa e instala um remotamente.
+
+**L1. Documentação.** README (seção curta de uso), `docs/changelog.md` e `docs/roadmap.md`.
+
+## Riscos e dúvidas
+
+- O Tinfoil é de código fechado e exige o DNS MITM do Exosphère. Se mudar de comportamento,
+  o índice continua servindo para outro cliente compatível.
+- Pode ser que o Tinfoil exija escopo de Drive inteiro em vez de somente leitura (ver no V1).
+- Cota de download do Google: com OAuth próprio não há a cota dos links públicos, mas
+  downloads grandes seguidos podem sofrer limite temporário.
+- O SD precisa estar em exFAT (há jogos com mais de 4 GB).
+- O Drive tem uma pasta `NPShop/Saves/users/…` com Title IDs: parece vir de um homebrew de
+  Switch que o Victor já usa. Perguntar antes do V1; se for um cliente de shop com Drive,
+  pode substituir o Tinfoil.

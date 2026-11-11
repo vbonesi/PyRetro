@@ -1055,6 +1055,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     heavy_catalog.add_argument("--apply", action="store_true")
 
+    sub.add_parser(
+        "switch-shop",
+        help="gera o indice de shop do Tinfoil (pasta NSW do Drive) e sobe para PyRetro-Nuvem/switch/",
+    )
+
     sortear = sub.add_parser(
         "sortear",
         help="sorteia um jogo aleatorio da colecao (roms_root + catalogo de pesados)",
@@ -1171,6 +1176,9 @@ def _dispatch(args) -> None:
         cmd_heavy_roms(args)
     elif args.command == "heavy-catalog":
         cmd_heavy_catalog(args)
+    elif args.command == "switch-shop":
+        from core import switch_shop as switch_shop_mod
+        sys.exit(switch_shop_mod.main(load_config()))
     elif args.command == "sortear":
         cmd_sortear(args)
     elif args.command == "library-import-sheet":
