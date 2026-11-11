@@ -1060,6 +1060,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="gera o indice de shop do Tinfoil (pasta NSW do Drive) e sobe para PyRetro-Nuvem/switch/",
     )
 
+    tf = sub.add_parser(
+        "tinfoil-auth",
+        help="login OAuth no navegador e grava credentials.json + gdrive.token para o Tinfoil (/switch/tinfoil/ no SD)",
+    )
+    tf.add_argument("cliente", help="JSON do cliente OAuth Desktop baixado do Google Cloud")
+    tf.add_argument("--saida", default="~/Downloads/COPY_TO_SD/switch/tinfoil", help="pasta de saida (fora do repositorio)")
+    tf.add_argument("--escopo", choices=["readonly", "drive"], default="readonly",
+                    help="readonly (padrao) ou drive inteiro, se o Tinfoil recusar o somente leitura")
+
     sortear = sub.add_parser(
         "sortear",
         help="sorteia um jogo aleatorio da colecao (roms_root + catalogo de pesados)",
@@ -1179,6 +1188,14 @@ def _dispatch(args) -> None:
     elif args.command == "switch-shop":
         from core import switch_shop as switch_shop_mod
         sys.exit(switch_shop_mod.main(load_config()))
+    elif args.command == "tinfoil-auth":
+        from core import tinfoil_auth as tinfoil_auth_mod
+        try:
+            pasta = tinfoil_auth_mod.login(Path(args.cliente), Path(args.saida), args.escopo)
+        except (ValueError, OSError) as e:
+            print(f"erro: {e}")
+            sys.exit(1)
+        print(f"pronto: credentials.json e gdrive.token em {pasta} (copie para /switch/tinfoil/ no SD)")
     elif args.command == "sortear":
         cmd_sortear(args)
     elif args.command == "library-import-sheet":

@@ -49,6 +49,15 @@ lido pelo `gdrive:/` e que escopo o token pede.
   gravar nada) e passam junto com a suíte inteira;
 - nenhum nome ou ID real entra no Git.
 
+**P2. Credencial do Tinfoil pelo PyRetro (11/11). Pronto quando:** um comando do PyRetro
+faz o login OAuth no navegador do PC (fluxo de app instalado, retorno em `127.0.0.1`, só
+biblioteca padrão) com o `credentials.json` do cliente Desktop "Switch" e grava
+`credentials.json` + `gdrive.token` no formato que o Tinfoil lê, numa pasta fora do
+repositório pronta para copiar em `/switch/tinfoil/` do SD. Arquivos com permissão 0600; o
+token nunca aparece na saída nem nos logs. Escopo `drive.readonly` primeiro; se o Tinfoil
+recusar, o comando aceita escolher `drive`. Testes cobrem o formato gerado e a troca de
+código com o Google simulada. Substitui o uso do rustfoil.
+
 **V2. Uso real (Victor). Pronto quando:** o Tinfoil aponta para o índice no Drive, mostra
 os jogos com nome e capa e instala um remotamente.
 

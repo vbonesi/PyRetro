@@ -456,6 +456,9 @@ relatório - nunca são mescladas sozinhas, mesmo cuidado que o
   (`gdrive:/<ID>#<arquivo>`). Roda sozinho ao subir um jogo pelo
   Organizar do Switch. O Tinfoil lê o índice direto do Drive por OAuth
   somente leitura; o índice tem nomes do acervo e nunca vai para o Git.
+  A credencial do Tinfoil sai de `python3 retrosync.py tinfoil-auth <client.json>`
+  (cliente OAuth Desktop; grava `credentials.json` e `gdrive.token` em
+  `~/Downloads/COPY_TO_SD/switch/tinfoil/`, copie para o SD).
 - **`switch`** (27/08) - lê `roms_root/NSW/` (cada jogo é uma pasta,
   ex: `Nine Sols [NSZ]`), removendo qualquer tag entre colchetes do
   nome (formato do dump, não é parte do nome do jogo). Na organização

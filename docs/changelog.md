@@ -9,6 +9,11 @@
   (`POST /api/switch/shop`, com CSRF) e ao fim do `switch_upload`; falha do índice ali não desfaz o envio, só avisa.
 - O índice tem nomes e IDs do acervo: fica só no Drive, nunca no Git. Plano: `docs/plano-switch-shop.md`. Falta o teste real no Switch (V1/V2, do Victor).
   Testes: `tests/test_switch_shop.py`.
+- **P2 — credencial do Tinfoil sem rustfoil:** `retrosync tinfoil-auth <client.json> [--escopo readonly|drive] [--saida PASTA]`
+  (`core/tinfoil_auth.py`) faz o login OAuth de app instalado (navegador, retorno em `127.0.0.1`, PKCE + `state`, só stdlib) e grava
+  `credentials.json` + `gdrive.token` (`{"access_token","refresh_token"}`, formato conferido no fonte do rustfoil) com 0600, por padrão em
+  `~/Downloads/COPY_TO_SD/switch/tinfoil/`. O token nunca é impresso. Escopo `drive.readonly`; `--escopo drive` se o Tinfoil recusar.
+  Testes: `tests/test_tinfoil_auth.py` (troca de código simulada). O login de verdade é do Victor.
 
 ## 10/11/2026 — 28 jogos novos de Switch (NSW) no Drive e na Biblioteca
 
