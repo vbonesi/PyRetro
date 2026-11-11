@@ -71,6 +71,12 @@ os jogos com nome e capa e instala um remotamente.
 - Cota de download do Google: com OAuth próprio não há a cota dos links públicos, mas
   downloads grandes seguidos podem sofrer limite temporário.
 - O SD precisa estar em exFAT (há jogos com mais de 4 GB).
-- O Drive tem uma pasta `NPShop/Saves/users/…` com Title IDs: parece vir de um homebrew de
-  Switch que o Victor já usa. Perguntar antes do V1; se for um cliente de shop com Drive,
-  pode substituir o Tinfoil.
+- NPShop (homebrew de saves que o Victor usa) só enxerga a pasta que ele mesmo cria: não
+  substitui o Tinfoil.
+
+## Andamento
+
+- 11/11/2026: P1, P2 e L1 feitos. **V1 feito em casa:** fonte cadastrada pelo botão "−" do
+  File Browser (Protocol `gdrive`, demais campos vazios); um jogo pequeno instalou do Drive e
+  rodou. O primeiro acesso a uma pasta de jogo deu "Failed query gdrive access token";
+  reiniciar o Tinfoil resolveu. Faltam o teste fora de casa e o V2 (índice).
