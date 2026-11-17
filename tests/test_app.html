@@ -729,6 +729,24 @@ teste("modo TV: digitar busca, Ctrl+K, botão direito, Home/End e Alt+número se
   } finally { frame.remove(); }
 });
 
+// Carga ou recarga numa rota: o foco vai ao conteúdo (filtro ativo na Biblioteca, destaque no Início), não à barra lateral.
+teste("modo TV: carregar numa rota deixa o foco no conteúdo", async () => {
+  const item = (name, tracking = {}) => ({key: `pc:${name}`, id: name, name, platform: "Steam", tracking, local: false});
+  const catalog = [item("Alfa", {iniciado: true}), item("Beta")];
+  for (const [hash, esperado] of [["#/biblioteca?f=playing", "quick:playing"], ["#/desejados", "gallery"], ["", "spotlight-open"]]) {
+    const {frame, app, doc} = await abrirTV(url => url === "/api/tv/catalog" ? catalog : url === "/api/wishlist" ? {steam: [{id: "w", nome: "Desejo"}], psn: [], xbox: []} : url === "/api/tv/home" ? {recent: [catalog[0]], continue: [catalog[0]], favorites: [], installed: [], ready: [], apps: [], counts: {}} : undefined, hash);
+    try {
+      await esperar(() => doc.querySelector("#gallery .game, #home .game"), `rota ${hash} não carregou`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const ativo = doc.activeElement;
+      verdade(!doc.getElementById("sidebar").contains(ativo), `foco ficou na barra lateral em ${hash || "Início"}`);
+      if (esperado.startsWith("quick:")) igual(ativo.dataset.quick, esperado.slice(6), "foco deveria estar no filtro rápido ativo");
+      else if (esperado === "gallery") verdade(doc.getElementById("gallery").contains(ativo), "foco deveria estar na primeira capa");
+      else igual(ativo.id, esperado);
+    } finally { frame.remove(); }
+  }
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {
@@ -1281,13 +1299,14 @@ teste('texturas: arquivo escolhido no aparelho é enviado e instalado no alvo se
   } finally {Object.assign(app,original);}
 });
 
-async function abrirTV(rotas) {
+async function abrirTV(rotas, hash = "") {
   const frame = document.createElement("iframe");
   frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
   document.body.append(frame);
   const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document, posts = [];
+  if (hash) app.location.hash = hash;  // carga inicial numa rota
   app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
   app.fetch = async (url, init) => {
     if (init?.method === "POST") { igual(init.headers["X-PyRetro-CSRF"], "tv-token"); posts.push({url, body: JSON.parse(init.body)}); }

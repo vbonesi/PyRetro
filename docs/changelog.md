@@ -11,7 +11,8 @@
 - Teclado: `Home`/`End` vão ao primeiro/último da região; `[`/`]` pulam de letra; Esc/Backspace voltam. Mouse: botão voltar faz o B, **botão avançar**
   refaz o último voltar; a roda do mouse corre as fileiras na horizontal (já existia, sem prender a página) e o hover só vale no modo mouse.
 - Barra de dicas por aparelho atualizada (teclado, mouse e controle).
-- Testes: 502 Python e 68 JS (+1: digitar, Ctrl+K, botão direito, Home/End e Alt+número). Conferido no navegador embutido com tecla e botão direito reais.
+- Correção: carregar ou recarregar numa rota deixa o foco no conteúdo (filtro rápido ativo, destaque do Início, primeira capa), não na barra lateral; saiu a linha final do `init()` que a focava. Teste JS de carga por rota.
+- Testes: 502 Python e 69 JS (+1: digitar, Ctrl+K, botão direito, Home/End e Alt+número). Conferido no navegador embutido com tecla e botão direito reais.
 
 ## 17/11/2026 — Nova navegação, N5: ficha do jogo e ferramentas como páginas (Claude)
 
