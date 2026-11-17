@@ -205,7 +205,7 @@ async function esperar(condicao, mensagem) {
 
 teste("app.js inicializa a interface e protege POST com CSRF", async () => {
   const frame = document.getElementById("app-under-test");
-  const html = (await (await fetch("/")).text()).replace(
+  const html = (await (await fetch("/web")).text()).replace(
     "<head>", `<head><base href="${location.origin}/">`);
   const carregou = new Promise((resolve, reject) => {
     frame.addEventListener("load", resolve, { once: true });

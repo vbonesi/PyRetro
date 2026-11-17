@@ -19,7 +19,6 @@ export function openGame(g, origin = document.activeElement) {
   fillBadges($('game-badges'), g);
   const textureCode = TEXTURE_SYSTEMS[g.code];
   $("textures-toggle").hidden = !textureCode; $("textures-fields").hidden = true; $("textures-toggle").setAttribute("aria-expanded", "false");
-  if (textureCode) $("textures-link").href = '/?'+new URLSearchParams({textures:textureCode,game:g.name});
   $("detail-cover").hidden = !g.cover; if (g.cover) $("detail-cover").src = g.cover;
   $("spotlight-video").pause(); $("time-fields").hidden = true; $("media-fields").hidden = true;
   $("game-synopsis").textContent = g.tracking?.sinopse || ''; $("game-synopsis").hidden = !g.tracking?.sinopse;

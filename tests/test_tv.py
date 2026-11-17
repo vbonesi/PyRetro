@@ -28,6 +28,21 @@ class TestTV(BaseAPI):
             urllib.request.urlopen(self.url + '/static/tv/a/b.js')
         self.assertEqual(erro.exception.code, 404)
 
+    def test_root_redirects_to_tv_and_diagnostics_stays(self):
+        import http.client, urllib.parse
+        host = urllib.parse.urlparse(self.url)
+        for caminho, alvo in (('/', '/tv'),):
+            conexao = http.client.HTTPConnection(host.hostname, host.port)
+            conexao.request('GET', caminho)
+            resposta = conexao.getresponse()
+            self.assertEqual(resposta.status, 302)
+            self.assertEqual(resposta.getheader('Location'), alvo)
+            conexao.close()
+        with urllib.request.urlopen(self.url + '/diagnostics') as resposta:
+            self.assertEqual(resposta.status, 200)
+        with urllib.request.urlopen(self.url + '/web') as resposta:  # só loopback, para os testes de app.js
+            self.assertIn('text/html', resposta.headers['Content-Type'])
+
     def track(self, campos):
         return self.pedir('/api/library/track', {
             'nome': 'Jogo TV', 'code': 'PS2', 'plataforma': 'PlayStation 2',

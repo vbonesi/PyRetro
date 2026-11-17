@@ -1,5 +1,15 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N8: a web antiga deixa de ser a entrada (Claude)
+
+- `GET /` agora redireciona (302) para `/tv`; `/diagnostics` e `/tests/test_app.html` continuam. Os arquivos da web (`index.html`, `app.js`,
+  `style.css`) **não foram apagados** (N9, depois do uso do Victor); para os testes de `app.js` há `/web`, só por loopback e sem
+  `X-Forwarded-For`, igual ao `/tests/test_app.html`.
+- Saíram do modo TV os links "Interface completa" (Opções do console e Texturas): a ficha de Texturas manda para Ferramentas → Texturas HD.
+  README e `docs/modo-tv.md` atualizados (a entrada é o modo TV; o retorno à interface completa deixou de existir).
+- `pyretro-gui` reiniciado com a janela do modo TV fechada (conferido antes). Setup (links/atalhos que apontem para `/`) é do N9.
+- Testes: 503 Python (+1: `/` redireciona, `/diagnostics` e `/web`) e 70 JS.
+
 ## 17/11/2026 — Nova navegação, N7: o que só a web fazia, agora no modo TV (Claude)
 
 - **Dumps de Switch no Organizar** (🛠 Ferramentas → Organizar ROMs novas): lista os dumps de Switch de Downloads (`/api/switch/upload/pending`)

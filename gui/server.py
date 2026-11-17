@@ -1833,6 +1833,17 @@ class Handler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
 
         if parsed.path == "/":
+            # A web antiga foi desligada (N8): a entrada é o modo TV. O diagnóstico (/diagnostics) continua.
+            self.send_response(302)
+            self.send_header("Location", "/tv")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        if parsed.path == "/web":
+            # Só para os testes de app.js até a remoção da web (N9): somente loopback, como /tests/test_app.html.
+            if (self.client_address[0] not in ("127.0.0.1", "::1") or self.headers.get("X-Forwarded-For")):
+                return self._file(Path("/nonexistent"), "text/html")
             return self._file(STATIC_DIR / "index.html", "text/html; charset=utf-8", no_cache=True)
 
         if parsed.path in ("/tv", "/tv/"):

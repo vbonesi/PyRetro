@@ -29,7 +29,7 @@ async function renderTextures(focusId) {
       row.append(Object.assign(document.createElement("span"), {textContent: `${p.nome} [${p.id_jogo}] · ${gb(p.tamanho)}${p.instalado ? ` · instalado (${p.arquivos} arquivos)` : ""}`}));
       const b = p.instalado ? confirmButton("🗑 Remover", "Confirmar: remover", () => removeTexture(p)) : confirmButton(`⬇ Instalar`, `Confirmar: baixar ${gb(p.tamanho)}`, () => installTexture(p, b));
       b.disabled = p.em_andamento; b.dataset.textureId = p.id; row.append(b); return row;
-    }) : [hint("Nenhum pacote do catálogo com este nome. Veja as fontes da comunidade na interface completa.")]));
+    }) : [hint("Nenhum pacote do catálogo com este nome. Importe um pacote em Ferramentas → Texturas HD.")]));
     if (similar.length) list.prepend(hint("Sem pacote com o mesmo nome. Estes têm nome parecido: confira antes de instalar."));
     if (focusId) list.querySelector(`[data-texture-id="${CSS.escape(focusId)}"]`)?.focus();
   } catch (e) { list.replaceChildren(hint(e.message)); }

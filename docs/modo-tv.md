@@ -7,7 +7,7 @@ O modo TV já oferece lançamento de ROMs pelo `bonisarch-emulator`.
 
 - Na máquina: `http://127.0.0.1:8000/tv`.
 - Pelo acesso HTTPS/Tailscale já configurado: acrescentar `/tv` ao endereço do PyRetro.
-- A interface normal tem um link **Modo TV**. A versão TV oferece o retorno à interface completa.
+- A entrada `/` leva ao modo TV (a web antiga foi desligada em 17/11/2026). `/diagnostics` continua.
 
 O serviço `pyretro-gui` precisa estar ativo. Não há servidor adicional nem nova porta.
 A rota usa os mesmos cabeçalhos de segurança e as mutações exigem o token CSRF existente.
@@ -68,8 +68,7 @@ Não significa sincronização nem compatibilidade com o Android. Capas mantêm 
 proporção sem cortar arte. O destaque abre **Ver jogo**, sem iniciar a partida.
 
 **X** guarda/remove o jogo em foco nos favoritos; dentro da busca, continua apagando
-uma letra. **Menu** abre opções: tema escuro/claro, tela cheia e volta ao início ou à
-interface completa. O relógio usa o fuso do navegador e a bateria aparece quando
+uma letra. **Menu** abre opções: tema escuro/claro, tela cheia e volta ao início. O relógio usa o fuso do navegador e a bateria aparece quando
 o navegador oferece essa informação. Favoritos e tema ficam em
 `cache/tv_preferences.json`, com lock e gravação atômica, sem mudar a Biblioteca.
 Recentes usam o histórico local de lançamentos; não exigem marcar o jogo como iniciado.
@@ -100,12 +99,12 @@ outras abas e clientes continuam sujeitos às regras já existentes do backend.
 
 A aba **🎲 Sortear** tem uma fileira de grupos (Tudo, ROMs leves/pesadas, Biblioteca e
 seus subgrupos) e outra de gêneros. **Sortear** escolhe um jogo com o mesmo critério da
-interface completa; o resultado abre os detalhes com foco em Jogar ou Transmitir,
+interface antiga; o resultado abre os detalhes com foco em Jogar ou Transmitir,
 quando disponível. O card permanece na grade ao voltar. ROM pesada só no Drive
 oferece Baixar e jogar com confirmação. O sorteio apenas sugere; não inicia nada
 automaticamente. Feche os detalhes e use o botão novamente para outro sorteio.
 
-Na interface completa, o resultado também oferece Jogar (inclusive seleção de disco),
+O resultado também oferece Jogar (inclusive seleção de disco),
 Transmitir do PS4/Xbox/Switch Lite ou abrir a loja quando o jogo não está instalado.
 Baixar e jogar continua no modo TV, com o mesmo jogo aberto pelo link `?game=CHAVE`.
 Falhas ficam visíveis e respostas antigas são ignoradas após sair do sorteio.

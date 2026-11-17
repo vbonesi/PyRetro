@@ -2,8 +2,7 @@
 
 **Auditoria de 28/10/2026:** [resultados, limites e próximos passos](docs/AUDITORIA-2026-10-28.md). Os testes se referem à revisão indicada no registro; alterações posteriores precisam de validação própria.
 
-Manutenção do meu acervo de jogos no PC e Android, com CLI, interface web e modo
-TV para navegar pelo controle, abrir jogos e acessar transmissões dos consoles.
+Manutenção do meu acervo de jogos no PC e Android, com CLI e o modo TV (a interface única do PC: controle, mouse e teclado) para navegar, abrir jogos e acessar transmissões dos consoles.
 
 Na manutenção, o script só mexe em duas coisas — a pasta sincronizada
 (`~/Drive/Jogos`, via Insync/Google Drive) e o celular Android via `adb`.
@@ -38,9 +37,8 @@ não são só estilo:
 
 ## Modo TV
 
-Acesse `http://127.0.0.1:8000/tv` para uma tela inicial com recentes, continuar jogando,
-favoritos e jogos instalados. Navegue pelo controle: Y pesquisa, X favorita,
-LB/RB pulam páginas e Menu abre opções de tema/tela cheia. Os acessos rápidos abrem
+Acesse `http://127.0.0.1:8000/tv` (a raiz `/` leva para lá; a antiga interface web foi desligada em 17/11/2026). Cinco destinos na barra lateral (Início, Biblioteca, Desejados, Apps e stream, Ferramentas). Navegue pelo controle: Y pesquisa, X favorita,
+LB/RB trocam o filtro rápido da Biblioteca e Menu abre opções de tema/tela cheia; com mouse e teclado, digite para buscar e use o botão direito nos jogos. Os acessos rápidos abrem
 Xbox remoto, PS4 remoto, Switch Lite via SysDVR, Steam, Heroic e emuladores quando
 os clientes estão instalados. Também oferece progresso/notas, download de ROMs do seu
 Drive e lançamento pelo setup. Instalação do atalho e limitações:
@@ -907,10 +905,10 @@ continua dependendo da serialização do serviço de nuvem.
   `emu-sync` (com `<select>` de fonte) - cada um com seu próprio
   checkbox "aplicar" local.
 
-## Interface gráfica (Fase 1)
+## Servidor (a interface é o modo TV)
 
 ```bash
-python3 gui/server.py              # abre em http://localhost:8000
+python3 gui/server.py              # serve http://localhost:8000 (abre no modo TV)
 python3 gui/server.py --port 8080  # outra porta
 python3 gui/server.py --host 0.0.0.0  # LAN direta (não recomendado)
 ```
