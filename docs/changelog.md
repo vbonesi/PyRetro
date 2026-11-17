@@ -1,5 +1,21 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, A4b: fluxos da ficha na casca, Android 0.30.0 (Claude)
+
+- **Jogar com o tempo registrado** roda na `ShellActivity`: `GameLauncher` (intent do RetroArch/PPSSPP/Lime3DS/Azahar, antes privada da `MainActivity`, que
+  agora a usa) e `PlaySession` (sessão **guardada em disco**: sobrevive se o Android matar o app durante o jogo). Na volta, envia os saves do jogo sem
+  perguntar e oferece "Registrar tempo" (1 a 1440 min; Salvar, Salvar e ver saves, Descartar). 8 testes JVM da regra de início, saída de cena e fim.
+- **Baixar e fila:** `DownloadFlow` (enfileirar, vincular origem do notebook/Drive, pedir ao notebook que inicie o jogo) compartilhado com a tela antiga.
+  Escolha de arquivo, "Notebook indisponível" e "Não achei no Drive" em diálogos Compose; página **Downloads** com iniciar/pausar, tentar de novo e tirar da fila.
+- **Saves** (RetroArch, pela nuvem): comparar, sincronizar o que é seguro, resolver conflito (manter o do celular ou usar uma versão da nuvem) e **Esquecer este
+  save**, todos com os mesmos textos de confirmação da tela antiga. **Trocar capa** (busca, miniaturas, confirmação antes de substituir) e **Editar** (gênero, datas,
+  tempo, comentário, sinopse; só grava o que mudou). **Remover ROM**: mesmas três escolhas, mesma prévia e mesmo texto; só remove depois de "Manter/Confirmar".
+- **Continua na tela antiga** (precisa de seletor do sistema, OAuth ou diálogo grande): escolher a pasta Jogos, outra ROM, arquivo no Drive, conectar a conta Google,
+  Texturas HD, Adicionar à Biblioteca, baixar conjunto CUE/M3U, saves de PSP/3DS (ID do título) e pasta RetroArch, além de reordenar a fila e cópias parciais.
+  O A4c precisa decidir o destino desses.
+- Build, lint e testes JVM passaram; APK 0.30.0 (code 51) compilado, **não instalado e não testado em aparelho** (nenhum fluxo foi exercitado de verdade: jogar,
+  tempo, download, saves, capa, editar e remover).
+
 ## 17/11/2026 — Nova navegação, A4a: Desejados, Busca e Situação/Opções em Compose, Android 0.29.0 (Claude)
 
 - **Busca:** procura pelo nome (e plataforma/gênero, sem acento nem caixa) entre os jogos carregados; quem começa pelo termo vem antes; até 200

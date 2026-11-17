@@ -913,26 +913,16 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(!notificationsAllowed() && asked<2) { store.prefs.edit().putInt("asked-notifications-count",asked+1).apply();requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),30) }
     }
     private fun linkDrive(game:Game,ref:DriveRef) {
-        store.prefs.edit().putString("cloud:${game.key}",ref.encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
+        DownloadFlow.linkDrive(store,game,ref)
         enqueueAndStart(game)
     }
     private fun linkNotebook(game:Game,option:RomOption) {
-        store.prefs.edit().putString("cloud:${game.key}",RomRef(game.code,option.file,option.etag,option.size).encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
+        DownloadFlow.linkNotebook(store,game,option)
         enqueueAndStart(game)
     }
     private fun enqueueAndStart(game:Game) {
-        runCatching {
-            val helper=queue();val source=store.prefs.getString("cloud:${game.key}",null)
-            val existing=helper.snapshot().firstOrNull { it.game.key==game.key && it.state!=DownloadState.DONE }
-            when {
-                existing==null -> helper.enqueue(game)
-                existing.state==DownloadState.RUNNING -> Unit
-                existing.source==source -> if(existing.state!=DownloadState.WAITING)helper.retry(game.key)
-                else -> { helper.remove(game.key);helper.enqueue(game) }
-            }
-            if(!helper.running)helper.start()
-            askNotifications()
-        }.onSuccess { dialog?.dismiss();message("⬇ ${game.name}: baixando. O andamento aparece no topo; o jogo fica pronto em Neste celular.") }
+        runCatching { DownloadFlow.enqueue(store,game);askNotifications() }
+            .onSuccess { dialog?.dismiss();message("⬇ ${game.name}: baixando. O andamento aparece no topo; o jogo fica pronto em Neste celular.") }
             .onFailure { error -> show(AlertDialog.Builder(this).setTitle("Downloads").setMessage(error.message ?: "Não foi possível iniciar o download.").setNegativeButton("Voltar",null).setPositiveButton("Abrir fila") { _,_ -> downloads() }) }
     }
     private fun driveSearch(game:Game) {
@@ -1558,7 +1548,6 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         for((group,label) in sync.groups.filterKeys { it in CloudPhone.prefixes })add(box,button("Versões deste celular · $label") { localVersions(group) })
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
-    private fun coreId(code:String)=CoreProfiles.id(code,store.prefs.getString("core:$code",if(code=="NDS")store.prefs.getString("nds-core",null) else null))
     private fun pickFolder(code:String) { pickingCode=code;startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),10) }
     private fun pickRom(game:Game,cloud:Boolean) { pickingGame=game;pickingCloud=cloud;startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),11) }
     @Deprecated("Compatibilidade com Activity sem dependências extras")
@@ -1623,51 +1612,16 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         startActivity(intent)
     }
     private fun launchLocal(game:Game) {
-        val uri=game.localUri ?: return
         try {
-            val intent=when(game.code) {
-                "3DS" -> {
-                    val target=listOf("io.github.lime3ds.android","io.github.azahar_emu.azahar").firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null } ?: error("Instale/configure Lime3DS ou Azahar no celular.")
-                    Intent(Intent.ACTION_VIEW).setPackage(target).setDataAndType(uri,"application/octet-stream")
-                }
-                "PSP" -> {
-                    val target=listOf("org.ppsspp.ppssppgold","org.ppsspp.ppsspp").firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null } ?: error("PPSSPP não encontrado.")
-                    Intent(Intent.ACTION_VIEW).setPackage(target).setDataAndType(uri,"application/octet-stream")
-                }
-                else -> retroArchIntent(game,uri)
-            }
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);intent.clipData=ClipData.newRawUri("ROM",uri)
+            val intent=GameLauncher.intentFor(this,store,game)
             activeGame=game;launchedAt=SystemClock.elapsedRealtime();leftForGame=false;startActivity(intent)
             store.prefs.edit().putLong("played:${game.key}",System.currentTimeMillis()).apply() // fileira Recentes do Início
         } catch(error:Exception) { activeGame=null;failure(error) }
     }
-    /** Caminho real do arquivo (armazenamento interno ou cartão) a partir do endereço do seletor de pastas. */
-    private fun filePath(uri:Uri):String {
-        val parts=DocumentsContract.getDocumentId(uri).split(':',limit=2)
-        require(uri.authority=="com.android.externalstorage.documents" && parts.size==2) { "Copie a ROM para uma pasta do armazenamento interno antes de abrir no emulador." }
-        return (if(parts[0]=="primary")"/storage/emulated/0/" else "/storage/${parts[0]}/")+parts[1]
-    }
-    private fun retroArchIntent(game:Game,uri:Uri):Intent {
-        val pkg=listOf("com.retroarch","com.retroarch.aarch64").firstOrNull { packageManager.getLaunchIntentForPackage(it)!=null } ?: error("RetroArch não encontrado.")
-        val path=filePath(uri)
-        val core=coreId(game.code)
-        val target=packageManager.getApplicationInfo(pkg,0)
-        return Intent().setComponent(ComponentName(pkg,"com.retroarch.browser.retroactivity.RetroActivityFuture")).putExtra("ROM",path).putExtra("LIBRETRO","${target.dataDir}/cores/${core}_libretro_android.so").putExtra("CONFIGFILE","/storage/emulated/0/Android/data/$pkg/files/retroarch.cfg")
-    }
     private fun notebook(game:Game) {
         show(AlertDialog.Builder(this).setTitle("Jogar no notebook").setMessage("Iniciar o jogo no notebook e abrir o Moonlight? Você escolhe o computador no Moonlight. Essa opção precisa de conexão; os jogos locais continuam offline.").setNegativeButton("Só Moonlight") { _,_ -> openPackage("com.limelight") }.setPositiveButton("Iniciar no PC") { _,_ ->
             message("Conferindo jogo no notebook…");work.execute { runCatching {
-                if(game.code.isNotEmpty()) {
-                    val options=JSONObject(store.request("/api/play/options?code=${Uri.encode(game.code)}&name=${Uri.encode(game.romName)}")).getJSONArray("options")
-                    val valid=(0 until options.length()).map { options.getJSONObject(it) }.filter { it.isNull("error") }
-                    require(valid.size==1) { "Escolha o disco/formato na interface do notebook." }
-                    store.request("/api/play/start",JSONObject().put("code",game.code).put("name",valid[0].getString("name")))
-                } else {
-                    require(game.id.isNotBlank());val options=JSONObject(store.request("/api/pc/options?id="+Uri.encode(game.id)))
-                    val remote=options.optJSONObject("remote")
-                    if(remote!=null)store.request("/api/tv/apps/launch",JSONObject().put("id",remote.getJSONObject("app").getString("id")))
-                    else { require(options.optBoolean("available")) { "Jogo não instalado no notebook. Abra a loja pelo Moonlight para instalar." };store.request("/api/pc/launch",JSONObject().put("id",game.id)) }
-                }
+                DownloadFlow.startOnNotebook(store,game)
             }.onSuccess { runOnUiThread { message("Pedido enviado ao notebook.");openPackage("com.limelight") } }.onFailure { runOnUiThread { failure(it) } } }
         })
     }

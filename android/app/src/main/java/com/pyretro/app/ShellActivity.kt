@@ -33,6 +33,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var entries = emptyList<LibEntry>()
     private var info = StatusInfo()
     private val extras by lazy { NotebookExtras(store, filesDir) }
+    private val flows by lazy { GameFlows(this, store, drive, work, { games }, ::changed, { syncNow(force = true) }) { g, a -> runLegacyAction(g, a) } }
     private val drive by lazy { GoogleDrive(this, store.prefs) }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var games = emptyList<Game>()
@@ -84,7 +85,8 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
         update()
         handler.postDelayed({ if (!isFinishing && !isDestroyed) work.execute { AppSync.prefetchCovers(this, store, drive, games) } }, 8000)
     }
-    override fun onResume() { super.onResume(); rev++; reload(); syncNow(force = false) }
+    override fun onResume() { super.onResume(); rev++; reload(); syncNow(force = false); flows.onResume() }
+    override fun onPause() { flows.onPause(); super.onPause() }
     override fun onDestroy() { handler.removeCallbacksAndMessages(null); (getSystemService(INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this); work.shutdown(); super.onDestroy() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,9 +101,10 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                 val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
                 val layout = navLayout(landscape, gamepad)
                 fun select(d: Destination) { nav.select(d); current = nav.current }
-                BackHandler(enabled = wishKey != null || showStatus || openKey != null || current != Destination.INICIO) {
-                    when { wishKey != null -> wishKey = null; showStatus -> showStatus = false; openKey != null -> openKey = null; else -> { nav.back(); current = nav.current } }
+                BackHandler(enabled = flows.page != null || wishKey != null || showStatus || openKey != null || current != Destination.INICIO) {
+                    when { flows.page != null -> flows.page = null; wishKey != null -> wishKey = null; showStatus -> showStatus = false; openKey != null -> openKey = null; else -> { nav.back(); current = nav.current } }
                 }
+                FlowDialogs(flows)
                 Scaffold(
                     containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
@@ -124,7 +127,14 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                         val wish = wishKey?.let { k -> shell.wish.firstOrNull { it.key == k } }
                         val open = openKey?.let { k -> shell.games.firstOrNull { it.key == k } }
                         val mod = Modifier.weight(1f)
+                        val page = flows.page
                         when {
+                            page != null -> when (page) {
+                                is Page.Downloads -> DownloadsScreen(store, ::openLegacy, { flows.page = null }, mod)
+                                is Page.Saves -> SavesScreen(flows, page.game, { flows.page = null }, mod)
+                                is Page.Cover -> CoverScreen(flows, page.game, page.target, { flows.page = null }, mod)
+                                is Page.Edit -> EditScreen(flows, page.game, { flows.page = null }, mod)
+                            }
                             showStatus -> StatusScreen(shell, statusNote, ::date, ::testConnection, ::syncProgress, ::openLegacy, { showStatus = false }, mod)
                             wish != null -> WishDetailScreen(shell, wish, ::leaveWish, { wishKey = null }, mod)
                             open != null -> GameScreen(store, open, remember(open.key, rev, shell) { factsOf(open) }, rev, { runAction(open, it) }, ::changed, { openKey = null }, mod)
@@ -177,8 +187,9 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
         }
     }
     private fun openGame(game: Game) { openKey = game.key }
-    /** Fluxos pesados da ficha (jogar, baixar, saves, ROMs, Drive, editar, capa, remover) ainda rodam na tela antiga, em cima do jogo escolhido. */
-    private fun runAction(game: Game, action: GameAction) =
+    /** Jogar, baixar, saves, capa, editar e remover rodam aqui (GameFlows); o que depende de seletor de pasta/arquivo ou OAuth abre a tela antiga. */
+    private fun runAction(game: Game, action: GameAction) = flows.run(game, action)
+    private fun runLegacyAction(game: Game, action: GameAction) =
         startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_GAME, game.key).putExtra(MainActivity.EXTRA_ACTION, action.id))
     private fun changed() { rev++; reload() }
 
