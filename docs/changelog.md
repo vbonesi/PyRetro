@@ -1,5 +1,17 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, A1: Compose e casca nova do Android 0.26.0 (Claude)
+
+- Dependências do Compose (BOM 2025.05.01, Material 3, activity-compose 1.10.1, plugin do compilador Kotlin 2.1.20): o Gradle baixou tudo com a
+  toolchain atual, sem instalar nada novo na máquina.
+- `ShellActivity` passa a ser a tela de entrada: tema do modo TV (`PyRetroTheme`: #0b1220, painel #1a2b3f, destaque #81e1ca, claro e escuro),
+  barra inferior em retrato e lateral em paisagem ou com controle ligado, quatro destinos (Início, Biblioteca, Desejados, Busca) e pilha
+  (voltar chega ao Início, depois sai). Lógica pura em `ShellNav.kt` (`Destination`, `NavStack`, `navLayout`) com 4 testes JVM.
+- Telas antigas intactas: cada destino abre a `MainActivity` na coleção certa (`EXTRA_COLLECTION`, também em `onNewIntent`); o Início lista
+  Sistemas, Favoritos, Ranking e Stream. A2 a A4 substituem essas telas.
+- Build, 112 testes JVM (+4) e lint passaram; APK `PyRetro-0.26.0-debug.apk` (code 47) compilado, **não instalado** (o Victor instala).
+  Não testado em aparelho: foco do controle dentro do Compose, tema claro e a troca retrato/paisagem.
+
 ## 17/11/2026 — Nova navegação, N10 (2/2): capas na moldura 3:4 (Claude)
 
 - Todos os cards (fileiras, Biblioteca, busca, escolha de capa) e a ficha usam moldura **3:4** (`gui/static/tv/cover-frame.js`). Regra pura

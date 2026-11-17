@@ -39,6 +39,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     companion object {
         /** Catálogo e progresso atualizam sozinhos quando o notebook responde; a instrumentação desliga. */
         @Volatile var automaticUpdates=true
+        const val EXTRA_COLLECTION="collection"
         private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","systems" to "Sistemas","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","stream" to "Stream")
     }
     private lateinit var store:LibraryStore
@@ -213,6 +214,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState);store=LibraryStore(this)
         collection=store.prefs.getString("ui:collection","home").takeIf { it in COLLECTIONS.map { c -> c.first } } ?: "home"
+        intent?.getStringExtra(EXTRA_COLLECTION)?.takeIf { it in COLLECTIONS.map { c -> c.first } }?.let { collection=it }
         filterPlatform=store.prefs.getString("ui:filter:$collection:platform","").orEmpty();filterGenre=store.prefs.getString("ui:filter:$collection:genre","").orEmpty()
         page=store.prefs.getInt("ui:page",0).coerceAtLeast(0);restoredScroll=store.prefs.getInt("ui:scroll",0).coerceAtLeast(0)
         restoredPage=page
@@ -1700,6 +1702,11 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 .putString("ui:filter:$collection:platform",filterPlatform).putString("ui:filter:$collection:genre",filterGenre).apply()
         }
         super.onPause();scanOnResume=true;if(activeGame!=null)leftForGame=true
+    }
+    /** A casca em Compose (ShellActivity) abre a tela antiga numa coleção; com a activity já viva, só troca a coleção. */
+    override fun onNewIntent(intent:Intent) {
+        super.onNewIntent(intent);setIntent(intent)
+        intent.getStringExtra(EXTRA_COLLECTION)?.takeIf { it in COLLECTIONS.map { c -> c.first } }?.let { selectCollection(it) }
     }
     override fun onResume() {
         super.onResume();queueHandler.removeCallbacks(queueTick);queueHandler.post(queueTick);queueHandler.postDelayed({ if(!isFinishing && !isDestroyed)prefetchCovers() },8000) // retoma a pré-busca de capas sempre que o app abre
