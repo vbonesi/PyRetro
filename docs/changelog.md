@@ -1,5 +1,22 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, A2: Início e Biblioteca reais em Compose, Android 0.27.0 (Claude)
+
+- **Início e Biblioteca abrem direto em Compose**, sem passar pela tela antiga. Início: fileiras do `HomeRules` (Continuar jogando, Recentes, Mais
+  jogados, Favoritos, Prontos no celular) e atalhos para Sistemas, Stream e Desejados. Biblioteca: filtros rápidos **Tudo, Jogando, Neste celular,
+  Favoritos, Ranking e Finalizados** (com contagem), trocados por **LB/RB** e também ao parar neles com o D-pad; grade adaptativa.
+- Dados e lógica não foram duplicados: `LibraryStore.loadGames()` (mesma leitura de catálogo + pastas que a tela antiga usava em `reloadLocal`, que
+  agora chama essa função) e `entryOf()`. Regras puras novas em `LibraryRules.kt` (`QuickFilter`, `LibraryRules.apply/counts/step`, `CoverRules.fit`),
+  com 6 testes JVM; o Ranking reaproveita `GridRules.ranking`.
+- **Cards na moldura 3:4 do N10:** proporção entre 0,62 e 0,9 → `ContentScale.Crop` ancorado no topo; o resto, capa inteira sobre a própria capa
+  desfocada (`Modifier.blur`, Android 12+) ou só escurecida abaixo do API 31.
+- **Controle:** anel de foco em todo card e chip; cada fileira, a grade e os chips usam `focusRestorer` (guardam o próprio foco). `hasGamepad`
+  virou estado reativo via `InputManager.InputDeviceListener` (conectar/desconectar troca a barra inferior pela lateral na hora).
+- A ficha continua sendo a da tela antiga: o card abre a `MainActivity` com `EXTRA_GAME` e ela abre a ficha assim que o jogo carrega (também em
+  `onNewIntent`). Tema: o app não tinha preferência de tema salva, então segue o do sistema.
+- Build, lint e 118 testes JVM (+6) passaram; APK `PyRetro-0.27.0-debug.apk` (code 48) compilado e **não instalado**. **Não testado em aparelho**
+  (sem celular ligado, sem emulador): foco real do controle, LB/RB, blur, carregamento das capas e a troca do controle ao vivo.
+
 ## 17/11/2026 — Nova navegação, A1: Compose e casca nova do Android 0.26.0 (Claude)
 
 - Dependências do Compose (BOM 2025.05.01, Material 3, activity-compose 1.10.1, plugin do compilador Kotlin 2.1.20): o Gradle baixou tudo com a
