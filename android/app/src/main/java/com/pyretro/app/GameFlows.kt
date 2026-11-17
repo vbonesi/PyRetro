@@ -27,7 +27,7 @@ sealed interface Page {
  * Biblioteca e saves de PSP/3DS) ainda abre a tela antiga por [legacy].
  */
 class GameFlows(private val activity: ComponentActivity, val store: LibraryStore, private val drive: GoogleDrive, private val work: Executor,
-    private val games: () -> List<Game>, private val changed: () -> Unit, private val syncNow: () -> Unit, private val legacy: (Game, GameAction) -> Unit) {
+    private val games: () -> List<Game>, private val isLoaded: () -> Boolean, private val changed: () -> Unit, private val syncNow: () -> Unit, private val legacy: (Game, GameAction) -> Unit) {
     var notice by mutableStateOf<NoticeState?>(null)
     var choice by mutableStateOf<ChoiceState?>(null)
     var timePrompt by mutableStateOf<TimePrompt?>(null)
@@ -72,13 +72,23 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
     }
     fun onPause() = PlaySession.markLeft(session)
     fun isRunning(game: Game) = PlaySession.active(session) == game.key
-    /** Voltou do jogo: envia os saves dele sem perguntar (conflito nunca é sobrescrito) e oferece registrar o tempo. */
-    fun onResume() {
-        val ended = PlaySession.end(session, System.currentTimeMillis()) ?: return
-        val game = games().firstOrNull { it.key == ended.key } ?: return
-        work.execute { runCatching { GameSaveSync.run(store, drive, game) }.getOrNull()?.takeIf { it.any }?.let { outcome -> ui { toast(outcome.text()) } } }
-        if (ended.worthOffering) timePrompt = TimePrompt(game, PlaySession.clamp(ended.minutes))
+    /**
+     * Voltou do jogo (ou a lista de jogos acabou de chegar): envia os saves dele sem perguntar (conflito nunca é sobrescrito) e oferece registrar o tempo.
+     * Se o app nasceu de novo (processo morto durante o jogo) e a lista ainda não chegou, a sessão continua guardada e é tratada na próxima chamada.
+     */
+    fun deliverSession() {
+        val list = games()
+        when (val r = PlaySession.resolve(session, System.currentTimeMillis(), list.map { it.key }.toSet(), loaded = isLoaded())) {
+            is PlaySession.Resolution.Deliver -> {
+                val game = list.first { it.key == r.ended.key }
+                work.execute { runCatching { GameSaveSync.run(store, drive, game) }.getOrNull()?.takeIf { it.any }?.let { outcome -> ui { toast(outcome.text()) } } }
+                if (r.ended.worthOffering) timePrompt = TimePrompt(game, PlaySession.clamp(r.ended.minutes))
+            }
+            is PlaySession.Resolution.Missing -> toast("Sessão de ${r.ended.minutes} min de um jogo que não está mais na lista; o tempo não foi registrado.")
+            else -> Unit
+        }
     }
+    fun onResume() = deliverSession()
     fun saveTime(prompt: TimePrompt, value: Int?, thenSaves: Boolean) {
         if (!PlaySession.valid(value)) { toast("Use entre ${PlaySession.MIN} e ${PlaySession.MAX} minutos."); return }
         store.addTime(prompt.game, value!!)

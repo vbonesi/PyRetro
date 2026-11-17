@@ -1,5 +1,12 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, correção do A4b: sessão de jogo não se perde com o app morto (Claude)
+
+- Se o Android matasse o processo durante o jogo, ao voltar a `GameFlows.onResume()` rodava antes de a lista de jogos chegar: a sessão era apagada e o tempo e os saves
+  se perdiam em silêncio. Agora `PlaySession.resolve` só apaga a sessão quando entrega (jogo achado) ou quando tem certeza de que o jogo sumiu; com a lista ainda
+  vazia ela **continua guardada** e é tratada quando o `reload()` entrega os jogos (`deliverSession`). Jogo que não está mais na lista gera aviso ("Sessão de X min de um
+  jogo que não está mais na lista…"), não silêncio. 3 testes JVM novos (pendente → entregue, jogo sumido, sem sair de cena). Android 0.30.1.
+
 ## 17/11/2026 — Nova navegação, A4b: fluxos da ficha na casca, Android 0.30.0 (Claude)
 
 - **Jogar com o tempo registrado** roda na `ShellActivity`: `GameLauncher` (intent do RetroArch/PPSSPP/Lime3DS/Azahar, antes privada da `MainActivity`, que

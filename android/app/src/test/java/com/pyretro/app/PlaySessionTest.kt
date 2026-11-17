@@ -48,4 +48,23 @@ class PlaySessionTest {
     @Test fun `cancelar apaga a sessao`() {
         val s = MemoryStore(); PlaySession.begin(s, "k", 0); PlaySession.cancel(s); assertNull(PlaySession.active(s))
     }
+
+    @Test fun `com a lista ainda vazia a sessao continua pendente e e entregue quando a lista chega`() {
+        val s = MemoryStore(); PlaySession.begin(s, "jogo", 0); PlaySession.markLeft(s)          // o Android matou o processo; o app nasceu de novo
+        assertEquals(PlaySession.Resolution.Pending, PlaySession.resolve(s, 30 * min, emptySet(), loaded = false))
+        assertEquals("jogo", PlaySession.active(s))                                                // nada foi apagado
+        assertEquals(PlaySession.Resolution.Pending, PlaySession.resolve(s, 31 * min, emptySet(), loaded = false))
+        val r = PlaySession.resolve(s, 32 * min, setOf("jogo"), loaded = true) as PlaySession.Resolution.Deliver
+        assertEquals(EndedSession("jogo", 32), r.ended); assertNull(PlaySession.active(s))
+        assertEquals(PlaySession.Resolution.None, PlaySession.resolve(s, 33 * min, setOf("jogo"), loaded = true))   // só uma vez
+    }
+    @Test fun `jogo que nao esta mais na lista e avisado e a sessao some`() {
+        val s = MemoryStore(); PlaySession.begin(s, "sumiu", 0); PlaySession.markLeft(s)
+        val r = PlaySession.resolve(s, 12 * min, setOf("outro"), loaded = true) as PlaySession.Resolution.Missing
+        assertEquals(EndedSession("sumiu", 12), r.ended); assertNull(PlaySession.active(s))
+    }
+    @Test fun `sem sair de cena nada e resolvido`() {
+        val s = MemoryStore(); PlaySession.begin(s, "k", 0)
+        assertEquals(PlaySession.Resolution.None, PlaySession.resolve(s, 5 * min, setOf("k"), loaded = true)); assertEquals("k", PlaySession.active(s))
+    }
 }

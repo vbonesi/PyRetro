@@ -47,5 +47,32 @@ object PlaySession {
         store.put(mapOf(KEY to null, START to null, LEFT to null))
         return EndedSession(key, minutes)
     }
+    /** Como [end], mas sem apagar: a sessão só sai do disco quando o jogo for achado ([finish]). */
+    fun peek(store: SessionStore, now: Long): EndedSession? {
+        val key = active(store) ?: return null
+        if (!store.getBoolean(LEFT)) return null
+        return EndedSession(key, minutes(store.getLong(START), now))
+    }
+    fun finish(store: SessionStore) = cancel(store)
+
+    sealed interface Resolution {
+        object None : Resolution
+        /** A lista de jogos ainda não chegou (o app acabou de nascer): a sessão continua guardada. */
+        object Pending : Resolution
+        data class Deliver(val ended: EndedSession) : Resolution
+        /** O jogo não está mais na lista: avisar em vez de sumir em silêncio. */
+        data class Missing(val ended: EndedSession) : Resolution
+    }
+
+    /** Decide o que fazer com a sessão guardada; só apaga quando entrega ou quando tem certeza de que o jogo sumiu. */
+    fun resolve(store: SessionStore, now: Long, knownKeys: Set<String>, loaded: Boolean): Resolution {
+        val ended = peek(store, now) ?: return Resolution.None
+        return when {
+            ended.key in knownKeys -> { finish(store); Resolution.Deliver(ended) }
+            !loaded -> Resolution.Pending
+            else -> { finish(store); Resolution.Missing(ended) }
+        }
+    }
+
     fun cancel(store: SessionStore) = store.put(mapOf(KEY to null, START to null, LEFT to null))
 }

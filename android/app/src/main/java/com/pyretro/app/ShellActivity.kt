@@ -33,7 +33,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var entries = emptyList<LibEntry>()
     private var info = StatusInfo()
     private val extras by lazy { NotebookExtras(store, filesDir) }
-    private val flows by lazy { GameFlows(this, store, drive, work, { games }, ::changed, { syncNow(force = true) }) { g, a -> runLegacyAction(g, a) } }
+    private val flows by lazy { GameFlows(this, store, drive, work, { games }, { data != null }, ::changed, { syncNow(force = true) }) { g, a -> runLegacyAction(g, a) } }
     private val drive by lazy { GoogleDrive(this, store.prefs) }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var games = emptyList<Game>()
@@ -68,7 +68,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
             val ent = list.map(store::entryOf)
             val wishes = runCatching { extras.wishlist(false) }.getOrDefault(emptyList())
             val inf = runCatching { readInfo(loaded?.problems ?: emptyList(), list) }.getOrDefault(StatusInfo())
-            runOnUiThread { if (!isDestroyed) { games = list; entries = ent; wishItems = wishes; info = inf; status = statusLine(list.isEmpty()); data = buildData() } }
+            runOnUiThread { if (!isDestroyed) { games = list; entries = ent; wishItems = wishes; info = inf; status = statusLine(list.isEmpty()); data = buildData(); flows.deliverSession() } }
             if (store.online) runCatching { extras.wishlist(true) }.onSuccess { fresh ->
                 runOnUiThread { if (!isDestroyed && fresh != wishItems) { wishItems = fresh; data = buildData() } }
             }
