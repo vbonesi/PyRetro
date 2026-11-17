@@ -2,7 +2,9 @@ import {$} from "./dom.js";
 import {state} from "./state.js";
 export function focusable() {
   const root = document.querySelector("dialog[open]") || document;
-  return [...root.querySelectorAll("button:not(:disabled),a[href],input")].filter(e => !e.hidden && e.getClientRects().length);
+  // As setas ‹ › das fileiras são só do mouse: controle e teclado correm a fileira pelo próprio foco.
+  const mouse = document.body.dataset.input === "mouse";
+  return [...root.querySelectorAll("button:not(:disabled),a[href],input")].filter(e => !e.hidden && e.getClientRects().length && (mouse || !e.closest(".shelf-controls")));
 }
 function galleryMove(direction, current) {
   // Na grade: esquerda/direita seguem a ordem dos cards (quebrando de linha); no fim da lista ficam onde estão em vez de subir aos menus.
@@ -46,6 +48,14 @@ export function move(direction) {
   if (!nodes.includes(current)) { (recallFocus(regionOf(current), nodes) || nodes[0])?.focus(); return; }
   if (galleryMove(direction, current)) return;
   const others = nodes.filter(e => e !== current);
+  // ← sem vizinho à esquerda na própria região (destaque, cabeçalho, filtros, galeria, fileiras): vai à barra lateral.
+  if (direction === "left" && regionOf(current) !== "barra") {
+    const region = regionOf(current), same = others.filter(e => regionOf(e) === region);
+    if (pickNeighbor(current.getBoundingClientRect(), same.map(e => e.getBoundingClientRect()), "left") < 0) {
+      const bar = recallFocus("barra", nodes) || nodes.find(e => regionOf(e) === "barra");
+      if (bar) { bar.focus({preventScroll: true}); return; }
+    }
+  }
   let best = others[pickNeighbor(current.getBoundingClientRect(), others.map(e => e.getBoundingClientRect()), direction)];
   if (best && regionOf(best) !== regionOf(current)) best = recallFocus(regionOf(best), nodes) || best;
   if (best) { best.focus({preventScroll: true}); best.scrollIntoView({block: "nearest", inline: "nearest"}); }

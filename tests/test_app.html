@@ -558,6 +558,13 @@ teste("modo TV: barra lateral tem cinco destinos e leva a cada um em até dois p
     doc.getElementById("spotlight-open").focus(); app.action("left");
     igual(doc.activeElement.dataset.destination, "home", "← não levou ao destino atual da barra");
     app.action("right"); verdade(!doc.activeElement.dataset.destination, "→ não voltou ao conteúdo");
+    // ← vale também do botão do cabeçalho e de cima das setas da fileira (que o controle não alcança)
+    doc.getElementById("refresh").focus(); app.action("left");
+    igual(doc.activeElement.dataset.destination, "home", "← do cabeçalho não levou à barra");
+    doc.querySelector(".game").focus(); app.action("left");
+    igual(doc.activeElement.dataset.destination, "home", "← da primeira capa da fileira não levou à barra");
+    app.action("up"); app.action("right");
+    verdade(![...doc.querySelectorAll(".shelf-controls button")].includes(doc.activeElement), "setas da fileira entraram no foco do controle");
     // LT/RT: qualquer destino a no máximo dois passos do Início
     const alcance = {};
     for (const [passos, tecla] of [[1, "next"], [2, "next"], [1, "previous"], [2, "previous"]]) {

@@ -9,7 +9,8 @@
   ficam numa fileira sob **Biblioteca** até o N4 as transformar em filtros. B no Início leva à barra; B na barra volta ao conteúdo.
 - Início: destaque "CONTINUAR" (jogo iniciado mais recente) e fileiras Jogando, Favoritos, Neste PC, Recentes e Mais jogados. Saíram a fileira de
   acesso rápido (os clientes remotos estão em Apps e stream) e "Steam e Heroic" (já contida em Neste PC).
-- **Falta dado para "Adicionados há pouco":** o cadastro não guarda a data de inclusão do jogo; precisa de um campo novo (decisão do Opus/Victor).
+- **"Adicionados há pouco" fica fora:** o cadastro não guarda data de inclusão confiável do jogo, e não inventei dado. Entra só se um campo novo (`adicionado_em`, gravado ao criar o registro) for decidido.
+- Correção: ← sem vizinho na própria região (destaque, cabeçalho, filtros, galeria, fileiras) vai à barra lateral; as setas ‹ › das fileiras só entram no foco no modo mouse.
 - Testes: 500 Python e 64 JS (+1: cinco destinos e alcance em até dois passos); o teste do Início passou a abrir os clientes remotos por Apps.
 
 ## 17/11/2026 — Nova navegação, N2: motor de foco e modo de entrada (Claude)
