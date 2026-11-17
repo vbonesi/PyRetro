@@ -10,6 +10,9 @@ data class RemovalPlan(val scope:String,val local:List<RemovalFile>,val drive:Li
     val token get()=CloudRules.sha256(JSONObject().put("scope",scope).put("local",JSONArray(local.map { it.json() })).put("drive",JSONArray(drive.map { it.json() })).put("preserved",JSONArray(preserved)).toString().toByteArray())
 }
 object RemovalRules {
+    /** Quanto tempo a prévia pode esperar o Drive. No escopo "Só deste celular" o Drive só serve para avisar de última cópia: não pode travar a prévia. */
+    fun driveBudgetMs(scope:String)=if(scope=="local")8_000L else 25_000L
+    fun expired(now:Long,deadline:Long)=now>=deadline
     fun plan(scope:String,local:List<RemovalFile>,remote:List<RemovalFile>?,preserved:List<String> = emptyList(),protected:List<String> = emptyList(),complete:Boolean=true):RemovalPlan {
         require(scope in setOf("local","drive","both"));val errors=protected.toMutableList();val warnings=mutableListOf<String>()
         if(!complete)errors.add("Não foi possível provar quais arquivos são exclusivos.")

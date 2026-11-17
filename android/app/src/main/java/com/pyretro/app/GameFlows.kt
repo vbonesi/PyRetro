@@ -12,6 +12,8 @@ class NoticeState(val title: String, val text: String, val confirm: String? = nu
     val extra: String? = null, val onExtra: (() -> Unit)? = null, val onConfirm: (() -> Unit)? = null)
 class ChoiceState(val title: String, val labels: List<String>, val onPick: (Int) -> Unit)
 class TimePrompt(val game: Game, val minutes: Long)
+/** Trabalho do usuário em andamento: fica na tela até a prévia, o erro ou o fim (não é um toast que some). */
+class BusyState(val text: String, val cancelable: Boolean = true)
 
 sealed interface Page {
     object Downloads : Page
@@ -35,9 +37,36 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
     var choice by mutableStateOf<ChoiceState?>(null)
     var timePrompt by mutableStateOf<TimePrompt?>(null)
     var page by mutableStateOf<Page?>(null)
+    var busy by mutableStateOf<BusyState?>(null)
+    private var busyToken = 0
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     val extras = NotebookExtras(store, activity.filesDir)
     private val session = PrefsSessionStore(store.prefs)
 
+    private fun log(text: String) { android.util.Log.i("PyRetro", text) }
+
+    /**
+     * Roda [job] fora da thread principal (no executor das ações do usuário, que nunca espera sincronização) com um aviso na tela até terminar.
+     * Passado [timeoutMs] (0 = sem prazo), o aviso some e o usuário recebe "Demorou demais" com [retry]; o resultado tardio é descartado.
+     */
+    private fun <T> withBusy(text: String, retry: (() -> Unit)? = null, timeoutMs: Long = 30_000, cancelable: Boolean = true, job: () -> T, done: (Result<T>) -> Unit) {
+        val token = ++busyToken; val started = System.currentTimeMillis()
+        busy = BusyState(text, cancelable); log("início: $text")
+        if (timeoutMs > 0) handler.postDelayed({
+            if (busyToken == token) {
+                busyToken++; busy = null; log("prazo vencido (${timeoutMs / 1000} s): $text")
+                notice = NoticeState("Demorou demais", "\"$text\" passou de ${timeoutMs / 1000} s sem resposta (o Drive ou o notebook podem estar lentos).", retry?.let { "Tentar de novo" }, "Voltar", onConfirm = retry)
+            }
+        }, timeoutMs)
+        work.execute {
+            val result = runCatching(job)
+            ui {
+                if (busyToken == token) { busyToken++; busy = null; log("fim (${System.currentTimeMillis() - started} ms, ${if (result.isSuccess) "ok" else "erro: ${result.exceptionOrNull()?.message}"}): $text"); done(result) }
+                else log("resultado tardio descartado: $text")
+            }
+        }
+    }
+    fun cancelBusy() { busyToken++; busy = null }
     private fun ui(block: () -> Unit) = activity.runOnUiThread { if (!activity.isDestroyed) block() }
     fun toast(text: String) = android.widget.Toast.makeText(activity, text, android.widget.Toast.LENGTH_LONG).show()
     private fun bytes(size: Long) = android.text.format.Formatter.formatFileSize(activity, size)
@@ -45,6 +74,7 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
 
     /** True quando a ação roda aqui; as demais seguem para a tela antiga. */
     fun run(game: Game, action: GameAction) {
+        log("ação ${action.id}: ${game.key}")
         when (action) {
             GameAction.PLAY -> play(game)
             GameAction.QUEUE -> page = Page.Downloads
@@ -70,6 +100,7 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
 
     // --- Jogar, com o tempo jogado ---------------------------------------------------------------------------------------------
     fun play(game: Game) {
+        log("jogar: ${game.key}")
         runCatching { GameLauncher.intentFor(activity, store, game) }.onSuccess { intent ->
             PlaySession.begin(session, game.key, System.currentTimeMillis())
             store.prefs.edit().putLong("played:${game.key}", System.currentTimeMillis()).apply() // fileira Recentes do Início
@@ -86,11 +117,12 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
         val list = games()
         when (val r = PlaySession.resolve(session, System.currentTimeMillis(), list.map { it.key }.toSet(), loaded = isLoaded())) {
             is PlaySession.Resolution.Deliver -> {
+                log("sessão entregue: ${r.ended.key} ${r.ended.minutes} min")
                 val game = list.first { it.key == r.ended.key }
                 work.execute { runCatching { GameSaveSync.run(store, drive, game) }.getOrNull()?.takeIf { it.any }?.let { outcome -> ui { toast(outcome.text()) } } }
                 if (r.ended.worthOffering) timePrompt = TimePrompt(game, PlaySession.clamp(r.ended.minutes))
             }
-            is PlaySession.Resolution.Missing -> toast("Sessão de ${r.ended.minutes} min de um jogo que não está mais na lista; o tempo não foi registrado.")
+            is PlaySession.Resolution.Missing -> { log("sessão de jogo ausente: ${r.ended.key}"); toast("Sessão de ${r.ended.minutes} min de um jogo que não está mais na lista; o tempo não foi registrado.") }
             else -> Unit
         }
     }
@@ -122,10 +154,8 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
         if (current != null && RomSource.parse(current) == null) { enqueue(game); return }
         if (!store.online && drive.connected) { driveDirect(game); return }
         if (!game.downloadable) { if (current != null) enqueue(game) else if (drive.connected) driveDirect(game) else driveSearch(game); return }
-        toast("Consultando o notebook…")
-        work.execute {
-            val result = runCatching { RomSource.playable(store.romOptions(game)) { store.accepts(game.code, it) } }
-            ui {
+        withBusy("Consultando o notebook…", retry = { download(game) }, job = { RomSource.playable(store.romOptions(game)) { store.accepts(game.code, it) } }) { result ->
+            run {
                 result.onSuccess { options -> when (options.size) {
                     0 -> offerBundle(game)                                                             // só CUE/M3U: oferece o conjunto de discos
                     1 -> { DownloadFlow.linkNotebook(store, game, options[0]); enqueue(game) }
@@ -139,10 +169,8 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
         }
     }
     private fun driveDirect(game: Game) {
-        toast("Procurando ${game.name} no seu Drive…")
-        work.execute {
-            val result = runCatching { DriveSource.candidates(drive.romFiles(game.code), game.romName.ifBlank { game.name }) { store.accepts(game.code, it) } }
-            ui {
+        withBusy("Procurando ${game.name} no seu Drive…", retry = { driveDirect(game) }, job = { DriveSource.candidates(drive.romFiles(game.code), game.romName.ifBlank { game.name }) { store.accepts(game.code, it) } }) { result ->
+            run {
                 result.onSuccess { found -> when (found.size) {
                     0 -> notice = NoticeState("Não achei no Drive", "Não há em Jogos/ROMs/${game.code} um arquivo de ${game.name} que o celular abra sozinho (PS1 precisa de CHD ou PBP). Escolha o arquivo manualmente.", "Escolher no Drive") { driveSearch(game) }
                     1 -> { DownloadFlow.linkDrive(store, game, found[0]); enqueue(game) }
@@ -156,10 +184,8 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
     private fun moonlight(game: Game) {
         notice = NoticeState("Jogar no notebook", "Iniciar o jogo no notebook e abrir o Moonlight? Você escolhe o computador no Moonlight. Essa opção precisa de conexão; os jogos locais continuam offline.",
             "Iniciar e abrir", "Voltar", "Só Moonlight", { openPackage("com.limelight") }) {
-            toast("Conferindo jogo no notebook…")
-            work.execute {
-                val result = runCatching { DownloadFlow.startOnNotebook(store, game) }
-                ui { result.onSuccess { toast("Pedido enviado ao notebook."); openPackage("com.limelight") }.onFailure(::failure) }
+            withBusy("Conferindo jogo no notebook…", job = { DownloadFlow.startOnNotebook(store, game) }) { result ->
+                result.onSuccess { toast("Pedido enviado ao notebook."); openPackage("com.limelight") }.onFailure(::failure)
             }
         }
     }
@@ -169,10 +195,8 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
         choice = ChoiceState("Remover ROM: ${game.name}", listOf("Só deste celular", "Só do Drive (lixeira)", "Dos dois")) { which -> removalPreview(game, listOf("local", "drive", "both")[which]) }
     }
     private fun removalPreview(game: Game, scope: String) {
-        toast("Conferindo arquivos exclusivos e proteções…")
-        work.execute {
-            val result = runCatching { RomRemoval(store).plan(game, scope, isRunning(game)) }
-            ui { result.onFailure(::failure).onSuccess { plan ->
+        withBusy("Conferindo arquivos exclusivos e proteções…", retry = { removalPreview(game, scope) }, job = { RomRemoval(store).plan(game, scope, isRunning(game)) }) { result ->
+            run { result.onFailure { notice = NoticeState("Não foi possível conferir", it.message ?: "Falha ao montar a prévia.", "Tentar de novo", "Voltar") { removalPreview(game, scope) } }.onSuccess { plan ->
                 val description = listOf("Feche os emuladores. Saves, estados, capa, texturas, cadastro e progresso ficam.",
                     "Celular (${plan.local.size}):\n" + plan.local.joinToString("\n") { "• ${it.path}" },
                     "Drive (${plan.drive.size}):\n" + plan.drive.joinToString("\n") { "• ${it.path}" },
@@ -181,14 +205,13 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
                     "Celular: lixeira recuperável em Opções. Drive: lixeira do Google.").filter { it.isNotBlank() }.joinToString("\n\n")
                 val allowed = plan.blocked.isEmpty() && (plan.local.isNotEmpty() || plan.drive.isNotEmpty())
                 notice = NoticeState("Prévia: ${game.name}", description, plan.confirmation.takeIf { allowed }, "Manter") {
-                    toast("Revalidando a prévia e removendo…")
-                    work.execute {
-                        val done = runCatching { RomRemoval(store).apply(game, plan, isRunning(game)) }
-                        ui { done.onSuccess { rows ->
+                    // Remoção não tem prazo nem cancelamento: revalida a prévia e só então move para a lixeira.
+                    withBusy("Revalidando a prévia e removendo…", timeoutMs = 0, cancelable = false, job = { RomRemoval(store).apply(game, plan, isRunning(game)) }) { done ->
+                        done.onSuccess { rows ->
                             val failures = rows.filter { it.second.isFailure }
-                            toast("${rows.size - failures.size} arquivo(s) para a lixeira. " + if (failures.isEmpty()) "Versões recuperáveis; saves preservados." else failures.joinToString { "${it.first}: ${it.second.exceptionOrNull()?.message}" })
+                            notice = NoticeState("Remoção", "${rows.size - failures.size} arquivo(s) para a lixeira. " + if (failures.isEmpty()) "Versões recuperáveis; saves preservados." else failures.joinToString { "${it.first}: ${it.second.exceptionOrNull()?.message}" })
                             changed()
-                        }.onFailure(::failure) }
+                        }.onFailure { notice = NoticeState("Remoção", it.message ?: "Não foi possível remover.") }
                     }
                 }
             } }
@@ -283,26 +306,24 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
         }.addOnFailureListener { error -> failure(IllegalStateException("O Google recusou a conexão: ${error.message}. Confira se esta conta está entre os usuários de teste do projeto PyRetro no Google Cloud.", error)) }
     }
     private fun googleConnected(after: Game?) {
-        work.execute {
-            val result = runCatching { drive.account() }
-            ui { result.onSuccess { email -> toast("Conta Google conectada: $email."); changed(); after?.let { driveDirect(it) } }.onFailure(::failure) }
+        withBusy("Conectando a conta Google…", retry = { googleConnected(after) }, job = { drive.account() }) { result ->
+            result.onSuccess { email -> toast("Conta Google conectada: $email."); changed(); after?.let { driveDirect(it) } }.onFailure(::failure)
         }
     }
     fun disconnectGoogle() { drive.disconnect(); toast("Conta Google desconectada deste app. Para revogar o acesso, use myaccount.google.com → Segurança."); changed() }
 
     /** Sem arquivo único: se o notebook tem um CUE/M3U que o sistema abre, oferece o conjunto inteiro. */
     private fun offerBundle(game: Game) {
-        work.execute {
-            val result = runCatching {
-                val entries = store.romOptions(game).filter { BundleRules.isDescriptor(it.file) && store.accepts(game.code, it.file.substringAfterLast('/')) }
-                    .sortedBy { if (it.file.endsWith(".m3u", true)) 0 else 1 } // M3U (todos os discos) antes do CUE de um disco só
-                entries.map { option -> val (id, members) = BundleStore(store, SafStorage(store)).manifest(game.code, option.file); Triple(option.file, id, members) }
-            }
-            ui {
+        withBusy("Conferindo o conjunto de discos no notebook…", retry = { offerBundle(game) }, timeoutMs = 60_000, job = {
+            val entries = store.romOptions(game).filter { BundleRules.isDescriptor(it.file) && store.accepts(game.code, it.file.substringAfterLast('/')) }
+                .sortedBy { if (it.file.endsWith(".m3u", true)) 0 else 1 } // M3U (todos os discos) antes do CUE de um disco só
+            entries.map { option -> val (id, members) = BundleStore(store, SafStorage(store)).manifest(game.code, option.file); Triple(option.file, id, members) }
+        }) { result ->
+            run {
                 val bundles = result.getOrElse { emptyList() }
                 if (bundles.isEmpty()) {
                     notice = NoticeState("Formato que o celular não abre", "O notebook tem ${game.name}, mas nem num arquivo único que o celular abra nem num CUE/M3U completo (${result.exceptionOrNull()?.message ?: "PS1 precisa de CHD, PBP ou CUE com todas as faixas"}). Converta no PC ou escolha outro arquivo no Drive.", "Escolher no Drive") { driveSearch(game) }
-                    return@ui
+                    return@run
                 }
                 choice = ChoiceState("Baixar o conjunto de discos", bundles.map { (entry, _, members) -> "${entry.substringAfterLast('/')} · ${members.size} arquivos · ${bytes(members.sumOf { it.size })}" }) { which ->
                     val (entry, id, members) = bundles[which]
@@ -315,10 +336,8 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
 
     fun addToLibrary(game: Game) {
         val name = GameLogic.fileLabel(game.romName.substringAfterLast('/').ifBlank { game.name })
-        toast("Cadastrando ${game.name} na Biblioteca…")
-        work.execute {
-            val result = runCatching { val response = store.cloudLibrary.register(game, name); response to store.cached() }
-            ui {
+        withBusy("Cadastrando ${game.name} na Biblioteca…", retry = { addToLibrary(game) }, job = { val response = store.cloudLibrary.register(game, name); response to store.cached() }) { result ->
+            run {
                 result.onSuccess { (response, fresh) ->
                     val id = response.getString("id"); val registered = fresh.firstOrNull { it.id == id }
                     if (registered != null && registered.key != game.key) runCatching { store.migrateKeys(mapOf(game.key to registered.key)) }
@@ -336,22 +355,25 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
         AppSync.probe(store, force = true) { ui { changed() } }; toast("Endereço salvo."); changed()
     }
     fun refreshCatalog() {
-        toast("Atualizando Biblioteca e catálogo…")
-        work.execute { val r = runCatching { store.refresh() }; ui { r.onSuccess { toast("Catálogo atualizado. As capas são guardadas conforme você navega."); changed() }.onFailure(::failure) } }
+        withBusy("Atualizando Biblioteca e catálogo…", retry = { refreshCatalog() }, timeoutMs = 120_000, job = { store.refresh() }) { r ->
+            r.onSuccess { toast("Catálogo atualizado. As capas são guardadas conforme você navega."); changed() }.onFailure(::failure)
+        }
     }
     fun notificationSettings() = runCatching { activity.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, activity.packageName)) }.onFailure(::failure)
     fun notificationsAllowed() = android.os.Build.VERSION.SDK_INT < 33 || activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
     /** Estatísticas da Biblioteca (vêm do notebook; ficam guardadas para ver offline). */
     fun showStats() {
-        toast("Consultando as estatísticas…")
-        work.execute {
+        withBusy("Consultando as estatísticas…", retry = { showStats() }, job = {
             val online = store.online
             val fresh = if (online) runCatching { extras.stats(true) }.getOrNull() else null
             val stats = fresh ?: extras.stats(false)
             val wish = (if (online) runCatching { extras.wishlist(true).size }.getOrNull() else null) ?: extras.wishlist(false).size
-            val at = store.prefs.getLong("stats-at", 0)
-            ui {
+            Triple(fresh, stats, wish)
+        }) { result ->
+            run {
+                val (fresh, stats, wish) = result.getOrElse { Triple(null, null, 0) }
+                val at = store.prefs.getLong("stats-at", 0)
                 notice = if (stats == null) NoticeState("📊 Estatísticas", "As estatísticas vêm do notebook. Conecte uma vez e elas ficam guardadas para ver offline.")
                 else {
                     val media = if (stats.isNull("nota_media")) "—" else "%.2f".format(java.util.Locale("pt", "BR"), stats.getDouble("nota_media"))

@@ -38,14 +38,17 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private val picker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r -> val cb = onPicked; onPicked = null; cb?.invoke(r.resultCode, r.data) }
     private val senderPicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { r -> val cb = onPicked; onPicked = null; cb?.invoke(r.resultCode, r.data) }
     private val flows by lazy {
-        GameFlows(this, store, drive, work, { games }, { data != null }, ::changed, { syncNow(force = true) },
+        GameFlows(this, store, drive, actions, { games }, { data != null }, ::changed, { syncNow(force = true) },
             { intent, done -> onPicked = done; picker.launch(intent) },
             { sender, done -> onPicked = done; senderPicker.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build()) }) { g, a -> runLegacyAction(g, a) }
     }
     private val drive by lazy { GoogleDrive(this, store.prefs) }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var games = emptyList<Game>()
+    /** Trabalho de fundo (recarregar a lista, sincronizar, Desejados): pode demorar na rede. */
     private val work = java.util.concurrent.Executors.newSingleThreadExecutor()
+    /** Ações do usuário (remover, baixar, saves, capa, editar, testar conexão…): nunca esperam a sincronização de fundo. */
+    private val actions = java.util.concurrent.Executors.newFixedThreadPool(3)
 
     /** Mesmo critério da tela antiga: controle físico (não virtual) com gamepad ou joystick. */
     private fun gamepadPresent() = InputDevice.getDeviceIds().asSequence().mapNotNull { InputDevice.getDevice(it) }
@@ -95,7 +98,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     }
     override fun onResume() { super.onResume(); rev++; reload(); syncNow(force = false); flows.onResume() }
     override fun onPause() { flows.onPause(); super.onPause() }
-    override fun onDestroy() { handler.removeCallbacksAndMessages(null); (getSystemService(INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this); work.shutdown(); super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacksAndMessages(null); (getSystemService(INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this); work.shutdown(); actions.shutdown(); super.onDestroy() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -182,7 +185,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     }
     private fun testConnection() {
         statusNote = "Testando conexão…"
-        work.execute {
+        actions.execute {
             val result = runCatching { store.checkConnection() }
             if (result.isSuccess) store.online = true
             runOnUiThread { statusNote = if (result.isSuccess) "Online. PyRetro respondeu em ${date(System.currentTimeMillis())}." else "Sem resposta. Confira o Tailscale e o notebook; o modo offline continua."; reload() }
@@ -190,14 +193,14 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     }
     private fun syncProgress() {
         statusNote = "Enviando progresso e tempo…"
-        work.execute {
+        actions.execute {
             val result = runCatching { store.synchronize() }
             runOnUiThread { statusNote = result.getOrElse { it.message ?: "Não foi possível sincronizar." }; reload() }
         }
     }
     private fun leaveWish(item: WishItem, bought: Boolean) {
         if (!store.cloudLibrary.ready() && !store.online) { android.widget.Toast.makeText(this, "Esta função precisa do notebook online. Ligue o Tailscale e tente de novo.", android.widget.Toast.LENGTH_LONG).show(); return }
-        work.execute {
+        actions.execute {
             val result = runCatching { extras.leaveWishlist(item, bought) }
             if (result.isSuccess && bought) runCatching { store.refresh() }
             runOnUiThread {

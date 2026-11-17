@@ -1,5 +1,20 @@
 # Changelog
 
+## 17/11/2026 — Android 0.31.1: remover ROM não fica mais mudo (bug do V2) (Claude)
+
+- **Sintoma (Victor, Zool → Remover → "Só deste celular"):** só o toast "Conferindo arquivos exclusivos e proteções…" e mais nada. **Causas confirmadas no código:**
+  (1) as ações do usuário (`GameFlows`) usavam o mesmo executor de uma thread do trabalho de fundo (`reload`, `extras.wishlist(true)` na rede, `store.synchronize()` no Drive),
+  então esperavam atrás de uma sincronização longa; (2) `RomRemoval.plan` listava o Drive inteiro mesmo no escopo "Só deste celular" (lento e sem prazo); (3) o único retorno
+  visual era um toast de 3,5 s, e uma exceção virava "Não foi possível concluir." que passava batido.
+- **Correção:** executor **separado** para ações do usuário (`actions`, 3 threads) e para o fundo (`work`); `withBusy` mostra **"Aguarde" com o texto do passo e botão Cancelar** até a prévia,
+  o erro ou o fim, com **prazo de 30 s** ("Demorou demais" + **Tentar de novo**; resultado tardio é descartado). Vale para remover (prévia e aplicação, esta sem prazo nem cancelar), baixar
+  (consultar notebook, procurar no Drive, conjunto CUE/M3U), Moonlight, Adicionar à Biblioteca, atualizar catálogo, conectar Google e Estatísticas. Falha da prévia agora abre aviso com
+  "Tentar de novo"; o resultado da remoção também é um aviso, não toast.
+- **Drive na prévia:** orçamento de **8 s** no escopo "Só deste celular" (só serve para avisar de última cópia; se estourar, a prévia sai com "Cópia no Drive não conferida") e 25 s nos
+  escopos que exigem o Drive (erro claro "O Drive demorou para responder."). `RemovalRules.driveBudgetMs/expired`; 4 testes JVM (`RemovalBudgetTest`, inclusive o escopo local sem consultar o Drive).
+- **Log:** `Log.i("PyRetro", …)` no início e no fim de cada fluxo (com duração e erro) e nas ações, sessão de jogo e prazo vencido, para o próximo diagnóstico por logcat.
+- Build, lint e 148 testes JVM passaram; APK 0.31.1 (code 54) compilado, **não instalado, não testado em aparelho**.
+
 ## 17/11/2026 — Nova navegação, A4c: a casca assume pastas, ROM, conta Google e Opções; `MainActivity` reduzida, Android 0.31.0 (Claude)
 
 - **Na casca (Compose):** escolher a pasta Jogos e a pasta RetroArch, outra ROM deste celular, arquivo no Drive (vincula e baixa), conectar/desconectar a conta Google

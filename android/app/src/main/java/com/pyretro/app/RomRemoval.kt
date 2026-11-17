@@ -18,10 +18,11 @@ class RomRemoval(private val store:LibraryStore) {
         }
         walk(base,"",0);return out
     }
-    private fun remoteFiles(code:String):Map<String,DriveRef> {
+    private fun remoteFiles(code:String,deadline:Long):Map<String,DriveRef> {
         val parent=drive.folderOrNull(DriveSource.ROMS+code,"root") ?: return emptyMap();val out=linkedMapOf<String,DriveRef>()
         fun walk(folder:String,prefix:String,depth:Int) {
             require(depth<=16 && out.size<=20000)
+            require(!RemovalRules.expired(System.currentTimeMillis(),deadline)) { "O Drive demorou para responder." }
             for(row in drive.children(folder)) {
                 val name=row.getString("name");if(name.startsWith('.'))continue;require(BundleRules.safe(name));val path=prefix+name
                 if(row.optString("mimeType")==DocumentsContract.Document.MIME_TYPE_DIR || row.optString("mimeType")=="application/vnd.google-apps.folder")walk(row.getString("id"),"$path/",depth+1)
@@ -43,7 +44,7 @@ class RomRemoval(private val store:LibraryStore) {
         val locals=localFiles(game.code);val localEntry=game.localUri?.let { selected -> locals.entries.singleOrNull { store.documentId(it.value)==store.documentId(selected) }?.key }
         val lp=localEntry?.let { BundleRules.removalPlan(it,locals.keys) { path -> String(saf.read(locals.getValue(path),1024*1024),Charsets.UTF_8) } }
         val local=lp?.remove.orEmpty().map { path -> val uri=locals.getValue(path);val hash=saf.fingerprint(uri);RemovalFile(path,uri.toString(),hash.size,hash.sha256) }
-        val remoteResult=if(drive.connected)runCatching { remoteFiles(game.code) } else null
+        val remoteResult=if(drive.connected)runCatching { remoteFiles(game.code,System.currentTimeMillis()+RemovalRules.driveBudgetMs(scope)) } else null
         val refs=if(scope=="local")remoteResult?.getOrNull() else remoteResult?.getOrThrow()
         val chosen=DriveSource.parse(store.prefs.getString("cloud:${game.key}",null))
         val remoteEntry=refs?.entries?.filter { it.value.id==chosen?.id }?.singleOrNull()?.key

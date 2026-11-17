@@ -30,6 +30,15 @@ import kotlinx.coroutines.withContext
 /** Diálogos dos fluxos da ficha: aviso/confirmação, escolha de arquivo/escopo e registro do tempo jogado. */
 @Composable
 fun FlowDialogs(flows: GameFlows) {
+    flows.busy?.let { b ->
+        AlertDialog(
+            onDismissRequest = {}, title = { Text("Aguarde") },
+            text = { Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(32.dp)); Text(b.text, fontSize = 15.sp)
+            } },
+            confirmButton = {}, dismissButton = { if (b.cancelable) TextButton({ flows.cancelBusy() }) { Text("Cancelar") } },
+        )
+    }
     flows.notice?.let { n ->
         AlertDialog(
             onDismissRequest = { flows.notice = null }, title = { Text(n.title) },
