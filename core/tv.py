@@ -1,8 +1,9 @@
 """Catálogo local da TV: somente disco, sem refresh remoto ou escrita no acervo."""
+import re
 from pathlib import Path
 from urllib.parse import quote
 
-from core import covers, library, pc_games, play
+from core import covers, library, pc_games, play, recent
 
 
 def local_roms(cfg, lib, arcade_names=None):
@@ -85,6 +86,44 @@ def local_pc(cfg, lib):
     return out
 
 
+_DISC_TAG = re.compile(r'\s*[\(\[]\s*(?:disc|disk|cd)\s*\d+(?:\s*(?:of|de)\s*\d+)?\s*[\)\]]', re.I)
+
+
+def group_discs(items):
+    """Um card por jogo: ROMs com a mesma chave (PS1 multidisco: "Jogo (Disc 1)", "Jogo (Disc 2)") viram um item.
+
+    O item leva `discs` (arquivo, se está no PC e o que há para baixar de cada disco); a ficha lista as opções de
+    todos os discos em "Jogar" e o download pega o primeiro disco que falta.
+    """
+    groups, order = {}, []
+    for item in items:
+        key = recent.rom_key(item['code'], item['romName']) if item.get('code') else None
+        if key is None:
+            order.append(item)
+        elif key in groups:
+            groups[key].append(item)
+        else:
+            groups[key] = [item]
+            order.append(key)  # o grupo ocupa o lugar da primeira ocorrência
+    out = []
+    for entry in order:
+        if not isinstance(entry, str):
+            out.append(entry)
+            continue
+        members = sorted(groups[entry], key=lambda g: g['romName'])
+        first = members[0]
+        if len(members) > 1:
+            first['discs'] = [{'romName': g['romName'], 'local': bool(g.get('local')),
+                               'downloadName': g.get('downloadName'), 'driveName': g.get('driveName')} for g in members]
+            first['name'] = _DISC_TAG.sub('', first['name']).strip() or first['name']
+            first['local'] = any(g.get('local') for g in members)
+            missing = next((g for g in members if not g.get('local') and g.get('downloadName')), None)
+            first['downloadName'] = missing['downloadName'] if missing else None
+            first['driveName'] = next((g['driveName'] for g in members if g.get('driveName')), None)
+        out.append(first)
+    return out
+
+
 def catalog(cfg, lib, cached, arcade_names=None):
     """Catálogo para busca/sistemas, inclusive capas sem ROM e cache da nuvem."""
     local = local_roms(cfg, lib, arcade_names)
@@ -127,4 +166,4 @@ def catalog(cfg, lib, cached, arcade_names=None):
         out.append({'id': g['id'], 'name': g['nome'], 'platform': g['plataforma'],
                     'cover': _library_cover(cfg, g),
                     'tracking': g, 'local': g['id'] in pc_local, **rom})
-    return sorted(out, key=lambda g: g['name'].lower())
+    return sorted(group_discs(out), key=lambda g: g['name'].lower())

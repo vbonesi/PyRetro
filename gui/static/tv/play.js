@@ -4,13 +4,20 @@ import {$, button, formatTime, report} from "./dom.js";
 import {downloadGame} from "./game.js";
 import {state, ui} from "./state.js";
 let playRequest = 0, sessionTimer, sessionGame;
+// Opções de jogo de um item; um jogo multidisco (g.discs) junta as opções de todos os discos que estão no PC.
+async function playOptions(g) {
+  const ask = name => api(`/api/play/options?code=${encodeURIComponent(g.code)}&name=${encodeURIComponent(name)}`);
+  if (!g.discs?.length) return ask(g.romName);
+  const answers = await Promise.all(g.discs.map(d => ask(d.romName).catch(() => ({options: []}))));
+  return {...answers[0], options: answers.flatMap(a => a.options || [])};
+}
 export async function refreshPlayOptions(g) {
   const request = ++playRequest;
   const box = $("play-actions"); box.replaceChildren();
   $("play-hint").textContent = g.code ? "Conferindo arquivos para jogar…" : g.id ? "Conferindo se está instalado na Steam/Heroic…" : "";
   if (!g.code) return g.id ? refreshPcOption(g, request) : undefined;
   try {
-    const data = await api(`/api/play/options?code=${encodeURIComponent(g.code)}&name=${encodeURIComponent(g.romName)}`);
+    const data = await playOptions(g);
     if (request !== playRequest || state.selected !== g) return;
     if (!data.launcher) throw new Error("O lançador bonisarch-emulator precisa estar instalado.");
     const options = data.options || [];

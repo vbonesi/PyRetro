@@ -13,7 +13,8 @@
   empilhar histórico.
 - **Chave canônica:** a chave do catálogo (`rom:ARCADE:19xx`, `pc:<id>`…) é a que as rotas de ficha gravam; `findGameByKey` ainda aceita chaves
   antigas dos links já salvos.
-- Testes: 500 Python e 65 JS (+1: Biblioteca única); os testes das coleções antigas passaram a usar o catálogo da TV e os filtros.
+- Correção: jogo multidisco (PS1 "Disc 1/Disc 2") vira um item do catálogo (`core/tv.py:group_discs`, com `discs`): chaves únicas (2.674 → 2.647 itens, 20 jogos com vários discos); "Jogar" junta as opções dos discos e o download pega o primeiro disco que falta.
+- Testes: 502 Python e 66 JS (+1: Biblioteca única); os testes das coleções antigas passaram a usar o catálogo da TV e os filtros.
 
 ## 17/11/2026 — Nova navegação, N3: barra lateral com 5 destinos e novo Início (Claude)
 

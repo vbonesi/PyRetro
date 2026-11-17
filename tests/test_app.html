@@ -633,6 +633,23 @@ teste("modo TV: Biblioteca única filtra, ordena e pula por letra", async () => 
   } finally { frame.remove(); }
 });
 
+// Jogo multidisco: um card só; "Jogar" junta as opções de todos os discos que estão no PC.
+teste("modo TV: jogo multidisco é um card e lista os discos em Jogar", async () => {
+  const jogoDiscos = {key: "rom:PS:aconcagua", name: "Aconcagua", code: "PS", platform: "PS1", romName: "Aconcagua (Disc 1).chd", local: true, tracking: {}, cover: null,
+    discs: [{romName: "Aconcagua (Disc 1).chd", local: true}, {romName: "Aconcagua (Disc 2).chd", local: true}]};
+  const {frame, app, doc} = await abrirTV(url => {
+    if (url === "/api/tv/catalog") return [jogoDiscos];
+    if (url.startsWith("/api/play/options?")) { const nome = new URLSearchParams(url.split("?")[1]).get("name"); return {launcher: true, emulators: [], options: [{name: nome, error: null}]}; }
+  });
+  try {
+    await app.load("library");
+    igual(doc.querySelectorAll("#gallery .game").length, 1, "um card por jogo");
+    doc.querySelector("#gallery .game").click();
+    await esperar(() => doc.querySelectorAll("#play-actions button").length === 2, "discos não listados");
+    igual([...doc.querySelectorAll("#play-actions button")].map(b => b.textContent), ["▶ Jogar: Aconcagua (Disc 1).chd", "▶ Jogar: Aconcagua (Disc 2).chd"]);
+  } finally { frame.remove(); }
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {

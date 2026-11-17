@@ -11,6 +11,34 @@ class TestTVCatalog(BaseAPI):
     def setUp(self):
         self.gravar_biblioteca([])
 
+    def test_multi_disc_rom_is_one_catalog_item_with_its_discs(self):
+        itens = [
+            {'name': 'Aconcagua (Disc 2)', 'code': 'PS', 'romName': 'Aconcagua (Disc 2).chd', 'platform': 'PS1', 'local': False,
+             'downloadName': 'Aconcagua (Disc 2).chd', 'driveName': 'Aconcagua (Disc 2).chd', 'tracking': {}},
+            {'name': 'Aconcagua (Disc 1)', 'code': 'PS', 'romName': 'Aconcagua (Disc 1).chd', 'platform': 'PS1', 'local': True,
+             'downloadName': None, 'driveName': 'Aconcagua (Disc 1).chd', 'tracking': {}},
+            {'name': 'Outro', 'code': 'PS', 'romName': 'Outro.chd', 'platform': 'PS1', 'local': False, 'tracking': {}},
+            {'name': 'Aconcagua', 'platform': 'PC', 'id': 'pc', 'tracking': {}},
+        ]
+        grupo = tv.group_discs(itens)
+        self.assertEqual(len(grupo), 3)
+        jogo = next(g for g in grupo if g.get('discs'))
+        self.assertEqual(jogo['name'], 'Aconcagua')
+        self.assertEqual([d['romName'] for d in jogo['discs']], ['Aconcagua (Disc 1).chd', 'Aconcagua (Disc 2).chd'])
+        self.assertTrue(jogo['local'])  # algum disco está no PC
+        self.assertEqual(jogo['downloadName'], 'Aconcagua (Disc 2).chd')  # baixa o primeiro disco que falta
+        self.assertNotIn('discs', next(g for g in grupo if g['name'] == 'Outro'))
+
+    def test_catalog_keys_are_unique(self):
+        from core import tv_home
+        (self.capas_dir / 'Jogo (Disc 1).png').write_bytes(b'x')
+        (self.capas_dir / 'Jogo (Disc 2).png').write_bytes(b'x')
+        with patch.object(pc_games, 'installed_indexes', return_value={k: {} for k in ('steam', 'legendary', 'gog', 'nile')}):
+            status, items = self.pedir('/api/tv/catalog')
+        self.assertEqual(status, 200)
+        chaves = [g['key'] for g in items]
+        self.assertEqual(len(chaves), len(set(chaves)), 'chave repetida no catálogo')
+
     def test_local_only_complete_roms_and_no_network_refresh(self):
         folder = self.raiz / 'ROMs/PS2'
         folder.mkdir(exist_ok=True)
