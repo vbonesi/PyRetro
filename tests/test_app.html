@@ -650,6 +650,42 @@ teste("modo TV: jogo multidisco é um card e lista os discos em Jogar", async ()
   } finally { frame.remove(); }
 });
 
+// Ficha e ferramentas são páginas (sem <dialog>): ocupam o conteúdo, a barra lateral continua, e "⋯ Mais" guarda o raro.
+teste("modo TV: ficha e ferramenta são páginas, não diálogos", async () => {
+  const jogoDrive = {key: "rom:PS2:teste", name: "Teste", code: "PS2", platform: "PlayStation 2", romName: "Teste.iso", driveName: "Teste.iso", downloadName: "Teste.iso", local: false, tracking: {}, cover: null};
+  const {frame, app, doc} = await abrirTV(url => {
+    if (url === "/api/tv/catalog") return [jogoDrive];
+    if (url.startsWith("/api/play/options?")) return {launcher: true, emulators: [], options: []};
+  });
+  try {
+    await app.load("library");
+    igual([...doc.querySelectorAll("dialog")].map(d => d.id).sort(), ["search-dialog", "settings-dialog"], "só busca e opções continuam diálogos");
+    verdade(!doc.body.classList.contains("page-open"));
+    doc.querySelector("#gallery .game").click();
+    verdade(doc.body.classList.contains("page-open") && doc.getElementById("details").open && doc.getElementById("details").tagName === "SECTION");
+    verdade(doc.querySelector("header").getClientRects().length === 0 && doc.getElementById("gallery").getClientRects().length === 0, "a lista continuou visível sob a ficha");
+    verdade(doc.getElementById("sidebar").getClientRects().length > 0, "a barra lateral some na ficha");
+    // ação principal e fileira secundária; o raro fica em "⋯ Mais"
+    verdade(doc.getElementById("secondary").contains(doc.getElementById("edit-toggle")) && doc.getElementById("secondary").contains(doc.getElementById("progress-toggle")));
+    verdade(doc.getElementById("more-menu").hidden && doc.getElementById("more-menu").contains(doc.getElementById("download")), "baixar deveria estar em Mais");
+    await esperar(() => doc.getElementById("play-actions").textContent.includes("Baixar e jogar"), "ação principal ausente");
+    [...doc.querySelectorAll("#play-actions button")].find(b => b.textContent.includes("Baixar e jogar")).click();
+    verdade(!doc.getElementById("more-menu").hidden, "a confirmação de download precisa do botão visível");
+    igual(doc.activeElement.id, "download");
+    // ← da ficha leva à barra lateral
+    doc.getElementById("close").focus(); app.action("left");
+    verdade(doc.activeElement.dataset.destination, "← da ficha não chegou à barra");
+    // trocar de destino fecha a ficha
+    doc.querySelector('#destinations [data-destination="wishlist"]').click();
+    await esperar(() => !doc.getElementById("details").open && !doc.body.classList.contains("page-open"), "ficha não fechou ao trocar de destino");
+    // ferramenta também é página
+    await app.load("tools");
+    app.openTool("Teste", body => { body.textContent = "ok"; }, "diagnostico");
+    verdade(doc.body.classList.contains("page-open") && doc.getElementById("tool-dialog").tagName === "SECTION" && doc.getElementById("tool-dialog").open);
+    app.closeTool(); verdade(!doc.getElementById("tool-dialog").open && !doc.body.classList.contains("page-open"));
+  } finally { frame.remove(); }
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {

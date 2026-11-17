@@ -43,7 +43,7 @@ export const isOverlayRoute = (hash = location.hash) => /^#\/(jogo|ferramentas)\
 
 // Documento sem endereço próprio (about:srcdoc, o iframe dos testes) recusa pushState/replaceState: aí a
 // tela funciona igual, só sem rota.
-function writeHistory(method, hash) { try { history[method](null, "", hash); } catch (_) { /* sem rota */ } }
+function writeHistory(method, hash, data = null) { try { history[method](data, "", hash); } catch (_) { /* sem rota */ } }
 // Grava o endereço sem disparar o tratamento de rota. Primeira entrada (sem hash) e fechamento de
 // ficha/ferramenta pendente substituem a entrada atual; o resto empilha, para o voltar funcionar.
 export function syncRoute(hash) {
@@ -52,6 +52,8 @@ export function syncRoute(hash) {
 }
 // Filtro mudou na mesma tela: troca o endereço sem empilhar histórico (nem mexe numa ficha/ferramenta aberta).
 export function replaceView(hash) { if (location.hash !== hash && !isOverlayRoute()) writeHistory("replaceState", hash); }
-export function pushOverlay(hash) { if (location.hash !== hash) writeHistory("pushState", hash); }
+// A ficha/ferramenta guarda no histórico de onde veio (coleção e filtros): recarregar nela e voltar levam à origem.
+export function pushOverlay(hash) { if (location.hash !== hash) writeHistory("pushState", hash, {from: isOverlayRoute() ? (history.state?.from || "") : location.hash}); }
+export const overlayOrigin = () => { const from = history.state?.from; return typeof from === "string" && from && !isOverlayRoute(from) ? from : ""; };
 export function replaceRoute(hash) { writeHistory("replaceState", hash); }
 export function onRouteChange(handler) { window.addEventListener("popstate", () => handler(parseRoute())); }

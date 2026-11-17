@@ -1,5 +1,17 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N5: ficha do jogo e ferramentas como páginas (Claude)
+
+- A ficha (`#details`) e as ferramentas (`#tool-dialog`) deixaram de ser `<dialog>`: são seções de página (`tv/pages.js`) que ocupam o conteúdo no
+  lugar da lista, com a barra lateral à vista (← da ficha leva a ela; trocar de destino fecha a página). Só `settings-dialog` (opções do console)
+  e `search-dialog` (teclado da tela, busca e edição de texto) continuam diálogos, como pedido; as confirmações seguem como botões de dois toques.
+  O elemento da página tem `open`/`close()` para o código e os testes tratarem página e diálogo igual.
+- Ficha: botão **← Voltar** no topo, ação principal (Jogar, Baixar e jogar, Transmitir), fileira secundária (Saves, Editar, Capa, Texturas, Progresso e
+  tempo) e **⋯ Mais** com o raro (Personalizar mídia, Baixar, Remover…, Apagar ROM); confirmações que dependem de um desses botões abrem o menu.
+- **Voltar devolve à origem:** abrir ficha ou ferramenta grava no histórico de onde veio (coleção, filtros e busca); voltar, e também recarregar na
+  ficha e voltar, levam à coleção/filtro de origem em vez do Início.
+- Testes: 502 Python e 67 JS (+1: páginas sem `<dialog>`, ⋯ Mais, ← à barra, troca de destino).
+
 ## 17/11/2026 — Nova navegação, N4: Biblioteca única (Claude)
 
 - `tv/library.js`: a Biblioteca junta tudo num só catálogo (`/api/tv/catalog`: PC, ROMs leves e pesadas, Switch), cada jogo uma vez. Filtros

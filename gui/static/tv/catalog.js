@@ -9,6 +9,7 @@ import {WISHLIST_STORES, collections, state} from "./state.js";
 import {destinationOf, inSidebar, renderSidebar} from "./sidebar.js";
 import {renderTools} from "./tools.js";
 import {routeFor, replaceView, syncRoute} from "./router.js";
+import {modalOpen, pageOpen} from "./pages.js";
 import {currentOrder, norm, normalizeView, orderTabs, quickTabs, statsLine, viewOf, visibleItems} from "./library.js";
 // Filtros secundários (plataforma e gênero) recolhíveis: mais área para os jogos.
 let filtrosRecolhidos = true;
@@ -274,7 +275,7 @@ export async function drawGame() {
     state.items = [item]; render();
     const card = $("gallery").querySelector(".game");
     card?.focus();
-    if (!document.querySelector('dialog[open]')) openGame(item, card);
+    if (!modalOpen() && !pageOpen()) openGame(item, card);
   } catch (e) { report(`Não foi possível sortear: ${e.message}`, true); }
   finally { state.drawing = false; }
 }

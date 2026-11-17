@@ -1,7 +1,7 @@
 import {api} from "./api.js";
 import {load, reloadSelection} from "./catalog.js";
 import {$, actions, button, confirmButton, fmtBytes, heading, hint, report, row} from "./dom.js";
-import {closeGame} from "./game.js";
+import {closeGame, showMoreMenu} from "./game.js";
 import {coverLabel} from "./game-cover.js";
 import {openTextEntry} from "./search.js";
 import {state} from "./state.js";
@@ -31,7 +31,7 @@ $("rom-rename").onclick = () => {
 };
 $("rom-delete").onclick = async () => {
   const g = state.selected, b = $("rom-delete"), light = state.light.some(x => x.code === g.code); if (state.busy || !g) return;
-  if (!b.dataset.confirm) { b.dataset.confirm = "yes"; b.textContent = "Confirmar: apagar de vez"; report(`Apagar "${g.name}": ROM${light ? ", capa" : ""} e saves deste jogo no PC. Não tem como desfazer; para guardar os saves antes, use 💾 Saves → Guardar cópia.`, true, "detail-status"); return; }
+  if (!b.dataset.confirm) { showMoreMenu(); b.dataset.confirm = "yes"; b.textContent = "Confirmar: apagar de vez"; report(`Apagar "${g.name}": ROM${light ? ", capa" : ""} e saves deste jogo no PC. Não tem como desfazer; para guardar os saves antes, use 💾 Saves → Guardar cópia.`, true, "detail-status"); return; }
   state.busy = true;
   try { const r = await api(light ? "/api/cover/delete" : "/api/heavy/delete", {code: g.code, label: coverLabel(g)}); await afterFileChange(`${g.name}: ${describeCascade(r.cascade, "apagado(s)")}`); }
   catch (e) { state.busy = false; b.dataset.confirm = ""; b.textContent = "🗑 Apagar ROM"; report(e.message, true, "detail-status"); }

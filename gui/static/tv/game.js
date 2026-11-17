@@ -4,6 +4,7 @@ import {render} from "./catalog.js";
 import {$, button, formatTime, report} from "./dom.js";
 import {updateFavoriteButton} from "./favorites.js";
 import {gameRoute, pushOverlay} from "./router.js";
+import {closePage, openPage} from "./pages.js";
 import {showSpotlight} from "./home.js";
 import {playDownloaded, refreshHomeAfterPlay, refreshPlayOptions} from "./play.js";
 import {TEXTURE_SYSTEMS, WISHLIST_STORES, state, ui} from "./state.js";
@@ -42,7 +43,8 @@ export function openGame(g, origin = document.activeElement) {
   report("", false, "detail-status"); renderTracking();
   $("download").hidden = !g.downloadName; $("download").textContent = "⬇ Baixar para este PC"; $("download").dataset.confirm = "";
   $("download").disabled = !!state.download;
-  $("details").showModal(); $("close").focus();
+  $("more-menu").hidden = true; $("more-toggle").setAttribute("aria-expanded", "false"); $("more-toggle").hidden = !!g.wishlist;
+  openPage($("details")); $("close").focus();
   if (g.wishlist) { $("play-actions").replaceChildren(); $("play-hint").textContent = `Na sua lista de desejos (${WISHLIST_STORES[g.wishlist]}). Comprou? Marque abaixo e ele entra na Biblioteca.`; }
   else refreshPlayOptions(g);
 }
@@ -79,11 +81,14 @@ export function closeGame() {
 }
 export function hideGame() {
   $("detail-video").pause();
-  $("details").close();
+  closePage($("details"));
   if (state.kind === 'home' && ui.spotlightGame) showSpotlight(ui.spotlightGame);
   const matching = [...document.querySelectorAll("#home .game,#gallery .game")].find(c => c.dataset.key === returnGameKey);
   (returnFocus?.isConnected ? returnFocus : matching || $("gallery").children[Math.max(0, returnIndex)] || $("home").querySelector("button") || $("destinations").querySelector("button"))?.focus();
 }
+// "⋯ Mais" guarda o que é raro (mídia, baixar, remover, apagar); confirmações que dependem de um botão do menu o abrem.
+export function showMoreMenu(show = true) { $("more-menu").hidden = !show; $("more-toggle").setAttribute("aria-expanded", String(show)); }
+$("more-toggle").onclick = () => { showMoreMenu($("more-menu").hidden); if (!$("more-menu").hidden) $("more-menu").querySelector("button:not([hidden])")?.focus(); };
 $("time-toggle").onclick = () => { $("time-fields").hidden = !$("time-fields").hidden; if (!$("time-fields").hidden) $("time-minutes").focus(); };
 $("media-toggle").onclick = () => { $("media-fields").hidden = !$("media-fields").hidden; };
 $("time-save").onclick = async () => {
@@ -124,7 +129,7 @@ $("download").onclick = () => downloadGame(false);
 export async function downloadGame(playAfter) {
   if (state.download || state.busy) return;
   const b = $("download"); const g = state.selected;
-  if (!b.dataset.confirm) { b.dataset.confirm = "yes"; b.textContent = "Confirmar download"; b.dataset.playAfter = String(playAfter); report(playAfter ? "Baixar este jogo e abrir o emulador ao concluir?" : "Baixar este jogo do seu Drive para o PC?", false, "detail-status"); return; }
+  if (!b.dataset.confirm) { showMoreMenu(); b.dataset.confirm = "yes"; b.textContent = "Confirmar download"; b.dataset.playAfter = String(playAfter); report(playAfter ? "Baixar este jogo e abrir o emulador ao concluir?" : "Baixar este jogo do seu Drive para o PC?", false, "detail-status"); return; }
   playAfter = b.dataset.playAfter === "true";
   b.disabled = true; state.download = g;
   report(`Baixando ${g.name}…`, false, "download-status");

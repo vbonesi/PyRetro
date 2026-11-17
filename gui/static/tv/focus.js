@@ -39,7 +39,7 @@ export function pickNeighbor(from, candidates, direction) {
 // Memória por região: cada área marcada com data-region (menu, filtros, galeria, cada fileira) lembra o último
 // botão focado; ao entrar nela por outra direção, o foco volta para ele em vez de cair no mais próximo.
 const memory = new Map();
-export function regionOf(el) { return el.closest?.("[data-region]")?.dataset.region || el.closest?.("dialog")?.id || "pagina"; }
+export function regionOf(el) { return el.closest?.("[data-region]")?.dataset.region || el.closest?.("dialog, .page")?.id || "pagina"; }
 document.addEventListener("focusin", e => { if (e.target instanceof HTMLElement) memory.set(regionOf(e.target), e.target); });
 export function rememberFocus(el) { memory.set(regionOf(el), el); }
 export function recallFocus(region, nodes) { const el = memory.get(region); return el && el.isConnected && nodes.includes(el) ? el : null; }

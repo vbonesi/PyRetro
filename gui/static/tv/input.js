@@ -9,6 +9,7 @@ import {applySearch, closeSearch, openSearch} from "./search.js";
 import {closeSettings, openSettings} from "./settings.js";
 import {focusContent, focusSidebar, goDestination, inSidebar, stepDestination} from "./sidebar.js";
 import {state, ui} from "./state.js";
+import {modalOpen, pageOpen} from "./pages.js";
 import {closeTool} from "./tools.js";
 // --- glifos do controle: Xbox (A/B/X/Y), PlayStation (✕/○/□/△) ou automático pelo controle conectado ---
 const GLIFOS = {xbox: {A: "A", B: "B", X: "X", Y: "Y", L: "LB", R: "RB", LT: "LT", RT: "RT"}, ps: {A: "✕", B: "○", X: "□", Y: "△", L: "L1", R: "R1", LT: "L2", RT: "R2"}};
@@ -56,26 +57,26 @@ export function action(key) {
   if (["left", "right", "up", "down"].includes(key)) move(key);
   else if (key === "accept") { if (!focusable().includes(document.activeElement)) focusable()[0]?.focus(); else document.activeElement.click(); }
   else if (key === "back") { if ($("search-dialog").open) closeSearch(); else if ($("tool-dialog").open) closeTool(); else if ($("settings-dialog").open) closeSettings(); else if ($("details").open) closeGame(); else if (inSidebar()) focusContent(); else if (state.kind !== "home") load("home"); else focusSidebar(); }
-  else if (key === "sidebar" && !document.querySelector("dialog[open]")) { if (inSidebar()) focusContent(); else focusSidebar(); }
+  else if (key === "sidebar" && !modalOpen()) { if (inSidebar()) focusContent(); else focusSidebar(); }
   else if (key === "search") openSearch();
   else if (key === "erase") { if ($("search-dialog").open) $("search-input").value = $("search-input").value.slice(0, -1); else if (!$("settings-dialog").open) toggleFavorite(); }
   else if (key === "submit") { if ($("search-dialog").open) applySearch(); else openSettings(); }
-  else if (["page-up", "page-down"].includes(key) && !document.querySelector("dialog[open]")) page(key === "page-up" ? -1 : 1);
-  else if (["quick-prev", "quick-next"].includes(key) && !document.querySelector("dialog[open]")) {
+  else if (["page-up", "page-down"].includes(key) && !modalOpen() && !pageOpen()) page(key === "page-up" ? -1 : 1);
+  else if (["quick-prev", "quick-next"].includes(key) && !modalOpen() && !pageOpen()) {
     // LB/RB na Biblioteca trocam o filtro rápido (Tudo, Jogando, Neste PC, Favoritos, Ranking, Finalizados).
     const inQuick = $("quick").contains(document.activeElement);
     cycleQuick(key === "quick-prev" ? -1 : 1); filtersChanged();
     (inQuick ? $("quick").querySelector('[aria-pressed="true"]') : $("gallery").querySelector("button") || $("quick").querySelector('[aria-pressed="true"]'))?.focus();
   }
-  else if (["letter-prev", "letter-next"].includes(key) && !document.querySelector("dialog[open]")) letterJump(key === "letter-prev" ? -1 : 1);
-  else if (["previous", "next"].includes(key) && !document.querySelector("dialog[open]")) {
+  else if (["letter-prev", "letter-next"].includes(key) && !modalOpen() && !pageOpen()) letterJump(key === "letter-prev" ? -1 : 1);
+  else if (["previous", "next"].includes(key) && !modalOpen()) {
     stepDestination(key === "previous" ? -1 : 1);
   }
 }
 document.addEventListener("keydown", e => {
   if (!["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key)) setInputMode("keys");
   if (e.target instanceof HTMLInputElement && e.key !== "Escape") return;
-  if (/^[1-5]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey && !document.querySelector("dialog[open]")) { e.preventDefault(); goDestination(Number(e.key)); return; }
+  if (/^[1-5]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey && !modalOpen()) { e.preventDefault(); goDestination(Number(e.key)); return; }
   const key = {"[": "letter-prev", "]": "letter-next", m: "sidebar", M: "sidebar", ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
   if (key) { e.preventDefault(); action(key); }
 });

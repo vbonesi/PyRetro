@@ -1,6 +1,7 @@
 import {gameCard} from "./cards.js";
 import {$, button, report} from "./dom.js";
 import {openGame} from "./game.js";
+import {modalOpen, pageOpen} from "./pages.js";
 import {state, ui} from "./state.js";
 const isContinuing = g => [state.home?.continue, state.home?.recent].some(list => list?.some(x => x.key === g.key));
 export function showSpotlight(g) {
@@ -15,7 +16,7 @@ export function showSpotlight(g) {
   const source = g.media?.video || "";
   if (video.dataset.source !== source) { video.pause(); video.removeAttribute('src'); video.dataset.source = source; if (source) video.src = source; }
   video.hidden = !source;
-  if (source && !document.hidden && !document.querySelector('dialog[open]') && !matchMedia('(prefers-reduced-motion: reduce)').matches) video.play().catch(() => {});
+  if (source && !document.hidden && !modalOpen() && !pageOpen() && !matchMedia('(prefers-reduced-motion: reduce)').matches) video.play().catch(() => {});
 }
 function shelfControls(row, title) {
   const controls = document.createElement('div'); controls.className = 'shelf-controls';

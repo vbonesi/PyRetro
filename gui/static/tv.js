@@ -3,6 +3,7 @@ import {api} from "./tv/api.js";
 import {collectionTabs, drawGame, findGameByKey, load, updateFilters} from "./tv/catalog.js";
 import {$, report} from "./tv/dom.js";
 import {viewOf} from "./tv/library.js";
+import {pageOpen} from "./tv/pages.js";
 import {focusSidebar} from "./tv/sidebar.js";
 import {closeGame, hideGame, openGame} from "./tv/game.js";
 import {scrollTarget, stickScroll} from "./tv/focus.js";
@@ -12,7 +13,7 @@ import {toolCloudSaves} from "./tv/tools-pages.js";
 import {watchSession} from "./tv/play.js";
 import {state} from "./tv/state.js";
 import {closeTool, hideTool, isToolRouted, openTool, openToolById} from "./tv/tools.js";
-import {onRouteChange, parseRoute, replaceRoute, routeFor} from "./tv/router.js";
+import {overlayOrigin, onRouteChange, parseRoute, replaceRoute, routeFor} from "./tv/router.js";
 // Módulos que só ligam os botões da ficha e dos Desejados ao carregar: ninguém importa nada deles.
 import "./tv/game-edit.js";
 import "./tv/game-files.js";
@@ -46,8 +47,9 @@ async function init() {
     [state.systems, state.light] = await Promise.all([api("/api/heavy/systems"), api("/api/systems")]);
     // Ficha e ferramenta abrem sobre a tela de baixo (Início ou o grid de Ferramentas), que entra no histórico
     // antes, para o voltar não sair do PyRetro.
-    const route = parseRoute(), underlying = route.game ? {kind: "home"} : route.tool ? {kind: "tools"} : route;
-    if (route.game || route.tool) replaceRoute(routeFor(underlying.kind));
+    const route = parseRoute(), origin = overlayOrigin();
+    const underlying = route.game ? (origin ? parseRoute(origin) : {kind: "home"}) : route.tool ? {kind: "tools"} : route;
+    if (route.game || route.tool) replaceRoute(route.game && origin ? origin : routeFor(underlying.kind));
     await load(underlying.kind, "", underlying.view);
     if (route.game) await openLinkedGame(route.game);
     if (route.tool) openToolById(route.tool);
@@ -55,7 +57,7 @@ async function init() {
     if (key) await openLinkedGame(key);
   }
   catch (e) { report(`Não foi possível iniciar: ${e.message}. Recarregue para tentar novamente.`, true); }
-  if (state.kind !== "home") focusSidebar();
+  if (state.kind !== "home" && !pageOpen()) focusSidebar();
 }
 onRouteChange(applyRoute);
 requestAnimationFrame(pollGamepad); init();

@@ -345,8 +345,8 @@ header{padding:1rem 3vw .5rem}
 .save-row{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.5rem 0;font-size:.8rem;overflow-wrap:anywhere}
 .save-row button{flex-shrink:0;font-size:.75rem;padding:.45rem .8rem}
 #textures-fields .hint a{padding:0}
-/* Ferramentas: diálogo largo, escolhas como botões e registro do job. */
-#tool-dialog{width:min(1000px,96vw)}
+/* Ferramentas: página larga, escolhas como botões e registro do job. */
+
 #tool-body h3{font-size:.9rem;margin:.4rem 0}
 #tool-body .panel{margin:.8rem 0}
 .choice{margin:.5rem 0;gap:.5rem}
@@ -428,3 +428,11 @@ footer{width:calc(100% - var(--rail));left:var(--rail)}
   .dest-label{display:none}
   main{padding-bottom:calc(var(--footer-height,8rem) + 5rem)}
 }
+
+/* Páginas (ficha do jogo e ferramentas, tv/pages.js): ocupam o conteúdo no lugar da lista; sem fundo de diálogo. */
+.page{max-width:1000px;margin:0 auto;padding:0 0 1rem}
+.page-bar{margin:.2rem 0 1rem}
+body.page-open header,body.page-open main>:not(.page){display:none!important}
+#secondary,#more-menu{margin:1rem 0}
+#more-menu{padding:.8rem;border:1px solid var(--edge,#ffffff24);border-radius:.8rem}
+.page .detail-heading{margin-top:.4rem}

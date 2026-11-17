@@ -2,6 +2,7 @@ import {runJob} from "./api.js";
 import {render} from "./catalog.js";
 import {$, button, report} from "./dom.js";
 import {pushOverlay, toolRoute} from "./router.js";
+import {closePage, openPage} from "./pages.js";
 import {toolCloudSaves, toolCovers, toolDiagnostics, toolLibrary, toolMaintenance, toolMemcards, toolOrganize, toolPhoneSaves, toolSettings, toolSetup, toolTextures} from "./tools-pages.js";
 // --- 🛠 Ferramentas: o que antes só a interface completa fazia ------------------
 let toolReturnFocus, toolRouted = false;
@@ -12,7 +13,7 @@ export function openTool(title, render, id) {
   // Corpo novo a cada abertura: resposta atrasada da ferramenta anterior cai num elemento descartado.
   const body = Object.assign(document.createElement("div"), {id: "tool-body"}); $("tool-body").replaceWith(body);
   $("tool-log").hidden = true; $("tool-log").textContent = ""; toolStatus("");
-  $("tool-dialog").showModal(); $("tool-close").focus();
+  openPage($("tool-dialog")); $("tool-close").focus();
   Promise.resolve(render(body)).catch(e => toolStatus(e.message, true)).then(() => { if (document.activeElement === $("tool-close")) body.querySelector("button")?.focus(); });
 }
 export function closeTool() {
@@ -24,7 +25,7 @@ export function openToolById(id) {
   const tool = TOOLS.find(t => t[0] === id); if (!tool) return false;
   openTool(`${tool[1]} ${tool[2]}`, tool[4], id); return true;
 }
-export function hideTool() { toolRouted = false; $("tool-dialog").close(); (toolReturnFocus?.isConnected ? toolReturnFocus : $("destinations").querySelector("button"))?.focus(); }
+export function hideTool() { toolRouted = false; closePage($("tool-dialog")); (toolReturnFocus?.isConnected ? toolReturnFocus : $("destinations").querySelector("button"))?.focus(); }
 $("tool-close").onclick = closeTool;
 $("tool-dialog").addEventListener("cancel", e => { e.preventDefault(); closeTool(); });
 export async function toolJob(url, body, done) {
