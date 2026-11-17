@@ -444,13 +444,27 @@ teste("sorteio da Biblioteca exibe plataforma em vez de null", async () => {
   } finally { app.fetch = originalFetch; }
 });
 
+// Rotas do modo TV (módulo router.js): cada coleção, ficha e ferramenta tem endereço e volta igual.
+teste("modo TV: endereços das telas ida e volta", async () => {
+  const {routeFor, parseRoute, gameRoute, toolRoute} = await import("/static/tv/router.js");
+  for (const [kind, code, query] of [["home", "", ""], ["library", "", ""], ["wishlist", "", ""], ["apps", "", ""], ["tools", "", ""], ["local", "", ""],
+    ["favorites", "", ""], ["systems", "", ""], ["playing", "", ""], ["ranking", "", ""], ["stats", "", ""], ["draw", "", ""], ["heavy", "PS2", ""], ["light", "FC", ""], ["search", "", "super mario & luigi"]]) {
+    const route = parseRoute(routeFor(kind, code, query));
+    igual([route.kind, route.code || "", route.query || ""], [kind, code, query], `rota de ${kind}`);
+  }
+  igual(routeFor("library"), "#/biblioteca"); igual(routeFor("home"), "#/inicio"); igual(routeFor("wishlist"), "#/desejados");
+  igual(parseRoute(gameRoute("PS:Jogo/1.chd")), {game: "PS:Jogo/1.chd"}, "chave com : e / sobrevive ao endereço");
+  igual(parseRoute(toolRoute("organizar")), {kind: "tools", tool: "organizar"});
+  igual(parseRoute("").kind, "home"); igual(parseRoute("#/qualquer-coisa").kind, "home");
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {
   const frame = document.createElement("iframe");
   frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
   document.body.append(frame);
-  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve);
   frame.srcdoc = html;
   await loaded;
@@ -479,7 +493,7 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
   app.EventSource = class { constructor() { events = this; } close() {} };
   let pad = null;
   Object.defineProperty(app.navigator, "getGamepads", {value: () => [pad], configurable: true});
-  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
   await app.load("library");
   try {
@@ -535,7 +549,7 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
   const frame = document.createElement("iframe");
   frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
   document.body.append(frame);
-  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document;
   // Iframes fora da tela não recebem rAF em alguns navegadores.
@@ -563,7 +577,7 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
     return {ok: true, json: async () => data};
   };
   app.EventSource = class { constructor() { events = this; } close() {} };
-  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
   await app.load("library");
   try {
@@ -591,7 +605,7 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
   const frame = document.createElement("iframe");
   frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
   document.body.append(frame);
-  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document;
   // Iframes fora da tela não recebem rAF em alguns navegadores.
@@ -615,7 +629,7 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
     } else throw new Error(`requisição inesperada: ${url}`);
     return {ok: true, json: async () => data};
   };
-  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
   await app.load("library");
   try {
@@ -643,7 +657,7 @@ teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", asy
   const frame = document.createElement("iframe");
   frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
   document.body.append(frame);
-  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document;
   // Iframes fora da tela não recebem rAF em alguns navegadores.
@@ -663,7 +677,7 @@ teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", asy
     else throw new Error(`requisição inesperada: ${url}`);
     return {ok: true, json: async () => data};
   };
-  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
   await app.load("library");
   try {
@@ -685,7 +699,7 @@ teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", asyn
   const frame = document.createElement("iframe");
   frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
   document.body.append(frame);
-  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document;
   app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
@@ -706,7 +720,7 @@ teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", asyn
     else throw new Error(`requisição inesperada: ${url}`);
     return {ok: true, json: async () => data};
   };
-  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
   await app.load("systems");
   try {
@@ -752,7 +766,7 @@ teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", asyn
 teste("console: início, remotos, X favorito sem repetição, foco em Jogar e tema persistente", async () => {
   const frame = document.createElement("iframe"); frame.style.cssText = "width:1280px;height:800px;position:absolute;left:-9999px";
   document.body.append(frame);
-  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document;
   app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
@@ -781,7 +795,7 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
     } else throw new Error(`requisição inesperada: ${url}`);
     return {ok: true, json: async () => JSON.parse(JSON.stringify(data))};
   };
-  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
   try {
     await esperar(() => doc.querySelector("#home .game"), "início não carregou");
@@ -850,7 +864,7 @@ teste('sorteio completo: ação de transmissão, erro visível e nome seguro', a
 
 teste('TV: sorteio sugere PS4, preserva erros e abre link pela identidade', async () => {
   const frame = document.createElement('iframe'); frame.style.cssText='width:1000px;height:750px;position:absolute;left:-9999px'; document.body.append(frame);
-  const html=(await(await fetch('/tv')).text()).replace('<script src="/static/tv.js" defer></scr'+'ipt>','');
+  const html=(await(await fetch('/tv')).text()).replace('<script type="module" src="/static/tv.js"></scr'+'ipt>','');
   const loaded=new Promise(resolve=>frame.onload=resolve); frame.srcdoc=html; await loaded;
   const app=frame.contentWindow,doc=app.document;
   app.requestAnimationFrame=fn=>app.setTimeout(()=>fn(app.performance.now()),16);
@@ -870,7 +884,7 @@ teste('TV: sorteio sugere PS4, preserva erros e abre link pela identidade', asyn
     else throw new Error('requisição inesperada: '+url);
     return{ok:true,json:async()=>data};
   };
-  const script=doc.createElement('script');script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
+  const script=doc.createElement('script');script.type='module';script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
   try{
     await app.load('draw');await app.drawGame();
     await esperar(()=>doc.activeElement.textContent==='Transmitir do PS4','ação remota não recebeu foco');
@@ -887,7 +901,7 @@ teste('TV: sorteio sugere PS4, preserva erros e abre link pela identidade', asyn
 
 teste('TV: tempo manual, mais jogados e mídia local em detalhes a 390 px', async () => {
   const frame=document.createElement('iframe');frame.style.cssText='width:390px;height:800px;position:absolute;left:-9999px';document.body.append(frame);
-  const html=(await(await fetch('/tv')).text()).replace('<script src="/static/tv.js" defer></scr'+'ipt>','');
+  const html=(await(await fetch('/tv')).text()).replace('<script type="module" src="/static/tv.js"></scr'+'ipt>','');
   const loaded=new Promise(resolve=>frame.onload=resolve);frame.srcdoc=html;await loaded;
   const app=frame.contentWindow,doc=app.document,posts=[];
   const game={id:'time',key:'pc:time',name:'Meu jogo',platform:'Steam',tracking:{},local:false,playtime:{seconds:0,sessions:0},media:{}};
@@ -908,7 +922,7 @@ teste('TV: tempo manual, mais jogados e mídia local em detalhes a 390 px', asyn
     } else throw new Error('requisição inesperada: '+url);
     return{ok:true,json:async()=>data};
   };
-  const script=doc.createElement('script');script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
+  const script=doc.createElement('script');script.type='module';script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
   try {
     await esperar(()=>doc.getElementById('spotlight-open').textContent==='Ver jogo','início não carregou');
     doc.getElementById('spotlight-open').click();
@@ -951,7 +965,7 @@ async function abrirTV(rotas) {
   const frame = document.createElement("iframe");
   frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
   document.body.append(frame);
-  const html = (await (await fetch("/tv")).text()).replace('<script src="/static/tv.js" defer></scr' + 'ipt>', "");
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
   const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
   const app = frame.contentWindow, doc = app.document, posts = [];
   app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
@@ -967,7 +981,7 @@ async function abrirTV(rotas) {
     }
     return {ok: true, json: async () => data};
   };
-  const script = doc.createElement("script"); script.src = "/static/tv.js"; doc.head.append(script);
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
   await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
   return {frame, app, doc, posts};

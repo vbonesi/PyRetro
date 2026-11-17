@@ -2003,7 +2003,7 @@ class Handler(BaseHTTPRequestHandler):
                               "text/html; charset=utf-8", no_cache=True,
                               allow_inline_script=True)
 
-        if parts[:1] == ["static"] and (len(parts) == 2 or (len(parts) == 3 and parts[1] == "brand")):
+        if parts[:1] == ["static"] and (len(parts) == 2 or (len(parts) == 3 and parts[1] in ("brand", "tv"))):
             ext = parts[-1].rsplit(".", 1)[-1]
             ctype = {"js": "application/javascript", "css": "text/css", "svg": "image/svg+xml",
                      "png": "image/png", "ico": "image/x-icon"}.get(ext, "application/octet-stream")

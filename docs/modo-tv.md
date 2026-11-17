@@ -12,6 +12,12 @@ O modo TV já oferece lançamento de ROMs pelo `bonisarch-emulator`.
 O serviço `pyretro-gui` precisa estar ativo. Não há servidor adicional nem nova porta.
 A rota usa os mesmos cabeçalhos de segurança e as mutações exigem o token CSRF existente.
 
+## Código e endereços (desde 17/11/2026)
+
+O cliente é um conjunto de módulos ES: `gui/static/tv.js` (entrada) importa `gui/static/tv/*.js` (um módulo por tela ou assunto; o
+`router.js` cuida dos endereços). Cada tela tem endereço por hash (`#/inicio`, `#/biblioteca`, `#/jogo/<chave>`, `#/ferramentas/<id>` …):
+recarregar a página volta à mesma tela e o voltar do navegador (Alt+←, botão voltar do mouse) percorre as telas.
+
 ## Navegação
 
 Direcional ou analógico esquerdo navegam entre os botões e as capas. A confirma e

@@ -1,4 +1,5 @@
 """Modo TV: rota pública e gravação atômica do progresso de uma ROM fictícia."""
+import urllib.error
 import urllib.request
 from test_api import BaseAPI
 from core import library as lm
@@ -14,6 +15,18 @@ class TestTV(BaseAPI):
             self.assertIn('text/html', response.headers['Content-Type'])
             self.assertIn("script-src 'self'", response.headers['Content-Security-Policy'])
             self.assertIn('/static/tv.js', response.read().decode())
+
+    def test_tv_modules_served_as_javascript(self):
+        for caminho in ('/static/tv/router.js', '/static/tv/catalog.js'):
+            with urllib.request.urlopen(self.url + caminho) as response:
+                self.assertEqual(response.status, 200)
+                self.assertIn('javascript', response.headers['Content-Type'])
+        with self.assertRaises(urllib.error.HTTPError) as erro:
+            urllib.request.urlopen(self.url + '/static/tv/naoexiste.js')
+        self.assertEqual(erro.exception.code, 404)
+        with self.assertRaises(urllib.error.HTTPError) as erro:
+            urllib.request.urlopen(self.url + '/static/tv/a/b.js')
+        self.assertEqual(erro.exception.code, 404)
 
     def track(self, campos):
         return self.pedir('/api/library/track', {

@@ -1,5 +1,18 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N1: módulos e rotas no modo TV (Claude)
+
+- `gui/static/tv.js` (1.654 linhas) virou o ponto de entrada de módulos ES em `gui/static/tv/` (`api`, `state`, `router`, `focus`, `input`,
+  `catalog`, `cards`, `home`, `search`, `settings`, `game*`, `play`, `wishlist`, `tools*`), sem mudar o comportamento. `tv.html` carrega
+  `<script type="module">`; o servidor passou a servir `/static/tv/<arquivo>.js`. Estado compartilhado que muda entre módulos fica em `ui`
+  (`state.js`); `tv.js` expõe alguns nomes em `window` só para `tests/test_app.html`.
+- Rotas por hash (`router.js`): `#/inicio`, `#/biblioteca`, `#/desejados`, `#/apps`, `#/ferramentas[/<id>]`, `#/jogo/<chave>` e, por enquanto,
+  uma rota por coleção antiga (`#/neste-pc`, `#/favoritos`, `#/sistemas`, `#/jogando`, `#/ranking`, `#/estatisticas`, `#/sortear`,
+  `#/roms-pesadas/<sistema>`, `#/roms-leves/<sistema>`, `#/busca?q=`), que N3/N4 substituem. Recarregar volta à mesma tela (ficha e ferramenta
+  reabrem sobre Início/Ferramentas); Alt+← e o botão voltar do mouse percorrem as telas. A ficha e as ferramentas continuam `<dialog>` (N5).
+  Filtros (plataforma/gênero) ainda não entram no endereço.
+- Testes: 499 Python (+1, rota dos módulos) e 59 JS (+1, ida e volta dos endereços); os testes do modo TV passaram a carregar o `tv.js` como módulo.
+
 ## 11/11/2026 — PyRetro Shop: índice do Tinfoil para o Switch
 
 - `core/switch_shop.py`: uma chamada `rclone lsjson -R` na pasta `NSW` do Drive gera o índice de shop do Tinfoil
