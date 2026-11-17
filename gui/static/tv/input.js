@@ -6,7 +6,8 @@ import {closeGame} from "./game.js";
 import {showSpotlight} from "./home.js";
 import {applySearch, closeSearch, openSearch} from "./search.js";
 import {closeSettings, openSettings} from "./settings.js";
-import {collections, state, ui} from "./state.js";
+import {focusContent, focusSidebar, goDestination, inSidebar, stepDestination} from "./sidebar.js";
+import {state, ui} from "./state.js";
 import {closeTool} from "./tools.js";
 // --- glifos do controle: Xbox (A/B/X/Y), PlayStation (✕/○/□/△) ou automático pelo controle conectado ---
 const GLIFOS = {xbox: {A: "A", B: "B", X: "X", Y: "Y", L: "LB", R: "RB", LT: "LT", RT: "RT"}, ps: {A: "✕", B: "○", X: "□", Y: "△", L: "L1", R: "R1", LT: "L2", RT: "R2"}};
@@ -53,20 +54,21 @@ export function action(key) {
   if (state.busy) return;
   if (["left", "right", "up", "down"].includes(key)) move(key);
   else if (key === "accept") { if (!focusable().includes(document.activeElement)) focusable()[0]?.focus(); else document.activeElement.click(); }
-  else if (key === "back") { if ($("search-dialog").open) closeSearch(); else if ($("tool-dialog").open) closeTool(); else if ($("settings-dialog").open) closeSettings(); else if ($("details").open) closeGame(); else if (state.kind !== "home") load("home"); else $("collections").querySelector("button")?.focus(); }
+  else if (key === "back") { if ($("search-dialog").open) closeSearch(); else if ($("tool-dialog").open) closeTool(); else if ($("settings-dialog").open) closeSettings(); else if ($("details").open) closeGame(); else if (inSidebar()) focusContent(); else if (state.kind !== "home") load("home"); else focusSidebar(); }
+  else if (key === "sidebar" && !document.querySelector("dialog[open]")) { if (inSidebar()) focusContent(); else focusSidebar(); }
   else if (key === "search") openSearch();
   else if (key === "erase") { if ($("search-dialog").open) $("search-input").value = $("search-input").value.slice(0, -1); else if (!$("settings-dialog").open) toggleFavorite(); }
   else if (key === "submit") { if ($("search-dialog").open) applySearch(); else openSettings(); }
   else if (["page-up", "page-down"].includes(key) && !document.querySelector("dialog[open]")) page(key === "page-up" ? -1 : 1);
   else if (["previous", "next"].includes(key) && !document.querySelector("dialog[open]")) {
-    const index = Math.max(0, collections.findIndex(x => x[0] === state.kind));
-    load(collections[(index + (key === "previous" ? -1 : 1) + collections.length) % collections.length][0]);
+    stepDestination(key === "previous" ? -1 : 1);
   }
 }
 document.addEventListener("keydown", e => {
   if (!["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key)) setInputMode("keys");
   if (e.target instanceof HTMLInputElement && e.key !== "Escape") return;
-  const key = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
+  if (/^[1-5]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey && !document.querySelector("dialog[open]")) { e.preventDefault(); goDestination(Number(e.key)); return; }
+  const key = {m: "sidebar", M: "sidebar", ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
   if (key) { e.preventDefault(); action(key); }
 });
 // Mouse: o botão "voltar" lateral faz o mesmo que B.
@@ -101,7 +103,7 @@ export function pollGamepad(now) {
     if (pressed(2)) keys.add("erase"); if (pressed(3)) keys.add("search");
     if (pressed(4)) keys.add("page-up"); if (pressed(5)) keys.add("page-down");
     if (pressed(6)) keys.add("previous"); if (pressed(7)) keys.add("next");
-    if (pressed(9)) keys.add("submit");
+    if (pressed(9)) keys.add("submit"); if (pressed(8)) keys.add("sidebar");
     if (!foreground || document.hidden || ui.emulatorRunning) { held.clear(); awaitNeutral = true; requestAnimationFrame(pollGamepad); return; }
     const frame = lastPadFrame == null ? 16 : now - lastPadFrame; lastPadFrame = now;
     for (const [axis, index] of [["x", raw ? 3 : 2], ["y", raw ? 4 : 3]]) {

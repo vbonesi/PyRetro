@@ -11,6 +11,7 @@ function galleryMove(direction, current) {
   const index = cards.indexOf(current); if (index < 0) return false;
   const top = cards[0].getBoundingClientRect().top;
   const columns = Math.max(1, cards.filter(e => Math.abs(e.getBoundingClientRect().top - top) < 5).length);
+  if (direction === "left" && index % columns === 0) return false; // borda esquerda: a geometria leva à barra lateral
   let target = direction === "right" ? index + 1 : direction === "left" ? index - 1 : direction === "down" ? index + columns : index - columns;
   if (direction === "up" && target < 0) return false;
   if (target >= cards.length) target = direction === "down" && Math.floor(index / columns) < Math.floor((cards.length - 1) / columns) ? cards.length - 1 : index;
@@ -38,6 +39,7 @@ export function pickNeighbor(from, candidates, direction) {
 const memory = new Map();
 export function regionOf(el) { return el.closest?.("[data-region]")?.dataset.region || el.closest?.("dialog")?.id || "pagina"; }
 document.addEventListener("focusin", e => { if (e.target instanceof HTMLElement) memory.set(regionOf(e.target), e.target); });
+export function rememberFocus(el) { memory.set(regionOf(el), el); }
 export function recallFocus(region, nodes) { const el = memory.get(region); return el && el.isConnected && nodes.includes(el) ? el : null; }
 export function move(direction) {
   const nodes = focusable(); const current = document.activeElement;

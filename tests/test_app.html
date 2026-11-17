@@ -529,6 +529,54 @@ teste("modo TV: entrada em uso troca cursor, hover e dicas", async () => {
   } finally { frame.remove(); }
 });
 
+// Barra lateral: cinco destinos, a 2 passos do Início (LT/RT giram), ← da borda esquerda entra nela.
+teste("modo TV: barra lateral tem cinco destinos e leva a cada um em até dois passos", async () => {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px"; document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve); frame.srcdoc = html; await loaded;
+  const app = frame.contentWindow, doc = app.document;
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
+  const jogo = {id: "um", key: "pc:um", name: "Um jogo", platform: "Steam", tracking: {iniciado: true}, local: true};
+  app.fetch = async url => {
+    const data = url === "/api/tv/home" ? {recent: [jogo], continue: [jogo], favorites: [], installed: [jogo], ready: [jogo], apps: [], counts: {}}
+      : url === "/api/systems" || url === "/api/heavy/systems" ? [] : url === "/api/play/status" ? {status: "idle"}
+      : url === "/api/tv/catalog" || url === "/api/library" || url === "/api/tv/apps" ? [] : url === "/api/wishlist" ? {steam: [], psn: [], xbox: []}
+      : url === "/api/iniciados" || url === "/api/ranking" ? [] : null;
+    if (data === null) throw new Error("requisição inesperada: " + url);
+    return {ok: true, json: async () => data};
+  };
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  try {
+    await esperar(() => doc.querySelector("#home .game"), "Início não carregou");
+    const destinos = () => [...doc.querySelectorAll("#destinations button")].map(b => b.dataset.destination);
+    igual(destinos(), ["home", "library", "wishlist", "apps", "tools"]);
+    const atual = () => doc.querySelector('#destinations [aria-current="page"]')?.dataset.destination;
+    igual(atual(), "home");
+    // ← na borda esquerda entra na barra, já no destino atual
+    doc.getElementById("spotlight-open").focus(); app.action("left");
+    igual(doc.activeElement.dataset.destination, "home", "← não levou ao destino atual da barra");
+    app.action("right"); verdade(!doc.activeElement.dataset.destination, "→ não voltou ao conteúdo");
+    // LT/RT: qualquer destino a no máximo dois passos do Início
+    const alcance = {};
+    for (const [passos, tecla] of [[1, "next"], [2, "next"], [1, "previous"], [2, "previous"]]) {
+      await app.load("home");
+      for (let i = 0; i < passos; i++) { app.action(tecla); await new Promise(r => setTimeout(r, 300)); }
+      await esperar(() => atual() !== "home", "destino não mudou"); alcance[atual()] = Math.min(alcance[atual()] ?? 9, passos);
+    }
+    igual(Object.keys(alcance).sort(), ["apps", "library", "tools", "wishlist"]);
+    verdade(Object.values(alcance).every(n => n <= 2), "algum destino exige mais de 2 passos");
+    // Visões antigas ficam sob Biblioteca; Desejados não as mostra
+    await app.load("library"); verdade(!doc.getElementById("collections").hidden, "visões da Biblioteca ocultas"); igual(atual(), "library");
+    await app.load("ranking"); igual(atual(), "library", "Ranking pertence à Biblioteca");
+    await app.load("wishlist"); verdade(doc.getElementById("collections").hidden); igual(atual(), "wishlist");
+    await app.load("home");
+    verdade(!doc.querySelector(".quick-access"), "Início ainda tem a fileira de acesso rápido");
+    igual([...doc.querySelectorAll("#home .home-section")].map(s => s.dataset.shelf), ["continue", "ready", "recent"]);
+  } finally { frame.remove(); }
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {
@@ -851,6 +899,7 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
     let data; const catalog = games.map(g => ({...g, favorite: preferences.favorites.includes(g.key)}));
     if (url === "/api/tv/home") data = {recent: [catalog[0]], continue: [catalog[1]], favorites: catalog.filter(g => g.favorite), installed: catalog, ready: catalog, apps, preferences, counts: {local: 2, pc: 2}};
     else if (url === "/api/tv/catalog") data = catalog;
+    else if (url === "/api/tv/apps") data = apps;
     else if (url === "/api/systems" || url === "/api/heavy/systems") data = [];
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/csrf") data = {token: "tv-token"};
@@ -871,15 +920,20 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
   try {
     await esperar(() => doc.querySelector("#home .game"), "início não carregou");
     igual(doc.activeElement.id, "spotlight-open", "o foco inicial deve ficar em uma ação visível");
-    igual(doc.getElementById("spotlight-title").textContent, "Meu recente");
+    igual(doc.getElementById("spotlight-title").textContent, "Minha campanha", "o destaque do Início continua o jogo iniciado");
+    igual(doc.querySelector(".eyebrow").textContent, "CONTINUAR");
     verdade(/^\d{2}:\d{2}$/.test(doc.getElementById("clock").textContent));
-    for (const id of ["greenlight", "chiaki", "sysdvr"]) verdade(doc.querySelector(`[data-app="${id}"]`), `atalho remoto ausente: ${id}`);
-    doc.querySelector('[data-app="greenlight"]').click();
+    // Apps e stream (destino próprio da barra lateral) abrem os clientes remotos.
+    await app.load("apps");
+    const appButton = nome => [...doc.querySelectorAll("#gallery button")].find(b => b.textContent.includes(nome));
+    for (const nome of ["Xbox remoto", "PS4 remoto", "Switch Lite"]) verdade(appButton(nome), `atalho remoto ausente: ${nome}`);
+    appButton("Xbox remoto").click();
     await esperar(() => posts.length === 1, "Xbox remoto não abriu");
     igual(posts[0], {url: "/api/tv/apps/launch", body: {id: "greenlight"}});
-    doc.querySelector('[data-app="sysdvr"]').click();
+    appButton("Switch Lite").click();
     await esperar(() => doc.getElementById("play-status").textContent.includes("já está aberto"), "cliente remoto já aberto ficou sem aviso");
-    doc.querySelector("#home .game").focus(); pad.buttons[2].pressed = true;
+    await app.load("home"); await esperar(() => doc.querySelector('[data-shelf="recent"] .game'), "Início não voltou");
+    doc.querySelector('[data-shelf="recent"] .game').focus(); pad.buttons[2].pressed = true;
     await esperar(() => doc.querySelector('[data-shelf="favorites"] .game'), "X não favoritou");
     await new Promise(resolve => setTimeout(resolve, 450));
     igual(posts.filter(p => p.url === "/api/tv/favorite").length, 1, "segurar X repetiu favorito");
@@ -894,7 +948,7 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
     await esperar(() => doc.documentElement.dataset.theme === "light", "tema não foi aplicado");
     doc.getElementById("settings-close").click(); await app.load("home");
     igual(doc.documentElement.dataset.theme, "light"); verdade(doc.querySelector('[data-shelf="favorites"] .game'));
-    failFavorite = true; doc.querySelector("#home .game").focus(); app.action("erase");
+    failFavorite = true; doc.querySelector('[data-shelf="recent"] .game').focus(); app.action("erase");
     await esperar(() => doc.getElementById("message").textContent.includes("disco indisponível"), "falha do favorito ficou invisível");
     igual(preferences.favorites, ["pc:one"], "falha alterou favorito");
     verdade(posts.every(p => !p.url.includes("/library/")), "navegar/favoritar/tema alteraram progresso");

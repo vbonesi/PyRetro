@@ -6,6 +6,7 @@ import {renderHome} from "./home.js";
 import {glifos} from "./input.js";
 import {applyPreferences} from "./settings.js";
 import {WISHLIST_STORES, collections, state} from "./state.js";
+import {destinationOf, inSidebar, renderSidebar} from "./sidebar.js";
 import {renderTools} from "./tools.js";
 import {routeFor, syncRoute} from "./router.js";
 // Filtros secundários (plataforma e gênero) recolhíveis: mais área para os jogos.
@@ -53,7 +54,11 @@ function platformTabs() {
   }
 }
 export function collectionTabs() {
-  $("collections").replaceChildren(...collections.map(([kind, title]) => button(title, () => load(kind), state.kind === kind)));
+  // Barra lateral (5 destinos) e, sob Biblioteca, a fileira das visões antigas (até o N4 virarem filtros).
+  renderSidebar();
+  const views = collections.filter(([kind]) => destinationOf(kind) === "library");
+  $("collections").replaceChildren(...views.map(([kind, title]) => button(title, () => load(kind), state.kind === kind)));
+  $("collections").hidden = destinationOf(state.kind) !== "library";
 }
 // Resolve a chave da rota de uma ficha (#/jogo/<chave>) em qualquer coleção: chave do catálogo da TV, `pc:<id>` da
 // Biblioteca (primeiro o item do catálogo com esse id, depois a Biblioteca e os Desejados) ou `<sistema>:<ROM>`.
@@ -163,8 +168,10 @@ export async function load(kind = state.kind, code = "") {
     }
     if (request !== state.request) return;
     state.items = items; platformTabs(); render();
-    if (kind === "home") { ($("spotlight").hidden ? $("home").querySelector("button") : $("spotlight-open"))?.focus({preventScroll: true}); window.scrollTo(0, 0); }
-    else (code ? $("platforms") : $("collections")).querySelector('[aria-pressed="true"]')?.focus();
+    // Quem escolheu o destino pela barra continua nela (→ entra no conteúdo); de fora (voltar, recarga) o foco vai ao conteúdo.
+    const fromSidebar = inSidebar();
+    if (kind === "home") { if (!fromSidebar) ($("spotlight").hidden ? $("home").querySelector("button") : $("spotlight-open"))?.focus({preventScroll: true}); window.scrollTo(0, 0); }
+    else if (!fromSidebar) (destinationOf(kind) !== "library" ? $("gallery").querySelector("button") : (code ? $("platforms") : $("collections")).querySelector('[aria-pressed="true"]'))?.focus();
   } catch (error) { if (request === state.request) report(`Não foi possível carregar: ${error.message}. Selecione a coleção para tentar novamente.`, true); }
 }
 export function render() {

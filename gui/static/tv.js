@@ -2,6 +2,7 @@
 import {api} from "./tv/api.js";
 import {collectionTabs, drawGame, findGameByKey, load, updateFilters} from "./tv/catalog.js";
 import {$, report} from "./tv/dom.js";
+import {focusSidebar} from "./tv/sidebar.js";
 import {closeGame, hideGame, openGame} from "./tv/game.js";
 import {scrollTarget, stickScroll} from "./tv/focus.js";
 import {action, applyGlyphs, padFamily, pollGamepad} from "./tv/input.js";
@@ -56,7 +57,7 @@ async function init() {
     if (key) await openLinkedGame(key);
   }
   catch (e) { report(`Não foi possível iniciar: ${e.message}. Recarregue para tentar novamente.`, true); }
-  if (state.kind !== "home") $("collections").querySelector("button")?.focus();
+  if (state.kind !== "home") focusSidebar();
 }
 onRouteChange(applyRoute);
 requestAnimationFrame(pollGamepad); init();

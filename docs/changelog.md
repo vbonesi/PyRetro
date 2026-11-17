@@ -1,5 +1,17 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N3: barra lateral com 5 destinos e novo Início (Claude)
+
+- `tv/sidebar.js` + `<aside id="sidebar">`: Início, Biblioteca, Desejados, Apps e stream e Ferramentas, num trilho de ícones que abre com rótulos
+  ao receber o foco (View/Select, `M`, ← na borda esquerda, ou o mouse). LT/RT (e as teclas 1–5) giram/escolhem os destinos: qualquer um fica a
+  no máximo dois passos do Início. Em tela estreita a barra vira uma faixa de ícones acima do rodapé. Pesquisar foi para o topo, ao lado do relógio.
+- A fileira das 14 coleções saiu. As visões antigas (Neste PC, Favoritos, Sistemas, Jogando, Ranking, Estatísticas, ROMs pesadas/leves, Sortear)
+  ficam numa fileira sob **Biblioteca** até o N4 as transformar em filtros. B no Início leva à barra; B na barra volta ao conteúdo.
+- Início: destaque "CONTINUAR" (jogo iniciado mais recente) e fileiras Jogando, Favoritos, Neste PC, Recentes e Mais jogados. Saíram a fileira de
+  acesso rápido (os clientes remotos estão em Apps e stream) e "Steam e Heroic" (já contida em Neste PC).
+- **Falta dado para "Adicionados há pouco":** o cadastro não guarda a data de inclusão do jogo; precisa de um campo novo (decisão do Opus/Victor).
+- Testes: 500 Python e 64 JS (+1: cinco destinos e alcance em até dois passos); o teste do Início passou a abrir os clientes remotos por Apps.
+
 ## 17/11/2026 — Nova navegação, N2: motor de foco e modo de entrada (Claude)
 
 - `tv/focus.js`: `pickNeighbor` (vizinho por geometria, função pura) e memória por região. As áreas marcadas com `data-region` (menu,

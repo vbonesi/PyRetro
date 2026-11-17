@@ -1,14 +1,15 @@
 import {gameCard} from "./cards.js";
-import {launchApp, load} from "./catalog.js";
 import {$, button, report} from "./dom.js";
 import {openGame} from "./game.js";
 import {state, ui} from "./state.js";
+const isContinuing = g => [state.home?.continue, state.home?.recent].some(list => list?.some(x => x.key === g.key));
 export function showSpotlight(g) {
   ui.spotlightGame = g;
   $("spotlight-title").textContent = g.name;
   $("spotlight-meta").textContent = [g.platform, g.local ? "Pronto neste PC" : g.downloadName ? "Disponível no Drive" : "Na sua biblioteca", g.tracking.genero, g.favorite ? "★ Favorito" : ""].filter(Boolean).join(" · ");
   $("spotlight-art").style.backgroundImage = g.cover ? `url(${JSON.stringify(g.cover)})` : "none";
   $("spotlight-open").textContent = "Ver jogo";
+  $("spotlight").querySelector(".eyebrow").textContent = isContinuing(g) ? "CONTINUAR" : "EM DESTAQUE";
   const logo = $("spotlight-logo"), video = $("spotlight-video");
   logo.hidden = !g.media?.logo; if (g.media?.logo) logo.src = g.media.logo;
   const source = g.media?.video || "";
@@ -46,14 +47,7 @@ export function renderHome() {
   const box = $("home"); box.replaceChildren();
   const home = state.home; $("spotlight").hidden = !home;
   if (!home) return;
-  const quick = document.createElement("section"); quick.className = "quick-access"; quick.dataset.region = "acesso-rapido"; quick.setAttribute("aria-label", "Acesso rápido");
-  for (const appId of ["greenlight", "chiaki", "sysdvr", "steam", "heroic"]) {
-    const app = home.apps?.find(g => g.id === appId);
-    if (app) { const b = button(`${app.icon} ${app.name}`, () => launchApp(app)); b.dataset.app = appId; quick.append(b); }
-  }
-  quick.append(button("🕹 Emuladores", () => load("systems")), button("▦ Todos neste PC", () => load("local")));
-  box.append(quick);
-  for (const [key, title] of [["recent", "Jogados recentemente"], ["continue", "Continuar jogando"], ["favorites", "Seus favoritos"], ["mostPlayed", "Mais jogados"], ["installed", "Steam e Heroic · prontos para jogar"], ["ready", "Explore seu acervo local"]]) {
+  for (const [key, title] of [["continue", "Jogando"], ["favorites", "Favoritos"], ["ready", "Neste PC"], ["recent", "Recentes"], ["mostPlayed", "Mais jogados"]]) {
     const games = home[key] || []; if (!games.length) continue;
     const section = document.createElement("section"); section.className = "home-section"; section.dataset.shelf = key;
     const heading = document.createElement("h3"); heading.textContent = title;
@@ -63,9 +57,9 @@ export function renderHome() {
     head.append(heading, shelfControls(row, title));
     section.append(head, row); box.append(section);
   }
-  const all = [home.recent, home.continue, home.favorites, home.installed, home.ready, home.mostPlayed].flatMap(g => g || []);
+  const all = [home.continue, home.recent, home.favorites, home.ready, home.mostPlayed].flatMap(g => g || []);
   const featured = all.find(g => ui.spotlightGame?.key && g.key === ui.spotlightGame.key) || all[0];
   $("spotlight").hidden = !featured; if (featured) showSpotlight(featured);
-  if (!all.length) { const empty = document.createElement("p"); empty.className = "hint"; empty.textContent = "Sua próxima partida começa aqui. Abra Neste PC ou explore os sistemas. Os jogos que você abrir aparecerão em Recentes; X guarda seus favoritos."; box.append(empty); }
+  if (!all.length) { const empty = document.createElement("p"); empty.className = "hint"; empty.textContent = "Sua próxima partida começa aqui. Abra a Biblioteca ou explore os sistemas. Os jogos que você abrir aparecerão em Recentes; X guarda seus favoritos."; box.append(empty); }
   report(home.counts ? `${home.counts.local || 0} jogos neste PC · ${home.counts.pc || 0} da Steam e Heroic` : "Escolha sua próxima partida.");
 }
