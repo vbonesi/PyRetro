@@ -1,4 +1,5 @@
 import {api, refreshCsrf} from "./api.js";
+import {setDetailCover} from "./cover-frame.js";
 import {fillBadges, refreshBadges} from "./cards.js";
 import {render} from "./catalog.js";
 import {$, button, formatTime, report} from "./dom.js";
@@ -19,7 +20,7 @@ export function openGame(g, origin = document.activeElement) {
   fillBadges($('game-badges'), g);
   const textureCode = TEXTURE_SYSTEMS[g.code];
   $("textures-toggle").hidden = !textureCode; $("textures-fields").hidden = true; $("textures-toggle").setAttribute("aria-expanded", "false");
-  $("detail-cover").hidden = !g.cover; if (g.cover) $("detail-cover").src = g.cover;
+  setDetailCover(g.cover);
   $("spotlight-video").pause(); $("time-fields").hidden = true; $("media-fields").hidden = true;
   $("game-synopsis").textContent = g.tracking?.sinopse || ''; $("game-synopsis").hidden = !g.tracking?.sinopse;
   $("game-time").textContent = g.playtime?.seconds ? `${formatTime(g.playtime.seconds)} em ${g.playtime.sessions} sessão(ões) registrada(s).` : 'Ainda sem tempo registrado neste PC.';

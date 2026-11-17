@@ -686,7 +686,21 @@ teste("modo TV: ficha e ferramenta são páginas, não diálogos", async () => {
   } finally { frame.remove(); }
 });
 
-// N10: tela cheia.
+// N10: moldura 3:4 única; a regra de encaixe é função pura.
+teste("modo TV: capas 3:4 cortam só perto da proporção e o resto fica inteiro", async () => {
+  const {coverFit, coverFrame} = await import("/static/tv/cover-frame.js");
+  igual(coverFit(300, 400), "cover"); igual(coverFit(620, 1000), "cover"); igual(coverFit(900, 1000), "cover");
+  igual(coverFit(1000, 1000), "contain", "capa quadrada fica inteira"); igual(coverFit(1500, 1000), "contain", "caixa larga (N64) fica inteira");
+  igual(coverFit(300, 600), "contain", "capa muito alta fica inteira"); igual(coverFit(0, 0), "contain");
+  const png = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c.toDataURL("image/png"); };
+  const largo = coverFrame(png(150, 100)), alto = coverFrame(png(30, 40));
+  document.body.prepend(largo, alto);  // no topo: img lazy só carrega perto da tela
+  try {
+    await esperar(() => largo.dataset.fit === "contain" && alto.dataset.fit === "cover", "encaixe não decidido pela proporção real");
+    verdade(largo.classList.contains("cover-frame") && largo.style.getPropertyValue("--cover-url").includes("data:image/png"), "faltou o fundo da própria capa");
+  } finally { largo.remove(); alto.remove(); }
+});
+
 teste("modo TV: tela cheia fecha o diálogo antes de pedir e o rótulo segue o estado", async () => {
   const {frame, app, doc} = await abrirTV(() => undefined);
   try {

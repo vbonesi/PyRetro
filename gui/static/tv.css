@@ -119,6 +119,12 @@ main{
   object-fit:contain;
   background:#101d30
 }
+.cover-frame,.art.placeholder{height:auto!important;aspect-ratio:3/4;width:100%}
+.cover-frame{position:relative;overflow:hidden;background:#101d30}
+.cover-frame::before{content:"";position:absolute;inset:-12%;background:var(--cover-url) center/cover;filter:blur(16px) brightness(.45);opacity:0;pointer-events:none}
+.cover-frame[data-fit=contain]::before{opacity:1}
+.cover-frame img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.cover-frame[data-fit=cover] img{object-fit:cover;object-position:top center}
 .placeholder{
   display:grid;
   place-items:center;
@@ -276,7 +282,7 @@ header{padding:1rem 3vw .5rem}
 .shelf .game:focus{transform:translateY(-3px);outline:3px solid var(--accent);outline-offset:3px}
 .game strong{line-height:1.25}
 .detail-heading{display:flex;align-items:center;gap:1.2rem}
-#detail-cover{width:100px;height:140px;object-fit:contain;border-radius:.4rem;background:#0b1220;flex-shrink:0}
+#detail-cover-frame{width:120px;border-radius:.4rem;flex-shrink:0}
 #game-title{margin:.2rem 0;font-size:1.5rem;line-height:1.15}
 #game-platform{margin:.5rem 0}
 #favorite{font-size:.8rem;padding:.45rem .75rem}
@@ -300,7 +306,7 @@ header{padding:1rem 3vw .5rem}
   .brand,.console-status{gap:.5rem}.brand h1{font-size:1.2rem}.brand-mark{width:1.8rem;height:1.8rem}
   #battery{font-size:.7rem}#spotlight{min-height:220px}.spotlight-content{max-width:100%;padding:1rem}
   .shelf .game{flex-basis:155px}.shelf .art{height:205px}.detail-heading{gap:.75rem}
-  #detail-cover{width:75px;height:105px}#game-title{font-size:1.2rem}
+  #detail-cover-frame{width:90px}#game-title{font-size:1.2rem}
 }
 @media(prefers-reduced-motion:reduce){.shelf .game{transition:none}}
 .home-screen #title{display:none}

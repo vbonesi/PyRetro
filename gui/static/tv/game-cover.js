@@ -1,6 +1,7 @@
 import {api} from "./api.js";
 import {render} from "./catalog.js";
 import {$, button, report} from "./dom.js";
+import {coverFrame, setDetailCover} from "./cover-frame.js";
 import {closeOtherPanels} from "./game-saves.js";
 import {openTextEntry} from "./search.js";
 import {state} from "./state.js";
@@ -35,7 +36,7 @@ async function searchCover() {
     if (!found.length) return box.replaceChildren(Object.assign(document.createElement("p"), {className: "hint", textContent: "Nada encontrado. Troque a busca ou a fonte."}));
     box.replaceChildren(...found.slice(0, 24).map(item => {
       const card = button("", () => applyCover(g, item, source)); card.className = "game cover-choice";
-      const img = document.createElement("img"); img.src = item.url; img.alt = ""; img.loading = "lazy"; img.className = "art";
+      const img = coverFrame(item.url);
       const name = document.createElement("strong"); name.textContent = item.name;
       const from = document.createElement("small"); from.textContent = item.label;
       card.append(img, name, from); return card;
@@ -49,7 +50,7 @@ async function applyCover(g, item, source) {
     if (source === "rom") await api("/api/cover/select", {code: g.code, label, source: item.raw.source, name: item.raw.name, filename: item.raw.filename || "", ss_id: item.raw.ss_id || ""});
     const r = source === "rom" ? null : await api("/api/cover/apply_url", g.code ? {kind: "rom", code: g.code, label, url: item.url} : {kind: "biblioteca", id: g.id, url: item.url});
     g.cover = g.code ? `/images/${encodeURIComponent(g.code)}/${encodeURIComponent(label)}.png?v=${Date.now()}` : `/library-images/${r.file.split("/").map(encodeURIComponent).join("/")}?v=${Date.now()}`;
-    $("detail-cover").src = g.cover; $("detail-cover").hidden = false;
+    setDetailCover(g.cover);
     $("cover-fields").hidden = true; $("cover-toggle").setAttribute("aria-expanded", "false"); $("cover-toggle").focus();
     render(); report("Capa trocada.", false, "detail-status");
   } catch (e) { report(`Capa não aplicada: ${e.message}`, true, "detail-status"); }
@@ -87,7 +88,7 @@ $("cover-file").onchange = async event => {
     const label = g.code ? coverLabel(g) : null;
     const r = await api(g.code ? "/api/cover/upload" : "/api/library/cover_upload", g.code ? {code: g.code, label, filename: file.name, data} : {id: g.id, filename: file.name, data});
     g.cover = g.code ? `/images/${encodeURIComponent(g.code)}/${encodeURIComponent(label)}.png?v=${Date.now()}` : `/library-images/${r.file.split("/").map(encodeURIComponent).join("/")}?v=${Date.now()}`;
-    $("detail-cover").src = g.cover; $("detail-cover").hidden = false;
+    setDetailCover(g.cover);
     $("cover-fields").hidden = true; $("cover-toggle").setAttribute("aria-expanded", "false"); $("cover-toggle").focus();
     render(); report("Capa trocada.", false, "detail-status");
   } catch (e) { report(`Capa não enviada: ${e.message}`, true, "detail-status"); }

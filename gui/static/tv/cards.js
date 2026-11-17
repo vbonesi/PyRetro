@@ -1,4 +1,5 @@
 import {$, button} from "./dom.js";
+import {coverFrame} from "./cover-frame.js";
 import {openContextMenu} from "./context.js";
 import {openGame} from "./game.js";
 import {showSpotlight} from "./home.js";
@@ -42,7 +43,7 @@ export function gameCard(g) {
       const box = card.getBoundingClientRect(), keyboard = !e.clientX && !e.clientY;
       openContextMenu(g, card, keyboard ? box.left + box.width / 2 : e.clientX, keyboard ? box.top + box.height / 2 : e.clientY);
     });
-    if (g.cover) { const img = document.createElement("img"); img.src = g.cover; img.alt = ""; img.loading = "lazy"; img.className = "art"; card.append(img); }
+    if (g.cover) card.append(coverFrame(g.cover));
     else { const art = document.createElement("div"); art.className = "art placeholder"; art.textContent = "✦"; card.append(art); }
     const title = document.createElement("strong"); title.textContent = (g.favorite ? "★ " : "") + g.name;
     const meta = document.createElement("small");

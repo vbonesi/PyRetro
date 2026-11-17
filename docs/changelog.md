@@ -1,5 +1,14 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N10 (2/2): capas na moldura 3:4 (Claude)
+
+- Todos os cards (fileiras, Biblioteca, busca, escolha de capa) e a ficha usam moldura **3:4** (`gui/static/tv/cover-frame.js`). Regra pura
+  `coverFit(largura, altura)`, decidida pela proporção real no `load`: entre 0,62 e 0,9 → `cover` ancorado no topo; o resto (caixas largas de N64,
+  capas de Steam, quadradas) → `contain` sobre a própria capa desfocada e escurecida (`--cover-url`). Sem mudança no servidor.
+- Conferido na tela: Super Mario 64 (N64, larga) fica inteira com fundo desfocado; a versão DS e Final Fantasy XII (0,67) preenchem; Pokémon Ruby
+  (GBA, 1:1) fica inteira. Ficha: `#detail-cover-frame` (a capa trocada/enviada por arquivo usa `setDetailCover`).
+- Testes: 503 Python e 72 JS (+2 no N10).
+
 ## 17/11/2026 — Nova navegação, N10 (1/2): tela cheia sem o diálogo fantasma (Claude)
 
 - Com "Seu console" aberto, "Tela cheia" deixava o `<dialog>` modal por baixo da camada superior do `requestFullscreen`. Agora o diálogo é fechado
