@@ -7,7 +7,7 @@ import {closeGame, hideGame, openGame} from "./tv/game.js";
 import {scrollTarget, stickScroll} from "./tv/focus.js";
 import {action, applyGlyphs, padFamily, pollGamepad} from "./tv/input.js";
 import {applyPreferences} from "./tv/settings.js";
-import {toolCloudSaves} from "./tv/tools-pages.js";
+import {toolCloudSaves, toolOrganize} from "./tv/tools-pages.js";
 import {watchSession} from "./tv/play.js";
 import {state} from "./tv/state.js";
 import {closeTool, hideTool, isToolRouted, openTool, openToolById} from "./tv/tools.js";
@@ -63,4 +63,4 @@ api("/api/play/status").then(watchSession).catch(() => {});
 applyGlyphs(); updateFilters();
 
 // Ganchos para os testes (tests/test_app.html): o código em módulo não vaza nomes para o escopo global.
-Object.assign(window, {load, drawGame, watchSession, openLinkedGame, action, openTool, closeTool, openGame, closeGame, padFamily, stickScroll, scrollTarget, applyPreferences, toolCloudSaves});
+Object.assign(window, {load, drawGame, watchSession, openLinkedGame, action, openTool, closeTool, openGame, closeGame, padFamily, stickScroll, scrollTarget, applyPreferences, toolCloudSaves, toolOrganize});

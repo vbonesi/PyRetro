@@ -61,7 +61,30 @@ export async function toolOrganize(body) {
         await toolOrganize(body);
       }));
       return r;
-    }) : [hint("Nada esperando organização.")]));
+    }) : [hint("Nada esperando organização.")]),
+    await switchUploads(body));
+}
+// Dumps de Switch (pastas e .nsp/.xci) em Downloads: sobem ao Drive com o nome e o gênero escolhidos; a origem vai
+// para a lixeira depois de conferida (/api/switch/upload, o mesmo envio da web).
+async function switchUploads(body) {
+  const box = document.createElement("section"); box.className = "panel";
+  let data;
+  try { data = await api("/api/switch/upload/pending"); } catch (e) { box.append(heading("Dumps de Switch"), hint(e.message)); return box; }
+  const gb = n => n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${Math.max(1, Math.round(n / 1048576))} MB`;
+  box.append(heading("Dumps de Switch em Downloads"));
+  if (!data.items.length) { box.append(hint("Nenhum dump de Switch em Downloads.")); return box; }
+  box.append(hint("Escolha o nome da pasta no Drive e o gênero (automático se vazio); depois Subir. A capa e o índice do Switch são atualizados no fim."));
+  for (const item of data.items) {
+    const pick = {nome: item.nome, genero: "", lista: false}, row = document.createElement("div"); row.className = "panel";
+    const draw = () => row.replaceChildren(
+      Object.assign(document.createElement("p"), {className: "hint", textContent: `📦 ${item.entry} · ${item.files.length} arquivo(s) · ${gb(item.size)}${item.baixando ? " · ainda baixando" : ""}`}),
+      actions(button(`Nome: ${pick.nome || "—"}`, () => openTextEntry("Nome da pasta no Drive", pick.nome, v => { if (v) pick.nome = v; draw(); })),
+        button(`Gênero: ${pick.genero || "automático"}`, () => { pick.lista = !pick.lista; draw(); }),
+        Object.assign(confirmButton("Subir", `Confirmar: subir "${pick.nome}"`, () => toolJob("/api/switch/upload", {entry: item.entry, nome: pick.nome, genero: pick.genero}, () => toolOrganize(body))), {disabled: !!item.baixando})),
+      ...(pick.lista ? [choice([["", "automático"], ...data.generos.map(g => [g, g])], pick.genero, v => { pick.genero = v; pick.lista = false; draw(); })] : []));
+    draw(); box.append(row);
+  }
+  return box;
 }
 export async function toolMemcards(body) {
   body.replaceChildren(hint("Lendo os memory cards…"));

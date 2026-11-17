@@ -747,6 +747,51 @@ teste("modo TV: carregar numa rota deixa o foco no conteúdo", async () => {
   }
 });
 
+// N7: o que só a web fazia — dumps de Switch no Organizar e capa a partir de arquivo na ficha.
+teste("modo TV: Organizar sobe dump de Switch e a ficha troca a capa por arquivo", async () => {
+  let jobs = 0;
+  const item = {id: "pc:capa", key: "pc:capa", name: "Jogo Capa", platform: "Steam", tracking: {}, local: false};
+  const rom = {key: "rom:FC:velho", name: "Velho", code: "FC", platform: "NES", romName: "Velho", local: true, tracking: {}, cover: null};
+  const {frame, app, doc, posts} = await abrirTV(url => {
+    if (url === "/api/organize/pending") return {staging_dir: "0-Organizar", downloads_dir: "Downloads", items: []};
+    if (url === "/api/switch/upload/pending") return {downloads_dir: "Downloads", generos: ["Ação", "RPG"], items: [{entry: "Jogo.nsp", nome: "Jogo Bom", size: 2147483648, baixando: false, files: [{name: "Jogo.nsp"}]}, {entry: "Parcial.nsp", nome: "Parcial", size: 100, baixando: true, files: [{name: "Parcial.nsp"}]}]};
+    if (url === "/api/switch/upload") return {job: "job-switch"};
+    if (url === "/api/tv/catalog") return [item, rom];
+    if (url === "/api/cover/upload") return {file: "Velho.png"};
+    if (url === "/api/library/cover_upload") return {file: "capas/pc-capa.png"};
+  });
+  app.EventSource = class { constructor() { jobs++; setTimeout(() => { this.onmessage({data: JSON.stringify({type: "system_done", result: {ok: true, message: "enviado"}})}); this.onmessage({data: JSON.stringify({type: "job_done"})}); }, 10); } close() {} };
+  try {
+    app.openTool("Organizar", app.toolOrganize, "organizar");
+    await esperar(() => doc.getElementById("tool-body").textContent.includes("Dumps de Switch em Downloads"), "seção de Switch ausente");
+    const corpo = doc.getElementById("tool-body");
+    verdade(corpo.textContent.includes("2.0 GB") && corpo.textContent.includes("ainda baixando"));
+    const subir = [...corpo.querySelectorAll("button")].filter(b => b.textContent === "Subir");
+    verdade(subir[1].disabled, "dump ainda baixando não pode subir"); verdade(!subir[0].disabled);
+    [...corpo.querySelectorAll("button")].find(b => b.textContent.startsWith("Gênero")).click();
+    [...corpo.querySelectorAll("button")].find(b => b.textContent === "RPG").click();
+    const confirmar = [...corpo.querySelectorAll("button")].find(b => b.textContent === "Subir" && !b.disabled);
+    confirmar.click(); igual(posts.length, 0, "subiu antes de confirmar");
+    [...corpo.querySelectorAll("button")].find(b => b.textContent.startsWith("Confirmar: subir")).click();
+    await esperar(() => posts.length === 1, "envio não saiu");
+    igual(posts[0], {url: "/api/switch/upload", body: {entry: "Jogo.nsp", nome: "Jogo Bom", genero: "RPG"}});
+    app.closeTool();
+    // capa por arquivo: ROM (code/label) e Biblioteca (id)
+    await app.load("library");
+    const arquivo = new app.File([new Uint8Array(300)], "capa.png", {type: "image/png"});
+    for (const [nome, esperado] of [["Velho", {url: "/api/cover/upload", campos: ["code", "label", "filename", "data"]}], ["Jogo Capa", {url: "/api/library/cover_upload", campos: ["id", "filename", "data"]}]]) {
+      [...doc.querySelectorAll("#gallery .game")].find(c => c.textContent.includes(nome)).click();
+      doc.getElementById("cover-toggle").click();
+      const dt = new app.DataTransfer(); dt.items.add(arquivo); const input = doc.getElementById("cover-file"); input.files = dt.files;
+      input.dispatchEvent(new app.Event("change", {bubbles: true}));
+      await esperar(() => posts.length === (nome === "Velho" ? 2 : 3), `upload de capa de ${nome} não saiu`);
+      const post = posts.at(-1); igual(post.url, esperado.url); igual(Object.keys(post.body), esperado.campos);
+      await esperar(() => doc.getElementById("detail-status").textContent === "Capa trocada.", "capa não confirmou");
+      doc.getElementById("close").click(); await esperar(() => !doc.getElementById("details").open, "ficha não fechou");
+    }
+  } finally { frame.remove(); }
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {

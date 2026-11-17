@@ -74,3 +74,22 @@ $("cover-flag").onclick = async () => {
   finally { state.busy = false; }
   await renderCoverFlag(); $("cover-flag").focus();
 };
+// 📁 Capa a partir de um arquivo (PNG ou JPEG) do aparelho: mesma gravação da web (/api/cover/upload e /api/library/cover_upload).
+$("cover-upload").onclick = () => $("cover-file").click();
+$("cover-file").onchange = async event => {
+  const file = event.target.files[0], g = state.selected; event.target.value = "";
+  if (!file || !g || state.busy) return;
+  if (!/\.(png|jpe?g)$/i.test(file.name)) return report("Escolha uma imagem PNG ou JPEG.", true, "detail-status");
+  if (file.size > 8 * 1024 * 1024) return report("Escolha uma imagem de até 8 MB.", true, "detail-status");
+  state.busy = true; report("Enviando capa…", false, "detail-status");
+  try {
+    const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(",")[1]); reader.onerror = () => reject(new Error("não foi possível ler o arquivo")); reader.readAsDataURL(file); });
+    const label = g.code ? coverLabel(g) : null;
+    const r = await api(g.code ? "/api/cover/upload" : "/api/library/cover_upload", g.code ? {code: g.code, label, filename: file.name, data} : {id: g.id, filename: file.name, data});
+    g.cover = g.code ? `/images/${encodeURIComponent(g.code)}/${encodeURIComponent(label)}.png?v=${Date.now()}` : `/library-images/${r.file.split("/").map(encodeURIComponent).join("/")}?v=${Date.now()}`;
+    $("detail-cover").src = g.cover; $("detail-cover").hidden = false;
+    $("cover-fields").hidden = true; $("cover-toggle").setAttribute("aria-expanded", "false"); $("cover-toggle").focus();
+    render(); report("Capa trocada.", false, "detail-status");
+  } catch (e) { report(`Capa não enviada: ${e.message}`, true, "detail-status"); }
+  finally { state.busy = false; }
+};

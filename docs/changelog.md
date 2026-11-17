@@ -1,5 +1,16 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N7: o que só a web fazia, agora no modo TV (Claude)
+
+- **Dumps de Switch no Organizar** (🛠 Ferramentas → Organizar ROMs novas): lista os dumps de Switch de Downloads (`/api/switch/upload/pending`)
+  com nome da pasta no Drive e gênero editáveis (ou automático) e **Subir** com confirmação (`/api/switch/upload`, mesmo envio da web: confere,
+  manda a origem para a lixeira, busca capa e atualiza o índice do Switch). Dump ainda baixando não sobe.
+- **Capa a partir de arquivo** (ficha → 🖼 Capa → 📁 Arquivo…): PNG ou JPEG de até 8 MB para `/api/cover/upload` (ROM) ou
+  `/api/library/cover_upload` (Biblioteca), com a capa da ficha e dos cards atualizada.
+- Conferido: apagar save/estado já está na ficha (💾 Saves → Apagar, com cópia em Backups e confirmação).
+- Não portado de propósito: `/api/heavy/send` (envio por adb), obsoleto.
+- Testes: 502 Python e 70 JS (+1: Organizar sobe dump de Switch e a ficha troca a capa por arquivo).
+
 ## 17/11/2026 — Nova navegação, N6: mouse e teclado completos (Claude)
 
 - **Digitar já busca:** qualquer letra ou número fora de campo e de página abre a busca com o caractere e o foco no campo (com controle, o foco
