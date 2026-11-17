@@ -60,6 +60,13 @@ export function move(direction) {
   if (best && regionOf(best) !== regionOf(current)) best = recallFocus(regionOf(best), nodes) || best;
   if (best) { best.focus({preventScroll: true}); best.scrollIntoView({block: "nearest", inline: "nearest"}); }
 }
+// Home/End: primeiro e último botão da região em foco (ou da página inteira).
+export function jumpEdge(last) {
+  const nodes = focusable(), region = regionOf(document.activeElement);
+  const inRegion = nodes.filter(e => regionOf(e) === region), list = inRegion.length ? inRegion : nodes;
+  const target = last ? list[list.length - 1] : list[0];
+  target?.focus({preventScroll: true}); target?.scrollIntoView({block: "center", inline: "nearest"});
+}
 export function page(direction) {
   const row = document.activeElement.closest?.(".shelf");
   const cards = [...(row || (state.kind === "home" ? $("home").querySelector(".shelf") : $("gallery")) || $("gallery")).querySelectorAll("button")]; if (!cards.length) return;

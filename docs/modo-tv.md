@@ -18,6 +18,12 @@ O cliente é um conjunto de módulos ES: `gui/static/tv.js` (entrada) importa `g
 `router.js` cuida dos endereços). Cada tela tem endereço por hash (`#/inicio`, `#/biblioteca`, `#/jogo/<chave>`, `#/ferramentas/<id>` …):
 recarregar a página volta à mesma tela e o voltar do navegador (Alt+←, botão voltar do mouse) percorre as telas.
 
+## Mouse e teclado (desde 17/11/2026)
+
+Dá para usar tudo sem controle: digitar abre a busca (também `Ctrl+K` ou `/`), o botão direito de um jogo abre as opções dele (a tecla Menu
+também), `Home`/`End`, `[`/`]` (letra), `Alt+1…5` (destinos), Esc/Backspace e o botão voltar do mouse voltam, e o botão avançar refaz o voltar.
+A roda do mouse corre as fileiras; hover e cursor aparecem só quando o mouse é usado.
+
 ## Ficha e ferramentas como páginas (desde 17/11/2026)
 
 A ficha do jogo e cada ferramenta são páginas com endereço (`#/jogo/<chave>`, `#/ferramentas/<id>`), não diálogos. Voltar (B, Esc, Alt+←,

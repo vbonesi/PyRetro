@@ -2,11 +2,12 @@ import {filtersChanged, load} from "./catalog.js";
 import {cycleQuick, letterJump} from "./library.js";
 import {$, report} from "./dom.js";
 import {toggleFavorite} from "./favorites.js";
-import {focusable, move, page, scrollTarget, stickScroll} from "./focus.js";
+import {focusable, jumpEdge, move, page, scrollTarget, stickScroll} from "./focus.js";
 import {closeGame} from "./game.js";
 import {showSpotlight} from "./home.js";
 import {applySearch, closeSearch, openSearch} from "./search.js";
 import {closeSettings, openSettings} from "./settings.js";
+import {contextMenuOpen} from "./context.js";
 import {focusContent, focusSidebar, goDestination, inSidebar, stepDestination} from "./sidebar.js";
 import {state, ui} from "./state.js";
 import {modalOpen, pageOpen} from "./pages.js";
@@ -35,12 +36,12 @@ export function setInputMode(mode) {
 }
 export function applyGlyphs() {
   const g = glifos(), mode = inputMode();
-  $("hints").textContent = mode === "keys" ? "↑↓←→ Navegar · Enter Escolher · Esc Voltar · Y Pesquisar"
-    : mode === "mouse" ? "Clique Escolher · Botão direito Favoritar · Botão voltar do mouse Voltar"
+  $("hints").textContent = mode === "keys" ? "↑↓←→ Navegar · Enter Escolher · Esc Voltar · Digite ou Ctrl+K para pesquisar"
+    : mode === "mouse" ? "Clique Escolher · Botão direito Opções do jogo · Botão voltar do mouse Voltar"
     : `✚ Navegar · ${g.A} Escolher · ${g.B} Voltar · ☰ Opções`;
-  $("hints-extra").textContent = mode === "keys" ? "Backspace Voltar · PgUp/PgDn Página · Tab também navega · Mouse: botão direito favorita"
-    : mode === "mouse" ? "Roda do mouse corre as fileiras · Y ou Pesquisar abre a busca · Teclado e controle seguem funcionando"
-    : `${g.X} Favoritar · ${g.Y} Pesquisar · ${g.L}/${g.R} Página · ${g.LT}/${g.RT} Coleção · Mouse: botão direito favorita`;
+  $("hints-extra").textContent = mode === "keys" ? "Backspace Voltar · Home/End Início/fim · PgUp/PgDn Página · [ ] Letra · Alt+1…5 Destinos · Tab também navega"
+    : mode === "mouse" ? "Roda do mouse corre as fileiras · Digite ou Ctrl+K pesquisa · Teclado e controle seguem funcionando"
+    : `${g.X} Favoritar · ${g.Y} Pesquisar · ${g.L}/${g.R} Página · ${g.LT}/${g.RT} Destino · Mouse: botão direito abre as opções do jogo`;
   $("search-open").textContent = mode === "pad" ? `${g.Y} · Pesquisar` : "Pesquisar";
   $("glyphs-cycle").textContent = `Botões: ${GLIFO_NOMES[glifoPref]}`;
 }
@@ -73,15 +74,28 @@ export function action(key) {
     stepDestination(key === "previous" ? -1 : 1);
   }
 }
+// Teclado e mouse completos: digitar já busca, Ctrl+K ou / abrem a busca, Alt+1…5 trocam de destino, Home/End vão ao
+// primeiro/último da região, Esc/Backspace voltam; botão voltar/avançar do mouse percorre as telas.
 document.addEventListener("keydown", e => {
   if (!["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key)) setInputMode("keys");
   if (e.target instanceof HTMLInputElement && e.key !== "Escape") return;
-  if (/^[1-5]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey && !modalOpen()) { e.preventDefault(); goDestination(Number(e.key)); return; }
-  const key = {"[": "letter-prev", "]": "letter-next", m: "sidebar", M: "sidebar", ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
+  const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "k" || e.key === "K")) { e.preventDefault(); if (!modalOpen()) openSearch(); return; }
+  if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-5]$/.test(e.key) && !modalOpen()) { e.preventDefault(); goDestination(Number(e.key)); return; }
+  if (plain && !modalOpen() && !pageOpen() && !contextMenuOpen() && (e.key === "/" || (e.key.length === 1 && e.key !== " " && !"[]".includes(e.key)))) {
+    e.preventDefault(); openSearch(e.key === "/" ? "" : e.key); return;
+  }
+  if (plain && (e.key === "Home" || e.key === "End") && !modalOpen()) { e.preventDefault(); jumpEdge(e.key === "End"); return; }
+  const key = {"[": "letter-prev", "]": "letter-next", ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down"}[e.key];
   if (key) { e.preventDefault(); action(key); }
 });
-// Mouse: o botão "voltar" lateral faz o mesmo que B.
-document.addEventListener("mouseup", e => { if (e.button === 3) { e.preventDefault(); action("back"); } });
+// Mouse: o botão "voltar" lateral faz o mesmo que B; o "avançar" refaz o último voltar do navegador.
+document.addEventListener("mouseup", e => {
+  if (e.button === 3) { e.preventDefault(); action("back"); }
+  else if (e.button === 4) { e.preventDefault(); history.forward(); }
+});
+// O menu do navegador não faz sentido aqui: o botão direito de um jogo abre o menu do PyRetro (context.js).
+document.addEventListener("contextmenu", e => { if (!(e.target instanceof HTMLInputElement)) e.preventDefault(); });
 let held = new Set(), repeatAt = new Map(), foreground = true, awaitNeutral = false, noPadSince = null;
 window.addEventListener("blur", () => { foreground = false; held.clear(); awaitNeutral = true; $("spotlight-video").pause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { $("spotlight-video").pause(); $("detail-video").pause(); } else if (state.kind === 'home' && ui.spotlightGame) showSpotlight(ui.spotlightGame); });

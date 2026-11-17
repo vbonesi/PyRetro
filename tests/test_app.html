@@ -686,6 +686,49 @@ teste("modo TV: ficha e ferramenta são páginas, não diálogos", async () => {
   } finally { frame.remove(); }
 });
 
+// Mouse e teclado completos: digitar busca, Ctrl+K, menu de contexto no botão direito, Home/End e Alt+1…5.
+teste("modo TV: digitar busca, Ctrl+K, botão direito, Home/End e Alt+número sem controle", async () => {
+  const item = (name, extra = {}) => ({key: `pc:${name}`, id: name, name, platform: "Steam", tracking: {}, local: false, ...extra});
+  const catalog = [item("Alfa"), item("Beta"), item("Gama")];
+  const {frame, app, doc} = await abrirTV(url => url === "/api/tv/catalog" ? catalog : undefined);
+  try {
+    await app.load("library");
+    const tecla = (key, extra = {}) => doc.dispatchEvent(new app.KeyboardEvent("keydown", {key, bubbles: true, cancelable: true, ...extra}));
+    // digitar já abre a busca com o caractere, com o foco no campo
+    doc.querySelector("#gallery .game").focus();
+    tecla("g");
+    verdade(doc.getElementById("search-dialog").open, "digitar não abriu a busca");
+    igual(doc.getElementById("search-input").value, "g"); igual(doc.activeElement.id, "search-input", "foco deveria ir ao campo no modo teclado");
+    doc.getElementById("search-input").dispatchEvent(new app.KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}));
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 1, "busca não filtrou");
+    igual(doc.querySelector("#gallery .game strong").textContent, "Gama");
+    // Ctrl+K abre a busca com a consulta atual; Esc fecha sem perder o foco da tela
+    tecla("k", {ctrlKey: true}); verdade(doc.getElementById("search-dialog").open); igual(doc.getElementById("search-input").value, "g");
+    doc.getElementById("search-clear").click();
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 3, "limpar não restaurou");
+    // Home/End vão ao primeiro e ao último da região
+    doc.querySelectorAll("#gallery .game")[1].focus(); tecla("End"); igual(doc.activeElement.querySelector("strong").textContent, "Gama");
+    tecla("Home"); igual(doc.activeElement.querySelector("strong").textContent, "Alfa");
+    // botão direito: menu do jogo (não o do navegador)
+    const card = doc.querySelectorAll("#gallery .game")[1];
+    const ev = new app.MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: 120, clientY: 160}); card.dispatchEvent(ev);
+    verdade(ev.defaultPrevented, "menu do navegador não foi suprimido");
+    const menu = doc.getElementById("context-menu"); verdade(!menu.hidden);
+    igual([...menu.querySelectorAll("button")].map(b => b.textContent), ["Abrir", "☆ Favoritar", "✎ Editar jogo", "🖼 Capa", "Progresso e tempo"]);
+    tecla("ArrowDown"); verdade(doc.activeElement.textContent.includes("Favoritar"), "setas percorrem o menu");
+    tecla("Escape"); verdade(menu.hidden && doc.activeElement === card, "Esc fecha o menu e devolve o foco");
+    card.dispatchEvent(new app.MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: 120, clientY: 160}));
+    [...menu.querySelectorAll("button")].find(b => b.textContent.includes("Editar")).click();
+    verdade(menu.hidden && doc.getElementById("details").open && !doc.getElementById("edit-fields").hidden, "Editar jogo deveria abrir a ficha com o painel");
+    doc.getElementById("close").click();
+    await esperar(() => !doc.getElementById("details").open, "ficha não fechou");
+    // Alt+número troca de destino
+    tecla("2", {altKey: true}); await esperar(() => doc.getElementById("title").textContent === "Biblioteca", "Alt+2 não levou à Biblioteca");
+    tecla("3", {altKey: true}); await esperar(() => doc.getElementById("title").textContent === "Desejados", "Alt+3 não levou a Desejados");
+    tecla("1"); verdade(doc.getElementById("search-dialog").open, "número sem Alt deveria buscar (digitar já busca)");
+  } finally { frame.remove(); }
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {

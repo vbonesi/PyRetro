@@ -1,18 +1,25 @@
 import {filtersChanged, load} from "./catalog.js";
 import {$, button} from "./dom.js";
+import {inputMode} from "./input.js";
 import {state} from "./state.js";
 let searchReturnFocus, textEntry = null;
-export function openSearch() {
+// `typed`: caractere digitado no teclado, que já abre a busca com ele.
+export function openSearch(typed) {
   if (document.querySelector("dialog[open]")) return;
   textEntry = null; searchDialogLabels("Pesquisar jogos", "Nome do jogo", "Pesquisar", "Limpar busca");
-  searchReturnFocus = document.activeElement; $("search-input").value = state.query;
-  $("search-dialog").showModal(); $("keyboard").querySelector("button")?.focus();
+  searchReturnFocus = document.activeElement; $("search-input").value = typed ?? state.query;
+  $("search-dialog").showModal(); focusEntry();
 }
 // O mesmo teclado da tela serve para editar texto (nome, gênero, comentário…) com o controle.
 export function openTextEntry(title, value, apply) {
   textEntry = apply; searchDialogLabels(title, title, "Confirmar", "Apagar tudo");
   searchReturnFocus = document.activeElement; $("search-input").value = value || "";
-  $("search-dialog").showModal(); $("keyboard").querySelector("button")?.focus();
+  $("search-dialog").showModal(); focusEntry();
+}
+// Com teclado ou mouse o foco vai direto ao campo de texto; com o controle, ao teclado da tela.
+function focusEntry() {
+  if (inputMode() === "pad") { $("keyboard").querySelector("button")?.focus(); return; }
+  const input = $("search-input"); input.focus(); input.setSelectionRange(input.value.length, input.value.length);
 }
 function searchDialogLabels(title, label, apply, clear) {
   $("search-title").textContent = title; $("search-label").textContent = label;

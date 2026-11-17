@@ -1,5 +1,5 @@
 import {$, button} from "./dom.js";
-import {toggleFavorite} from "./favorites.js";
+import {openContextMenu} from "./context.js";
 import {openGame} from "./game.js";
 import {showSpotlight} from "./home.js";
 import {badgeKey, cardGames, observedSaves, state} from "./state.js";
@@ -36,7 +36,12 @@ export function gameCard(g) {
     cardGames.set(card, g); card.dataset.key = g.key || (g.id ? `pc:${g.id}` : `${g.code}:${g.romName}`);
     card.addEventListener("focus", () => { if (state.kind === "home") showSpotlight(g); });
     // Mouse: botão direito favorita, igual ao X do controle.
-    card.addEventListener("contextmenu", e => { if (g.wishlist) return; e.preventDefault(); card.focus(); toggleFavorite(g); });
+    // Mouse: botão direito (ou a tecla Menu do teclado) abre as opções do jogo; do teclado o evento vem sem coordenadas.
+    card.addEventListener("contextmenu", e => {
+      e.preventDefault(); card.focus();
+      const box = card.getBoundingClientRect(), keyboard = !e.clientX && !e.clientY;
+      openContextMenu(g, card, keyboard ? box.left + box.width / 2 : e.clientX, keyboard ? box.top + box.height / 2 : e.clientY);
+    });
     if (g.cover) { const img = document.createElement("img"); img.src = g.cover; img.alt = ""; img.loading = "lazy"; img.className = "art"; card.append(img); }
     else { const art = document.createElement("div"); art.className = "art placeholder"; art.textContent = "✦"; card.append(art); }
     const title = document.createElement("strong"); title.textContent = (g.favorite ? "★ " : "") + g.name;

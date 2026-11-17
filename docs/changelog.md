@@ -1,5 +1,18 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N6: mouse e teclado completos (Claude)
+
+- **Digitar já busca:** qualquer letra ou número fora de campo e de página abre a busca com o caractere e o foco no campo (com controle, o foco
+  continua no teclado da tela); `Ctrl+K` e `/` também. Por isso `y`, `m` e as teclas 1–5 deixaram de ser atalhos: os destinos agora são
+  **Alt+1…5** (ou a barra lateral e LT/RT) e o teclado de Y é só do controle.
+- **Botão direito = opções do jogo** (`tv/context.js`): menu no cursor com Abrir, Favoritar, Editar jogo, Capa, Saves e Progresso e tempo (os
+  painéis abrem já expandidos na ficha); ↑/↓ percorrem, Esc fecha e devolve o foco ao card; a tecla Menu do teclado abre o mesmo menu. O menu do
+  navegador não aparece mais. Jogos dos Desejados só têm Abrir.
+- Teclado: `Home`/`End` vão ao primeiro/último da região; `[`/`]` pulam de letra; Esc/Backspace voltam. Mouse: botão voltar faz o B, **botão avançar**
+  refaz o último voltar; a roda do mouse corre as fileiras na horizontal (já existia, sem prender a página) e o hover só vale no modo mouse.
+- Barra de dicas por aparelho atualizada (teclado, mouse e controle).
+- Testes: 502 Python e 68 JS (+1: digitar, Ctrl+K, botão direito, Home/End e Alt+número). Conferido no navegador embutido com tecla e botão direito reais.
+
 ## 17/11/2026 — Nova navegação, N5: ficha do jogo e ferramentas como páginas (Claude)
 
 - A ficha (`#details`) e as ferramentas (`#tool-dialog`) deixaram de ser `<dialog>`: são seções de página (`tv/pages.js`) que ocupam o conteúdo no
