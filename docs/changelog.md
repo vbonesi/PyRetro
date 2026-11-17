@@ -1,5 +1,17 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, A4a: Desejados, Busca e Situação/Opções em Compose, Android 0.29.0 (Claude)
+
+- **Busca:** procura pelo nome (e plataforma/gênero, sem acento nem caixa) entre os jogos carregados; quem começa pelo termo vem antes; até 200
+  resultados. Campo com anel de foco para o controle. Regra pura `LibraryRules.search`.
+- **Desejados:** lista do notebook (cache + atualização online) em cards, filtro por loja (Todos/Steam/PlayStation/Xbox) e página de cada desejo com
+  **Comprado** e **Tirar da lista**, sempre com confirmação (mesmas chamadas `NotebookExtras.leaveWishlist`; Comprado também atualiza o catálogo).
+- **Situação e opções** (botão "Situação · N" no topo de cada tela): neste celular, notebook (com **Testar conexão**), conta Google, progresso/pendências
+  (**Sincronizar agora**), downloads, pastas Jogos/RetroArch e versão. Textos em `SituationRules` (testados). Escolher pasta, conectar conta Google,
+  Downloads, Saves na nuvem e as opções avançadas continuam abrindo a tela antiga (`EXTRA_SCREEN`) até o A4b/A4c.
+- **Stream** deixou de ser destino: virou uma fileira no Início com os três clientes (XBXPlay, Remote Play, Moonlight).
+- Testes JVM +8 (`ShellRulesTest`). Build e lint passaram; APK 0.29.0 (code 50) compilado, **não instalado e não testado em aparelho**.
+
 ## 17/11/2026 — Nova navegação, A3: ficha do jogo em Compose, Android 0.28.0 (Claude)
 
 - **Ficha como página** na casca (`GameScreen.kt`), com voltar (botão, gesto e B do controle) e a capa na moldura 3:4. Uma **ação principal** por contexto

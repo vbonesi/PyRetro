@@ -42,6 +42,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         const val EXTRA_COLLECTION="collection"
         const val EXTRA_GAME="game"
         const val EXTRA_ACTION="action"
+        const val EXTRA_SCREEN="screen"
         private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","systems" to "Sistemas","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","stream" to "Stream")
     }
     private lateinit var store:LibraryStore
@@ -251,7 +252,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         gridScroll=ScrollView(this).apply { isFillViewport=true;addView(grid) };pageRoot.addView(gridScroll,LinearLayout.LayoutParams(-1,0,1f))
         val paging=row();previousPage=button("LB · Anterior") { changePage(-1) }.apply { minWidth=0 };add(paging,previousPage);counter=text("",13f);add(paging,counter,1f);nextPage=button("Próxima · RB") { changePage(1) }.apply { minWidth=0 };add(paging,nextPage);pageRoot.addView(paging);pagingBar=paging
         controlHint=text("Galileo G8: direcional/analógico · A abrir · B voltar · X favorito · Y buscar · Menu opções",11f);pageRoot.addView(controlHint)
-        setContentView(pageRoot);adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal();probeNotebook()
+        setContentView(pageRoot);intent?.getStringExtra(EXTRA_SCREEN)?.let { screen -> pageRoot.post { openRequestedScreen(screen) } };adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal();probeNotebook()
         if(collection=="wishlist")loadWishlist()
         // Ligar o Tailscale (VPN) troca a rede padrão: sonda de novo sem esperar o usuário sair e voltar.
         networkCallback=object:ConnectivityManager.NetworkCallback() { override fun onAvailable(network:Network) { queueHandler.postDelayed({ if(!isFinishing && !isDestroyed)probeNotebook(force=true) },2_000) } }
@@ -278,6 +279,8 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onInputDeviceChanged(deviceId:Int)=updateControllerOrientation()
     override fun onDestroy() { networkCallback?.let { callback -> runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(callback) } };queueHandler.removeCallbacks(queueTick);updateQueueStatus=null;updateLocalStatus=null;if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
     /** Ficha ou ação pedida pela casca em Compose (EXTRA_GAME/EXTRA_ACTION): roda assim que o jogo estiver carregado. */
+    /** Tela pedida pela casca: Opções, Downloads ou Saves na nuvem (seletores de pasta e conta Google ficam aqui até o A4b/A4c). */
+    private fun openRequestedScreen(screen:String?) { when(screen) { "settings" -> settings();"downloads" -> downloads();"cloud-saves" -> cloudSaves() } }
     private var requestedGame:String?=null
     private var requestedAction:String?=null
     private fun openRequestedGame() {
@@ -1712,6 +1715,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     /** A casca em Compose (ShellActivity) abre a tela antiga numa coleção; com a activity já viva, só troca a coleção. */
     override fun onNewIntent(intent:Intent) {
         super.onNewIntent(intent);setIntent(intent)
+        intent.getStringExtra(EXTRA_SCREEN)?.let { openRequestedScreen(it) }
         intent.getStringExtra(EXTRA_GAME)?.let { requestedGame=it;requestedAction=intent.getStringExtra(EXTRA_ACTION);openRequestedGame() }
         intent.getStringExtra(EXTRA_COLLECTION)?.takeIf { it in COLLECTIONS.map { c -> c.first } }?.let { selectCollection(it) }
     }

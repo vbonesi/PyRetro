@@ -9,8 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,7 +17,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Casca nova (A1): barra inferior em retrato, lateral em paisagem ou com controle, navegação com pilha e o tema do modo TV.
- * Enquanto Início, Biblioteca e Desejados não migram (A2 a A4), cada destino abre a tela antiga (MainActivity) na coleção certa.
+ * Início, Biblioteca, Desejados, Busca, ficha e Situação/Opções são telas daqui; o que ainda depende de seletor de pasta ou diálogo grande abre a tela antiga.
  */
 class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private lateinit var store: LibraryStore
@@ -28,6 +26,13 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var status by mutableStateOf("")
     private var openKey by mutableStateOf<String?>(null)
     private var rev by mutableIntStateOf(0)
+    private var showStatus by mutableStateOf(false)
+    private var statusNote by mutableStateOf("")
+    private var wishKey by mutableStateOf<String?>(null)
+    private var wishItems = emptyList<WishItem>()
+    private var entries = emptyList<LibEntry>()
+    private var info = StatusInfo()
+    private val extras by lazy { NotebookExtras(store, filesDir) }
     private val drive by lazy { GoogleDrive(this, store.prefs) }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var games = emptyList<Game>()
@@ -40,14 +45,32 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     override fun onInputDeviceRemoved(deviceId: Int) { gamepad = gamepadPresent() }
     override fun onInputDeviceChanged(deviceId: Int) { gamepad = gamepadPresent() }
 
-    /** Carrega os jogos como a tela antiga (catálogo em cache + pastas do celular), fora da thread principal. */
+    private fun wishGames(items: List<WishItem>) = items.map { Game(it.id, ExtrasRules.wishKey(it), it.name, ExtrasRules.STORES.getValue(it.source), cover = it.cover, genre = it.genre) }
+    private fun buildData() = ShellData(store, games, entries, true, statusLine(games.isEmpty()), wishGames(wishItems), wishItems.associateBy(ExtrasRules::wishKey), info)
+    private fun date(t: Long) = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(t))
+
+    /** Tudo o que Situação e opções mostra, lido fora da thread principal. */
+    private fun readInfo(problems: List<String>, list: List<Game>): StatusInfo {
+        val folders = runCatching { StatusStore(store).folders() }.getOrDefault(emptyList())
+        val rows = runCatching { DownloadQueue.get(store).snapshot().filter { it.state != DownloadState.DONE } }.getOrDefault(emptyList())
+        val version = runCatching { packageManager.getPackageInfo(packageName, 0).let { "${it.versionName} (${it.longVersionCode})" } }.getOrDefault("")
+        return StatusInfo(list.count { it.localUri != null }, list.size, store.prefs.getLong("updated", 0), problems, store.base().isBlank(), store.online, drive.connected, drive.email,
+            folders.firstOrNull { it.code == "ROOT" }?.access ?: FolderAccess.UNSELECTED, folders.firstOrNull { it.code == "retroarch" }?.access ?: FolderAccess.UNSELECTED,
+            store.pending(), store.prefs.getLong("library-sync-at", 0), rows.size, rows.count { it.state == DownloadState.FAILED }, rows.count { it.state == DownloadState.PAUSED }, version)
+    }
+
+    /** Carrega os jogos como a tela antiga (catálogo em cache + pastas do celular) e os Desejados em cache; com o notebook online, atualiza os Desejados. */
     private fun reload() {
         work.execute {
             val loaded = runCatching { store.loadGames() }.getOrNull()
             val list = loaded?.games ?: emptyList()
-            val entries = list.map(store::entryOf)
-            val line = statusLine(list.isEmpty())
-            runOnUiThread { if (!isDestroyed) { games = list; status = line; data = ShellData(store, list, entries, true, line) } }
+            val ent = list.map(store::entryOf)
+            val wishes = runCatching { extras.wishlist(false) }.getOrDefault(emptyList())
+            val inf = runCatching { readInfo(loaded?.problems ?: emptyList(), list) }.getOrDefault(StatusInfo())
+            runOnUiThread { if (!isDestroyed) { games = list; entries = ent; wishItems = wishes; info = inf; status = statusLine(list.isEmpty()); data = buildData() } }
+            if (store.online) runCatching { extras.wishlist(true) }.onSuccess { fresh ->
+                runOnUiThread { if (!isDestroyed && fresh != wishItems) { wishItems = fresh; data = buildData() } }
+            }
         }
     }
     private fun statusLine(catalogEmpty: Boolean) = AppSync.statusLine(store.online, store.prefs.getLong("updated", 0), catalogEmpty) {
@@ -76,7 +99,9 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                 val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
                 val layout = navLayout(landscape, gamepad)
                 fun select(d: Destination) { nav.select(d); current = nav.current }
-                BackHandler(enabled = openKey != null || current != Destination.INICIO) { if (openKey != null) openKey = null else { nav.back(); current = nav.current } }
+                BackHandler(enabled = wishKey != null || showStatus || openKey != null || current != Destination.INICIO) {
+                    when { wishKey != null -> wishKey = null; showStatus -> showStatus = false; openKey != null -> openKey = null; else -> { nav.back(); current = nav.current } }
+                }
                 Scaffold(
                     containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
@@ -96,12 +121,19 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                             Spacer(Modifier.weight(1f))
                         }
                         val shell = data ?: ShellData(store, emptyList(), emptyList(), false, status)
+                        val wish = wishKey?.let { k -> shell.wish.firstOrNull { it.key == k } }
                         val open = openKey?.let { k -> shell.games.firstOrNull { it.key == k } }
-                        if (open != null) GameScreen(store, open, remember(open.key, rev, shell) { factsOf(open) }, rev, { runAction(open, it) }, ::changed, { openKey = null }, Modifier.weight(1f))
-                        else when (current) {
-                            Destination.INICIO -> HomeScreen(shell, ::openGame, ::openLegacy, Modifier.weight(1f))
-                            Destination.BIBLIOTECA -> LibraryScreen(shell, ::openGame, ::openLegacy, Modifier.weight(1f))
-                            else -> DestinationScreen(current, Modifier.weight(1f))
+                        val mod = Modifier.weight(1f)
+                        when {
+                            showStatus -> StatusScreen(shell, statusNote, ::date, ::testConnection, ::syncProgress, ::openLegacy, { showStatus = false }, mod)
+                            wish != null -> WishDetailScreen(shell, wish, ::leaveWish, { wishKey = null }, mod)
+                            open != null -> GameScreen(store, open, remember(open.key, rev, shell) { factsOf(open) }, rev, { runAction(open, it) }, ::changed, { openKey = null }, mod)
+                            else -> when (current) {
+                                Destination.INICIO -> HomeScreen(shell, ::openGame, ::openStatus, ::openPackage, mod)
+                                Destination.BIBLIOTECA -> LibraryScreen(shell, ::openGame, ::openStatus, mod)
+                                Destination.DESEJADOS -> WishlistScreen(shell, { g -> wishKey = g.key }, ::openStatus, mod)
+                                Destination.BUSCA -> SearchScreen(shell, ::openGame, ::openStatus, mod)
+                            }
                         }
                     }
                 }
@@ -109,8 +141,41 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
         }
     }
 
-    private fun openLegacy(collection: String) =
-        startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_COLLECTION, collection))
+    /** Seletores de pasta, conta Google e opções avançadas ainda abrem a tela antiga (A4b/A4c). */
+    private fun openLegacy(screen: String) =
+        startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SCREEN, screen))
+    private fun openStatus() { statusNote = ""; showStatus = true; reload() }
+    private fun openPackage(pkg: String) {
+        val intent = packageManager.getLaunchIntentForPackage(pkg)
+        if (intent == null) android.widget.Toast.makeText(this, "Aplicativo não instalado: $pkg", android.widget.Toast.LENGTH_SHORT).show() else startActivity(intent)
+    }
+    private fun testConnection() {
+        statusNote = "Testando conexão…"
+        work.execute {
+            val result = runCatching { store.checkConnection() }
+            if (result.isSuccess) store.online = true
+            runOnUiThread { statusNote = if (result.isSuccess) "Online. PyRetro respondeu em ${date(System.currentTimeMillis())}." else "Sem resposta. Confira o Tailscale e o notebook; o modo offline continua."; reload() }
+        }
+    }
+    private fun syncProgress() {
+        statusNote = "Enviando progresso e tempo…"
+        work.execute {
+            val result = runCatching { store.synchronize() }
+            runOnUiThread { statusNote = result.getOrElse { it.message ?: "Não foi possível sincronizar." }; reload() }
+        }
+    }
+    private fun leaveWish(item: WishItem, bought: Boolean) {
+        if (!store.cloudLibrary.ready() && !store.online) { android.widget.Toast.makeText(this, "Esta função precisa do notebook online. Ligue o Tailscale e tente de novo.", android.widget.Toast.LENGTH_LONG).show(); return }
+        work.execute {
+            val result = runCatching { extras.leaveWishlist(item, bought) }
+            if (result.isSuccess && bought) runCatching { store.refresh() }
+            runOnUiThread {
+                android.widget.Toast.makeText(this, result.fold({ if (bought) "${item.name} entrou na Biblioteca." else "${item.name} saiu dos Desejados." }, { it.message ?: "Não foi possível concluir." }), android.widget.Toast.LENGTH_LONG).show()
+                if (result.isSuccess) wishKey = null
+                reload()
+            }
+        }
+    }
     private fun openGame(game: Game) { openKey = game.key }
     /** Fluxos pesados da ficha (jogar, baixar, saves, ROMs, Drive, editar, capa, remover) ainda rodam na tela antiga, em cima do jogo escolhido. */
     private fun runAction(game: Game, action: GameAction) =
@@ -131,16 +196,4 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
         if (keyCode == android.view.KeyEvent.KEYCODE_BUTTON_B) { onBackPressedDispatcher.onBackPressed(); return true }
         return super.onKeyDown(keyCode, event)
     }
-
-    @Composable
-    private fun DestinationScreen(destination: Destination, modifier: Modifier) {
-        Column(modifier.verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(destination.label, style = MaterialTheme.typography.headlineMedium)
-            Text("Esta tela ainda é a versão anterior do app; ela migra para o novo desenho nas próximas etapas.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LegacyButton("Abrir ${destination.label}") { openLegacy(destination.legacy) }
-        }
-    }
-
-    @Composable
-    private fun LegacyButton(label: String, onClick: () -> Unit) = FilledTonalButton(onClick, Modifier.fillMaxWidth()) { Text(label) }
 }

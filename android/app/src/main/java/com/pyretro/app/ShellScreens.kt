@@ -40,7 +40,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** Tudo o que as telas em Compose leem; os jogos vêm do mesmo `LibraryStore` da tela antiga. */
-class ShellData(val store: LibraryStore, val games: List<Game>, val entries: List<LibEntry>, val loaded: Boolean, val status: String = "") {
+class ShellData(val store: LibraryStore, val games: List<Game>, val entries: List<LibEntry>, val loaded: Boolean, val status: String = "",
+    val wish: List<Game> = emptyList(), val wishItems: Map<String, WishItem> = emptyMap(), val info: StatusInfo = StatusInfo()) {
+    val statusLabel get() = SituationRules.buttonLabel(info)
     /** Montado uma vez: o card não procura o jogo na lista a cada recomposição. */
     val entryByKey: Map<String, LibEntry> by lazy { entries.associateBy { it.key } }
 }
@@ -82,6 +84,7 @@ fun CoverBox(bitmap: ImageBitmap?, description: String, modifier: Modifier = Mod
 }
 
 private fun whereLabel(game: Game) = when {
+    game.key.startsWith("wish:") -> "♡ Desejado"
     game.localUri != null -> "▶ Neste celular"
     game.downloadable -> "⬇ Baixar"
     game.pcLocal -> "🖥 No notebook"
@@ -108,19 +111,19 @@ fun GameCard(data: ShellData, game: Game, onOpen: (Game) -> Unit, modifier: Modi
 }
 
 @Composable
-private fun ScreenHeader(title: String, subtitle: String, onOptions: () -> Unit) {
+internal fun ScreenHeader(title: String, subtitle: String, onOptions: () -> Unit, optionsLabel: String = "Situação") {
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.headlineSmall)
             Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        TextButton(onOptions) { Text("Situação e opções") }
+        TextButton(onOptions) { Text(optionsLabel) }
     }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onLegacy: (String) -> Unit, modifier: Modifier = Modifier) {
+fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, onPackage: (String) -> Unit, modifier: Modifier = Modifier) {
     val byKey = remember(data.games) { data.games.associateBy { it.key } }
     val homeEntries = remember(data.games, data.entries) {
         val prefs = data.store.prefs
@@ -128,7 +131,7 @@ fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onLegacy: (String) -> Un
     }
     val rows = remember(homeEntries) { HomeRules.rows(homeEntries) }
     Column(modifier.fillMaxSize()) {
-        ScreenHeader("Início", listOf("${data.games.size} jogos", data.status).filter { it.isNotBlank() }.joinToString(" · "), { onLegacy("home") })
+        ScreenHeader("Início", listOf("${data.games.size} jogos", data.status).filter { it.isNotBlank() }.joinToString(" · "), onStatus, data.statusLabel)
         LazyColumn(Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (rows.isEmpty()) item {
                 Text(if (data.loaded) "Escolha a pasta Jogos em Situação e opções ou carregue o catálogo. Jogos iniciados, abertos por aqui e favoritos aparecem em fileiras."
@@ -142,10 +145,12 @@ fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onLegacy: (String) -> Un
                 }
             }
             item {
-                Text("Outras telas", Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                // Stream deixou de ser um destino: são três atalhos para os clientes de transmissão.
+                Text("Stream", Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf("systems" to "Sistemas", "stream" to "Stream", "wishlist" to "Desejados")) { (id, label) -> FilledTonalButton({ onLegacy(id) }) { Text(label) } }
+                    items(StreamRules.clients) { c -> RingButton(c.label) { onPackage(c.pkg) } }
                 }
+                Text("Login e escolha do console ficam nos clientes. Abrir um deles não liga o console nem inicia transmissão.", Modifier.padding(horizontal = 16.dp, vertical = 6.dp), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -153,7 +158,7 @@ fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onLegacy: (String) -> Un
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun LibraryScreen(data: ShellData, onOpen: (Game) -> Unit, onLegacy: (String) -> Unit, modifier: Modifier = Modifier) {
+fun LibraryScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, modifier: Modifier = Modifier) {
     var filter by rememberSaveable { mutableStateOf(QuickFilter.TUDO) }
     val counts = remember(data.entries) { LibraryRules.counts(data.entries) }
     val byKey = remember(data.games) { data.games.associateBy { it.key } }
@@ -167,7 +172,7 @@ fun LibraryScreen(data: ShellData, onOpen: (Game) -> Unit, onLegacy: (String) ->
             else -> false
         }
     }) {
-        ScreenHeader("Biblioteca", "${keys.size} de ${data.games.size} jogos", { onLegacy("home") })
+        ScreenHeader("Biblioteca", "${keys.size} de ${data.games.size} jogos", onStatus, data.statusLabel)
         LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(QuickFilter.values().toList()) { f ->
                 var focused by remember { mutableStateOf(false) }

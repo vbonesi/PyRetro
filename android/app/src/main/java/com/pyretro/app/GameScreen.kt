@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.sp
 
 /** Botão com anel de foco visível (controle e teclado). */
 @Composable
-private fun RingButton(label: String, modifier: Modifier = Modifier, primary: Boolean = false, selected: Boolean = false, onClick: () -> Unit) {
+internal fun RingButton(label: String, modifier: Modifier = Modifier, primary: Boolean = false, selected: Boolean = false, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val m = modifier.border(3.dp, focusRing(focused), RoundedCornerShape(50)).onFocusChanged { focused = it.hasFocus }
     when {
