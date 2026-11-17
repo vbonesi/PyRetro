@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit
 /** Só metadados/diário: nunca baixa ROMs, inicia jogos ou sincroniza saves em segundo plano. */
 class LibraryWorker(context:Context,params:WorkerParameters):Worker(context,params) {
     override fun doWork():Result {
-        if(!MainActivity.automaticUpdates)return Result.retry()
+        if(!AppSync.enabled)return Result.retry()
         val store=LibraryStore(applicationContext)
         if(!store.prefs.getBoolean("google:connected",false))return Result.success()
         return try { store.cloudLibrary.sync();Result.success() }

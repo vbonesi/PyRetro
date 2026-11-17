@@ -27,7 +27,7 @@ class CloudLibrary(private val store:LibraryStore) {
             }
             library.put("games",JSONArray(rows.values.toList()));journal.record(library)
         }
-        if(store.preferenceName=="pyretro" && MainActivity.automaticUpdates && drive.connected)LibraryWorker.enqueue(store.context)
+        if(store.preferenceName=="pyretro" && AppSync.enabled && drive.connected)LibraryWorker.enqueue(store.context)
     }
     fun session(game:Game,minutes:Int,event:String) {
         require(minutes in 1..1440)
@@ -59,7 +59,7 @@ class CloudLibrary(private val store:LibraryStore) {
     fun catalog()=CloudCatalog.games(journal.library(),store.legacyCached(),files(),JSONObject(store.prefs.getString("arcade-names","{}")),store::accepts)
     fun leaveWishlist(item:WishItem,bought:Boolean) {
         db.transaction { journal.record(LibraryView.leaveWishlist(journal.library(),item,bought)) }
-        if(store.preferenceName=="pyretro" && MainActivity.automaticUpdates && drive.connected)LibraryWorker.enqueue(store.context)
+        if(store.preferenceName=="pyretro" && AppSync.enabled && drive.connected)LibraryWorker.enqueue(store.context)
     }
     fun register(game:Game,name:String):JSONObject {
         seed(store.legacyCached());require(game.code in store.folders && name.isNotBlank())
@@ -85,7 +85,7 @@ class CloudLibrary(private val store:LibraryStore) {
             val event=JSONObject(raw as String);if(event.optString("key")!=game.key)continue
             session(game.copy(id=id),event.getInt("minutes"),event.getString("event"));store.prefs.edit().remove(key).apply()
         }
-        if(store.preferenceName=="pyretro" && MainActivity.automaticUpdates && drive.connected)LibraryWorker.enqueue(store.context)
+        if(store.preferenceName=="pyretro" && AppSync.enabled && drive.connected)LibraryWorker.enqueue(store.context)
         return JSONObject().put("id",id).put("created",created)
     }
     /** Cache local em até 640 px (WebP): a biblioteca inteira cabe em ~100–150 MB em vez dos ~500 MB dos originais. */

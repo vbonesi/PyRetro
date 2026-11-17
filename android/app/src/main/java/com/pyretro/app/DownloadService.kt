@@ -53,7 +53,7 @@ class DownloadService:Service() {
     private val manager by lazy { getSystemService(NotificationManager::class.java) }
     private fun build(notice:DownloadNoticeText):Notification {
         if(Build.VERSION.SDK_INT>=26)manager.createNotificationChannel(NotificationChannel(CHANNEL,"Downloads",NotificationManager.IMPORTANCE_LOW))
-        val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),PendingIntent.FLAG_IMMUTABLE)
+        val open=PendingIntent.getActivity(this,0,Intent(this,ShellActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),PendingIntent.FLAG_IMMUTABLE)
         val builder=(if(Build.VERSION.SDK_INT>=26)Notification.Builder(this,CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this))
             .setSmallIcon(if(notice.ongoing)android.R.drawable.stat_sys_download else android.R.drawable.stat_sys_download_done)
             .setContentTitle(notice.title).setContentText(notice.text).setContentIntent(open).setOngoing(notice.ongoing).setOnlyAlertOnce(true).setAutoCancel(!notice.ongoing)

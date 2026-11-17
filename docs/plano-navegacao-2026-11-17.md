@@ -91,6 +91,12 @@ Executado por outra sessão; cada item termina com testes verdes e um commit peq
   filtros; foco do controle com memória (G8/teclado de eventos `adb shell input gamepad keyevent`).
 - **A3 (L) — Ficha do jogo em Compose**, com as mesmas ações e nomes do PC.
 - **A4 (L) — Desejados, Stream, Situação/Opções em Compose**; remover as Views antigas da `MainActivity`.
+- **A5 (L) — Telas que ainda são da versão anterior (17/11).** A4c levou à casca as pastas, outra ROM, arquivo no Drive, conta Google, CUE/M3U, Adicionar à
+  Biblioteca, Opções, Estatísticas e Sortear. Sobraram, na `MainActivity` reduzida (sem lançador nem coleções, abre por `EXTRA_SCREEN`/`EXTRA_ACTION` e fecha
+  sozinha): **Texturas HD**, **saves de PSP/3DS** (ID do título), **Espaço e jogos fixados**, **Lixeira de ROMs**, **Saves e estados · todos os jogos**, **Saves na nuvem**
+  (visão geral), **Organizar ROMs novas**, **índice manual do Drive**, **playlists do RetroArch**, **pastas e permissões**, **apps instalados**, **alterações pendentes**
+  e **reordenar a fila/cópias parciais**. Motivo de não irem no A4c: cada um é um diálogo grande com fluxo próprio (SAF, rclone, notebook) e nenhum é do dia a dia;
+  portá-los sem aparelho para testar multiplicaria o risco. Pronto: nenhuma tela da `MainActivity` sobra e ela é apagada.
 - **V2 (V)** — Teste no celular com toque e com o G8.
 
 Ordem: N1 → N8, N10, A1 → A4 (com o V1 correndo em paralelo), V2, N9.

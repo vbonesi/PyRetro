@@ -158,7 +158,7 @@ fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, on
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun LibraryScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, modifier: Modifier = Modifier) {
+fun LibraryScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, onDraw: (List<String>) -> Unit, onStats: () -> Unit, modifier: Modifier = Modifier) {
     var filter by rememberSaveable { mutableStateOf(QuickFilter.TUDO) }
     val counts = remember(data.entries) { LibraryRules.counts(data.entries) }
     val byKey = remember(data.games) { data.games.associateBy { it.key } }
@@ -182,6 +182,10 @@ fun LibraryScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit,
                     modifier = Modifier.border(3.dp, focusRing(focused), RoundedCornerShape(50)).onFocusChanged { focused = it.hasFocus; if (it.hasFocus) filter = f },
                 )
             }
+        }
+        LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { RingButton("🎲 Sortear") { onDraw(keys) } }
+            item { RingButton("📊 Estatísticas") { onStats() } }
         }
         if (keys.isEmpty()) Text(if (data.loaded) "Nenhum jogo neste filtro." else "Carregando…", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyVerticalGrid(GridCells.Adaptive(132.dp), Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(12.dp),

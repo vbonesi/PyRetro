@@ -37,7 +37,7 @@ class SaveReviewSmoke(private val runner:Instrumentation) {
             val file=DocumentsContract.createDocument(targetContext.contentResolver,system,"application/octet-stream","Synthetic.srm")!!
             targetContext.contentResolver.openOutputStream(file,"w")!!.use { it.write("synthetic save".toByteArray()) }
             FileSync(fixture).setTree("retro-saves",root)
-            MainActivity.automaticUpdates=false
+            AppSync.enabled=false;MainActivity.keepOpen=true
             activity=startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
             runOnMainSync {
                 field("store").set(activity,fixture);field("saveStorageOverride").set(activity,cloud)
@@ -57,7 +57,7 @@ class SaveReviewSmoke(private val runner:Instrumentation) {
             val edit=real.prefs.edit();real.prefs.all.keys.filter { it.startsWith("ui:") }.forEach(edit::remove)
             visual.forEach { (k,v) -> when(v) { is String -> edit.putString(k,v);is Int -> edit.putInt(k,v);is Long -> edit.putLong(k,v);is Boolean -> edit.putBoolean(k,v) } };edit.commit()
             targetContext.deleteSharedPreferences(name);targetContext.deleteSharedPreferences(name+"-file-sync");targetContext.deleteSharedPreferences(name+"-cloud-sync");targetContext.deleteDatabase(name+"-library.db")
-            MainActivity.automaticUpdates=true
+            AppSync.enabled=true;MainActivity.keepOpen=false
         }
         finish(if(result.getString("stream","").startsWith("PASS"))Activity.RESULT_OK else Activity.RESULT_CANCELED,result)
     }

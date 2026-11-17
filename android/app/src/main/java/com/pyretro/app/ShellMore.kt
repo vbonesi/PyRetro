@@ -118,14 +118,59 @@ fun StatusScreen(data: ShellData, note: String, date: (Long) -> String, onTest: 
             Text("Situação e opções", style = MaterialTheme.typography.headlineSmall)
             if (note.isNotBlank()) Text(note, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
             Section("🎮 Neste celular", SituationRules.local(i, date))
-            Section("🖥 Notebook", SituationRules.notebook(i), *(if (i.serverBlank) arrayOf("Configurar endereço" to { onLegacy("settings") }) else arrayOf("Testar conexão" to onTest)))
-            Section("☁ Conta Google (Drive)", SituationRules.drive(i), (if (i.driveConnected) "Gerenciar conta" else "Conectar conta Google") to { onLegacy("settings") })
+            Section("🖥 Notebook", SituationRules.notebook(i), *(if (i.serverBlank) arrayOf("Configurar endereço" to { onLegacy("options") }) else arrayOf("Testar conexão" to onTest)))
+            Section("☁ Conta Google (Drive)", SituationRules.drive(i), (if (i.driveConnected) "Gerenciar conta" else "Conectar conta Google") to { onLegacy("options") })
             Section("⏳ Biblioteca, progresso e tempo", SituationRules.tracking(i, date), "Sincronizar agora" to onSync)
             Section("⬇ Downloads", SituationRules.downloads(i), "Abrir downloads" to { onLegacy("downloads") })
             Section("📁 Pastas", "Jogos: ${SituationRules.folder(i.rootFolder)}\nRetroArch (saves): ${SituationRules.folder(i.retroarchFolder)}",
-                "Escolher pastas" to { onLegacy("settings") }, "Saves na nuvem" to { onLegacy("cloud-saves") })
-            Section("⚙ Mais opções", "Conta Google, endereço do notebook, espaço, lixeira de ROMs, organizar ROMs e botões do controle.", "Abrir opções completas" to { onLegacy("settings") })
+                "Escolher pastas" to { onLegacy("options") }, "Saves na nuvem" to { onLegacy("cloud-saves") })
+            Section("⚙ Mais opções", "Pastas, endereço do notebook, conta Google, notificações e as telas que ainda são da versão anterior.", "Abrir opções" to { onLegacy("options") })
             Section("ℹ Versão", "PyRetro ${i.version}")
+        }
+    }
+}
+
+/** Opções (A4c): pastas, endereço do notebook, conta Google e notificações na casca; o resto ainda abre telas da versão anterior (A5). */
+@Composable
+fun OptionsScreen(data: ShellData, flows: GameFlows, onLegacy: (String) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val i = data.info
+    var address by remember { mutableStateOf(flows.store.base()) }
+    @Composable fun Block(title: String, text: String? = null, content: @Composable ColumnScope.() -> Unit) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            if (text != null) Text(text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            content()
+        }
+    }
+    Column(modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) { TextButton(onBack) { Text("‹ Voltar") } }
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Text("Opções", style = MaterialTheme.typography.headlineSmall)
+            Block("📁 Pastas", "Jogos: ${SituationRules.folder(i.rootFolder)}\nRetroArch (saves e estados): ${SituationRules.folder(i.retroarchFolder)}\nROMs ficam em Jogos/<sistema>; saves e estados, por sistema na pasta RetroArch.") {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { RingButton("Escolher pasta Jogos") { flows.pickFolder("ROOT") } }
+                    item { RingButton("Escolher pasta RetroArch") { flows.pickSyncFolder("retroarch") } }
+                }
+            }
+            Block("🖥 Notebook", SituationRules.notebook(i)) {
+                OutlinedTextField(address, { address = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("https://endereço-do-pyretro") })
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { RingButton("Salvar endereço") { flows.saveServer(address) } }
+                    item { RingButton("Atualizar Biblioteca e catálogo") { flows.refreshCatalog() } }
+                }
+            }
+            Block("☁ Conta Google", SituationRules.drive(i)) {
+                if (i.driveConnected) RingButton("Desconectar conta Google") { flows.disconnectGoogle() } else RingButton("Conectar conta Google") { flows.connectGoogle() }
+            }
+            if (!flows.notificationsAllowed()) Block("🔔 Notificações", "Sem permissão, o download em segundo plano não mostra o progresso.") { RingButton("Permitir notificações de download") { flows.notificationSettings() } }
+            Block("Telas da versão anterior", "Ainda não foram redesenhadas (A5); abrem em outra tela e voltam para cá.") {
+                listOf("Espaço e jogos fixados" to "space", "Lixeira de ROMs deste celular" to "trash", "Saves e estados · todos os jogos" to "sync-files", "Saves na nuvem" to "cloud-saves",
+                    "Organizar ROMs novas (notebook)" to "organize", "Texturas HD" to "textures", "Índice manual do Drive" to "index", "Playlists do RetroArch" to "playlists", "Pastas e permissões" to "folders",
+                    "Apps instalados" to "apps", "Alterações pendentes" to "pending").chunked(2).forEach { pair ->
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(pair) { (l, id) -> RingButton(l) { onLegacy(id) } } }
+                }
+            }
+            Text("PyRetro ${i.version}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

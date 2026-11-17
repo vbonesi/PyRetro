@@ -1,11 +1,11 @@
 package com.pyretro.app
 
-/** Destinos da casca em Compose (A1). `legacy` é a coleção da tela antiga que atende o destino enquanto a migração não termina. */
-enum class Destination(val label: String, val symbol: String, val legacy: String) {
-    INICIO("Início", "🏠", "home"),
-    BIBLIOTECA("Biblioteca", "📚", "catalog"),
-    DESEJADOS("Desejados", "♡", "wishlist"),
-    BUSCA("Busca", "🔍", "home");
+/** Destinos da casca em Compose. */
+enum class Destination(val label: String, val symbol: String) {
+    INICIO("Início", "🏠"),
+    BIBLIOTECA("Biblioteca", "📚"),
+    DESEJADOS("Desejados", "♡"),
+    BUSCA("Busca", "🔍");
 }
 
 enum class NavLayout { BOTTOM_BAR, RAIL }

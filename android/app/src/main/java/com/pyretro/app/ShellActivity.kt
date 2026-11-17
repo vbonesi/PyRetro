@@ -27,13 +27,21 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var openKey by mutableStateOf<String?>(null)
     private var rev by mutableIntStateOf(0)
     private var showStatus by mutableStateOf(false)
+    private var showOptions by mutableStateOf(false)
     private var statusNote by mutableStateOf("")
     private var wishKey by mutableStateOf<String?>(null)
     private var wishItems = emptyList<WishItem>()
     private var entries = emptyList<LibEntry>()
     private var info = StatusInfo()
     private val extras by lazy { NotebookExtras(store, filesDir) }
-    private val flows by lazy { GameFlows(this, store, drive, work, { games }, { data != null }, ::changed, { syncNow(force = true) }) { g, a -> runLegacyAction(g, a) } }
+    private var onPicked: ((Int, Intent?) -> Unit)? = null
+    private val picker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r -> val cb = onPicked; onPicked = null; cb?.invoke(r.resultCode, r.data) }
+    private val senderPicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) { r -> val cb = onPicked; onPicked = null; cb?.invoke(r.resultCode, r.data) }
+    private val flows by lazy {
+        GameFlows(this, store, drive, work, { games }, { data != null }, ::changed, { syncNow(force = true) },
+            { intent, done -> onPicked = done; picker.launch(intent) },
+            { sender, done -> onPicked = done; senderPicker.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build()) }) { g, a -> runLegacyAction(g, a) }
+    }
     private val drive by lazy { GoogleDrive(this, store.prefs) }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var games = emptyList<Game>()
@@ -101,8 +109,8 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                 val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
                 val layout = navLayout(landscape, gamepad)
                 fun select(d: Destination) { nav.select(d); current = nav.current }
-                BackHandler(enabled = flows.page != null || wishKey != null || showStatus || openKey != null || current != Destination.INICIO) {
-                    when { flows.page != null -> flows.page = null; wishKey != null -> wishKey = null; showStatus -> showStatus = false; openKey != null -> openKey = null; else -> { nav.back(); current = nav.current } }
+                BackHandler(enabled = flows.page != null || showOptions || wishKey != null || showStatus || openKey != null || current != Destination.INICIO) {
+                    when { flows.page != null -> flows.page = null; showOptions -> showOptions = false; wishKey != null -> wishKey = null; showStatus -> showStatus = false; openKey != null -> openKey = null; else -> { nav.back(); current = nav.current } }
                 }
                 FlowDialogs(flows)
                 Scaffold(
@@ -135,12 +143,13 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                                 is Page.Cover -> CoverScreen(flows, page.game, page.target, { flows.page = null }, mod)
                                 is Page.Edit -> EditScreen(flows, page.game, { flows.page = null }, mod)
                             }
-                            showStatus -> StatusScreen(shell, statusNote, ::date, ::testConnection, ::syncProgress, ::openLegacy, { showStatus = false }, mod)
+                            showOptions -> OptionsScreen(shell, flows, ::openLegacy, { showOptions = false }, mod)
+                            showStatus -> StatusScreen(shell, statusNote, ::date, ::testConnection, ::syncProgress, ::statusNavigate, { showStatus = false }, mod)
                             wish != null -> WishDetailScreen(shell, wish, ::leaveWish, { wishKey = null }, mod)
                             open != null -> GameScreen(store, open, remember(open.key, rev, shell) { factsOf(open) }, rev, { runAction(open, it) }, ::changed, { openKey = null }, mod)
                             else -> when (current) {
                                 Destination.INICIO -> HomeScreen(shell, ::openGame, ::openStatus, ::openPackage, mod)
-                                Destination.BIBLIOTECA -> LibraryScreen(shell, ::openGame, ::openStatus, mod)
+                                Destination.BIBLIOTECA -> LibraryScreen(shell, ::openGame, ::openStatus, ::drawGame, flows::showStats, mod)
                                 Destination.DESEJADOS -> WishlistScreen(shell, { g -> wishKey = g.key }, ::openStatus, mod)
                                 Destination.BUSCA -> SearchScreen(shell, ::openGame, ::openStatus, mod)
                             }
@@ -154,6 +163,18 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     /** Seletores de pasta, conta Google e opções avançadas ainda abrem a tela antiga (A4b/A4c). */
     private fun openLegacy(screen: String) =
         startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_SCREEN, screen))
+    /** Botões da Situação: opções e downloads são daqui; o resto abre a tela da versão anterior. */
+    private fun statusNavigate(screen: String) = when (screen) {
+        "options" -> showOptions = true
+        "downloads" -> flows.page = Page.Downloads
+        else -> openLegacy(screen)
+    }
+    /** Sorteia do filtro aberto; sem jogos nele, dos jogos do celular ou do catálogo em cache (como a tela antiga). */
+    private fun drawGame(keys: List<String>) {
+        val byKey = games.associateBy { it.key }
+        val pick = keys.randomOrNull()?.let(byKey::get) ?: games.filter { it.localUri != null }.randomOrNull() ?: games.randomOrNull()
+        if (pick == null) android.widget.Toast.makeText(this, "Nenhum jogo para sortear. Escolha as pastas ou carregue o catálogo.", android.widget.Toast.LENGTH_LONG).show() else openKey = pick.key
+    }
     private fun openStatus() { statusNote = ""; showStatus = true; reload() }
     private fun openPackage(pkg: String) {
         val intent = packageManager.getLaunchIntentForPackage(pkg)

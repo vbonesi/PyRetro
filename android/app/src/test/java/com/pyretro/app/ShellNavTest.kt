@@ -20,8 +20,7 @@ class ShellNavTest {
         assertEquals(NavLayout.RAIL, navLayout(landscape = true, gamepad = false))
         assertEquals(NavLayout.RAIL, navLayout(landscape = false, gamepad = true))
     }
-    @Test fun `quatro destinos e cada um aponta para uma colecao da tela antiga`() {
+    @Test fun `quatro destinos`() {
         assertEquals(listOf("Início", "Biblioteca", "Desejados", "Busca"), Destination.values().map { it.label })
-        assertEquals(setOf("home", "catalog", "wishlist"), Destination.values().map { it.legacy }.toSet())
     }
 }

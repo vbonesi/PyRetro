@@ -27,7 +27,10 @@ sealed interface Page {
  * Biblioteca e saves de PSP/3DS) ainda abre a tela antiga por [legacy].
  */
 class GameFlows(private val activity: ComponentActivity, val store: LibraryStore, private val drive: GoogleDrive, private val work: Executor,
-    private val games: () -> List<Game>, private val isLoaded: () -> Boolean, private val changed: () -> Unit, private val syncNow: () -> Unit, private val legacy: (Game, GameAction) -> Unit) {
+    private val games: () -> List<Game>, private val isLoaded: () -> Boolean, private val changed: () -> Unit, private val syncNow: () -> Unit,
+    private val pick: (android.content.Intent, (Int, android.content.Intent?) -> Unit) -> Unit,
+    private val pickSender: (android.content.IntentSender, (Int, android.content.Intent?) -> Unit) -> Unit,
+    private val legacy: (Game, GameAction) -> Unit) {
     var notice by mutableStateOf<NoticeState?>(null)
     var choice by mutableStateOf<ChoiceState?>(null)
     var timePrompt by mutableStateOf<TimePrompt?>(null)
@@ -53,7 +56,10 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
             GameAction.COVER -> cover(game)
             GameAction.EDIT -> edit(game)
             GameAction.REMOVE -> remove(game)
-            else -> legacy(game, action)
+            GameAction.OTHER_ROM -> pickRom(game, false)
+            GameAction.DRIVE_SEARCH, GameAction.DRIVE_PICK -> driveSearch(game)
+            GameAction.ADD_LIBRARY -> addToLibrary(game)
+            else -> legacy(game, action)               // Texturas HD e saves de PSP/3DS (A5)
         }
     }
 
@@ -111,23 +117,23 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
 
     /** Baixar em um toque: arquivo vinculado, ou o que o notebook tem (acervo ou Drive pelo rclone). */
     fun download(game: Game) {
-        if (store.tree(game.code) == null) { legacy(game, GameAction.DOWNLOAD); return }          // escolher a pasta Jogos é um seletor do sistema
+        if (store.tree(game.code) == null) { toast("Escolha a pasta Jogos do celular; cada sistema fica em Jogos/<sistema>."); pickFolder("ROOT", game); return }
         val current = store.prefs.getString("cloud:${game.key}", null)
         if (current != null && RomSource.parse(current) == null) { enqueue(game); return }
         if (!store.online && drive.connected) { driveDirect(game); return }
-        if (!game.downloadable) { if (current != null) enqueue(game) else if (drive.connected) driveDirect(game) else legacy(game, GameAction.DRIVE_SEARCH); return }
+        if (!game.downloadable) { if (current != null) enqueue(game) else if (drive.connected) driveDirect(game) else driveSearch(game); return }
         toast("Consultando o notebook…")
         work.execute {
             val result = runCatching { RomSource.playable(store.romOptions(game)) { store.accepts(game.code, it) } }
             ui {
                 result.onSuccess { options -> when (options.size) {
-                    0 -> legacy(game, GameAction.DOWNLOAD)                                           // só CUE/M3U (conjunto de discos): fluxo da tela antiga
+                    0 -> offerBundle(game)                                                             // só CUE/M3U: oferece o conjunto de discos
                     1 -> { DownloadFlow.linkNotebook(store, game, options[0]); enqueue(game) }
                     else -> pickFile(game, "Qual arquivo baixar?", options.map { "${it.file} · ${bytes(it.size)}" }) { DownloadFlow.linkNotebook(store, game, options[it]) }
                 } }.onFailure { error ->
                     if (current != null) enqueue(game)
                     else if (drive.connected) driveDirect(game)
-                    else notice = NoticeState("Notebook indisponível", "${error.message ?: "Sem resposta."}\n\nSem o notebook, escolha o arquivo no Drive: ele fica vinculado ao jogo e o download começa em seguida.", "Procurar no Drive") { legacy(game, GameAction.DRIVE_SEARCH) }
+                    else notice = NoticeState("Notebook indisponível", "${error.message ?: "Sem resposta."}\n\nSem o notebook, escolha o arquivo no Drive: ele fica vinculado ao jogo e o download começa em seguida.", "Procurar no Drive") { driveSearch(game) }
                 }
             }
         }
@@ -138,10 +144,10 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
             val result = runCatching { DriveSource.candidates(drive.romFiles(game.code), game.romName.ifBlank { game.name }) { store.accepts(game.code, it) } }
             ui {
                 result.onSuccess { found -> when (found.size) {
-                    0 -> notice = NoticeState("Não achei no Drive", "Não há em Jogos/ROMs/${game.code} um arquivo de ${game.name} que o celular abra sozinho (PS1 precisa de CHD ou PBP). Escolha o arquivo manualmente.", "Escolher no Drive") { legacy(game, GameAction.DRIVE_SEARCH) }
+                    0 -> notice = NoticeState("Não achei no Drive", "Não há em Jogos/ROMs/${game.code} um arquivo de ${game.name} que o celular abra sozinho (PS1 precisa de CHD ou PBP). Escolha o arquivo manualmente.", "Escolher no Drive") { driveSearch(game) }
                     1 -> { DownloadFlow.linkDrive(store, game, found[0]); enqueue(game) }
                     else -> pickFile(game, "Qual arquivo baixar?", found.map { "${it.name} · ${bytes(it.size)}" }) { DownloadFlow.linkDrive(store, game, found[it]) }
-                } }.onFailure { error -> if (error is GoogleConsentNeeded) legacy(game, GameAction.DOWNLOAD) else failure(error) }   // consentimento é uma tela do Google
+                } }.onFailure { error -> if (error is GoogleConsentNeeded) connectGoogle(game) else failure(error) }
             }
         }
     }
@@ -193,8 +199,11 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
     fun saves(game: Game) {
         val sync = FileSync(store); val retro = game.code != "PSP" && game.code != "3DS"
         val wrong = sync.retroarchTree()?.let { SaveRules.retroarchFolderProblem(android.provider.DocumentsContract.getTreeDocumentId(it)) }
-        // PSP/3DS pedem o ID do título e a pasta RetroArch, um seletor: ficam na tela antiga.
-        if (!retro || sync.tree("retro-saves") == null || wrong != null) { legacy(game, GameAction.SAVES); return }
+        if (!retro) { legacy(game, GameAction.SAVES); return }                  // PSP/3DS pedem o ID do título (A5)
+        if (sync.tree("retro-saves") == null || wrong != null) {
+            notice = NoticeState("Saves de ${game.name}", (wrong?.let { "$it\n\n" } ?: "") + "Escolha uma vez a pasta RetroArch do celular (a raiz, normalmente RetroArch no armazenamento interno; não entre em saves nem states).", "Escolher pasta") { pickSyncFolder("retroarch") }
+            return
+        }
         page = Page.Saves(game)
     }
     fun cover(game: Game) {
@@ -205,6 +214,153 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
     fun edit(game: Game) {
         if (!store.cloudLibrary.available() && !store.online) { toast("Esta função precisa do notebook online. Ligue o Tailscale e tente de novo."); return }
         page = Page.Edit(game)
+    }
+
+    // --- Seletores do sistema (pasta, ROM) e conta Google, agora na casca ---------------------------------------------------------
+    private val treeFlags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION or android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+    private fun persist(uri: android.net.Uri, write: Boolean) {
+        runCatching { activity.contentResolver.takePersistableUriPermission(uri, if (write) android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION else android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            .onFailure { toast("Permissão temporária: pode ser necessário selecionar o arquivo novamente após reiniciar.") }
+    }
+    /** Pasta Jogos (cada sistema em Jogos/<sistema>); [after] é o jogo que esperava a pasta para baixar. */
+    fun pickFolder(code: String, after: Game? = null) {
+        pick(android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(treeFlags)) { result, data ->
+            val uri = data?.data
+            if (result == android.app.Activity.RESULT_OK && uri != null) {
+                persist(uri, data.flags and android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0)
+                store.saveTree(code, uri); changed(); after?.let { download(it) }
+            }
+        }
+    }
+    /** Pasta RetroArch (saves e estados por sistema); precisa de leitura e escrita. */
+    fun pickSyncFolder(group: String) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(treeFlags)
+            .putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:RetroArch"))
+        pick(intent) { result, data ->
+            val uri = data?.data
+            if (result == android.app.Activity.RESULT_OK && uri != null) runCatching {
+                require(data.flags and android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0) { "A pasta precisa permitir leitura e escrita." }
+                activity.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                FileSync(store).setTree(group, uri); toast("Pasta de sincronização definida."); changed()
+            }.onFailure(::failure)
+        }
+    }
+    /** Outra ROM do celular ([cloud] false) ou arquivo do Drive ([cloud] true: vincula e baixa). */
+    fun pickRom(game: Game, cloud: Boolean) {
+        val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(android.content.Intent.CATEGORY_OPENABLE)
+            .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        pick(intent) { result, data ->
+            val uri = data?.data ?: return@pick
+            if (result != android.app.Activity.RESULT_OK) return@pick
+            persist(uri, false)
+            val name = store.displayName(uri)
+            if (!cloud && uri.authority != "com.android.externalstorage.documents") { toast("Escolha uma ROM no armazenamento local. Para o Drive, use Escolher o arquivo no Drive."); return@pick }
+            if (!store.accepts(game.code, name)) { toast("Esse formato não corresponde a ${game.code}."); return@pick }
+            if (cloud) {
+                if (name.substringAfterLast('.').lowercase() in setOf("cue", "m3u")) { toast("CUE/M3U dependem de outros arquivos. Escolha CHD ou PBP."); return@pick }
+                // Escolher no Drive já é a decisão: vincula ao jogo e começa o download.
+                store.prefs.edit().putString("cloud:${game.key}", uri.toString()).remove("cloud-auto:${game.code}:${game.key}").apply()
+                download(game); return@pick
+            }
+            notice = NoticeState("Usar esta ROM", "Usar $name para ${game.name}?", "Usar", "Cancelar") {
+                store.prefs.edit().putString("rom:${game.key}", uri.toString()).apply(); game.localUri = uri; changed()
+            }
+        }
+    }
+    fun driveSearch(game: Game) {
+        val formats = store.extensionsFor(game.code).filter { it !in setOf("cue", "m3u") }.sorted().joinToString(", ")
+        notice = NoticeState("Escolher no Drive", "No seletor, abra o Google Drive e escolha:\nJogos/ROMs/${game.code}/${game.romName.ifBlank { game.name }}\n\nFormatos: $formats. O arquivo fica vinculado a ${game.name} e o download começa em seguida.", "Abrir seletor") { pickRom(game, true) }
+    }
+    fun connectGoogle(after: Game? = null) {
+        toast("Abrindo a conta Google…")
+        drive.authorize().addOnSuccessListener { result ->
+            if (result.hasResolution()) runCatching {
+                pickSender(result.pendingIntent!!.intentSender) { code, data ->
+                    if (code != android.app.Activity.RESULT_OK) toast("Conta Google não conectada.")
+                    else runCatching { drive.resultFromIntent(data) }.onSuccess { googleConnected(after) }.onFailure(::failure)
+                }
+            }.onFailure(::failure) else googleConnected(after)
+        }.addOnFailureListener { error -> failure(IllegalStateException("O Google recusou a conexão: ${error.message}. Confira se esta conta está entre os usuários de teste do projeto PyRetro no Google Cloud.", error)) }
+    }
+    private fun googleConnected(after: Game?) {
+        work.execute {
+            val result = runCatching { drive.account() }
+            ui { result.onSuccess { email -> toast("Conta Google conectada: $email."); changed(); after?.let { driveDirect(it) } }.onFailure(::failure) }
+        }
+    }
+    fun disconnectGoogle() { drive.disconnect(); toast("Conta Google desconectada deste app. Para revogar o acesso, use myaccount.google.com → Segurança."); changed() }
+
+    /** Sem arquivo único: se o notebook tem um CUE/M3U que o sistema abre, oferece o conjunto inteiro. */
+    private fun offerBundle(game: Game) {
+        work.execute {
+            val result = runCatching {
+                val entries = store.romOptions(game).filter { BundleRules.isDescriptor(it.file) && store.accepts(game.code, it.file.substringAfterLast('/')) }
+                    .sortedBy { if (it.file.endsWith(".m3u", true)) 0 else 1 } // M3U (todos os discos) antes do CUE de um disco só
+                entries.map { option -> val (id, members) = BundleStore(store, SafStorage(store)).manifest(game.code, option.file); Triple(option.file, id, members) }
+            }
+            ui {
+                val bundles = result.getOrElse { emptyList() }
+                if (bundles.isEmpty()) {
+                    notice = NoticeState("Formato que o celular não abre", "O notebook tem ${game.name}, mas nem num arquivo único que o celular abra nem num CUE/M3U completo (${result.exceptionOrNull()?.message ?: "PS1 precisa de CHD, PBP ou CUE com todas as faixas"}). Converta no PC ou escolha outro arquivo no Drive.", "Escolher no Drive") { driveSearch(game) }
+                    return@ui
+                }
+                choice = ChoiceState("Baixar o conjunto de discos", bundles.map { (entry, _, members) -> "${entry.substringAfterLast('/')} · ${members.size} arquivos · ${bytes(members.sumOf { it.size })}" }) { which ->
+                    val (entry, id, members) = bundles[which]
+                    store.prefs.edit().putString("cloud:${game.key}", BundleRef(game.code, entry, id, members.sumOf { it.size }).encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
+                    enqueue(game)
+                }
+            }
+        }
+    }
+
+    fun addToLibrary(game: Game) {
+        val name = GameLogic.fileLabel(game.romName.substringAfterLast('/').ifBlank { game.name })
+        toast("Cadastrando ${game.name} na Biblioteca…")
+        work.execute {
+            val result = runCatching { val response = store.cloudLibrary.register(game, name); response to store.cached() }
+            ui {
+                result.onSuccess { (response, fresh) ->
+                    val id = response.getString("id"); val registered = fresh.firstOrNull { it.id == id }
+                    if (registered != null && registered.key != game.key) runCatching { store.migrateKeys(mapOf(game.key to registered.key)) }
+                    if (game.localUri != null) registered?.let { store.prefs.edit().putString("rom:${it.key}", game.localUri.toString()).apply() }
+                    toast(if (response.optBoolean("created")) "${game.name} entrou na Biblioteca." else "${game.name} já estava na Biblioteca; agora está ligado a este arquivo.")
+                    changed()
+                }.onFailure(::failure)
+            }
+        }
+    }
+
+    // --- Opções, Estatísticas ---------------------------------------------------------------------------------------------------
+    fun saveServer(address: String) {
+        runCatching { store.setBase(address) }.onFailure { failure(it); return }
+        AppSync.probe(store, force = true) { ui { changed() } }; toast("Endereço salvo."); changed()
+    }
+    fun refreshCatalog() {
+        toast("Atualizando Biblioteca e catálogo…")
+        work.execute { val r = runCatching { store.refresh() }; ui { r.onSuccess { toast("Catálogo atualizado. As capas são guardadas conforme você navega."); changed() }.onFailure(::failure) } }
+    }
+    fun notificationSettings() = runCatching { activity.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, activity.packageName)) }.onFailure(::failure)
+    fun notificationsAllowed() = android.os.Build.VERSION.SDK_INT < 33 || activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /** Estatísticas da Biblioteca (vêm do notebook; ficam guardadas para ver offline). */
+    fun showStats() {
+        toast("Consultando as estatísticas…")
+        work.execute {
+            val online = store.online
+            val fresh = if (online) runCatching { extras.stats(true) }.getOrNull() else null
+            val stats = fresh ?: extras.stats(false)
+            val wish = (if (online) runCatching { extras.wishlist(true).size }.getOrNull() else null) ?: extras.wishlist(false).size
+            val at = store.prefs.getLong("stats-at", 0)
+            ui {
+                notice = if (stats == null) NoticeState("📊 Estatísticas", "As estatísticas vêm do notebook. Conecte uma vez e elas ficam guardadas para ver offline.")
+                else {
+                    val media = if (stats.isNull("nota_media")) "—" else "%.2f".format(java.util.Locale("pt", "BR"), stats.getDouble("nota_media"))
+                    NoticeState("📊 Estatísticas", listOf("🎮 ${stats.getInt("total")} jogos na Biblioteca", "▶ ${stats.getInt("jogando")} jogando agora", "✓ ${stats.getInt("zerados")} finalizados · 🏆 ${stats.getInt("platinados")} platinados",
+                        "★ nota média $media · ${stats.getInt("com_nota")} com nota", "◷ ${ExtrasRules.hours(stats.getDouble("tempo_total_horas"))} de jogo registrado", "♡ $wish nos Desejados",
+                        if (fresh != null) "" else "Offline · dados de ${if (at > 0) java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(at)) else "—"}.").filter { it.isNotBlank() }.joinToString("\n"))
+                }
+            }
+        }
     }
 
     // modelos das páginas (a tela só desenha) ----------------------------------------------------------------------------------

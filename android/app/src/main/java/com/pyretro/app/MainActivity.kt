@@ -35,50 +35,21 @@ import org.json.JSONObject
 import org.json.JSONArray
 import java.util.concurrent.Executors
 
-class MainActivity:Activity(),InputManager.InputDeviceListener {
+/** Telas da versão anterior que ainda não foram redesenhadas (A5); a casca em Compose (ShellActivity) as abre por EXTRA_SCREEN/EXTRA_ACTION. Fecha sozinha ao terminar. */
+class MainActivity:Activity() {
     companion object {
-        /** Catálogo e progresso atualizam sozinhos quando o notebook responde; a instrumentação desliga. */
-        var automaticUpdates:Boolean get()=AppSync.enabled; set(value) { AppSync.enabled=value }
-        const val EXTRA_COLLECTION="collection"
         const val EXTRA_GAME="game"
         const val EXTRA_ACTION="action"
         const val EXTRA_SCREEN="screen"
-        private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","systems" to "Sistemas","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","stream" to "Stream")
+        /** A instrumentação mantém a activity aberta para montar a tela sozinha. */
+        @Volatile var keepOpen=false
     }
     private lateinit var store:LibraryStore
-    private lateinit var pageRoot:LinearLayout
-    private lateinit var grid:GridLayout
-    private lateinit var search:EditText
-    private lateinit var status:TextView
-    private lateinit var counter:TextView
-    private lateinit var pagingBar:View
-    private lateinit var drawShortcut:Button
-    private lateinit var statsShortcut:Button
     private val extras by lazy { NotebookExtras(store,filesDir) }
     private val drive by lazy { GoogleDrive(this,store.prefs) }
     private var saveStorageOverride:CloudStorage?=null
     private fun saveStorage():CloudStorage=saveStorageOverride ?: DriveCloudStorage(drive)
-    /** Jogo que esperava a conta Google ser conectada para baixar do Drive. */
-    private var driveAfterConsent:Game?=null
-    /** Desejados como cartões (chave "wish:…"); vêm do cache e se atualizam com o notebook online. */
-    private var wishGames=emptyList<Game>()
-    private var wishItems=emptyMap<String,WishItem>()
-    private lateinit var statusButton:Button
-    private lateinit var filterButton:Button
-    private var filterPlatform=""
-    private var filterGenre=""
-    private lateinit var headingBar:View
-    private lateinit var titleView:TextView
-    private val collectionButtons=linkedMapOf<String,Button>()
-    private lateinit var gridScroll:ScrollView
-    private lateinit var controlHint:TextView
-    private lateinit var previousPage:Button
-    private lateinit var nextPage:Button
-    private lateinit var searchToggle:Button
     private var glyphFamily="generic"
-    private var renderedCollection=""
-    private var lastDrawKey:String?=null
-    private lateinit var controllerManager:InputManager
     private val work=Executors.newSingleThreadExecutor()
     private val images=Executors.newFixedThreadPool(2)
     private var catalog=emptyList<Game>()
@@ -87,61 +58,17 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private var localScanAt=0L
     private var updateLocalStatus:(()->Unit)?=null
     private var updateQueueStatus:(()->Unit)?=null
-    private lateinit var queueBanner:Button
-    private var seenQueueRevision=Long.MIN_VALUE
-    private var seenQueueCompletion=0L
-    private var restorePosition=true
-    private var restoredScroll=0
-    private var restoredPage:Int?=null
-    private var lastSelectedKey:String?=null
-    private var expandedTrackingKey:String?=null
     private val queueHandler=android.os.Handler(android.os.Looper.getMainLooper())
     private fun queue()=DownloadQueue.get(store)
-    private val queueTick=object:Runnable {
-        override fun run() {
-            if(isFinishing || isDestroyed)return
-            runCatching {
-                val helper=queue()
-                if(seenQueueRevision!=helper.revision) {
-                    seenQueueRevision=helper.revision
-                    val rows=helper.snapshot();val active=rows.firstOrNull { it.state==DownloadState.RUNNING }
-                    queueBanner.visibility=if(rows.any { it.state!=DownloadState.DONE })View.VISIBLE else View.GONE
-                    queueBanner.text=if(active!=null)"↓ ${active.game.name} · ${bytesLabel(active.bytes)}" else "Downloads · ${rows.count { it.state!=DownloadState.DONE }} pendente(s) · abrir fila"
-                    for(row in rows)downloadBadges[row.game.key]?.let { badge -> badge.text=coloredBadges(row.game,row.takeIf { it.state!=DownloadState.DONE });badge.visibility=if(badge.text.isEmpty())View.GONE else View.VISIBLE }
-                    updateQueueStatus?.invoke();refreshStatusButton()
-                }
-                if(helper.completedAt>seenQueueCompletion) {
-                    seenQueueCompletion=helper.completedAt;val savesNote=store.prefs.getString("save-sync-note","").orEmpty();reloadLocal { message("Download concluído. Escolha Jogar quando quiser abrir o jogo."+if(savesNote.isNotBlank())" $savesNote" else "") }
-                }
-            }.onFailure { queueBanner.visibility=View.VISIBLE;queueBanner.text="Fila indisponível · abrir Downloads para conferir" }
-            queueHandler.postDelayed(this,500)
-        }
-    }
     private fun bytesLabel(value:Long)=android.text.format.Formatter.formatFileSize(this,value)
-    private var collection="home"
     /** Saves/estados do RetroArch no celular por sistema (nomes de arquivo), lidos junto com as pastas. */
     private var saveNames:Map<String,List<String>> = emptyMap()
-    /** Selo de download de cada cartão visível, atualizado pela fila sem redesenhar a grade. */
-    private val downloadBadges=mutableMapOf<String,TextView>()
-    private var cardQueue:List<QueuedDownload> = emptyList()
-    private var page=0
-    private var pageCount=1
     private var dialog:AlertDialog?=null
     private var pickingCode="NDS"
     private var syncPicking="retroarch"
-    private var pickingGame:Game?=null
-    private var pickingCloud=false
     private var textureCode="PSP"
     private var textureId=""
-    private var downloadAfterFolder:Game?=null
-    private var activeGame:Game?=null
-    private var launchedAt=0L
-    private var leftForGame=false
-    private var scanOnResume=false
     private var lastMotion=0L
-    private var lastCollectionAt=0L
-    private var lastProbeAt=0L
-    private var networkCallback:ConnectivityManager.NetworkCallback?=null
     @Volatile private var probing=false
     private var leftTrigger=false
     private var rightTrigger=false
@@ -167,13 +94,6 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun column()=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(8),dp(12),dp(8)) }
     private fun add(parent:LinearLayout,view:View,weight:Float=0f) { parent.addView(view,LinearLayout.LayoutParams(if(weight>0)0 else ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT,weight).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) }) }
     private fun horizontal(parent:LinearLayout,content:LinearLayout) { parent.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(content) },LinearLayout.LayoutParams(-1,-2)) }
-    private fun message(raw:String) {
-        // Erros de rede do Java ("Unable to resolve host…") viram um aviso comum de sem internet.
-        val value=if(Regex("Unable to resolve host|UnknownHost|Failed to connect|timed out|No address associated",RegexOption.IGNORE_CASE).containsMatchIn(raw))"Offline · sem internet agora. Mostrando o que está salvo no celular; o app tenta de novo sozinho." else raw
-        status.text=value
-        val notice=value.startsWith("Offline") || value.startsWith("Modo offline") || value.startsWith("Online ·")
-        status.visibility=if(notice && (resources.configuration.orientation==2 || !store.prefs.getBoolean("ui:show-notice",true)))View.GONE else View.VISIBLE
-    }
     private fun failure(error:Throwable) {
         val offline=generateSequence(error) { it.cause }.any { it is java.net.UnknownHostException || it is java.net.ConnectException || it is java.net.SocketTimeoutException }
         message(if(offline)"Sem conexão com a internet agora. Mostrando o que está salvo no celular; o app tenta de novo sozinho." else error.message ?: "Não foi possível concluir.")
@@ -186,7 +106,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     }
     private fun show(builder:AlertDialog.Builder):AlertDialog {
         dialog?.dismiss();return builder.create().also { opened ->
-            dialog=opened;opened.setOnDismissListener { if(dialog===opened) { dialog=null;updateLocalStatus=null;updateQueueStatus=null } }
+            dialog=opened;opened.setOnDismissListener { if(dialog===opened) { dialog=null;updateLocalStatus=null;updateQueueStatus=null;maybeFinish() } }
             opened.setOnKeyListener { _,code,event ->
                 when(code) {
                     KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_LEFT,KeyEvent.KEYCODE_DPAD_RIGHT ->
@@ -211,513 +131,9 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             opened.window?.decorView?.setOnGenericMotionListener { _,event -> navigateMotion(event,opened.currentFocus) }
         }
     }
-    override fun onCreate(savedInstanceState:Bundle?) {
-        super.onCreate(savedInstanceState);store=LibraryStore(this)
-        collection=store.prefs.getString("ui:collection","home").takeIf { it in COLLECTIONS.map { c -> c.first } } ?: "home"
-        requestedGame=intent?.getStringExtra(EXTRA_GAME);requestedAction=intent?.getStringExtra(EXTRA_ACTION)
-        intent?.getStringExtra(EXTRA_COLLECTION)?.takeIf { it in COLLECTIONS.map { c -> c.first } }?.let { collection=it }
-        filterPlatform=store.prefs.getString("ui:filter:$collection:platform","").orEmpty();filterGenre=store.prefs.getString("ui:filter:$collection:genre","").orEmpty()
-        page=store.prefs.getInt("ui:page",0).coerceAtLeast(0);restoredScroll=store.prefs.getInt("ui:scroll",0).coerceAtLeast(0)
-        restoredPage=page
-        lastSelectedKey=store.prefs.getString("ui:selected",null)
-        window.statusBarColor=appBackground;window.navigationBarColor=appBackground
-        pageRoot=column().apply { setBackgroundColor(appBackground) }
-        pageRoot.setOnApplyWindowInsetsListener { view,insets ->
-            if(Build.VERSION.SDK_INT>=30) {
-                val safe=insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime())
-                view.setPadding(dp(12)+safe.left,dp(8)+safe.top,dp(12)+safe.right,dp(8)+safe.bottom)
-            } else view.setPadding(dp(12)+insets.systemWindowInsetLeft,dp(8)+insets.systemWindowInsetTop,dp(12)+insets.systemWindowInsetRight,dp(8)+insets.systemWindowInsetBottom)
-            insets
-        }
-        // Um só lugar para Situação e Opções, nas duas orientações; a barra abaixo é só de coleções.
-        val heading=row();heading.addView(ImageView(this).apply { setImageResource(R.drawable.ic_pyretro);contentDescription=null;scaleType=ImageView.ScaleType.FIT_CENTER },LinearLayout.LayoutParams(dp(32),dp(32)))
-        titleView=text("PyRetro",25f).apply { setTypeface(null,Typeface.BOLD) };add(heading,titleView,1f);statusButton=button("Situação") { statusCenter() };headingBar=heading
-        val collections=row()
-        for((id,label) in COLLECTIONS)add(collections,button(label) { selectCollection(id) }.also { tab -> collectionButtons[id]=tab;tab.setOnFocusChangeListener { _,focused -> tab.background=shape(collection==id,focused) } })
-        horizontal(pageRoot,collections)
-        drawShortcut=button("🎲 Sortear") { draw() };add(collections,drawShortcut)
-        statsShortcut=button("📊 Estatísticas") { statsDialog() };add(collections,statsShortcut)
-        search=EditText(this).apply { hint="Y · Pesquisar nome, plataforma ou gênero";setHintTextColor(Color.LTGRAY);setTextColor(appForeground);isSingleLine=true;minHeight=dp(48);background=shape();setPadding(dp(12),0,dp(12),0);setText(store.prefs.getString("ui:query","")!!.take(256)) }
-        search.addTextChangedListener(object:TextWatcher { override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int){};override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){page=0;render()};override fun afterTextChanged(s:Editable?){} })
-        // Filtro por plataforma/gênero ao lado da busca; vale para a coleção aberta.
-        val searchRow=row();searchRow.addView(search,LinearLayout.LayoutParams(0,dp(52),1f))
-        val optionsButton=button("Opções") { settings() }
-        searchToggle=button("⌕ Buscar") { store.prefs.edit().putBoolean("ui:search-open",true).apply();render();search.requestFocus();(getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(search,InputMethodManager.SHOW_IMPLICIT) };filterButton=button("Filtro") { filterDialog() }
-        for(b in listOf(searchToggle,filterButton,statusButton,optionsButton)) { b.minHeight=dp(40);b.minWidth=0;b.textSize=14f;b.setPadding(dp(10),dp(2),dp(10),dp(2));add(heading,b) }
-        pageRoot.addView(heading,0);pageRoot.addView(searchRow,LinearLayout.LayoutParams(-1,-2))
-        status=text("Modo offline · selecione suas pastas ou carregue o catálogo do notebook.",13f);pageRoot.addView(status)
-        queueBanner=button("Downloads") { downloads() }.apply { textSize=13f;maxLines=2;visibility=View.GONE };pageRoot.addView(queueBanner,LinearLayout.LayoutParams(-1,-2))
-        seenQueueCompletion=runCatching { queue().completedAt }.getOrDefault(0L)
-        grid=GridLayout(this).apply { alignmentMode=GridLayout.ALIGN_BOUNDS }
-        gridScroll=ScrollView(this).apply { isFillViewport=true;addView(grid) };pageRoot.addView(gridScroll,LinearLayout.LayoutParams(-1,0,1f))
-        val paging=row();previousPage=button("LB · Anterior") { changePage(-1) }.apply { minWidth=0 };add(paging,previousPage);counter=text("",13f);add(paging,counter,1f);nextPage=button("Próxima · RB") { changePage(1) }.apply { minWidth=0 };add(paging,nextPage);pageRoot.addView(paging);pagingBar=paging
-        controlHint=text("Galileo G8: direcional/analógico · A abrir · B voltar · X favorito · Y buscar · Menu opções",11f);pageRoot.addView(controlHint)
-        setContentView(pageRoot);intent?.getStringExtra(EXTRA_SCREEN)?.let { screen -> pageRoot.post { openRequestedScreen(screen) } };adaptLayout();catalog=store.cached();if(catalog.isNotEmpty())message("Offline · catálogo em cache. Jogos locais disponíveis sem o notebook.");reloadLocal();probeNotebook()
-        if(collection=="wishlist")loadWishlist()
-        // Ligar o Tailscale (VPN) troca a rede padrão: sonda de novo sem esperar o usuário sair e voltar.
-        networkCallback=object:ConnectivityManager.NetworkCallback() { override fun onAvailable(network:Network) { queueHandler.postDelayed({ if(!isFinishing && !isDestroyed)probeNotebook(force=true) },2_000) } }
-        runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).registerDefaultNetworkCallback(networkCallback!!) }
-        controllerManager=getSystemService(INPUT_SERVICE) as InputManager;controllerManager.registerInputDeviceListener(this,null);updateControllerOrientation();updateGlyphs()
-        if(automaticUpdates && drive.connected) { LibraryWorker.schedule(this);automaticUpdate(force=true) }
-    }
-    private fun updateControllerOrientation() {
-        val present=InputDevice.getDeviceIds().asSequence().mapNotNull { InputDevice.getDevice(it) }.any { !it.isVirtual && (it.supportsSource(InputDevice.SOURCE_GAMEPAD) || it.supportsSource(InputDevice.SOURCE_JOYSTICK)) }
-        val orientation=if(present)ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        if(requestedOrientation!=orientation)requestedOrientation=orientation
-        if(::search.isInitialized)updateGlyphs()
-    }
     private fun glyph(key:String)=GlyphRules.key(glyphFamily,key)
-    private fun updateGlyphs() {
-        val names=InputDevice.getDeviceIds().asSequence().mapNotNull { InputDevice.getDevice(it) }.filter { !it.isVirtual && it.supportsSource(InputDevice.SOURCE_GAMEPAD) }.map { it.name }.toList()
-        glyphFamily=GlyphRules.family(store.prefs.getString("ui:glyphs","auto").orEmpty(),names)
-        search.hint="${glyph("Y")} · Pesquisar nome, plataforma ou gênero"
-        previousPage.text="${glyph("LB")} · Anterior";nextPage.text="Próxima · ${glyph("RB")}"
-        controlHint.text="${glyph("A")} abrir · ${glyph("B")} voltar · ${glyph("X")} favorito · ${glyph("Y")} buscar · ${glyph("Menu")} opções"
-    }
-    override fun onInputDeviceAdded(deviceId:Int)=updateControllerOrientation()
-    override fun onInputDeviceRemoved(deviceId:Int)=updateControllerOrientation()
-    override fun onInputDeviceChanged(deviceId:Int)=updateControllerOrientation()
-    override fun onDestroy() { networkCallback?.let { callback -> runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(callback) } };queueHandler.removeCallbacks(queueTick);updateQueueStatus=null;updateLocalStatus=null;if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
-    /** Ficha ou ação pedida pela casca em Compose (EXTRA_GAME/EXTRA_ACTION): roda assim que o jogo estiver carregado. */
-    /** Tela pedida pela casca: Opções, Downloads ou Saves na nuvem (seletores de pasta e conta Google ficam aqui até o A4b/A4c). */
-    private fun openRequestedScreen(screen:String?) { when(screen) { "settings" -> settings();"downloads" -> downloads();"cloud-saves" -> cloudSaves() } }
-    private var requestedGame:String?=null
-    private var requestedAction:String?=null
-    private fun openRequestedGame() {
-        val key=requestedGame ?: return
-        games.firstOrNull { it.key==key }?.let { game -> val action=GameAction.of(requestedAction);requestedGame=null;requestedAction=null;if(action==null)details(game) else runShellAction(game,action) }
-    }
-    /** As ações da ficha em Compose reaproveitam os fluxos (e diálogos) desta tela até o A4 removê-la. */
-    private fun runShellAction(game:Game,action:GameAction) {
-        when(action) {
-            GameAction.PLAY -> launchLocal(game)
-            GameAction.QUEUE -> downloads()
-            GameAction.DOWNLOAD -> quickDownload(game)
-            GameAction.STREAM -> GameLogic.remotePackage(game.platform)?.let(::openPackage)
-            GameAction.SWITCH,GameAction.MOONLIGHT -> notebook(game)
-            GameAction.DRIVE_SEARCH,GameAction.DRIVE_PICK -> driveSearch(game)
-            GameAction.SAVES -> gameSaves(game)
-            GameAction.ADD_LIBRARY -> addToLibrary(game)
-            GameAction.DUCKSTATION -> openPackage("com.github.stenzek.duckstation")
-            GameAction.OTHER_ROM -> pickRom(game,false)
-            GameAction.TEXTURES -> textures(game)
-            GameAction.EDIT -> editGame(game)
-            GameAction.COVER -> ExtrasRules.coverTarget(game.id,game.cover)?.let { coverSearch(game,it) }
-            GameAction.REMOVE -> offerRomRemoval(game)
-            GameAction.DRAW -> draw()
-        }
-    }
-    private fun reloadLocal(after:(()->Unit)?=null) {
-        work.execute {
-            val loaded=store.loadGames(catalog);val problems=loaded.problems;val all=loaded.games
-            val saves=runCatching { val sync=FileSync(store);if(sync.retroarchTree()==null)emptyMap() else listOf("retro-saves","retro-states").flatMap { sync.local(it).keys }.groupBy({ it.substringBefore('/') },{ it.substringAfter('/') }) }.getOrDefault(emptyMap())
-            runOnUiThread { games=all;saveNames=saves;localProblems=problems;localScanAt=System.currentTimeMillis();render();updateLocalStatus?.invoke();after?.invoke();openRequestedGame() }
-        }
-    }
-    private fun render() {
-        if(!::grid.isInitialized)return
-        for((id,tab) in collectionButtons)tab.background=shape(id==collection,tab.hasFocus())
-        if(renderedCollection!=collection) { renderedCollection=collection;collectionButtons[collection]?.let { tab -> tab.post { (tab.parent?.parent as? HorizontalScrollView)?.let { bar -> bar.smoothScrollTo((tab.left+tab.width/2-bar.width/2).coerceAtLeast(0),0) } } } }
-        val streaming=collection=="stream"
-        val compactSearch=resources.configuration.orientation==2 && search.text.isBlank() && !store.prefs.getBoolean("ui:search-open",false)
-        search.visibility=if(streaming || compactSearch)View.GONE else View.VISIBLE
-        searchToggle.visibility=if(!streaming && compactSearch)View.VISIBLE else View.GONE
-        filterButton.visibility=if(streaming)View.GONE else View.VISIBLE
-        refreshStatusButton()
-        pagingBar.visibility=if(streaming)View.GONE else View.VISIBLE
-        drawShortcut.visibility=View.VISIBLE
-        statsShortcut.visibility=drawShortcut.visibility
-        controlHint.visibility=if(streaming || resources.configuration.orientation==2 || !store.prefs.getBoolean("ui:show-hint",true))View.GONE else View.VISIBLE
-        if(streaming) { renderStream();return }
-        val home=collection=="home" && search.text.isBlank()
-        pagingBar.visibility=if(home)View.GONE else View.VISIBLE
-        filterButton.visibility=if(home || streaming)View.GONE else View.VISIBLE
-        titleView.visibility=if(filterButton.visibility==View.VISIBLE && resources.configuration.orientation!=2)View.GONE else View.VISIBLE
-        if(home) { renderHome();return }
-        if(collection=="systems" && search.text.isBlank()) { pagingBar.visibility=View.GONE;filterButton.visibility=View.GONE;titleView.visibility=View.VISIBLE;renderSystems();return }
-        val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
-        val query=GameLogic.normalized(search.text.toString())
-        val base=collectionGames().filter { query.isBlank() || GameLogic.normalized(it.name+it.platform+it.genre).contains(query) }
-        val entries=gridEntries(base)
-        val ordered=if(collection=="ranking") { val byKey=base.associateBy { it.key };GridRules.ranking(entries).mapNotNull(byKey::get) } else base
-        val allowed=GridRules.filter(entries,filterPlatform,filterGenre).map { it.key }.toSet()
-        val visible=ordered.filter { it.key in allowed }
-        filterButton.text=listOf(filterPlatform,filterGenre).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Filtro" }.let { if(it=="Filtro") it else "Filtro: $it" }
-        filterButton.background=shape(filterPlatform.isNotBlank() || filterGenre.isNotBlank(),filterButton.hasFocus())
-        val podium=if(collection=="ranking")visible.take(3) else emptyList()
-        val listed=visible.drop(podium.size)
-        val count=((listed.size+23)/24).coerceAtLeast(1);pageCount=count;page=page.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos"
-        pagingBar.visibility=if(count>1)View.VISIBLE else View.GONE
-        if(restorePosition && localScanAt>0 && restoredPage!=null) { page=restoredPage!!.coerceIn(0,count-1);counter.text="${page+1}/$count · ${visible.size} jogos" }
-        val compact=resources.configuration.orientation==2
-        grid.removeAllViews();downloadBadges.clear();cardQueue=runCatching { queue().snapshot() }.getOrDefault(emptyList());val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
-        val columns=if(width>=900)4 else if(width>=600)3 else 2;grid.columnCount=columns
-        if(podium.isNotEmpty() && page==0) {
-            grid.addView(text("Top 3 desta seleção",18f).apply { setTypeface(null,Typeface.BOLD) },GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1),GridLayout.spec(0,columns)).apply { this.width=-1 })
-            val wide=compact && width>=600
-            val row=LinearLayout(this).apply { orientation=if(wide)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
-            val byKey=podium.associateBy { it.key }
-            for(key in GridRules.podiumOrder(podium.map { it.key },wide))row.addView(gameCard(byKey.getValue(key),wide),LinearLayout.LayoutParams(if(wide)0 else -1,-2,if(!wide)0f else if(key==podium.first().key)1.2f else 1f).apply { setMargins(dp(4),dp(4),dp(4),dp(4)) })
-            grid.addView(row,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1),GridLayout.spec(0,columns)).apply { this.width=-1 })
-            GridRules.tieNote(visible.map { g -> entries.first { it.key==g.key } })?.let { grid.addView(text(it,12f),GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED,1),GridLayout.spec(0,columns)).apply { this.width=-1 }) }
-        }
-        for(game in listed.drop(page*24).take(24)) {
-            val params=GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) };grid.addView(gameCard(game,compact),params)
-        }
-        if(visible.isEmpty() && base.isNotEmpty() && (filterPlatform.isNotBlank() || filterGenre.isNotBlank()))grid.addView(text("Nenhum jogo com este filtro. Toque em Filtro para limpar.",17f))
-        else if(visible.isEmpty())grid.addView(text(when(collection) { "cell" -> "Escolha a pasta Jogos em Opções. Jogos do Catálogo podem ser baixados direto pela ficha do jogo.";"kept" -> "Fixar (nos detalhes do jogo) protege a ROM contra a remoção para liberar espaço. É diferente de favoritar, que só marca o jogo.";"favorites" -> "Marque jogos com ★ (botão X no controle ou Favoritar nos detalhes). Favorito é só um atalho para achar o jogo.";"wishlist" -> if(store.online)"Nenhum jogo nos Desejados." else "Os Desejados vêm do notebook. Conecte uma vez (Tailscale ligado) e eles ficam guardados para ver offline.";"ranking" -> "Dê nota aos jogos da Biblioteca em Progresso e tempo, na ficha. O ranking mostra a maior nota primeiro.";else -> "Carregue o catálogo uma vez ou marque seus favoritos. Sem conexão, o cache continua disponível." },17f))
-        if(focusedKey!=null) {
-            val next=(0 until grid.childCount).map { grid.getChildAt(it) }.firstOrNull { (it.tag as? Game)?.key==focusedKey } ?: grid.getChildAt(0)
-            next?.requestFocus()
-        }
-        if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
-    }
-    private fun gameCard(game:Game,compact:Boolean):LinearLayout {
-        val card=column().apply { isFocusable=true;isClickable=true;descendantFocusability=ViewGroup.FOCUS_BLOCK_DESCENDANTS;tag=game;background=shape();setOnClickListener { details(game) };setOnFocusChangeListener { _,focused -> background=shape(focused=focused) } }
-        if(compact) { card.orientation=LinearLayout.HORIZONTAL;card.gravity=Gravity.CENTER_VERTICAL;card.setPadding(dp(6),dp(4),dp(8),dp(4)) }
-        val cover=ImageView(this).apply { setImageResource(com.pyretro.app.R.drawable.ic_pyretro);scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name }
-        val info=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        if(compact)card.addView(cover,LinearLayout.LayoutParams(dp(60),dp(60)).apply { setMargins(0,0,dp(8),0) }) else card.addView(cover,LinearLayout.LayoutParams(-1,dp(150)))
-        info.addView(text((if(store.favorite(game))"★ " else "")+game.name,if(compact)15f else 16f).apply { maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END;setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(2),dp(4),dp(2)) })
-        val meta=text((if(compact) "" else game.platform+" · ")+where(game),12f).apply { maxLines=if(compact)1 else 2;ellipsize=android.text.TextUtils.TruncateAt.END;setPadding(dp(4),dp(2),dp(4),dp(2)) }
-        info.addView(LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL
-            addView(platformChip(game.code,game.platform),LinearLayout.LayoutParams(-2,-2).apply { setMargins(dp(4),0,0,0) });addView(meta,LinearLayout.LayoutParams(0,-2,1f)) })
-        val badges=text(coloredBadges(game),12f).apply { maxLines=if(compact)2 else 3;ellipsize=android.text.TextUtils.TruncateAt.END;setPadding(dp(4),dp(2),dp(4),dp(2));setTextColor(Color.rgb(140,220,200));visibility=if(text.isEmpty())View.GONE else View.VISIBLE }
-        info.addView(badges);downloadBadges[game.key]=badges
-        if(compact)card.addView(info,LinearLayout.LayoutParams(0,-2,1f)) else card.addView(info,LinearLayout.LayoutParams(-1,-2))
-        // Capa vem do Drive/notebook: se falhar (rede em transição), tenta de novo duas vezes.
-        fun loadCover(attempt:Int) {
-            images.execute { val file=runCatching { store.cover(game) }.getOrNull()
-                if(file!=null) { val bitmap=BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply { inSampleSize=2 });if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap) } }
-                else if(attempt<2)runOnUiThread { cover.postDelayed({ if(cover.isAttachedToWindow && !isDestroyed)loadCover(attempt+1) },4000L*(attempt+1)) } }
-        }
-        loadCover(0)
-        return card
-    }
-    /** Selos do cartão: progresso, nota, tempo no celular, save e download em andamento. */
-    /** Os mesmos selos, com a nota na cor da escala comum (dourada no 11). */
-    private fun coloredBadges(game:Game,download:QueuedDownload?=null):CharSequence {
-        val plain=badges(game,download);val nota=TrackingRules.value(store.tracking(game),"nota") as Double?
-        val color=NotaRules.color(nota) ?: return plain
-        val label=NotaRules.symbol(nota)+" "+TrackingRules.label(nota);val at=plain.indexOf(label)
-        if(at<0)return plain
-        return android.text.SpannableString(plain).apply { setSpan(android.text.style.ForegroundColorSpan(color),at,at+label.length,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
-    }
-    private fun badges(game:Game,download:QueuedDownload?=null):String {
-        val tracking=store.tracking(game);val minutes=store.prefs.getLong("time:${game.key}",0)/60
-        val label=game.romName.substringAfterLast('/').let { SaveRules.label(it,store.extensionsFor(game.code)) }
-        val saved=game.localUri!=null && saveNames[game.code].orEmpty().any { SaveRules.belongs("${game.code}/$it",game.code,label) }
-        val row=download ?: cardQueue.firstOrNull { it.game.key==game.key && it.state!=DownloadState.DONE }
-        return listOfNotNull(
-            when { tracking.optBoolean("platinado") -> "🏆";tracking.optBoolean("finalizado") -> "✓ Finalizado";tracking.optBoolean("iniciado") -> "▶ Jogando";else -> null },
-            (TrackingRules.value(tracking,"nota") as Double?)?.let { NotaRules.symbol(it)+" "+TrackingRules.label(it) },
-            minutes.takeIf { it>0 }?.let { if(it>=60)"⏱ ${it/60}h${"%02d".format(it%60)}" else "⏱ ${it}min" },
-            "💾".takeIf { saved },
-            row?.let { when(it.state) { DownloadState.FAILED -> "⬇ falhou";DownloadState.PAUSED -> "⬇ pausado";else -> "⬇ "+(it.total?.takeIf { t -> t>0 }?.let { t -> "${it.bytes*100/t}%" } ?: bytesLabel(it.bytes)) } }
-        ).joinToString(" · ")
-    }
-    /** Início: fileiras horizontais com o que faz sentido abrir agora. Pesquisar mostra a grade do catálogo. */
-    private fun renderHome() {
-        val focusedKey=if(restorePosition)lastSelectedKey else (currentFocus?.tag as? Game)?.key
-        page=0;pageCount=1;grid.removeAllViews();downloadBadges.clear();cardQueue=runCatching { queue().snapshot() }.getOrDefault(emptyList());grid.columnCount=1
-        val byKey=games.associateBy { it.key }
-        val entries=games.map { game -> val tracking=store.tracking(game)
-            HomeEntry(game.key,game.name,game.localUri!=null,tracking.optBoolean("iniciado"),tracking.optBoolean("finalizado"),
-                store.favorite(game),store.prefs.getLong("played:${game.key}",0),store.prefs.getLong("time:${game.key}",0)) }
-        val compact=resources.configuration.orientation==2
-        val box=column()
-        for((title,keys) in HomeRules.rows(entries)) {
-            box.addView(text(title,18f).apply { setTypeface(null,Typeface.BOLD);setPadding(dp(4),dp(10),dp(4),dp(2)) })
-            val line=row()
-            for(key in keys)byKey[key]?.let { game -> line.addView(gameCard(game,compact),LinearLayout.LayoutParams(dp(if(compact)240 else 170),-2).apply { setMargins(dp(4),dp(4),dp(4),dp(4)) }) }
-            box.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled=false;addView(line) },LinearLayout.LayoutParams(-1,-2))
-        }
-        if(box.childCount==0)box.addView(text("Escolha a pasta Jogos em Opções ou carregue o catálogo. Jogos iniciados, abertos por aqui e favoritos aparecem em fileiras.",17f))
-        grid.addView(box,GridLayout.LayoutParams().apply { width=ViewGroup.LayoutParams.MATCH_PARENT })
-        val cards=generateSequence(listOf<View>(box)) { level -> level.flatMap { v -> if(v is ViewGroup)(0 until v.childCount).map(v::getChildAt) else emptyList() }.takeIf { it.isNotEmpty() } }.flatten().filter { it.tag is Game }.toList()
-        counter.text="${games.size} jogos"
-        if(focusedKey!=null)(cards.firstOrNull { (it.tag as Game).key==focusedKey } ?: cards.firstOrNull())?.requestFocus()
-        if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
-    }
-    private fun gridEntries(list:List<Game>)=list.map { GridEntry(it.key,it.name,it.platform,it.genre,TrackingRules.value(store.tracking(it),"nota") as Double?,it.id.ifBlank { it.key }) }
-    private fun collectionGames():List<Game> {
-        val pinned=if(collection=="kept")SpaceStore(store).pinnedChecker() else ({ _:Game -> false })
-        return (if(collection=="wishlist")wishGames else games).filter { (collection!="cell" || it.localUri!=null) && (collection!="favorites" || store.favorite(it)) && (collection!="kept" || pinned(it)) && (collection!="ranking" || TrackingRules.value(store.tracking(it),"nota")!=null) }
-    }
-    /** Filtro da coleção aberta: plataformas e gêneros que existem nela. */
-    private fun filterDialog() {
-        val entries=gridEntries(collectionGames())
-        val box=column();box.addView(text("Filtrar",23f))
-        fun section(title:String,options:List<String>,all:String,current:String,choose:(String)->Unit) {
-            box.addView(text(title,18f).apply { setTypeface(null,Typeface.BOLD) })
-            val line=row();horizontal(box,line)
-            for(option in listOf("")+options)add(line,button(option.ifBlank { all }) { choose(option);page=0;dialog?.dismiss();render() }.apply { background=shape(option==current);setOnFocusChangeListener { _,focused -> background=shape(option==current,focused) } })
-        }
-        section("Plataforma",GridRules.platforms(entries),"Todas",filterPlatform) { filterPlatform=it }
-        section("Gênero",GridRules.genres(entries),"Qualquer",filterGenre) { filterGenre=it }
-        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
-    }
-    private fun refreshStatusButton() {
-        if(!::statusButton.isInitialized)return
-        val failed=runCatching { queue().snapshot().count { it.state==DownloadState.FAILED } }.getOrDefault(0)
-        val conflicts=0 // conflitos de saves agora são tratados na tela da nuvem
-        statusButton.text=GridRules.statusLabel(GridRules.attention(store.pending(),failed,localProblems.size,conflicts))
-    }
     // --- Desejados, Estatísticas, editar e capa (precisam do notebook; leitura fica em cache) ---
     private fun needsNotebook():Boolean { if(store.online)return true;message("Esta função precisa do notebook online. Ligue o Tailscale e tente de novo.");return false }
-    private fun loadWishlist() {
-        fun apply(items:List<WishItem>) { wishItems=items.associateBy(ExtrasRules::wishKey)
-            wishGames=items.map { Game(it.id,ExtrasRules.wishKey(it),it.name,ExtrasRules.STORES.getValue(it.source),cover=it.cover,genre=it.genre) } }
-        if(wishGames.isEmpty())apply(extras.wishlist(false))
-        if(!store.online)return
-        work.execute { runCatching { extras.wishlist(true) }.onSuccess { items -> runOnUiThread { apply(items);if(collection=="wishlist")render() } } }
-    }
-    private fun wishDetails(game:Game) {
-        val item=wishItems[game.key] ?: return
-        val box=column()
-        val cover=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER;visibility=View.GONE }
-        box.addView(cover,LinearLayout.LayoutParams(-1,dp(200)))
-        images.execute { val bitmap=runCatching { store.cover(game) }.getOrNull()?.let { BitmapFactory.decodeFile(it.path) };if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap);cover.visibility=View.VISIBLE } }
-        box.addView(text(item.name,22f).apply { setTypeface(null,Typeface.BOLD) })
-        box.addView(text(listOf(ExtrasRules.STORES.getValue(item.source),item.genre).filter { it.isNotBlank() }.joinToString(" · ")+" · na sua lista de desejos",14f))
-        val actions=row();horizontal(box,actions)
-        fun leave(bought:Boolean) {
-            if(!store.cloudLibrary.ready() && !needsNotebook())return
-            show(AlertDialog.Builder(this).setMessage(if(bought)"Marcar \"${item.name}\" como comprado? Sai dos Desejados e entra na Biblioteca." else "Tirar \"${item.name}\" da lista de desejos?")
-                .setPositiveButton(if(bought)"Comprado" else "Tirar") { _,_ -> work.execute { runCatching { extras.leaveWishlist(item,bought) }.onSuccess { items -> runOnUiThread {
-                    wishGames=wishGames.filter { it.key!=game.key };message(if(bought)"${item.name} entrou na Biblioteca." else "${item.name} saiu dos Desejados.");render()
-                    if(bought)refreshCatalog(silent=true)
-                } }.onFailure { runOnUiThread { failure(it) } } } }.setNegativeButton("Voltar",null))
-        }
-        add(actions,button("✅ Comprado") { leave(true) });add(actions,button("🗑 Tirar da lista") { leave(false) })
-        box.addView(text("Para adicionar jogos aos Desejados, use o modo TV ou a interface do notebook.",12f))
-        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
-    }
-    private fun statsDialog() {
-        val box=column();box.addView(text("📊 Estatísticas",23f))
-        val body=text(if(store.online)"Consultando o notebook…" else "",15f);box.addView(body)
-        val actions=row();horizontal(box,actions)
-        add(actions,button("Ranking") { dialog?.dismiss();selectCollection("ranking") });add(actions,button("Desejados") { dialog?.dismiss();selectCollection("wishlist") })
-        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
-        var wishCount=extras.wishlist(false).size
-        fun fill(stats:JSONObject?,fresh:Boolean) {
-            if(dialog!==opened)return
-            if(stats==null) { body.text="As estatísticas vêm do notebook. Conecte uma vez e elas ficam guardadas para ver offline.";return }
-            val media=if(stats.isNull("nota_media"))"—" else "%.2f".format(java.util.Locale("pt","BR"),stats.getDouble("nota_media"))
-            body.text=listOf("🎮 ${stats.getInt("total")} jogos na Biblioteca","▶ ${stats.getInt("jogando")} jogando agora","✓ ${stats.getInt("zerados")} finalizados · 🏆 ${stats.getInt("platinados")} platinados",
-                "★ nota média $media · ${stats.getInt("com_nota")} com nota","◷ ${ExtrasRules.hours(stats.getDouble("tempo_total_horas"))} de jogo registrado","♡ $wishCount nos Desejados",
-                if(fresh)"" else "Offline · dados de ${store.prefs.getLong("stats-at",0).takeIf { it>0 }?.let(::versionDate) ?: "—"}.").filter { it.isNotBlank() }.joinToString("\n")
-        }
-        fill(extras.stats(false),store.cloudLibrary.ready())
-        // Online: lê também os Desejados, para a contagem não depender de ter aberto a coleção antes.
-        if(store.online)work.execute { val result=runCatching { extras.stats(true) };val wishes=runCatching { extras.wishlist(true).size }.getOrNull()
-            runOnUiThread { if(wishes!=null)wishCount=wishes;result.onSuccess { fill(it,true) }.onFailure { fill(extras.stats(false),false) } } }
-    }
-    private fun editGame(game:Game) {
-        if(!store.cloudLibrary.available() && !needsNotebook())return
-        message("Lendo os dados de ${game.name}…")
-        work.execute {
-            val result=runCatching { extras.record(game.id) to extras.genres() }
-            runOnUiThread { result.onFailure(::failure).onSuccess { (record,genres) ->
-                if(record==null) { message("Este jogo não está mais na Biblioteca do notebook.");return@onSuccess }
-                val fields=listOf("genero" to "Gênero","data_final" to "Data que finalizou (aaaa-mm-dd)","tempo" to "Tempo jogado (ex.: 31:40:00)","observacoes" to "Comentário","sinopse" to "Sinopse (resumo do jogo)")
-                val before=fields.associate { (field,_) -> field to (record.optString(field).takeUnless { record.isNull(field) } ?: "") }
-                val box=column();box.addView(text("✎ ${game.name}",21f).apply { setTypeface(null,Typeface.BOLD) })
-                val options=(listOf("") + genres + listOf(before.getValue("genero"))).distinct()
-                box.addView(text("Gênero",15f))
-                val genre=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,options.map { it.ifBlank { "Sem gênero" } });setSelection(options.indexOf(before.getValue("genero")).coerceAtLeast(0)) }
-                box.addView(genre)
-                val inputs=fields.drop(1).associate { (field,label) -> box.addView(text(label,15f))
-                    field to EditText(this).apply { setText(before.getValue(field));setTextColor(appForeground);background=shape();setPadding(dp(12),dp(8),dp(12),dp(8));if(field=="observacoes" || field=="sinopse") { minLines=3 } else isSingleLine=true }.also { box.addView(it,LinearLayout.LayoutParams(-1,-2)) } }
-                show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null).setPositiveButton("Salvar") { _,_ ->
-                    val after=mapOf("genero" to options[genre.selectedItemPosition])+inputs.mapValues { it.value.text.toString() }
-                    val changes=ExtrasRules.changes(before,after)
-                    if(changes.isEmpty()) { message("Nada alterado.");return@setPositiveButton }
-                    work.execute { runCatching { extras.edit(game.id,changes) }.onSuccess { runOnUiThread { message("Dados de ${game.name} salvos; envio pela nuvem agendado.");catalog=store.cached();reloadLocal() } }.onFailure { runOnUiThread { failure(it) } } }
-                })
-            } }
-        }
-    }
-    private fun coverSearch(game:Game,target:CoverTarget) {
-        if(!needsNotebook())return
-        val box=column();box.addView(text("🖼 Capa de ${game.name}",21f).apply { setTypeface(null,Typeface.BOLD) })
-        val query=EditText(this).apply { setText(game.name);setTextColor(appForeground);isSingleLine=true;background=shape();setPadding(dp(12),dp(8),dp(12),dp(8)) }
-        box.addView(query,LinearLayout.LayoutParams(-1,-2))
-        val status=text("",13f);val results=GridLayout(this).apply { columnCount=3 }
-        lateinit var search:()->Unit
-        // Só a busca mais recente desenha: resposta ou miniatura de uma busca anterior é descartada
-        // (achado do Codex na revisão da 0.9.0: buscar de novo antes da resposta misturava as capas).
-        val searches=LatestRequest()
-        add(box,button("Buscar no SteamGridDB") { search() });box.addView(status);box.addView(results)
-        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
-        search={
-            val term=query.text.toString().trim()
-            if(term.length>=2) {
-                val current=searches.start()
-                status.text="Buscando… o SteamGridDB pode levar até dois minutos.";results.removeAllViews()
-                work.execute { val found=runCatching { extras.searchCovers(term) };runOnUiThread { if(dialog!==opened || !searches.isCurrent(current))return@runOnUiThread
-                    found.onFailure { status.text=it.message ?: "Busca falhou." }.onSuccess { list ->
-                        status.text=if(list.isEmpty())"Nada encontrado. Troque o termo." else "Toque numa capa para usar."
-                        for((url,name) in list.take(12)) {
-                            val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=name;isFocusable=true;isClickable=true;background=shape();setPadding(dp(4),dp(4),dp(4),dp(4))
-                                setOnFocusChangeListener { _,focused -> background=shape(focused) }
-                                setOnClickListener { show(AlertDialog.Builder(this@MainActivity).setMessage("Usar esta capa para ${game.name}? A capa atual no notebook é substituída.").setNegativeButton("Voltar",null).setPositiveButton("Usar") { _,_ ->
-                                    message("Aplicando a capa…")
-                                    work.execute { runCatching { extras.applyCover(target,url) }.onSuccess { runOnUiThread { message("Capa trocada. Atualizando o catálogo…");refreshCatalog(silent=true) } }.onFailure { runOnUiThread { failure(it) } } }
-                                }) } }
-                            results.addView(image,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { width=0;height=dp(170);setMargins(dp(3),dp(3),dp(3),dp(3)) })
-                            images.execute { if(searches.isCurrent(current)) { val bitmap=runCatching { extras.thumbnail(url) }.getOrNull();if(bitmap!=null)runOnUiThread { if(searches.isCurrent(current))image.setImageBitmap(bitmap) } } }
-                        }
-                    } } }
-            }
-        }
-        search()
-    }
-    private fun selectCollection(id:String) {
-        if(id!=collection) {
-            store.prefs.edit().putString("ui:filter:$collection:platform",filterPlatform).putString("ui:filter:$collection:genre",filterGenre).apply()
-            filterPlatform=store.prefs.getString("ui:filter:$id:platform","").orEmpty();filterGenre=store.prefs.getString("ui:filter:$id:genre","").orEmpty()
-        }
-        if(id=="wishlist")loadWishlist()
-        collection=id;page=0;restorePosition=false;restoredPage=null;render();gridScroll.scrollTo(0,0)
-    }
-    /** Visão por sistema (como no PC): uma ficha por plataforma, com contagem; tocar abre o Catálogo filtrado. */
-    private fun renderSystems() {
-        page=0;pageCount=1;grid.removeAllViews();downloadBadges.clear()
-        val width=resources.displayMetrics.widthPixels/resources.displayMetrics.density
-        val columns=if(width>=900)4 else if(width>=600)3 else 2;grid.columnCount=columns
-        val groups=games.filter { !it.key.startsWith("wish:") && it.platform.isNotBlank() && it.platform!="?" }.groupBy { it.platform }.toList().sortedBy { it.first.lowercase() }
-        for((platform,list) in groups) {
-            val card=column().apply { isFocusable=true;isClickable=true;descendantFocusability=ViewGroup.FOCUS_BLOCK_DESCENDANTS;background=shape();setPadding(dp(10),dp(8),dp(10),dp(8))
-                setOnClickListener { store.prefs.edit().putString("ui:filter:catalog:platform",platform).putString("ui:filter:catalog:genre","").apply();selectCollection("catalog") }
-                setOnFocusChangeListener { _,focused -> background=shape(focused=focused) } }
-            val head=row();head.addView(platformChip(list.first().code,platform));head.addView(text(store.folders[list.first().code] ?: platform,15f).apply { setTypeface(null,Typeface.BOLD);maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END },LinearLayout.LayoutParams(0,-2,1f))
-            card.addView(head)
-            val onPhone=list.count { it.localUri!=null }
-            card.addView(text((if(list.size==1)"1 jogo" else "${list.size} jogos")+if(onPhone>0)" · $onPhone no celular" else "",12f))
-            grid.addView(card,GridLayout.LayoutParams(GridLayout.spec(GridLayout.UNDEFINED),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { this.width=0;setMargins(dp(4),dp(4),dp(4),dp(4)) })
-        }
-        if(groups.isEmpty())grid.addView(text("Carregue o catálogo ou escolha a pasta Jogos para ver os sistemas.",17f))
-        counter.text="${groups.size} sistemas · ${games.size} jogos"
-        grid.getChildAt(0)?.requestFocus()
-        if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
-    }
-    /** LB/RB: uma linha por vez; só no fim da página trocam de página. */
-    private fun bumper(delta:Int) {
-        val cards=gridCards();val index=cards.indexOf(currentFocus)
-        if(collection=="home" || collection=="stream" || index<0) { changePage(delta);return }
-        val columns=grid.columnCount.coerceAtLeast(1);val target=index+delta*columns
-        when {
-            target in cards.indices -> cards[target].requestFocus()
-            delta>0 && index/columns<(cards.size-1)/columns -> cards.last().requestFocus()
-            delta>0 -> changePage(1)
-            page>0 -> { changePage(-1);gridScroll.post { gridCards().lastOrNull()?.requestFocus() } }
-            else -> cards.first().requestFocus()
-        }
-    }
-    private fun gridCards():List<View> = (0 until grid.childCount).map { grid.getChildAt(it) }.filter { it.tag is Game || (collection=="systems" && it.isFocusable) }
-    /** Direcional na grade: linear na linha, coluna nas setas verticais; no fim da página segue para a próxima em vez de subir às abas. */
-    private fun gridMove(code:Int):Boolean {
-        if(dialog!=null || collection=="home" || collection=="stream")return false
-        val focused=currentFocus ?: return false
-        val cards=gridCards();val index=cards.indexOf(focused);if(index<0)return false
-        val columns=grid.columnCount.coerceAtLeast(1)
-        val target=when(code) { KeyEvent.KEYCODE_DPAD_RIGHT -> index+1;KeyEvent.KEYCODE_DPAD_LEFT -> index-1;KeyEvent.KEYCODE_DPAD_DOWN -> index+columns;KeyEvent.KEYCODE_DPAD_UP -> index-columns;else -> return false }
-        when {
-            target in cards.indices -> cards[target].requestFocus()
-            code==KeyEvent.KEYCODE_DPAD_UP -> return false
-            code==KeyEvent.KEYCODE_DPAD_DOWN && index/columns<(cards.size-1)/columns -> cards.last().requestFocus()
-            code==KeyEvent.KEYCODE_DPAD_LEFT -> if(page>0) { changePage(-1);gridScroll.post { gridCards().lastOrNull()?.requestFocus() } }
-            else -> if(page<pageCount-1)changePage(1)
-        }
-        return true
-    }
-    private fun renderStream() {
-        page=0;pageCount=1;grid.removeAllViews();grid.columnCount=1
-        val box=column();box.addView(text("Stream",23f))
-        val clients=listOf(
-            Triple("Xbox · XBXPlay","com.grill.xbxplay","Conecte ao seu Xbox pelo XBXPlay."),
-            Triple("PS4 · Remote Play","com.playstation.remoteplay","Conecte ao seu PS4 pelo aplicativo oficial."),
-            Triple("PC e Switch · Moonlight","com.limelight","Escolha o notebook no Moonlight. O vídeo do Switch passa pelo notebook.")
-        )
-        val side=resources.configuration.orientation==2
-        val line=LinearLayout(this).apply { orientation=if(side)LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
-        for((label,target,description) in clients) {
-            val part=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(2),dp(4),dp(2)) }
-            part.addView(platformChip(if(target=="com.grill.xbxplay")"Xbox Series S" else if(target=="com.playstation.remoteplay")"PlayStation 4" else "PC"))
-            val installed=packageManager.getLaunchIntentForPackage(target)!=null
-            part.addView(button(label+(if(installed)"" else " · não encontrado")) { openPackage(target) }.apply { isEnabled=installed;alpha=if(installed)1f else .55f },LinearLayout.LayoutParams(-1,-2).apply { setMargins(dp(3),dp(3),dp(3),dp(3)) })
-            part.addView(text(description,if(side)12f else 14f))
-            line.addView(part,if(side)LinearLayout.LayoutParams(0,-2,1f) else LinearLayout.LayoutParams(-1,-2))
-        }
-        box.addView(line)
-        help(box,"Conexões e jogos","Login, pareamento e escolha do console/computador ficam nos clientes. Para solicitar um jogo ou transmissão ao notebook, use a ação nos detalhes do título. Abrir esta aba não liga consoles nem inicia transmissão.")
-        grid.addView(box,GridLayout.LayoutParams().apply { width=ViewGroup.LayoutParams.MATCH_PARENT })
-        if(restorePosition && localScanAt>0) { restorePosition=false;restoredPage=null;gridScroll.post { gridScroll.scrollTo(0,restoredScroll) } }
-    }
-    private fun changePage(delta:Int) {
-        val next=(page+delta).coerceIn(0,pageCount-1)
-        if(next!=page) { page=next;render();gridScroll.scrollTo(0,0);grid.getChildAt(0)?.requestFocus() }
-        else {
-            val top=(gridScroll.scrollY+delta*gridScroll.height*4/5).coerceIn(0,(grid.height-gridScroll.height).coerceAtLeast(0))
-            gridScroll.scrollTo(0,top)
-            val cards=(0 until grid.childCount).map { grid.getChildAt(it) }.filter { it.isFocusable }
-            (cards.firstOrNull { it.top>=top && it.top<top+gridScroll.height } ?: (if(delta>0)cards.lastOrNull() else cards.firstOrNull()))?.requestFocus()
-        }
-    }
-    private fun controllerSearch() {
-        val box=column();box.addView(text("Pesquisar · ${glyph("X")} apaga · ${glyph("Menu")} confirma",18f))
-        val input=EditText(this).apply { setSingleLine();setText(search.text.toString());setTextColor(appForeground) };box.addView(input)
-        val keyboard=GridLayout(this).apply { columnCount=6 }
-        fun append(value:String) { input.append(value) }
-        for(letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")keyboard.addView(button(letter.toString()) { append(letter.toString()) },GridLayout.LayoutParams().apply { width=dp(48);height=dp(48) })
-        box.addView(ScrollView(this).apply { addView(keyboard) },LinearLayout.LayoutParams(-1,dp(190)))
-        add(box,button("Espaço") { append(" ") });add(box,button("Apagar") { if(input.length()>0)input.text.delete(input.length()-1,input.length()) })
-        val opened=show(AlertDialog.Builder(this).setView(box).setPositiveButton("Pesquisar") { _,_ -> search.setText(input.text.toString()) }.setNegativeButton("Voltar",null))
-        opened.setOnKeyListener { _,code,event ->
-            if(code in setOf(KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_LEFT,KeyEvent.KEYCODE_DPAD_RIGHT))event.action==KeyEvent.ACTION_DOWN && (!navReady(if(event.repeatCount>0)110L else 60L) || padNavigate(opened.window?.decorView,code))
-            else if(code !in setOf(KeyEvent.KEYCODE_BUTTON_A,KeyEvent.KEYCODE_BUTTON_B,KeyEvent.KEYCODE_BUTTON_X,KeyEvent.KEYCODE_BUTTON_START))false
-            else {
-                if(event.action==KeyEvent.ACTION_DOWN && event.repeatCount==0)when(code) {
-                    KeyEvent.KEYCODE_BUTTON_A -> opened.currentFocus?.performClick()
-                    KeyEvent.KEYCODE_BUTTON_B -> opened.dismiss()
-                    KeyEvent.KEYCODE_BUTTON_X -> if(input.length()>0)input.text.delete(input.length()-1,input.length())
-                    KeyEvent.KEYCODE_BUTTON_START -> { search.setText(input.text.toString());opened.dismiss() }
-                };true
-            }
-        };keyboard.getChildAt(0)?.requestFocus()
-    }
-    private fun adaptLayout() {
-        val landscape=resources.configuration.orientation==2
-        titleView.textSize=if(landscape)18f else 25f
-        controlHint.visibility=if(landscape || !store.prefs.getBoolean("ui:show-hint",true))View.GONE else View.VISIBLE
-        status.maxLines=if(landscape)1 else 2;message(status.text.toString());search.layoutParams.height=dp(if(landscape)48 else 52)
-    }
-    private fun draw() {
-        val query=GameLogic.normalized(search.text.toString())
-        val current=collectionGames().filter { (filterPlatform.isBlank() || it.platform==filterPlatform) && (filterGenre.isBlank() || it.genre==filterGenre) && (query.isBlank() || GameLogic.normalized(it.name+it.platform+it.genre).contains(query)) }
-        // Coleção vazia (Fixados/Favoritos sem jogos) não pode parecer botão morto: sorteia dos jogos do celular ou do catálogo.
-        val local=games.filter { it.localUri!=null }
-        val (pool,title)=when {
-            current.isNotEmpty() -> current to "Sortear desta coleção"
-            local.isNotEmpty() -> local to "Coleção vazia · sorteando entre os jogos neste celular"
-            games.isNotEmpty() -> games to "Coleção vazia · sorteando no catálogo em cache"
-            else -> { message("Nenhum jogo para sortear. Escolha as pastas ou carregue o catálogo.");Toast.makeText(this,"Nenhum jogo para sortear.",Toast.LENGTH_LONG).show();return }
-        }
-        val platforms=listOf("Todos os sistemas")+pool.map { it.platform }.distinct().sorted()
-        val genres=listOf("Qualquer gênero")+pool.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
-        val system=Spinner(this);system.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,platforms)
-        val genre=Spinner(this);genre.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,genres)
-        system.setSelection(platforms.indexOf(store.prefs.getString("ui:draw-platform","")).coerceAtLeast(0))
-        genre.setSelection(genres.indexOf(store.prefs.getString("ui:draw-genre","")).coerceAtLeast(0))
-        val box=column();box.addView(text(title,if(pool===current)22f else 18f));box.addView(system);box.addView(genre)
-        box.addView(text("${pool.size} jogo(s) disponíveis. O resultado abre a ficha; jogar/baixar exige sua escolha.",13f))
-        add(box,button("Sortear e sugerir como jogar") {
-            store.prefs.edit().putString("ui:draw-platform",system.selectedItem.toString()).putString("ui:draw-genre",genre.selectedItem.toString()).apply()
-            val selected=pool.filter { (system.selectedItemPosition==0 || it.platform==system.selectedItem) && (genre.selectedItemPosition==0 || it.genre==genre.selectedItem) }.randomOrNull()
-            if(selected==null)Toast.makeText(this,"Nenhum jogo com esses filtros.",Toast.LENGTH_SHORT).show() else { lastDrawKey=selected.key;details(selected) }
-        });show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
-    }
     private fun textures(game:Game?=null) {
         val helper=TextureStore(store);val box=column();box.addView(text("Texturas HD",22f))
         box.addView(text("PSP e 3DS: instalar nas pastas compartilhadas escolhidas. Feche o emulador antes. ZIP local funciona offline; fontes RAR/7z usam o notebook para preparar o pacote. Ative carregar/substituir texturas no emulador.",13f))
@@ -746,237 +162,6 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         message("Preparando texturas…");var last=0L
         work.execute { runCatching { action { status -> val now=SystemClock.elapsedRealtime();if(now-last>500){last=now;runOnUiThread { message(status) }} } }.onSuccess { count -> runOnUiThread { message("$count textura(s) adicionada(s). Arquivos existentes preservados; confira carregar texturas no emulador.") } }.onFailure { runOnUiThread { failure(it) } } }
     }
-    private fun changeCollection(step:Int) { val now=SystemClock.elapsedRealtime();if(dialog==null && now-lastCollectionAt>=180) { lastCollectionAt=now;val ids=COLLECTIONS.map { it.first };selectCollection(ids[(ids.indexOf(collection)+step+ids.size)%ids.size]);grid.getChildAt(0)?.let { (firstEnabledButton(it) ?: it).requestFocus() } } }
-    private fun toggleFavorite(game:Game) { store.setFavorite(game,!store.favorite(game));render() }
-    private fun linked(game:Game)=store.prefs.contains("cloud:${game.key}")
-    private fun queued(game:Game)=runCatching { queue().contains(game.key) }.getOrDefault(false)
-    /** Onde o jogo está e o que dá para fazer com ele, em poucas palavras (cartão e ficha). */
-    private fun where(game:Game)=when {
-        game.key.startsWith("wish:") -> "♡ Desejado"
-        game.localUri!=null -> "▶ Neste celular"
-        game.code in store.folders && (linked(game) || game.downloadable) -> "⬇ Baixar"
-        GameLogic.remotePackage(game.platform)!=null || GameLogic.streamedThroughNotebook(game.platform) -> "📡 Stream"
-        game.pcLocal -> "🖥 No notebook"
-        else -> "Catálogo"
-    }
-    private fun primary(box:LinearLayout,label:String,action:()->Unit)=button(label,action).apply { textSize=18f;setTypeface(null,Typeface.BOLD);minHeight=dp(56) }.also { add(box,it) }
-    private fun details(game:Game) {
-        if(game.key.startsWith("wish:")) { wishDetails(game);return }
-        lastSelectedKey=game.key
-        val box=column()
-        // Capa grande no topo (some se o jogo não tiver capa no cache).
-        val cover=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER;contentDescription=game.name;visibility=View.GONE }
-        box.addView(cover,LinearLayout.LayoutParams(-1,dp(if(resources.configuration.orientation==2)140 else 230)))
-        images.execute { val file=runCatching { store.cover(game) }.getOrNull();val bitmap=file?.let { BitmapFactory.decodeFile(it.path) };if(bitmap!=null)runOnUiThread { cover.setImageBitmap(bitmap);cover.visibility=View.VISIBLE } }
-        box.addView(platformChip(game.code,game.platform),LinearLayout.LayoutParams(-2,-2).apply { setMargins(dp(4),0,0,dp(2)) })
-        box.addView(text(game.name,22f).apply { setTypeface(null,Typeface.BOLD) })
-        val rom=game.code in store.folders;val stream=GameLogic.remotePackage(game.platform);val viaNotebook=GameLogic.streamedThroughNotebook(game.platform)
-        val waiting=rom && game.localUri==null && queued(game)
-        val state=when {
-            game.localUri!=null -> "Neste celular"
-            waiting -> "Na fila de downloads"
-            rom && (linked(game) || game.downloadable) -> "Pronto para baixar"+(if(!store.online && drive.connected)" do Drive (conta Google)" else if(game.pcLocal)" do notebook" else if(game.drive)" do Drive" else " do arquivo vinculado")
-            stream!=null || viaNotebook -> "Console · transmita do aparelho"
-            game.pcLocal -> "Instalado no notebook"
-            else -> "Só no catálogo"
-        }
-        val played=store.prefs.getLong("time:${game.key}",0)/60
-        box.addView(text(listOfNotNull(game.platform,state,played.takeIf { it>0 }?.let { if(it>=60)"⏱ ${it/60}h${"%02d".format(it%60)} no celular" else "⏱ $it min no celular" }).joinToString(" · "),14f))
-        (TrackingRules.value(store.tracking(game),"nota") as Double?)?.let { nota -> box.addView(text(NotaRules.symbol(nota)+" "+TrackingRules.label(nota)+(if(NotaRules.special(nota))" · jogo muito especial" else ""),16f).apply { NotaRules.color(nota)?.let(::setTextColor) }) }
-        store.tracking(game).optString("sinopse").takeUnless { store.tracking(game).isNull("sinopse") || it.isBlank() }?.let { box.addView(text(it,14f).apply { setPadding(0,dp(6),0,dp(6)) }) }
-        // A ação principal é a próxima coisa que faz sentido para o jogo; o resto fica em Mais opções.
-        when {
-            game.localUri!=null -> primary(box,"▶ Jogar neste celular") { dialog?.dismiss();launchLocal(game) }
-            waiting -> primary(box,"⬇ Na fila · ver downloads") { downloads() }
-            rom && (linked(game) || game.downloadable) -> primary(box,"⬇ Baixar para este celular") { quickDownload(game) }
-            stream!=null -> primary(box,if(stream=="com.grill.xbxplay")"📡 Transmitir do Xbox · XBXPlay" else "📡 Transmitir do PlayStation · Remote Play") { dialog?.dismiss();openPackage(stream) }
-            viaNotebook -> primary(box,"📡 Transmitir do Switch pelo notebook") { dialog?.dismiss();notebook(game) }
-            game.code.isEmpty() && !game.key.startsWith("local:") -> primary(box,"🖥 Jogar no notebook · Moonlight") { dialog?.dismiss();notebook(game) }
-            rom -> primary(box,"Procurar a ROM no Drive") { driveSearch(game) }
-        }
-        if(stream!=null)box.addView(text("Abrir o jogo direto não é possível: escolha-o no console depois de conectar.",13f))
-        if(lastDrawKey==game.key)add(box,button("🎲 Sortear novamente") { draw() })
-        if(viaNotebook)box.addView(text("Abra o jogo no Switch. O notebook liga o SysDVR e o Moonlight mostra a tela.",13f))
-        if(rom && game.localUri==null && !waiting && !linked(game) && !game.downloadable)box.addView(text("O notebook não tem esta ROM. Escolha o arquivo no Drive uma vez; depois o download é direto.",13f))
-        val quick=row();horizontal(box,quick)
-        add(quick,button(if(store.favorite(game))"★ Favorito" else "☆ Favoritar") { toggleFavorite(game);details(game) })
-        if(rom)add(quick,button(if(SpaceStore(store).pinned(game))"📌 Fixado" else "📌 Fixar") {
-            runCatching { SpaceStore(store).setPinned(game,!SpaceStore(store).pinned(game));render();details(game) }.onFailure(::failure)
-        })
-        if(rom)add(quick,button("💾 Saves") { gameSaves(game) })
-        if(game.id.isBlank() && rom)add(quick,button("📚 Adicionar à Biblioteca") { addToLibrary(game) })
-        val progress=expandable(box,"Progresso e tempo",expandedTrackingKey==game.key) { expandedTrackingKey=if(it)game.key else null }
-        val tracking=store.tracking(game)
-        for((field,label) in listOf("iniciado" to "Iniciado","finalizado" to "Finalizado","platinado" to "Platinado"))add(progress,button((if(tracking.optBoolean(field))"✓ " else "○ ")+label) {
-            store.setProgress(game,field,!tracking.optBoolean(field))
-            if(GameLogic.offerRemoval(tracking.optBoolean("finalizado"),store.tracking(game).optBoolean("finalizado"),game.localUri!=null) && !SpaceStore(store).pinned(game))offerRomRemoval(game) else details(game)
-        })
-        if(game.id.isNotBlank()) { // nota só vale para jogo da Biblioteca; ROM solta não cria cadastro
-            val nota=TrackingRules.value(tracking,"nota") as Double?
-            progress.addView(text("Nota (0–11): ${if(NotaRules.special(nota))"✦ " else ""}${TrackingRules.label(nota)}",16f).apply { setTypeface(null,Typeface.BOLD);NotaRules.color(nota)?.let { setTextColor(it) } })
-            val rating=row();horizontal(progress,rating)
-            for((label,delta) in listOf("−1" to -1.0,"−0,1" to -0.1,"+0,1" to 0.1,"+1" to 1.0))add(rating,button(label) { store.setNota(game,TrackingRules.adjust(nota,delta));details(game) })
-            if(nota!=null)add(rating,button("Limpar") { store.setNota(game,null);details(game) })
-        }
-        val minutes=store.prefs.getLong("time:${game.key}",0)/60
-        val sessions=tracking.optJSONObject("_play_sessions")?.let { values -> values.keys().asSequence().sumOf { values.optLong(it) } } ?: 0L
-        progress.addView(text("$minutes min neste celular · ${sessions/60} min em sessões compartilhadas na Biblioteca. Novas sessões sincronizam pela nuvem.",12f))
-        val more=expandable(box,"Mais opções")
-        if(rom && game.pcLocal && game.code !in setOf("NDS","3DS"))add(more,button("🖥 Jogar no notebook · Moonlight") { dialog?.dismiss();notebook(game) })
-        if(game.code=="PS" && packageManager.getLaunchIntentForPackage("com.github.stenzek.duckstation")!=null)add(more,button("Abrir DuckStation · escolher jogo") { dialog?.dismiss();openPackage("com.github.stenzek.duckstation") })
-        if(rom) {
-            add(more,button("Usar outra ROM deste celular") { dialog?.dismiss();pickRom(game,false) })
-            add(more,button("Escolher o arquivo no Drive") { driveSearch(game) })
-        }
-        if(game.code in setOf("PS","PSP","3DS"))add(more,button("Texturas HD deste sistema") { textures(game) })
-        if(game.id.isNotBlank())add(more,button("✎ Editar dados (gênero, comentário…)") { editGame(game) })
-        ExtrasRules.coverTarget(game.id,game.cover)?.let { target -> add(more,button("🖼 Trocar capa") { coverSearch(game,target) }) }
-        if(game.localUri!=null || game.drive)add(more,button("🗑 Remover…") { offerRomRemoval(game) })
-        help(more,"Voltar ao PyRetro","Use Recentes → PyRetro para retornar; coleção, busca e posição ficam guardadas. Para encerrar o jogo, use o menu do emulador.")
-        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
-    }
-    /** Baixar em um toque: arquivo vinculado, ou o que o notebook tem (acervo ou Drive pelo rclone). */
-    private fun quickDownload(game:Game) {
-        if(store.tree(game.code)==null) {
-            downloadAfterFolder=game;dialog?.dismiss();message("Escolha a pasta Jogos do celular; cada sistema fica em Jogos/<sistema>.");pickFolder("ROOT");return
-        }
-        val current=store.prefs.getString("cloud:${game.key}",null)
-        if(current!=null && RomSource.parse(current)==null) { enqueueAndStart(game);return }
-        // Notebook fora do ar e conta Google conectada: vai direto ao Drive.
-        if(!store.online && drive.connected) { driveDirect(game);return }
-        if(!game.downloadable) { if(current!=null)enqueueAndStart(game) else if(drive.connected)driveDirect(game) else driveSearch(game);return }
-        message("Consultando o notebook…")
-        work.execute { val result=runCatching { RomSource.playable(store.romOptions(game)) { store.accepts(game.code,it) } };runOnUiThread {
-            if(isFinishing || isDestroyed)return@runOnUiThread
-            result.onSuccess { options -> when(options.size) {
-                0 -> offerBundle(game)
-                1 -> linkNotebook(game,options[0])
-                else -> show(AlertDialog.Builder(this).setTitle("Qual arquivo baixar?").setItems(options.map { "${it.file} · ${bytesLabel(it.size)}" }.toTypedArray()) { _,which -> linkNotebook(game,options[which]) }.setNegativeButton("Voltar",null))
-            } }.onFailure { error ->
-                if(current!=null)enqueueAndStart(game)
-                else if(drive.connected)driveDirect(game)
-                else show(AlertDialog.Builder(this).setTitle("Notebook indisponível").setMessage("${error.message ?: "Sem resposta."}\n\nSem o notebook, escolha o arquivo no Drive: ele fica vinculado ao jogo e o download começa em seguida.").setNegativeButton("Voltar",null).setPositiveButton("Procurar no Drive") { _,_ -> driveSearch(game) })
-            }
-        } }
-    }
-    /** Sem arquivo único: se o notebook tem um CUE/M3U que o sistema abre, oferece o conjunto inteiro. */
-    private fun offerBundle(game:Game) {
-        work.execute {
-            val result=runCatching {
-                val entries=store.romOptions(game).filter { BundleRules.isDescriptor(it.file) && store.accepts(game.code,it.file.substringAfterLast('/')) }
-                    .sortedBy { if(it.file.endsWith(".m3u",true))0 else 1 } // M3U (todos os discos) antes do CUE de um disco só
-                entries.map { option -> val (id,members)=BundleStore(store,SafStorage(store)).manifest(game.code,option.file);Triple(option.file,id,members) }
-            }
-            runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
-                val bundles=result.getOrElse { emptyList() }
-                if(bundles.isEmpty()) { show(AlertDialog.Builder(this).setTitle("Formato que o celular não abre").setMessage("O notebook tem ${game.name}, mas nem num arquivo único que o celular abra nem num CUE/M3U completo (${result.exceptionOrNull()?.message ?: "PS1 precisa de CHD, PBP ou CUE com todas as faixas"}). Converta no PC ou escolha outro arquivo no Drive.").setNegativeButton("Voltar",null).setPositiveButton("Procurar no Drive") { _,_ -> driveSearch(game) });return@runOnUiThread }
-                show(AlertDialog.Builder(this).setTitle("Baixar o conjunto de discos").setItems(bundles.map { (entry,_,members) -> "${entry.substringAfterLast('/')} · ${members.size} arquivos · ${bytesLabel(members.sumOf { it.size })}" }.toTypedArray()) { _,which ->
-                    val (entry,id,members)=bundles[which]
-                    store.prefs.edit().putString("cloud:${game.key}",BundleRef(game.code,entry,id,members.sumOf { it.size }).encoded()).remove("cloud-auto:${game.code}:${game.key}").apply()
-                    enqueueAndStart(game)
-                }.setNegativeButton("Voltar",null))
-            }
-        }
-    }
-    // --- Conta Google: Drive direto do celular ---
-    private fun connectGoogle(after:Game?=null) {
-        driveAfterConsent=after;message("Abrindo a conta Google…")
-        drive.authorize().addOnSuccessListener { result ->
-            if(result.hasResolution()) runCatching { startIntentSenderForResult(result.pendingIntent!!.intentSender,20,null,0,0,0) }.onFailure(::failure)
-            else googleConnected()
-        }.addOnFailureListener { error -> failure(IllegalStateException("O Google recusou a conexão: ${error.message}. Confira se esta conta está entre os usuários de teste do projeto PyRetro no Google Cloud.",error)) }
-    }
-    private fun googleConnected() {
-        work.execute { val result=runCatching { drive.account() };runOnUiThread {
-            result.onSuccess { email -> message("Conta Google conectada: $email.");driveAfterConsent?.let { game -> driveAfterConsent=null;driveDirect(game) } }.onFailure(::failure)
-        } }
-    }
-    /** Procura a ROM em Jogos/ROMs/<sistema> do Drive da conta e baixa por ela. */
-    private fun driveDirect(game:Game) {
-        message("Procurando ${game.name} no seu Drive…")
-        work.execute {
-            val result=runCatching { DriveSource.candidates(drive.romFiles(game.code),game.romName.ifBlank { game.name }) { store.accepts(game.code,it) } }
-            runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
-                result.onSuccess { found -> when(found.size) {
-                    0 -> show(AlertDialog.Builder(this).setTitle("Não achei no Drive").setMessage("Não há em Jogos/ROMs/${game.code} um arquivo de ${game.name} que o celular abra sozinho (PS1 precisa de CHD ou PBP). Escolha o arquivo manualmente.").setNegativeButton("Voltar",null).setPositiveButton("Procurar no Drive") { _,_ -> driveSearch(game) })
-                    1 -> linkDrive(game,found[0])
-                    else -> show(AlertDialog.Builder(this).setTitle("Qual arquivo baixar?").setItems(found.map { "${it.name} · ${bytesLabel(it.size)}" }.toTypedArray()) { _,which -> linkDrive(game,found[which]) }.setNegativeButton("Voltar",null))
-                } }.onFailure { error -> if(error is GoogleConsentNeeded)connectGoogle(game) else failure(error) }
-            }
-        }
-    }
-    private fun notificationsAllowed()=Build.VERSION.SDK_INT<33 || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)==android.content.pm.PackageManager.PERMISSION_GRANTED
-    /** Android 13+: a notificação do download em segundo plano precisa de permissão. Pede no máximo
-     *  duas vezes (depois disso o próprio Android não mostra mais); Opções tem o atalho permanente. */
-    private fun askNotifications() {
-        val asked=store.prefs.getInt("asked-notifications-count",0)
-        if(!notificationsAllowed() && asked<2) { store.prefs.edit().putInt("asked-notifications-count",asked+1).apply();requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),30) }
-    }
-    private fun linkDrive(game:Game,ref:DriveRef) {
-        DownloadFlow.linkDrive(store,game,ref)
-        enqueueAndStart(game)
-    }
-    private fun linkNotebook(game:Game,option:RomOption) {
-        DownloadFlow.linkNotebook(store,game,option)
-        enqueueAndStart(game)
-    }
-    private fun enqueueAndStart(game:Game) {
-        runCatching { DownloadFlow.enqueue(store,game);askNotifications() }
-            .onSuccess { dialog?.dismiss();message("⬇ ${game.name}: baixando. O andamento aparece no topo; o jogo fica pronto em Neste celular.") }
-            .onFailure { error -> show(AlertDialog.Builder(this).setTitle("Downloads").setMessage(error.message ?: "Não foi possível iniciar o download.").setNegativeButton("Voltar",null).setPositiveButton("Abrir fila") { _,_ -> downloads() }) }
-    }
-    private fun driveSearch(game:Game) {
-        val formats=store.extensionsFor(game.code).filter { it !in setOf("cue","m3u") }.sorted().joinToString(", ")
-        show(AlertDialog.Builder(this).setTitle("Escolher no Drive").setMessage("No seletor, abra o Google Drive e escolha:\nJogos/ROMs/${game.code}/${game.romName.ifBlank { game.name }}\n\nFormatos: $formats. O arquivo fica vinculado a ${game.name} e o download começa em seguida.")
-            .setNegativeButton("Voltar",null).setPositiveButton("Abrir seletor") { _,_ -> pickRom(game,true) })
-    }
-    /** Mostra o que sai e o que fica (usado por outro descritor) antes de remover um conjunto. */
-    private fun offerBundleRemoval(game:Game) {
-        val tree=store.tree(game.code) ?: return;val entry=game.localUri ?: return
-        message("Conferindo os arquivos de ${game.name}…")
-        work.execute {
-            val result=runCatching { BundleStore(store,SafStorage(store,12L*1024*1024*1024)).removalPlan(tree,entry) }
-            runOnUiThread { if(isFinishing || isDestroyed)return@runOnUiThread
-                result.onFailure(::failure).onSuccess { (_,plan) ->
-                    if(!plan.complete || plan.remove.isEmpty()) { show(AlertDialog.Builder(this).setTitle("Remoção não é segura").setMessage("Algum CUE/M3U da pasta Jogos/${game.code} não pôde ser lido (ou nada é só deste jogo), então não dá para garantir que as faixas não são usadas por outro jogo. Nada foi removido.").setPositiveButton("Voltar") { _,_ -> details(game) });return@onSuccess }
-                    val text="Sai do celular (${plan.remove.size}):\n"+plan.remove.joinToString("\n") { "• $it" }+
-                        (if(plan.preserve.isEmpty())"" else "\n\nFica, porque outro jogo usa (${plan.preserve.size}):\n"+plan.preserve.joinToString("\n") { "• $it" })+
-                        "\n\nProgresso, saves, states, BIOS, texturas e a origem no PC/Drive são preservados."
-                    show(AlertDialog.Builder(this).setTitle("Remover ${game.name} do celular?").setMessage(text).setNegativeButton("Manter") { _,_ -> details(game) }.setPositiveButton("Remover") { _,_ ->
-                        work.execute { val done=runCatching { BundleStore(store,SafStorage(store,12L*1024*1024*1024)).remove(tree,entry,plan) }
-                            runOnUiThread { done.onSuccess { n -> store.prefs.edit().remove("rom:${game.key}").apply();message("${game.name}: $n arquivo(s) removido(s) do celular.");reloadLocal() }.onFailure(::failure) } }
-                    })
-                }
-            }
-        }
-    }
-    private fun offerRomRemoval(game:Game) {
-        val options=arrayOf("Só deste celular", "Só do Drive (lixeira)", "Dos dois")
-        show(AlertDialog.Builder(this).setTitle("Remover ROM: ${game.name}").setItems(options) { _,which -> removalPreview(game,listOf("local","drive","both")[which]) }.setNegativeButton("Voltar") { _,_ -> details(game) })
-    }
-    private fun removalPreview(game:Game,scope:String) {
-        message("Conferindo arquivos exclusivos e proteções…")
-        work.execute {
-            val result=runCatching { RomRemoval(store).plan(game,scope,activeGame?.key==game.key) }
-            runOnUiThread { result.onFailure(::failure).onSuccess { plan ->
-                val description=listOf("Feche os emuladores. Saves, estados, capa, texturas, cadastro e progresso ficam.",
-                    "Celular (${plan.local.size}):\n"+plan.local.joinToString("\n") { "• ${it.path}" },
-                    "Drive (${plan.drive.size}):\n"+plan.drive.joinToString("\n") { "• ${it.path}" },
-                    if(plan.preserved.isEmpty())"" else "Compartilhados preservados: ${plan.preserved.joinToString()}",
-                    plan.warnings.joinToString("\n"),plan.blocked.joinToString("\n"),
-                    "Celular: lixeira recuperável em Opções. Drive: lixeira do Google.").filter { it.isNotBlank() }.joinToString("\n\n")
-                val builder=AlertDialog.Builder(this).setTitle("Prévia: ${game.name}").setMessage(description).setNegativeButton("Manter") { _,_ -> details(game) }
-                if(plan.blocked.isEmpty() && (plan.local.isNotEmpty() || plan.drive.isNotEmpty()))builder.setPositiveButton(plan.confirmation) { _,_ ->
-                    message("Revalidando a prévia e removendo…")
-                    work.execute { val done=runCatching { RomRemoval(store).apply(game,plan,activeGame?.key==game.key) }
-                        runOnUiThread { done.onSuccess { rows -> val failures=rows.filter { it.second.isFailure }
-                            message("${rows.size-failures.size} arquivo(s) para a lixeira. "+if(failures.isEmpty())"Versões recuperáveis; saves preservados." else failures.joinToString { "${it.first}: ${it.second.exceptionOrNull()?.message}" });catalog=store.cached();reloadLocal()
-                        }.onFailure(::failure) }
-                    }
-                };show(builder)
-            } }
-        }
-    }
     private fun romTrash() {
         val items=store.prefs.all.filterKeys { it.startsWith("rom-trash:") };val box=column();box.addView(text("Lixeira de ROMs deste celular",22f))
         box.addView(text("Arquivos ficam na pasta original com nome .pyretro-trash-. Saves e estados não entram nesta lixeira. No Drive, recupere pela lixeira do Google.",13f))
@@ -987,64 +172,18 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private fun folderState(code:String)=when(StatusStore(store).folders().firstOrNull { it.code==code }?.access) {
         FolderAccess.READ_WRITE -> "✓";FolderAccess.READ_ONLY -> "somente leitura";FolderAccess.RESELECT -> "permissão expirada";else -> "escolher"
     }
-    /** Estrutura fechada: Jogos/<sistema>, RetroArch/saves|states por sistema, emuladores e cores padrão. */
-    private fun settings() {
-        val box=column();box.addView(text("Opções",23f))
-        box.addView(text("Configurar este celular",18f).apply { setTypeface(null,Typeface.BOLD) })
-        add(box,button("📁 Pasta Jogos · ${folderState("ROOT")}") { dialog?.dismiss();pickFolder("ROOT") })
-        add(box,button("📁 Pasta RetroArch (saves) · ${folderState("retroarch")}") { pickSyncFolder("retroarch") })
-        val server=EditText(this).apply { setSingleLine();setText(store.base());hint="https://endereço-do-pyretro";setTextColor(appForeground);setHintTextColor(Color.LTGRAY) };box.addView(server)
-        add(box,button("Salvar endereço do notebook") { runCatching { store.setBase(server.text.toString()) }.onFailure { failure(it);return@button };probeNotebook(force=true);message("Endereço salvo.") })
-        add(box,button("Atualizar Biblioteca e catálogo") { refreshCatalog() })
-        box.addView(text("Conta Google",18f).apply { setTypeface(null,Typeface.BOLD) })
-        if(drive.connected) {
-            box.addView(text("Conectada: ${drive.email.ifBlank { "conta Google" }}. ROMs do Drive (Jogos/ROMs) baixam direto, sem o notebook.",13f))
-            add(box,button("Desconectar conta Google") { drive.disconnect();message("Conta Google desconectada deste app. Para revogar o acesso, use myaccount.google.com → Segurança.");dialog?.dismiss() })
-        } else {
-            box.addView(text("Conecte para baixar ROMs do seu Drive (Jogos/ROMs) mesmo com o notebook desligado.",13f))
-            add(box,button("Conectar conta Google") { dialog?.dismiss();connectGoogle() })
-        }
-        box.addView(text("ROMs ficam em Jogos/<sistema>; saves e estados, por sistema na pasta RetroArch. Biblioteca, progresso, favoritos e novas sessões ficam neste celular e sincronizam pelo Drive, mesmo com o notebook desligado.",12f))
-        if(!notificationsAllowed()) add(box,button("🔔 Permitir notificações de download") {
-            runCatching { startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,packageName)) }.onFailure(::failure) })
-        box.addView(text("Uso",18f).apply { setTypeface(null,Typeface.BOLD) })
-        help(box,"Controles e navegação","${glyph("A")} abre · ${glyph("B")} volta · ${glyph("X")} favorita · ${glyph("Y")} pesquisa. LB/RB trocam páginas; gatilhos trocam coleções; Menu abre Opções. A fila continua em segundo plano e pode ser pausada em Downloads.")
-        val pref=store.prefs.getString("ui:glyphs","auto").orEmpty()
-        add(box,button("Botões: ${GlyphRules.label(pref,glyphFamily)}") {
-            val next=GlyphRules.choices[(GlyphRules.choices.indexOf(pref)+1).mod(GlyphRules.choices.size)]
-            store.prefs.edit().putString("ui:glyphs",next).apply();updateGlyphs();settings()
-        })
-        add(box,button("Downloads") { downloads() })
-        add(box,button("Espaço e jogos fixados") { spaceManager() })
-        add(box,button("Lixeira de ROMs deste celular") { romTrash() })
-        add(box,button("Saves e estados · todos os jogos") { syncFiles() })
-        add(box,button("🗂 Organizar ROMs novas (notebook)") { organizeRoms() })
-        val advanced=expandable(box,"Avançado")
-        add(advanced,button("Índice manual do Drive") { cloudMenu() })
-        add(advanced,button("Playlists do RetroArch") { playlists() })
-        add(advanced,button("Texturas HD") { textures() })
-        add(advanced,button("Apps instalados · emuladores e streaming") { connectionApps() })
-        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
-    }
     private fun refreshCatalog(silent:Boolean=false) {
         if(!silent) { dialog?.dismiss();message("Atualizando Biblioteca e catálogo…") }
         work.execute { runCatching { store.refresh() }.onSuccess { fresh -> runOnUiThread {
-            catalog=fresh;message(if(silent)"Online · catálogo atualizado agora." else "Catálogo atualizado. As capas são guardadas conforme você navega.");reloadLocal { prefetchCovers() }
+            catalog=fresh;message(if(silent)"Online · catálogo atualizado agora." else "Catálogo atualizado. As capas são guardadas conforme você navega.");reloadLocal { AppSync.prefetchCovers(this,store,drive,games) }
         } }.onFailure { store.online=false;runOnUiThread { if(!silent)failure(it) } } }
     }
     private fun syncTracking(silent:Boolean=false) {
         if(!silent) { dialog?.dismiss();message("Enviando progresso e tempo…") }
         work.execute { runCatching { store.synchronize() }.onSuccess { result -> val fresh=store.cached();runOnUiThread {
-            catalog=fresh;message(if(silent)"Online · catálogo atualizado. $result" else result);reloadLocal { prefetchCovers() }
+            catalog=fresh;message(if(silent)"Online · catálogo atualizado. $result" else result);reloadLocal { AppSync.prefetchCovers(this,store,drive,games) }
         } }.onFailure { runOnUiThread { if(!silent)failure(it) } } }
     }
-    /** Notebook respondeu: atualiza o que é só leitura ou já protegido por conflito no servidor.
-     *  Saves continuam explícitos (precisam dos emuladores fechados e de decisão em conflitos). */
-    private fun automaticUpdate(force:Boolean=false) {
-        AppSync.automaticUpdate(this,store,drive,work,force,catalog.isEmpty()) { fresh,note -> runOnUiThread { catalog=fresh;message(note);reloadLocal { prefetchCovers() } } }
-    }
-    /** Capas dos jogos do celular, favoritos e fixados ficam no cache para o modo offline. */
-    private fun prefetchCovers()=AppSync.prefetchCovers(this,store,drive,games)
     /** Saves e estados pela nuvem (core/cloud_saves no notebook): compara, mostra e só então sincroniza. */
     private fun cloudSaves(title:String="☁ Saves na nuvem",filter:((String,String)->Boolean)?=null,showAll:Boolean=false) {
         val box=column();box.addView(text(title,23f));val info=text("Comparando com o Drive…",15f);box.addView(info)
@@ -1109,64 +248,6 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             }
         }
     }
-    private fun statusCenter() {
-        val box=column();val prefs=store.prefs;val pending=StatusStore(store).pending()
-        fun date(key:String)=prefs.getLong(key,0).takeIf { it>0 }?.let(::versionDate) ?: "ainda não"
-        fun line(title:String,value:String):TextView { box.addView(text(title,18f).apply { setTypeface(null,Typeface.BOLD) });return text(value,14f).also(box::addView) }
-        box.addView(text("Situação",23f))
-        fun localSummary()=(if(localScanAt==0L)"Lendo as pastas…" else "${games.count { it.localUri!=null }} jogo(s) prontos para jogar · ${catalog.size} no catálogo (${date("updated")}).")+
-            if(localProblems.isEmpty())"" else "\nNão foi possível ler: ${localProblems.joinToString()}."
-        val local=line("🎮 Neste celular",localSummary())
-        if(folderState("ROOT")!="✓" && prefs.getString("tree:ROOT",null)==null)add(box,button("Escolher a pasta Jogos") { dialog?.dismiss();pickFolder("ROOT") })
-        else if(localProblems.isNotEmpty())add(box,button("Corrigir pastas") { folderStatuses() })
-        fun notebookSummary()=when { store.base().isBlank() -> "Endereço não configurado.";store.online -> "Online para transmissões e manutenção do PC.";else -> "Offline. Biblioteca local, jogos do celular e acesso direto ao Drive continuam disponíveis." }
-        val notebook=line("🖥 Notebook",notebookSummary())
-        val test=button("Testar conexão") {}
-        if(store.base().isBlank())add(box,button("Configurar endereço") { settings() }) else add(box,test)
-        val tracking=store.pending()
-        line("⏳ Biblioteca, progresso e tempo",if(tracking==0)"Tudo enviado. Última sincronização: ${date("library-sync-at")}." else "$tracking alteração(ões) guardada(s) neste celular para enviar pela nuvem.${if(pending.any { it.conflict })" Algumas precisam de conferência." else ""}")
-        add(box,button("Sincronizar Biblioteca agora") { syncTracking() })
-        if(pending.any { it.conflict })add(box,button("Conferir pendências") { pendingChanges() })
-        val rows=runCatching { queue().snapshot() }.getOrDefault(emptyList()).filter { it.state!=DownloadState.DONE }
-        if(rows.isNotEmpty()) {
-            line("⬇ Downloads","${rows.size} na fila · ${rows.count { it.state==DownloadState.FAILED }} com falha · ${rows.count { it.state==DownloadState.PAUSED }} pausado(s).")
-            add(box,button("Abrir downloads") { downloads() })
-        }
-        val sync=FileSync(store);val cloudAt=store.context.getSharedPreferences("cloud-sync",0).getLong("at",0)
-        line("💾 Saves",if(sync.retroarchTree()==null)"Pasta RetroArch ainda não escolhida." else
-            "Pastas prontas. Última sincronização pela nuvem: ${if(cloudAt>0)versionDate(cloudAt) else "ainda não"}. Use 💾 Saves na ficha de cada jogo.")
-        if(sync.retroarchTree()==null)add(box,button("Escolher pasta RetroArch") { pickSyncFolder("retroarch") })
-        // Escolha antiga (antes da 0.6.1) em RetroArch/saves: os saves do RetroArch não aparecem.
-        else sync.retroarchTree()?.let { SaveRules.retroarchFolderProblem(DocumentsContract.getTreeDocumentId(it)) }?.let { problem ->
-            box.addView(text("⚠ $problem",14f).apply { setTextColor(Color.rgb(255,207,112)) })
-            add(box,button("Escolher a pasta RetroArch de novo") { pickSyncFolder("retroarch") })
-        }
-        line("☁ Saves na nuvem (novo)","Sincroniza saves e estados direto pelo Drive (pasta Jogos/PyRetro-Nuvem), sem o notebook ligado. Conflito nunca sobrescreve: você escolhe.")
-        add(box,button("Comparar e sincronizar") { dialog?.dismiss();cloudSaves() })
-        val technical=expandable(box,"Detalhes técnicos")
-        val contact=text(StatusStore(store).connectionSummary(::versionDate),13f);technical.addView(contact)
-        val partials=text("Consultando cópias parciais…",13f);technical.addView(partials)
-        technical.addView(text("${prefs.all.keys.count { it.startsWith("cloud:") }} jogo(s) com origem de download vinculada.",13f))
-        add(technical,button("Pastas e permissões") { folderStatuses() })
-        add(technical,button("Apps instalados") { connectionApps() })
-        val opened=show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Fechar",null))
-        updateLocalStatus={ if(dialog===opened)local.text=localSummary() }
-        test.setOnClickListener {
-            test.isEnabled=false;notebook.text="Testando conexão…"
-            work.execute { val result=runCatching { store.checkConnection() };runOnUiThread {
-                if(dialog===opened && !isFinishing && !isDestroyed) {
-                    contact.text=StatusStore(store).connectionSummary(::versionDate);test.isEnabled=true
-                    notebook.text=if(result.isSuccess)"Online. PyRetro respondeu em ${versionDate(System.currentTimeMillis())}." else "Sem resposta. Confira o Tailscale e o notebook; o modo offline continua."
-                    if(result.isSuccess) { store.online=true;notebookOnline(force=true) }
-                }
-            } }
-        }
-        images.execute { val result=runCatching { DownloadStore(store).jobs() };runOnUiThread {
-            if(dialog===opened && !isFinishing && !isDestroyed)partials.text=result.fold(
-                { jobs -> "${jobs.size} cópia(s) parcial(is) · ${bytesLabel(jobs.sumOf { it.getLong("bytes") })} no armazenamento privado." },
-                { "Não foi possível ler as cópias parciais. Abra Downloads para conferir." })
-        } }
-    }
     private fun pendingChanges() {
         val pending=StatusStore(store).pending().groupBy { it.key }
         paged("Alterações pendentes",pending.map { (key,items) ->
@@ -1207,7 +288,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                 if(installed!=null)openPackage(installed)
             }.apply { isEnabled=installed!=null;alpha=if(installed!=null)1f else 0.55f })
         }
-        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar") { _,_ -> statusCenter() })
+        show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun paged(title:String,items:List<Pair<String,()->Unit>>,page:Int=0) {
         val box=column();box.addView(text(title,22f))
@@ -1405,7 +486,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
                     val game=games.find { it.key==job.getString("key") } ?: Game("",job.getString("key"),job.getString("title"),store.folders[job.getString("code")] ?: "",job.getString("code"))
                     show(AlertDialog.Builder(this).setTitle(game.name).setMessage("Continuar a cópia ou descartar somente o checkpoint deste download? O jogo existente e a origem não serão apagados.").setNegativeButton("Voltar",null).setNeutralButton("Descartar parcial") { _,_ ->
                         work.execute { runCatching { queue().remove(game.key);DownloadStore(store).discard(game.key) }.onSuccess { runOnUiThread { message("Cópia parcial descartada.") } }.onFailure { runOnUiThread { failure(it) } } }
-                    }.setPositiveButton("Adicionar à fila") { _,_ -> quickDownload(game) });Unit
+                    }.setPositiveButton("Adicionar à fila") { _,_ -> runCatching { DownloadFlow.enqueue(store,game) }.onSuccess { message("⬇ ${game.name}: na fila.") }.onFailure(::failure) });Unit
                 } })
             } }.onFailure { runOnUiThread { failure(it) } } }
         })
@@ -1521,23 +602,6 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         }
     }
     private fun confirmOrganize(question:String,action:()->Unit) { show(AlertDialog.Builder(this).setMessage(question).setNegativeButton("Voltar") { _,_ -> organizeRoms() }.setPositiveButton("Confirmar") { _,_ -> action() }) }
-    /** ROM que só existe no celular ganha cadastro na Biblioteca do notebook; favorito, tempo e
-     *  fixação passam para a chave do cadastro. */
-    private fun addToLibrary(game:Game) {
-        val name=GameLogic.fileLabel(game.romName.substringAfterLast('/').ifBlank { game.name })
-        dialog?.dismiss();message("Cadastrando ${game.name} na Biblioteca…")
-        work.execute {
-            val result=runCatching { val response=store.cloudLibrary.register(game,name);response to store.cached() }
-            runOnUiThread { result.onSuccess { (response,fresh) ->
-                val id=response.getString("id");val registered=fresh.firstOrNull { it.id==id }
-                if(registered!=null && registered.key!=game.key)runCatching { store.migrateKeys(mapOf(game.key to registered.key)) }
-                if(game.localUri!=null)registered?.let { store.prefs.edit().putString("rom:${it.key}",game.localUri.toString()).apply() }
-                catalog=fresh;dialog?.dismiss()
-                message(if(response.optBoolean("created"))"${game.name} entrou na Biblioteca." else "${game.name} já estava na Biblioteca; agora está ligado a este arquivo.")
-                reloadLocal()
-            }.onFailure(::failure) }
-        }
-    }
     private fun syncFiles() {
         val sync=FileSync(store);val box=column();box.addView(text("Saves e estados",22f))
         box.addView(text("Sincroniza direto pelo Drive (pasta Jogos/PyRetro-Nuvem), sem o notebook ligado. Feche os emuladores. Conflito nunca sobrescreve: você escolhe; versões substituídas ficam no histórico.",13f))
@@ -1549,164 +613,13 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         show(AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(box) }).setNegativeButton("Voltar",null))
     }
     private fun pickFolder(code:String) { pickingCode=code;startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),10) }
-    private fun pickRom(game:Game,cloud:Boolean) { pickingGame=game;pickingCloud=cloud;startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION),11) }
-    @Deprecated("Compatibilidade com Activity sem dependências extras")
-    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
-        super.onActivityResult(requestCode,resultCode,data)
-        if(requestCode==20) { // consentimento da conta Google
-            if(resultCode!=RESULT_OK) { driveAfterConsent=null;message("Conta Google não conectada.");return }
-            runCatching { drive.resultFromIntent(data) }.onSuccess { googleConnected() }.onFailure(::failure);return
-        }
-        if(resultCode!=RESULT_OK || data==null)return
-        if(requestCode in listOf(14,15)) {
-            val code=store.prefs.getString("index-picking",null) ?: return
-            val uris=if(data.clipData!=null)(0 until data.clipData!!.itemCount).map { data.clipData!!.getItemAt(it).uri } else listOfNotNull(data.data)
-            if(uris.isEmpty())return
-            runCatching {
-                uris.forEach { contentResolver.takePersistableUriPermission(it,Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                val sources=CloudIndex(store).sources(code);val seen=(0 until sources.length()).map { sources.getJSONObject(it).getString("uri") }.toMutableSet()
-                uris.forEach { if(seen.add(it.toString()))sources.put(JSONObject().put("uri",it.toString()).put("tree",requestCode==15)) }
-                analyzeCloud(code,sources)
-            }.onFailure(::failure);return
-        }
-        val uri=data.data ?: return
-        if(requestCode==13) {
-            runCatching {
-                require(data.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION!=0) { "A pasta precisa permitir leitura e escrita." }
-                contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                FileSync(store).setTree(syncPicking,uri);message("Pasta de sincronização definida. Analise antes de copiar.");syncFiles()
-            }.onFailure(::failure);return
-        }
-        if(requestCode==12) {
-            val name=store.displayName(uri)
-            if(name.substringAfterLast('.').lowercase() !in setOf("zip","7z","rar")) { message("Escolha ZIP, 7z ou RAR.");return }
-            val code=textureCode;val id=textureId
-            show(AlertDialog.Builder(this).setTitle("Instalar pacote local?").setMessage("$name\n$code · $id\nFeche o emulador. Texturas diferentes existentes não serão substituídas.").setNegativeButton("Cancelar",null).setPositiveButton("Instalar") { _,_ -> runTexture { progress -> TextureStore(store).local(uri,code,id,progress) } });return
-        }
-        runCatching {
-            if(requestCode==10 && data.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION != 0)
-                contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            else contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }.onFailure { message("Permissão temporária: pode ser necessário selecionar o arquivo novamente após reiniciar.") }
-        if(requestCode==10) { store.saveTree(pickingCode,uri);val pending=downloadAfterFolder;downloadAfterFolder=null;reloadLocal { if(pending!=null)quickDownload(pending) } }
-        if(requestCode==11) {
-            val game=pickingGame ?: return;val name=store.displayName(uri)
-            if(!pickingCloud && uri.authority!="com.android.externalstorage.documents") { message("Escolha uma ROM no armazenamento local. Para o Drive, use Escolher o arquivo no Drive.");return }
-            if(!store.accepts(game.code,name)) { message("Esse formato não corresponde a ${game.code}.");return }
-            if(pickingCloud) {
-                if(name.substringAfterLast('.').lowercase() in setOf("cue","m3u")) { message("CUE/M3U dependem de outros arquivos. Escolha CHD ou PBP.");return }
-                // Escolher no Drive já é a decisão: vincula ao jogo e começa o download.
-                store.prefs.edit().putString("cloud:${game.key}",uri.toString()).remove("cloud-auto:${game.code}:${game.key}").apply()
-                quickDownload(game);return
-            }
-            show(AlertDialog.Builder(this).setTitle("Usar esta ROM").setMessage("Usar $name para ${game.name}?").setNegativeButton("Cancelar",null).setPositiveButton("Usar") { _,_ ->
-                store.prefs.edit().putString("rom:${game.key}",uri.toString()).apply();game.localUri=uri
-                reloadLocal { details(game) }
-            })
-        }
-    }
-    override fun onConfigurationChanged(newConfig:android.content.res.Configuration) { super.onConfigurationChanged(newConfig);adaptLayout();render() }
     private fun openPackage(name:String) {
         val intent=packageManager.getLaunchIntentForPackage(name)
         if(intent==null) { message("Aplicativo não instalado: $name");return }
         startActivity(intent)
     }
-    private fun launchLocal(game:Game) {
-        try {
-            val intent=GameLauncher.intentFor(this,store,game)
-            activeGame=game;launchedAt=SystemClock.elapsedRealtime();leftForGame=false;startActivity(intent)
-            store.prefs.edit().putLong("played:${game.key}",System.currentTimeMillis()).apply() // fileira Recentes do Início
-        } catch(error:Exception) { activeGame=null;failure(error) }
-    }
-    private fun notebook(game:Game) {
-        show(AlertDialog.Builder(this).setTitle("Jogar no notebook").setMessage("Iniciar o jogo no notebook e abrir o Moonlight? Você escolhe o computador no Moonlight. Essa opção precisa de conexão; os jogos locais continuam offline.").setNegativeButton("Só Moonlight") { _,_ -> openPackage("com.limelight") }.setPositiveButton("Iniciar no PC") { _,_ ->
-            message("Conferindo jogo no notebook…");work.execute { runCatching {
-                DownloadFlow.startOnNotebook(store,game)
-            }.onSuccess { runOnUiThread { message("Pedido enviado ao notebook.");openPackage("com.limelight") } }.onFailure { runOnUiThread { failure(it) } } }
-        })
-    }
-    /** Confere o notebook em segundo plano (só /api/csrf, no máximo 1×/min) para que o
-     *  estado online, o aviso do topo e o download de capas reflitam a conexão real, em vez de
-     *  ficar "Offline" até o usuário atualizar o catálogo à mão. Não baixa catálogo nem sincroniza. */
-    private fun probeNotebook(force:Boolean=false) {
-        val now=SystemClock.elapsedRealtime()
-        // Offline, a próxima tentativa não espera 1 min: o Tailscale pode ter acabado de ligar.
-        val wait=if(force || !store.online)5_000 else 60_000
-        if(probing || store.base().isBlank() || (lastProbeAt>0 && now-lastProbeAt<wait))return
-        probing=true;lastProbeAt=now
-        Thread {
-            val ok=store.probe()
-            runOnUiThread {
-                probing=false
-                if(isFinishing || isDestroyed)return@runOnUiThread
-                if(ok)notebookOnline()
-                else if(status.text.startsWith("Online ·"))message("Offline · notebook não respondeu. Catálogo em cache e jogos locais continuam disponíveis.")
-            }
-        }.apply { isDaemon=true }.start()
-    }
-    /** O notebook respondeu (sondagem ou "Testar conexão"): o aviso do topo deixa de dizer Offline. */
-    private fun notebookOnline(force:Boolean=false) {
-        val updated=store.prefs.getLong("updated",0).takeIf { it>0 }?.let(::versionDate)
-        val text=status.text.toString()
-        if(text.startsWith("Offline") || text.startsWith("Modo offline") || text.startsWith("Online ·"))
-            message(if(catalog.isEmpty())"Online · notebook conectado. Buscando o catálogo…" else "Online · notebook conectado. Catálogo de ${updated ?: "data desconhecida"}.")
-        if(collection=="wishlist")loadWishlist()
-        if(collection!="stream")render() // capas que faltavam no cache agora podem ser baixadas
-        automaticUpdate(force)
-    }
-    override fun onPause() {
-        // Downloads continuam com o app em segundo plano: o serviço mostra o progresso e o Pausar.
-        queueHandler.removeCallbacks(queueTick);if(runCatching { queue().running }.getOrDefault(false))DownloadService.follow(this)
-        if(::gridScroll.isInitialized) {
-            restoredScroll=gridScroll.scrollY;restoredPage=page;restorePosition=true
-            val selected=(currentFocus?.tag as? Game)?.key ?: lastSelectedKey
-            store.prefs.edit().putString("ui:collection",collection).putInt("ui:page",page).putInt("ui:scroll",restoredScroll)
-                .putString("ui:query",search.text.toString().take(256)).putString("ui:selected",selected)
-                .putString("ui:filter:$collection:platform",filterPlatform).putString("ui:filter:$collection:genre",filterGenre).apply()
-        }
-        super.onPause();scanOnResume=true;if(activeGame!=null)leftForGame=true
-    }
-    /** A casca em Compose (ShellActivity) abre a tela antiga numa coleção; com a activity já viva, só troca a coleção. */
-    override fun onNewIntent(intent:Intent) {
-        super.onNewIntent(intent);setIntent(intent)
-        intent.getStringExtra(EXTRA_SCREEN)?.let { openRequestedScreen(it) }
-        intent.getStringExtra(EXTRA_GAME)?.let { requestedGame=it;requestedAction=intent.getStringExtra(EXTRA_ACTION);openRequestedGame() }
-        intent.getStringExtra(EXTRA_COLLECTION)?.takeIf { it in COLLECTIONS.map { c -> c.first } }?.let { selectCollection(it) }
-    }
-    override fun onResume() {
-        super.onResume();queueHandler.removeCallbacks(queueTick);queueHandler.post(queueTick);queueHandler.postDelayed({ if(!isFinishing && !isDestroyed)prefetchCovers() },8000) // retoma a pré-busca de capas sempre que o app abre
-        if(scanOnResume) { scanOnResume=false;reloadLocal();probeNotebook();automaticUpdate() };val game=activeGame ?: return
-        if(!leftForGame)return
-        activeGame=null;leftForGame=false
-        // Voltou do jogo: envia os saves dele sem perguntar (conflito nunca é sobrescrito).
-        work.execute { runCatching { GameSaveSync.run(store,drive,game) }.getOrNull()?.takeIf { it.any }?.let { outcome -> runOnUiThread { message(outcome.text()) } } }
-        val elapsed=(SystemClock.elapsedRealtime()-launchedAt)/60000
-        if(elapsed<1)return
-        val minutes=EditText(this).apply { inputType=android.text.InputType.TYPE_CLASS_NUMBER;setText(elapsed.coerceAtMost(1440).toString()) }
-        fun save():Boolean {
-            val value=minutes.text.toString().toIntOrNull()
-            if(value!=null && value in 1..1440) { store.addTime(game,value);message("Tempo salvo neste celular; envio pela nuvem agendado.");automaticUpdate(force=true);return true }
-            message("Use entre 1 e 1440 minutos.");return false
-        }
-        // Voltar de um jogo é o momento natural de levar o save para o notebook.
-        show(AlertDialog.Builder(this).setTitle("Registrar tempo de ${game.name}?").setMessage("Confirme os minutos que jogou. O tempo em outros apps pode estar incluído.").setView(minutes).setNegativeButton("Descartar",null)
-            .setNeutralButton("Salvar e ver saves") { _,_ -> if(save())gameSaves(game) }.setPositiveButton("Salvar") { _,_ -> save() })
-    }
     private fun isDpad(code:Int)=code==KeyEvent.KEYCODE_DPAD_UP || code==KeyEvent.KEYCODE_DPAD_DOWN || code==KeyEvent.KEYCODE_DPAD_LEFT || code==KeyEvent.KEYCODE_DPAD_RIGHT
     private fun fromPad(event:KeyEvent)=event.source and (InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK)!=0
-    override fun dispatchKeyEvent(event:KeyEvent):Boolean {
-        if(dialog==null && event.action==KeyEvent.ACTION_DOWN && !pageRoot.isInTouchMode) {
-            val focused=currentFocus
-            // Na pesquisa, o campo de texto (e o teclado) comem o direcional: o controle sempre navega.
-            if(isDpad(event.keyCode) && (focused !is EditText || fromPad(event) || event.keyCode==KeyEvent.KEYCODE_DPAD_UP || event.keyCode==KeyEvent.KEYCODE_DPAD_DOWN)) {
-                if(focused is EditText)(getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(focused.windowToken,0)
-                if(!navReady(if(event.repeatCount>0)110L else 60L))return true
-                if(gridMove(event.keyCode) || padNavigate(pageRoot,event.keyCode))return true
-            }
-            if(focused===search && event.keyCode==KeyEvent.KEYCODE_BUTTON_A && fromPad(event)) { if(event.repeatCount==0)controllerSearch();return true }
-        }
-        return super.dispatchKeyEvent(event)
-    }
     /** Um passo por vez: se o controle manda tecla e eixo juntos para o mesmo toque, só o primeiro vale. */
     private fun navReady(gap:Long):Boolean { val now=SystemClock.elapsedRealtime();if(now-lastMotion<gap)return false;lastMotion=now;return true }
     /** Foco por geometria (ignora recortes de rolagem): alcança as abas ocultas à direita, Sortear, Estatísticas e os botões de diálogos. */
@@ -1715,7 +628,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         val items=ArrayList<View>();collectFocusable(root,items)
         if(items.isEmpty())return false
         val current=root.findFocus()?.takeIf { it in items }
-        val target=if(current==null) (collectionButtons[collection]?.takeIf { it in items && root===pageRoot } ?: items.first())
+        val target=if(current==null) items.first()
         else {
             val c=boundsOf(current);var best:View?=null;var bestScore=Long.MAX_VALUE
             for(view in items) {
@@ -1744,30 +657,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         if(!container && view.isFocusable && view.isEnabled && view.width>0 && view.height>0)out.add(view)
         if(view is ViewGroup && view.descendantFocusability!=ViewGroup.FOCUS_BLOCK_DESCENDANTS)for(index in 0 until view.childCount)collectFocusable(view.getChildAt(index),out)
     }
-    override fun onKeyDown(keyCode:Int,event:KeyEvent):Boolean {
-        if(event.repeatCount>0 && keyCode in setOf(KeyEvent.KEYCODE_BUTTON_A,KeyEvent.KEYCODE_BUTTON_X,KeyEvent.KEYCODE_BUTTON_START))return true
-        if(keyCode in setOf(KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_LEFT,KeyEvent.KEYCODE_DPAD_RIGHT) && gridMove(keyCode))return true
-        when(keyCode) {
-            KeyEvent.KEYCODE_BUTTON_A -> { currentFocus?.performClick();return true }
-            KeyEvent.KEYCODE_BUTTON_B -> { if(dialog!=null)dialog?.dismiss() else if(collection=="stream")selectCollection("home") else if(search.text.isNotEmpty())search.text.clear() else { collection="home";page=0;render() };return true }
-            KeyEvent.KEYCODE_BUTTON_X -> { (currentFocus?.tag as? Game)?.let(::toggleFavorite);return true }
-            KeyEvent.KEYCODE_BUTTON_Y -> { if(event.repeatCount==0 && collection!="stream")controllerSearch();return true }
-            KeyEvent.KEYCODE_BUTTON_L1 -> { bumper(-1);return true }
-            KeyEvent.KEYCODE_BUTTON_R1 -> { bumper(1);return true }
-            KeyEvent.KEYCODE_BUTTON_L2,KeyEvent.KEYCODE_BUTTON_R2 -> { if(event.repeatCount==0)changeCollection(if(keyCode==KeyEvent.KEYCODE_BUTTON_R2)1 else -1);return true }
-            KeyEvent.KEYCODE_BUTTON_START -> { settings();return true }
-        }
-        return super.onKeyDown(keyCode,event)
-    }
-    override fun onGenericMotionEvent(event:MotionEvent):Boolean {
-        return navigateMotion(event,currentFocus) || super.onGenericMotionEvent(event)
-    }
     private fun navigateMotion(event:MotionEvent,focused:View?):Boolean {
         if(event.isFromSource(InputDevice.SOURCE_JOYSTICK) && event.action==MotionEvent.ACTION_MOVE) {
             val lt=maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER),event.getAxisValue(MotionEvent.AXIS_BRAKE))>.55
             val rt=maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER),event.getAxisValue(MotionEvent.AXIS_GAS))>.55
-            if(lt && !leftTrigger)changeCollection(-1)
-            if(rt && !rightTrigger)changeCollection(1)
             leftTrigger=lt;rightTrigger=rt
             val x=event.getAxisValue(MotionEvent.AXIS_X)+event.getAxisValue(MotionEvent.AXIS_HAT_X)
             val y=event.getAxisValue(MotionEvent.AXIS_Y)+event.getAxisValue(MotionEvent.AXIS_HAT_Y)
@@ -1777,9 +670,85 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
             if(root.isInTouchMode)return false
             if(!navReady(180))return true
             if(focused is ListView) { focused.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,moveCode));focused.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,moveCode));return true }
-            if(!(dialog==null && gridMove(moveCode)))padNavigate(root,moveCode)
+            padNavigate(root,moveCode)
             return true
         }
         return false
     }
+
+    private var awaitingResult=false
+    private lateinit var pageRoot:LinearLayout
+    private fun message(raw:String) { Toast.makeText(this,raw,Toast.LENGTH_LONG).show() }
+    private fun render() {}
+    private fun details(game:Game) {}
+    private fun maybeFinish() { queueHandler.postDelayed({ if(!keepOpen && !isFinishing && !isDestroyed && dialog==null && !awaitingResult)finish() },350) }
+    override fun onCreate(savedInstanceState:Bundle?) {
+        super.onCreate(savedInstanceState);store=LibraryStore(this)
+        window.statusBarColor=appBackground;window.navigationBarColor=appBackground
+        pageRoot=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setBackgroundColor(appBackground);gravity=Gravity.CENTER;addView(text("Abrindo…",18f)) }
+        setContentView(pageRoot);catalog=store.cached();reloadLocal { dispatch(intent) }
+    }
+    override fun onNewIntent(intent:Intent) { super.onNewIntent(intent);setIntent(intent);reloadLocal { dispatch(intent) } }
+    override fun onDestroy() { queueHandler.removeCallbacksAndMessages(null);work.shutdown();images.shutdown();runCatching { store.closeJournal() };super.onDestroy() }
+    private fun reloadLocal(after:(()->Unit)?=null) {
+        work.execute {
+            val loaded=store.loadGames(catalog)
+            val saves=runCatching { val sync=FileSync(store);if(sync.retroarchTree()==null)emptyMap() else listOf("retro-saves","retro-states").flatMap { sync.local(it).keys }.groupBy({ it.substringBefore('/') },{ it.substringAfter('/') }) }.getOrDefault(emptyMap())
+            runOnUiThread { games=loaded.games;saveNames=saves;localProblems=loaded.problems;localScanAt=System.currentTimeMillis();updateLocalStatus?.invoke();after?.invoke() }
+        }
+    }
+    /** O que a casca pediu: uma tela (EXTRA_SCREEN) ou uma ação de um jogo (EXTRA_GAME + EXTRA_ACTION: Texturas HD e saves de PSP/3DS). */
+    private fun dispatch(intent:Intent?) {
+        val screen=intent?.getStringExtra(EXTRA_SCREEN);val key=intent?.getStringExtra(EXTRA_GAME);val action=GameAction.of(intent?.getStringExtra(EXTRA_ACTION))
+        intent?.removeExtra(EXTRA_SCREEN);intent?.removeExtra(EXTRA_GAME);intent?.removeExtra(EXTRA_ACTION)
+        when {
+            screen!=null -> when(screen) {
+                "space" -> spaceManager();"trash" -> romTrash();"sync-files" -> syncFiles();"cloud-saves" -> cloudSaves();"organize" -> organizeRoms();"textures" -> textures()
+                "index" -> cloudMenu();"playlists" -> playlists();"folders" -> folderStatuses();"apps" -> connectionApps();"pending" -> pendingChanges();"downloads" -> downloads()
+                else -> if(!keepOpen)finish()
+            }
+            key!=null && action!=null -> { val game=games.firstOrNull { it.key==key } ?: return if(keepOpen)Unit else finish()
+                when(action) { GameAction.TEXTURES -> textures(game);GameAction.SAVES -> gameSaves(game);else -> finish() } }
+            else -> if(!keepOpen)finish()
+        }
+    }
+    @Deprecated("Compatibilidade com Activity sem dependências extras")
+    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
+        super.onActivityResult(requestCode,resultCode,data);awaitingResult=false
+        try {
+            if(resultCode!=RESULT_OK || data==null)return
+            if(requestCode in listOf(14,15)) {
+                val code=store.prefs.getString("index-picking",null) ?: return
+                val uris=if(data.clipData!=null)(0 until data.clipData!!.itemCount).map { data.clipData!!.getItemAt(it).uri } else listOfNotNull(data.data)
+                if(uris.isEmpty())return
+                runCatching {
+                    uris.forEach { contentResolver.takePersistableUriPermission(it,Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    val sources=CloudIndex(store).sources(code);val seen=(0 until sources.length()).map { sources.getJSONObject(it).getString("uri") }.toMutableSet()
+                    uris.forEach { if(seen.add(it.toString()))sources.put(JSONObject().put("uri",it.toString()).put("tree",requestCode==15)) }
+                    analyzeCloud(code,sources)
+                }.onFailure(::failure);return
+            }
+            val uri=data.data ?: return
+            if(requestCode==10) {
+                runCatching { if(data.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION!=0)contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) else contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    .onFailure { message("Permissão temporária: pode ser necessário selecionar o arquivo novamente após reiniciar.") }
+                store.saveTree(pickingCode,uri);reloadLocal();return
+            }
+            if(requestCode==13) {
+                runCatching {
+                    require(data.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION!=0) { "A pasta precisa permitir leitura e escrita." }
+                    contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    FileSync(store).setTree(syncPicking,uri);message("Pasta de sincronização definida. Analise antes de copiar.");syncFiles()
+                }.onFailure(::failure);return
+            }
+            if(requestCode==12) {
+                val name=store.displayName(uri)
+                if(name.substringAfterLast('.').lowercase() !in setOf("zip","7z","rar")) { message("Escolha ZIP, 7z ou RAR.");return }
+                val code=textureCode;val id=textureId
+                runCatching { contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                show(AlertDialog.Builder(this).setTitle("Instalar pacote local?").setMessage("$name\n$code · $id\nFeche o emulador. Texturas diferentes existentes não serão substituídas.").setNegativeButton("Cancelar",null).setPositiveButton("Instalar") { _,_ -> runTexture { progress -> TextureStore(store).local(uri,code,id,progress) } })
+            }
+        } finally { maybeFinish() }
+    }
+    override fun startActivityForResult(intent:Intent,requestCode:Int) { awaitingResult=true;super.startActivityForResult(intent,requestCode) }
 }

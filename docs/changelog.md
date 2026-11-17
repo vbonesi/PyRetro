@@ -1,5 +1,18 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, A4c: a casca assume pastas, ROM, conta Google e Opções; `MainActivity` reduzida, Android 0.31.0 (Claude)
+
+- **Na casca (Compose):** escolher a pasta Jogos e a pasta RetroArch, outra ROM deste celular, arquivo no Drive (vincula e baixa), conectar/desconectar a conta Google
+  (consentimento por `StartIntentSenderForResult`), baixar conjunto CUE/M3U, **Adicionar à Biblioteca**, **Opções** (pastas, endereço do notebook, catálogo, conta Google,
+  notificações), **Estatísticas** e **🎲 Sortear** (no filtro aberto da Biblioteca). Seletores usam `registerForActivityResult` na `ShellActivity`.
+- **`MainActivity` reduzida** de 1.785 para ~750 linhas: sem lançador (`exported=false`), sem coleções, grade, Início, ficha, busca, Desejados, navegação por controle da grade nem
+  `EXTRA_COLLECTION`. Sobrou só o que a casca ainda abre por `EXTRA_SCREEN`/`EXTRA_ACTION`, e ela **fecha sozinha** quando o último diálogo termina. A notificação de download
+  agora abre a `ShellActivity`. `MainActivity.automaticUpdates` virou `AppSync.enabled`.
+- **Sobrou para o A5** (diálogos grandes, não são do dia a dia): Texturas HD, saves de PSP/3DS, Espaço e fixados, Lixeira de ROMs, Saves e estados de todos os jogos, Saves na nuvem
+  (visão geral), Organizar ROMs novas, índice manual do Drive, playlists, pastas e permissões, apps instalados, alterações pendentes e reordenar fila/cópias parciais. Item A5 no plano e no Notion.
+- **Instrumentação:** removi `InterfaceSmoke` e `StatusSmoke` (testavam as coleções e a Situação antigas, que já não existem) e as chamadas deles no `StorageSmoke`; `SaveReviewSmoke` continua
+  (usa `MainActivity.keepOpen`). Nenhuma instrumentação foi executada (sem aparelho). Build, lint e 144 testes JVM passaram; APK 0.31.0 (code 53) **não instalado e não testado em aparelho**.
+
 ## 17/11/2026 — Nova navegação, correção do A4b: sessão de jogo não se perde com o app morto (Claude)
 
 - Se o Android matasse o processo durante o jogo, ao voltar a `GameFlows.onResume()` rodava antes de a lista de jogos chegar: a sessão era apagada e o tempo e os saves
