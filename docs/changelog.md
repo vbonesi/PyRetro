@@ -1,5 +1,17 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, correção do A2: atualização automática também na casca (Claude)
+
+- A casca em Compose virou a entrada, mas a rotina de abertura/retomada continuava só na `MainActivity`: quem abrisse só Início ou Biblioteca nunca
+  sincronizava progresso, nunca atualizava o catálogo e nunca baixava capas. Nova `AppSync` (compartilhada pelas duas activities): limite de 15 min
+  **do processo** (`due`), passo escolhido por `plan` (Drive conectado → Worker + progresso; pendências → progresso; catálogo com mais de 6 h ou vazio
+  → atualiza), pré-busca de capas e sonda do notebook. `MainActivity` passou a chamá-la (comportamento igual; `automaticUpdates` da instrumentação
+  agora aponta para `AppSync.enabled`).
+- `ShellActivity` chama a rotina no `onResume` (e agenda o `LibraryWorker` no `onCreate`) e recarrega a lista quando a sincronização termina. O
+  subtítulo do Início mostra o estado ("Online · atualizado dd/mm/aaaa hh:mm" / "Offline · catálogo em cache de …").
+- `GameCard` usa um mapa `key → LibEntry` montado uma vez no `ShellData`.
+- 5 testes JVM novos (`AppSyncTest`: limite de 15 min, forçar/desligar, plano, 6 h, texto de estado). Build, lint e testes passaram.
+
 ## 17/11/2026 — Nova navegação, A2: Início e Biblioteca reais em Compose, Android 0.27.0 (Claude)
 
 - **Início e Biblioteca abrem direto em Compose**, sem passar pela tela antiga. Início: fileiras do `HomeRules` (Continuar jogando, Recentes, Mais

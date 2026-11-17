@@ -25,6 +25,10 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private lateinit var store: LibraryStore
     private var data by mutableStateOf<ShellData?>(null)
     private var gamepad by mutableStateOf(false)
+    private var status by mutableStateOf("")
+    private val drive by lazy { GoogleDrive(this, store.prefs) }
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var games = emptyList<Game>()
     private val work = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     /** Mesmo critério da tela antiga: controle físico (não virtual) com gamepad ou joystick. */
@@ -38,16 +42,30 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private fun reload() {
         work.execute {
             val loaded = runCatching { store.loadGames() }.getOrNull()
-            val shell = loaded?.let { ShellData(store, it.games, it.games.map(store::entryOf), true) }
-            runOnUiThread { if (!isDestroyed) data = shell ?: ShellData(store, emptyList(), emptyList(), true) }
+            val list = loaded?.games ?: emptyList()
+            val entries = list.map(store::entryOf)
+            val line = statusLine(list.isEmpty())
+            runOnUiThread { if (!isDestroyed) { games = list; status = line; data = ShellData(store, list, entries, true, line) } }
         }
     }
-    override fun onResume() { super.onResume(); reload() }
-    override fun onDestroy() { (getSystemService(INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this); work.shutdown(); super.onDestroy() }
+    private fun statusLine(catalogEmpty: Boolean) = AppSync.statusLine(store.online, store.prefs.getLong("updated", 0), catalogEmpty) {
+        java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it))
+    }
+
+    /** Mesma rotina de abertura e retomada da tela antiga (AppSync): sonda o notebook, sincroniza progresso/catálogo e pré-busca capas. */
+    private fun syncNow(force: Boolean) {
+        fun update() = AppSync.automaticUpdate(this, store, drive, work, force, games.isEmpty()) { _, _ -> runOnUiThread { if (!isDestroyed) reload() } }
+        AppSync.probe(store, force) { ok -> runOnUiThread { if (!isDestroyed) { if (ok) update(); reload() } } }
+        update()
+        handler.postDelayed({ if (!isFinishing && !isDestroyed) work.execute { AppSync.prefetchCovers(this, store, drive, games) } }, 8000)
+    }
+    override fun onResume() { super.onResume(); reload(); syncNow(force = false) }
+    override fun onDestroy() { handler.removeCallbacksAndMessages(null); (getSystemService(INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this); work.shutdown(); super.onDestroy() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = LibraryStore(this)
+        if (AppSync.enabled && drive.connected) LibraryWorker.schedule(this)
         gamepad = gamepadPresent(); (getSystemService(INPUT_SERVICE) as InputManager).registerInputDeviceListener(this, null)
         val nav = NavStack()
         setContent {
@@ -75,7 +93,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                             }
                             Spacer(Modifier.weight(1f))
                         }
-                        val shell = data ?: ShellData(store, emptyList(), emptyList(), false)
+                        val shell = data ?: ShellData(store, emptyList(), emptyList(), false, status)
                         when (current) {
                             Destination.INICIO -> HomeScreen(shell, ::openGame, ::openLegacy, Modifier.weight(1f))
                             Destination.BIBLIOTECA -> LibraryScreen(shell, ::openGame, ::openLegacy, Modifier.weight(1f))

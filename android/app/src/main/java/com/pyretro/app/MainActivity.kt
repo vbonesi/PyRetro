@@ -38,7 +38,7 @@ import java.util.concurrent.Executors
 class MainActivity:Activity(),InputManager.InputDeviceListener {
     companion object {
         /** Catálogo e progresso atualizam sozinhos quando o notebook responde; a instrumentação desliga. */
-        @Volatile var automaticUpdates=true
+        var automaticUpdates:Boolean get()=AppSync.enabled; set(value) { AppSync.enabled=value }
         const val EXTRA_COLLECTION="collection"
         const val EXTRA_GAME="game"
         private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","systems" to "Sistemas","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","stream" to "Stream")
@@ -79,9 +79,6 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     private lateinit var controllerManager:InputManager
     private val work=Executors.newSingleThreadExecutor()
     private val images=Executors.newFixedThreadPool(2)
-    private val prefetch=Executors.newFixedThreadPool(4)
-    private val prefetching=java.util.concurrent.atomic.AtomicBoolean(false)
-    private var lastAutomaticUpdate=0L
     private var catalog=emptyList<Game>()
     private var games=emptyList<Game>()
     private var localProblems=emptyList<String>()
@@ -1026,29 +1023,10 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     /** Notebook respondeu: atualiza o que é só leitura ou já protegido por conflito no servidor.
      *  Saves continuam explícitos (precisam dos emuladores fechados e de decisão em conflitos). */
     private fun automaticUpdate(force:Boolean=false) {
-        // No máximo a cada 15 min: pendências em conflito continuam pendentes e não podem virar um laço.
-        val now=SystemClock.elapsedRealtime()
-        if(!automaticUpdates || (!force && lastAutomaticUpdate>0 && now-lastAutomaticUpdate<15*60*1000L))return
-        lastAutomaticUpdate=now
-        if(drive.connected) { LibraryWorker.schedule(this);syncTracking(silent=true);return }
-        val stale=System.currentTimeMillis()-store.prefs.getLong("updated",0)>6*60*60*1000L
-        if(store.pending()>0)syncTracking(silent=true) else if(stale || catalog.isEmpty())refreshCatalog(silent=true)
+        AppSync.automaticUpdate(this,store,drive,work,force,catalog.isEmpty()) { fresh,note -> runOnUiThread { catalog=fresh;message(note);reloadLocal { prefetchCovers() } } }
     }
     /** Capas dos jogos do celular, favoritos e fixados ficam no cache para o modo offline. */
-    private fun prefetchCovers() {
-        if(!store.online && !drive.connected)return
-        val pinned=SpaceStore(store).pinnedChecker()
-        val metered=(getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).isActiveNetworkMetered
-        // Primeiro o que é seu (no celular, favoritos, fixados); depois, com Wi-Fi, o resto da biblioteca.
-        val wanted=games.filter { it.id.isNotBlank() }.sortedByDescending { it.localUri!=null || store.favorite(it) || pinned(it) }.let { if(metered)it.filter { g -> g.localUri!=null || store.favorite(g) || pinned(g) }.take(300) else it }
-        if(!prefetching.compareAndSet(false,true))return
-        // Quatro trabalhadores dividem a fila; cada capa já guardada passa direto, então repetir a chamada é barato.
-        val queue=java.util.concurrent.ConcurrentLinkedQueue(wanted);val remaining=java.util.concurrent.atomic.AtomicInteger(4)
-        repeat(4) { prefetch.execute {
-            try { while(true) { val game=queue.poll() ?: break;if(!store.online && !drive.connected)break;runCatching { store.cover(game,publish=false) } } }
-            finally { if(remaining.decrementAndGet()==0)prefetching.set(false) }
-        } }
-    }
+    private fun prefetchCovers()=AppSync.prefetchCovers(this,store,drive,games)
     /** Saves e estados pela nuvem (core/cloud_saves no notebook): compara, mostra e só então sincroniza. */
     private fun cloudSaves(title:String="☁ Saves na nuvem",filter:((String,String)->Boolean)?=null,showAll:Boolean=false) {
         val box=column();box.addView(text(title,23f));val info=text("Comparando com o Drive…",15f);box.addView(info)

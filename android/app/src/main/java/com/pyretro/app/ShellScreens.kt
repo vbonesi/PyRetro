@@ -40,7 +40,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** Tudo o que as telas em Compose leem; os jogos vêm do mesmo `LibraryStore` da tela antiga. */
-class ShellData(val store: LibraryStore, val games: List<Game>, val entries: List<LibEntry>, val loaded: Boolean)
+class ShellData(val store: LibraryStore, val games: List<Game>, val entries: List<LibEntry>, val loaded: Boolean, val status: String = "") {
+    /** Montado uma vez: o card não procura o jogo na lista a cada recomposição. */
+    val entryByKey: Map<String, LibEntry> by lazy { entries.associateBy { it.key } }
+}
 
 @Composable
 private fun focusRing(focused: Boolean) = if (focused) MaterialTheme.colorScheme.primary else Color.Transparent
@@ -89,7 +92,7 @@ private fun whereLabel(game: Game) = when {
 fun GameCard(data: ShellData, game: Game, onOpen: (Game) -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
-    val favorite = remember(game.key, data.entries) { data.entries.firstOrNull { it.key == game.key }?.favorite == true }
+    val favorite = data.entryByKey[game.key]?.favorite == true
     Column(
         modifier.clip(shape).background(MaterialTheme.colorScheme.surface)
             .border(3.dp, focusRing(focused), shape)
@@ -125,7 +128,7 @@ fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onLegacy: (String) -> Un
     }
     val rows = remember(homeEntries) { HomeRules.rows(homeEntries) }
     Column(modifier.fillMaxSize()) {
-        ScreenHeader("Início", "${data.games.size} jogos", { onLegacy("home") })
+        ScreenHeader("Início", listOf("${data.games.size} jogos", data.status).filter { it.isNotBlank() }.joinToString(" · "), { onLegacy("home") })
         LazyColumn(Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (rows.isEmpty()) item {
                 Text(if (data.loaded) "Escolha a pasta Jogos em Situação e opções ou carregue o catálogo. Jogos iniciados, abertos por aqui e favoritos aparecem em fileiras."
