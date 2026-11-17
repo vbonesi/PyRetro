@@ -686,6 +686,27 @@ teste("modo TV: ficha e ferramenta são páginas, não diálogos", async () => {
   } finally { frame.remove(); }
 });
 
+// N10: tela cheia.
+teste("modo TV: tela cheia fecha o diálogo antes de pedir e o rótulo segue o estado", async () => {
+  const {frame, app, doc} = await abrirTV(() => undefined);
+  try {
+    const pedidos = []; let cheio = null;
+    Object.defineProperty(doc, "fullscreenElement", {get: () => cheio, configurable: true});
+    doc.documentElement.requestFullscreen = async () => { pedidos.push(doc.getElementById("settings-dialog").open); cheio = doc.documentElement; };
+    doc.exitFullscreen = async () => { cheio = null; };
+    doc.getElementById("settings-open").click();
+    verdade(doc.getElementById("settings-dialog").open, "Seu console não abriu");
+    igual(doc.getElementById("fullscreen").textContent, "Tela cheia");
+    doc.getElementById("fullscreen").click();
+    await esperar(() => pedidos.length, "tela cheia não foi pedida");
+    igual(pedidos, [false], "o diálogo ainda estava aberto ao pedir a tela cheia");
+    await esperar(() => doc.getElementById("fullscreen").textContent === "Sair da tela cheia", "rótulo não mudou");
+    doc.getElementById("settings-open").click();
+    doc.getElementById("fullscreen").click();
+    await esperar(() => doc.getElementById("fullscreen").textContent === "Tela cheia", "rótulo não voltou");
+  } finally { frame.remove(); }
+});
+
 // Mouse e teclado completos: digitar busca, Ctrl+K, menu de contexto no botão direito, Home/End e Alt+1…5.
 teste("modo TV: digitar busca, Ctrl+K, botão direito, Home/End e Alt+número sem controle", async () => {
   const item = (name, extra = {}) => ({key: `pc:${name}`, id: name, name, platform: "Steam", tracking: {}, local: false, ...extra});

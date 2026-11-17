@@ -1,5 +1,12 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N10 (1/2): tela cheia sem o diálogo fantasma (Claude)
+
+- Com "Seu console" aberto, "Tela cheia" deixava o `<dialog>` modal por baixo da camada superior do `requestFullscreen`. Agora o diálogo é fechado
+  antes de pedir a tela cheia e o rótulo do botão segue o estado ("Tela cheia" / "Sair da tela cheia", também em `fullscreenchange`).
+- `gui/app.py`: ao sair da tela cheia do elemento, a janela volta ao estado inicial (tela cheia, salvo `--windowed`) em vez de `showNormal()`.
+- Teste JS novo (diálogo fechado antes do pedido; rótulo). Não testado na janela nativa (aberta pelo Victor): vale conferir no V1.
+
 ## 17/11/2026 — Nova navegação, N8: a web antiga deixa de ser a entrada (Claude)
 
 - `GET /` agora redireciona (302) para `/tv`; `/diagnostics` e `/tests/test_app.html` continuam. Os arquivos da web (`index.html`, `app.js`,

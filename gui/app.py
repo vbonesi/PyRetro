@@ -81,8 +81,10 @@ def main(argv=None):
     view.setWindowTitle('PyRetro')
     # O JS pede tela cheia (F11/Esc); sem isso o Qt a recusa silenciosamente.
     view.settings().setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+    # Ao sair da tela cheia do elemento, volta ao estado inicial (tela cheia, salvo --windowed), não à janela solta.
+    inicial = view.showNormal if args.windowed else view.showFullScreen
     view.page().fullScreenRequested.connect(lambda req: (req.accept(),
-        view.showFullScreen() if req.toggleOn() else view.showNormal()))
+        view.showFullScreen() if req.toggleOn() else inicial()))
     view.load(QUrl(URL + args.path))
     view.showNormal() if args.windowed else view.showFullScreen()
     return app.exec()

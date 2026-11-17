@@ -12,7 +12,7 @@ export function applyPreferences(preferences) {
 export function openSettings() {
   if (document.querySelector("dialog[open]")) return;
   settingsReturnFocus = document.activeElement; report("", false, "settings-status");
-  $("settings-dialog").showModal(); $(state.preferences.theme === "light" ? "theme-light" : "theme-dark").focus();
+  fullscreenLabel(); $("settings-dialog").showModal(); $(state.preferences.theme === "light" ? "theme-light" : "theme-dark").focus();
 }
 export function closeSettings() { $("settings-dialog").close(); (settingsReturnFocus?.isConnected ? settingsReturnFocus : $("settings-open")).focus(); }
 $("settings-open").onclick = openSettings; $("settings-close").onclick = closeSettings;
@@ -24,7 +24,16 @@ for (const theme of ["dark", "light"]) $(`theme-${theme}`).onclick = async () =>
   catch (e) { report(e.message, true, "settings-status"); }
   finally { state.busy = false; }
 };
-$("fullscreen").onclick = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch (_) { report("Use o atalho PyRetro do menu para abrir em tela cheia.", false, "settings-status"); } };
+// O <dialog> modal fica na camada superior; pedir a tela cheia com ele aberto o deixa como fantasma por baixo. Fecha antes.
+export function fullscreenLabel() { $("fullscreen").textContent = document.fullscreenElement ? "Sair da tela cheia" : "Tela cheia"; }
+$("fullscreen").onclick = async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else { if ($("settings-dialog").open) closeSettings(); await document.documentElement.requestFullscreen(); }
+  } catch (_) { report("Use o atalho PyRetro do menu para abrir em tela cheia.", false, "settings-status"); }
+  fullscreenLabel();
+};
+document.addEventListener("fullscreenchange", fullscreenLabel);
 function updateClock() { $("clock").textContent = new Date().toLocaleTimeString("pt-BR", {hour: "2-digit", minute: "2-digit"}); }
 updateClock(); setInterval(updateClock, 30000);
 if (navigator.getBattery) navigator.getBattery().then(battery => {
