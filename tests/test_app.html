@@ -44,6 +44,8 @@ function igual(a, b, msg) {
 }
 function verdade(v, msg) { if (!v) throw new Error(msg || "esperava verdadeiro"); }
 
+// Item do catálogo da TV (/api/tv/catalog) a partir de um registro da Biblioteca.
+const catalogo = g => ({id: g.id, key: `pc:${g.id}`, name: g.nome, platform: g.plataforma, cover: g.capa_url, tracking: g, local: false});
 const jogo = (extra = {}) => Object.assign({
   nome: "Jogo", plataforma: "Steam", fontes: [], capa: null, oculto: false,
   iniciado: false, finalizado: false, platinado: false, nota: null,
@@ -447,12 +449,18 @@ teste("sorteio da Biblioteca exibe plataforma em vez de null", async () => {
 // Rotas do modo TV (módulo router.js): cada coleção, ficha e ferramenta tem endereço e volta igual.
 teste("modo TV: endereços das telas ida e volta", async () => {
   const {routeFor, parseRoute, gameRoute, toolRoute} = await import("/static/tv/router.js");
-  for (const [kind, code, query] of [["home", "", ""], ["library", "", ""], ["wishlist", "", ""], ["apps", "", ""], ["tools", "", ""], ["local", "", ""],
-    ["favorites", "", ""], ["systems", "", ""], ["playing", "", ""], ["ranking", "", ""], ["stats", "", ""], ["draw", "", ""], ["heavy", "PS2", ""], ["light", "FC", ""], ["search", "", "super mario & luigi"]]) {
-    const route = parseRoute(routeFor(kind, code, query));
-    igual([route.kind, route.code || "", route.query || ""], [kind, code, query], `rota de ${kind}`);
-  }
+  for (const kind of ["home", "library", "wishlist", "apps", "tools", "stats", "draw"]) igual(parseRoute(routeFor(kind)).kind, kind, `rota de ${kind}`);
   igual(routeFor("library"), "#/biblioteca"); igual(routeFor("home"), "#/inicio"); igual(routeFor("wishlist"), "#/desejados");
+  // filtros da Biblioteca vão e voltam pelo endereço
+  const view = {quick: "playing", filter: "Sony - PlayStation 2", genre: "Corrida", order: "nota", installed: true};
+  const rota = parseRoute(routeFor("library", "", "super mario & luigi", view));
+  igual(rota.kind, "library"); igual(rota.view, {...view, query: "super mario & luigi"});
+  igual(parseRoute("#/biblioteca").view, {quick: "all", filter: "", genre: "", order: "", installed: false, query: ""});
+  // endereços das coleções antigas viram filtros da Biblioteca
+  igual(parseRoute("#/neste-pc").view.quick, "local"); igual(parseRoute("#/favoritos").view.quick, "favorites");
+  igual(parseRoute("#/jogando").view.quick, "playing"); igual(parseRoute("#/ranking").view.quick, "ranking");
+  igual(parseRoute("#/roms-leves/FC").view.system, "FC"); igual(parseRoute("#/roms-pesadas/PS2").view.system, "PS2");
+  igual(parseRoute("#/busca?q=zelda").view.query, "zelda"); igual(parseRoute("#/sistemas").kind, "library");
   igual(parseRoute(gameRoute("PS:Jogo/1.chd")), {game: "PS:Jogo/1.chd"}, "chave com : e / sobrevive ao endereço");
   igual(parseRoute(toolRoute("organizar")), {kind: "tools", tool: "organizar"});
   igual(parseRoute("").kind, "home"); igual(parseRoute("#/qualquer-coisa").kind, "home");
@@ -575,12 +583,53 @@ teste("modo TV: barra lateral tem cinco destinos e leva a cada um em até dois p
     igual(Object.keys(alcance).sort(), ["apps", "library", "tools", "wishlist"]);
     verdade(Object.values(alcance).every(n => n <= 2), "algum destino exige mais de 2 passos");
     // Visões antigas ficam sob Biblioteca; Desejados não as mostra
-    await app.load("library"); verdade(!doc.getElementById("collections").hidden, "visões da Biblioteca ocultas"); igual(atual(), "library");
+    await app.load("library"); verdade(!doc.getElementById("quick").hidden, "visões da Biblioteca ocultas"); igual(atual(), "library");
     await app.load("ranking"); igual(atual(), "library", "Ranking pertence à Biblioteca");
-    await app.load("wishlist"); verdade(doc.getElementById("collections").hidden); igual(atual(), "wishlist");
+    await app.load("wishlist"); verdade(doc.getElementById("quick").hidden); igual(atual(), "wishlist");
     await app.load("home");
     verdade(!doc.querySelector(".quick-access"), "Início ainda tem a fileira de acesso rápido");
     igual([...doc.querySelectorAll("#home .home-section")].map(s => s.dataset.shelf), ["continue", "ready", "recent"]);
+  } finally { frame.remove(); }
+});
+
+// Biblioteca única: filtros rápidos, ordem, pulo por letra, só local, estatísticas e as coleções antigas como filtro.
+teste("modo TV: Biblioteca única filtra, ordena e pula por letra", async () => {
+  const item = (name, tracking = {}, extra = {}) => ({key: `pc:${name}`, id: name, name, platform: "Steam", tracking, local: false, ...extra});
+  const catalog = [item("Zeta", {nota: 11}), item("Água", {finalizado: true, iniciado: true, nota: 9}, {local: true}), item("Beta", {iniciado: true}, {favorite: true}), item("Abacaxi")];
+  const {frame, app, doc} = await abrirTV(url => url === "/api/tv/catalog" ? catalog : undefined);
+  try {
+    await app.load("library");
+    const nomes = () => [...doc.querySelectorAll("#gallery .game strong")].map(x => x.textContent.replace(/^★ /, ""));
+    const atual = () => doc.activeElement.querySelector("strong").textContent.replace(/^★ /, "");
+    const rapido = id => doc.querySelector(`#quick [data-quick="${id}"]`);
+    igual(nomes(), ["Abacaxi", "Água", "Beta", "Zeta"], "ordem por nome, sem acento");
+    verdade(doc.getElementById("library-stats").textContent.includes("4 jogos") && doc.getElementById("library-stats").textContent.includes("1 jogando"));
+    igual([...doc.querySelectorAll("#quick button")].map(b => b.textContent), ["Tudo (4)", "Jogando (1)", "Neste PC (1)", "Favoritos (1)", "Ranking (2)", "Finalizados (1)"]);
+    rapido("playing").click(); igual(nomes(), ["Beta"]);
+    rapido("local").click(); igual(nomes(), ["Água"]);
+    rapido("favorites").click(); igual(nomes(), ["Beta"]);
+    rapido("finished").click(); igual(nomes(), ["Água"]);
+    rapido("ranking").click(); igual([...doc.querySelectorAll(".podium-place strong")].map(x => x.textContent), ["Zeta", "Água"], "Ranking ordena por nota");
+    rapido("all").click();
+    // LB/RB (quick-next/prev) giram os filtros
+    app.action("quick-next"); igual(doc.querySelector("#quick [aria-pressed=true]").dataset.quick, "playing");
+    app.action("quick-prev"); app.action("quick-prev"); igual(doc.querySelector("#quick [aria-pressed=true]").dataset.quick, "finished", "gira para trás a partir de Tudo");
+    rapido("all").click();
+    [...doc.querySelectorAll("#orders button")].find(b => b.textContent.includes("Nota")).click(); igual(nomes()[0], "Zeta");
+    [...doc.querySelectorAll("#orders button")].find(b => b.textContent.includes("Nome")).click();
+    // pulo por letra: A (Abacaxi, Água) -> B -> Z, e de volta
+    doc.querySelector("#gallery .game").focus();
+    app.action("letter-next"); igual(atual(), "Beta");
+    app.action("letter-next"); igual(atual(), "Zeta");
+    app.action("letter-prev"); igual(atual(), "Beta");
+    app.action("letter-prev"); igual(atual(), "Abacaxi");
+    // só neste PC e coleções antigas como filtro
+    doc.getElementById("installed-only").click(); igual(nomes(), ["Água"]); doc.getElementById("installed-only").click();
+    await app.load("favorites"); igual(nomes(), ["Beta"]); igual(doc.querySelector("#quick [aria-pressed=true]").dataset.quick, "favorites");
+    await app.load("ranking"); igual(doc.querySelector("#quick [aria-pressed=true]").dataset.quick, "ranking");
+    await app.load("light", "FC"); verdade(doc.getElementById("title").textContent === "Biblioteca");
+    // as coleções antigas não existem mais como destino: tudo é Biblioteca
+    igual(doc.querySelector('#destinations [aria-current="page"]').dataset.destination, "library");
   } finally { frame.remove(); }
 });
 
@@ -602,7 +651,7 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
   app.fetch = async (url, init) => {
     let data;
     if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
-    else if (url === "/api/tv/catalog") data = [];
+    else if (url === "/api/tv/catalog") data = [catalogo(g), {key: "rom:PS2:teste", name: "ZTeste", code: "PS2", platform: "PlayStation 2", romName: "Teste.iso", driveName: "Teste.iso", downloadName: "Teste.iso", local: false, tracking: {}, cover: null}];
     else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/heavy/systems") data = [{code: "PS2", nome: "PlayStation 2"}];
     else if (url === "/api/systems") data = [];
@@ -640,7 +689,7 @@ teste("modo TV: controle, progresso atômico, falha de gravação e download", a
     doc.getElementById("close").click();
     verdade(doc.querySelector("#gallery .game").textContent.includes("Platinado"), "falha alterou o card");
     fail = false;
-    await app.load("heavy");
+    await app.load("heavy", "PS2");
     doc.querySelector("#gallery .game").click();
     const count = writes.length;
     doc.getElementById("download").click(); igual(writes.length, count, "baixou antes de confirmar");
@@ -685,7 +734,7 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
   app.fetch = async (url, init) => {
     let data;
     if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
-    else if (url === "/api/tv/catalog") data = [];
+    else if (url === "/api/tv/catalog") data = [{key: "rom:PS2:teste", name: "Teste", code: "PS2", platform: "PlayStation 2", romName: "Teste.iso", driveName: "Teste.iso", downloadName: downloaded ? null : "Teste.iso", local: downloaded, tracking: {}, cover: null}];
     else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/setup/status") data = {ready: true, steps: []};
     else if (url === "/api/play/status") data = {status: "idle"};
@@ -707,9 +756,9 @@ teste("modo TV: baixar e jogar valida arquivos, abre sessão e não marca finali
   await new Promise(resolve => script.onload = resolve);
   await app.load("library");
   try {
-    await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
-    await esperar(() => doc.getElementById("message").textContent.includes("Nenhum jogo"), "catálogo não terminou");
-    await app.load("heavy"); doc.querySelector("#gallery .game").click();
+    await esperar(() => doc.querySelector("#destinations button"), "TV não inicializou");
+    await esperar(() => doc.querySelector("#gallery .game"), "catálogo não terminou");
+    doc.querySelector("#gallery .game").click();
     await esperar(() => doc.getElementById("play-actions").textContent.includes("Baixar e jogar"), "não ofereceu baixar e jogar");
     doc.querySelector("#play-actions button").click();
     igual(starts, 0); igual(doc.getElementById("download").textContent, "Confirmar download");
@@ -759,7 +808,7 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
   await new Promise(resolve => script.onload = resolve);
   await app.load("library");
   try {
-    await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
+    await esperar(() => doc.querySelector("#destinations button"), "TV não inicializou");
     await app.load("draw");
     verdade(!doc.getElementById("genres").hidden, "gêneros deveriam aparecer na aba Sortear");
     [...doc.querySelectorAll("#platforms button")].find(b => b.textContent.includes("Biblioteca")).click();
@@ -792,7 +841,7 @@ teste("modo TV: jogo de PC instalado abre pela loja e não grava progresso", asy
   app.fetch = async (url, init) => {
     let data;
     if (url === "/api/tv/home") data = {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {local: 0, pc: 0}};
-    else if (url === "/api/tv/catalog") data = [];
+    else if (url === "/api/tv/catalog") data = [catalogo(jogo({id: "pc-1", nome: "Jogo PC", plataforma: "Steam"}))];
     else if (url === "/api/csrf") data = {token: "tv-token"};
     else if (url === "/api/play/status") data = {status: "idle"};
     else if (url === "/api/heavy/systems") data = [];
@@ -848,10 +897,11 @@ teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", asyn
   };
   const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
-  await app.load("systems");
+  await app.load("library");
   try {
-    await esperar(() => doc.querySelector(".system-card"), "tela inicial por sistema ausente");
-    verdade(doc.querySelector(".system-card").textContent.includes("80 jogos · 1 neste PC"));
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 80, "Biblioteca única não mostrou os 80 jogos");
+    verdade(doc.querySelector('#quick [data-quick="local"]').textContent.includes("(1)"), "contagem do filtro Neste PC");
+    verdade(doc.getElementById("library-stats").textContent.includes("80 jogos"), "estatísticas no cabeçalho");
     pad.buttons[3].pressed = true;
     await esperar(() => doc.getElementById("search-dialog").open, "Y não abriu busca");
     pad.buttons[3].pressed = false;
@@ -867,9 +917,16 @@ teste("modo TV: Y busca, teclado virtual, páginas, filtros locais e Apps", asyn
     doc.getElementById("search-open").click(); doc.getElementById("search-clear").click();
     await esperar(() => doc.querySelectorAll("#gallery .game").length === 80, "limpar busca não restaurou catálogo");
     doc.querySelector("#gallery .game").focus();
+    // Na Biblioteca LB/RB trocam o filtro rápido; PageDown continua paginando
     pad.buttons[5].pressed = true;
-    await esperar(() => [...doc.querySelectorAll("#gallery .game")].indexOf(doc.activeElement) > 1, "RB não pulou página");
-    pad.buttons[5].pressed = false;
+    await esperar(() => doc.querySelector("#quick [aria-pressed=true]").dataset.quick === "playing", "RB não trocou o filtro rápido");
+    pad.buttons[5].pressed = false; await new Promise(resolve => setTimeout(resolve, 60));
+    pad.buttons[4].pressed = true;
+    await esperar(() => doc.querySelector("#quick [aria-pressed=true]").dataset.quick === "all", "LB não voltou ao filtro anterior");
+    pad.buttons[4].pressed = false; await new Promise(resolve => setTimeout(resolve, 60));
+    doc.querySelector("#gallery .game").focus();
+    doc.dispatchEvent(new app.KeyboardEvent("keydown", {key: "PageDown", bubbles: true}));
+    await esperar(() => [...doc.querySelectorAll("#gallery .game")].indexOf(doc.activeElement) > 1, "PageDown não pulou página");
     const original = doc.activeElement;
     app.dispatchEvent(new app.Event("blur")); pad.buttons[4].pressed = true;
     await new Promise(resolve => setTimeout(resolve, 60));
@@ -1150,7 +1207,7 @@ async function abrirTV(rotas) {
   };
   const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
   await new Promise(resolve => script.onload = resolve);
-  await esperar(() => doc.querySelector("#collections button"), "TV não inicializou");
+  await esperar(() => doc.querySelector("#destinations button"), "TV não inicializou");
   return {frame, app, doc, posts};
 }
 
@@ -1160,11 +1217,13 @@ teste("modo TV: Desejados filtra por loja e Comprado pede confirmação; Estatí
     if (url === "/api/wishlist") return lista;
     if (url === "/api/wishlist/comprado") return {ok: true};
     if (url === "/api/estatisticas") return {total: 2, zerados: 1, platinados: 0, jogando: 1, com_nota: 1, nota_media: 8.5, tempo_total_horas: 30, com_genero: 2};
-    if (url === "/api/library") return [jogo({id: "a", nome: "A", plataforma: "Steam", genero: "RPG"}), jogo({id: "b", nome: "B", plataforma: "Steam", genero: "Ação"})];
+    const titulos = [jogo({id: "a", nome: "A", plataforma: "Steam", genero: "RPG"}), jogo({id: "b", nome: "B", plataforma: "Steam", genero: "Ação"})];
+    if (url === "/api/library") return titulos;
+    if (url === "/api/tv/catalog") return titulos.map(catalogo);
   });
   try {
     await app.load("wishlist");
-    igual([...doc.querySelectorAll("#platforms button")].map(b => b.textContent), ["Todas as plataformas", "PlayStation", "Steam"]);
+    igual([...doc.querySelectorAll("#platforms button")].map(b => b.textContent), ["Todos os sistemas", "PlayStation", "Steam"]);
     doc.querySelector("#gallery .game").click();
     verdade(!doc.getElementById("wishlist-actions").hidden && doc.getElementById("favorite").hidden, "ficha de desejado errada");
     doc.getElementById("wishlist-bought").click();
@@ -1359,7 +1418,7 @@ teste("TV: fileiras têm setas, roda horizontal sem prender página/zoom e alvos
     igual(posts.length,0,'rolagem acionou jogo ou gravou preferências');
     frame.style.width='390px'; await new Promise(resolve=>app.requestAnimationFrame(resolve));
     verdade(doc.documentElement.scrollWidth<=390,'fileira transbordou no celular');
-    for (const b of doc.querySelectorAll('#collections button')) verdade(b.scrollWidth<=b.clientWidth,'nome da coleção sobrepôs o botão seguinte');
+    for (const b of doc.querySelectorAll('#destinations button')) verdade(b.scrollWidth<=b.clientWidth,'nome da coleção sobrepôs o botão seguinte');
     for(const b of controls) { const rect=b.getBoundingClientRect(); verdade(rect.width>=48 && rect.height>=48,'alvo pequeno'); }
     const touch = app.getComputedStyle(row).touchAction;
     verdade(['auto','manipulation'].includes(touch) || touch.includes('pan-x'),`toque horizontal indisponível: ${touch}`);
@@ -1395,7 +1454,7 @@ teste("TV: selos comuns, nota decimal e save somente após consulta explícita",
 
 teste('modo TV: pódio ordena empates, filtros recolhem e glifos mudam sem trocar ações', async () => {
   const games=['Zeta','Água','Beta','Gama'].map((name,i)=>jogo({id:String(i),nome:name,plataforma:'Steam',nota:i===0?11:9}));
-  const {frame,app,doc}=await abrirTV(url=>['/api/library','/api/ranking'].includes(url)?games:undefined);
+  const {frame,app,doc}=await abrirTV(url=>['/api/library','/api/ranking'].includes(url)?games:url==='/api/tv/catalog'?games.map(catalogo):undefined);
   try {
     await app.load('ranking');
     igual([...doc.querySelectorAll('.podium-place strong')].map(x=>x.textContent),['Zeta','Água','Beta']);

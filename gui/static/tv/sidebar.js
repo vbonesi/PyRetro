@@ -22,7 +22,7 @@ export const inSidebar = () => $("sidebar").contains(document.activeElement);
 export function focusSidebar() { ($("destinations").querySelector('[aria-current="page"]') || $("destinations").querySelector("button"))?.focus(); }
 // De volta ao conteúdo: destaque do Início, primeira capa ou, na Biblioteca, a primeira visão.
 export function focusContent() {
-  const first = [$("spotlight-open"), $("home").querySelector("button"), $("gallery").querySelector("button"), $("collections").querySelector("button"), $("tools").querySelector("button")]
+  const first = [$("spotlight-open"), $("home").querySelector("button"), $("gallery").querySelector("button"), $("quick").querySelector("button"), $("tools").querySelector("button")]
     .find(e => e && !e.hidden && e.getClientRects().length);
   first?.focus();
 }

@@ -24,7 +24,7 @@ export function openToolById(id) {
   const tool = TOOLS.find(t => t[0] === id); if (!tool) return false;
   openTool(`${tool[1]} ${tool[2]}`, tool[4], id); return true;
 }
-export function hideTool() { toolRouted = false; $("tool-dialog").close(); (toolReturnFocus?.isConnected ? toolReturnFocus : $("collections").querySelector("button"))?.focus(); }
+export function hideTool() { toolRouted = false; $("tool-dialog").close(); (toolReturnFocus?.isConnected ? toolReturnFocus : $("destinations").querySelector("button"))?.focus(); }
 $("tool-close").onclick = closeTool;
 $("tool-dialog").addEventListener("cancel", e => { e.preventDefault(); closeTool(); });
 export async function toolJob(url, body, done) {

@@ -1,5 +1,20 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N4: Biblioteca única (Claude)
+
+- `tv/library.js`: a Biblioteca junta tudo num só catálogo (`/api/tv/catalog`: PC, ROMs leves e pesadas, Switch), cada jogo uma vez. Filtros
+  rápidos **Tudo, Jogando, Neste PC, Favoritos, Ranking, Finalizados** (com contagem; LB/RB os trocam no controle) e painel de filtros (sistema,
+  gênero, só neste PC e **ordem**: nome, nota, recentes, tempo, plataforma). Estatísticas no cabeçalho (jogos, jogando, finalizados,
+  platinados, neste PC, nota média); **Estatísticas** e **Sortear** são botões. Pulo por inicial: `[`/`]` ou o analógico direito para os lados
+  (vale na ordem por nome); PageUp/PageDown continuam paginando; o Ranking mostra o pódio.
+- As coleções Neste PC, Favoritos, Jogando, Ranking, Sistemas, ROMs leves/pesadas e Pesquisa deixaram de existir como destinos: `load("favorites")`
+  e os endereços antigos (`#/favoritos`, `#/neste-pc`, `#/roms-leves/<sistema>`…) viram filtros da Biblioteca. Os filtros vão no endereço
+  (`#/biblioteca?f=playing&s=<sistema>&g=<gênero>&o=nota&l=1&q=…`): recarregar e voltar restauram a seleção; mudar filtro troca o endereço sem
+  empilhar histórico.
+- **Chave canônica:** a chave do catálogo (`rom:ARCADE:19xx`, `pc:<id>`…) é a que as rotas de ficha gravam; `findGameByKey` ainda aceita chaves
+  antigas dos links já salvos.
+- Testes: 500 Python e 65 JS (+1: Biblioteca única); os testes das coleções antigas passaram a usar o catálogo da TV e os filtros.
+
 ## 17/11/2026 — Nova navegação, N3: barra lateral com 5 destinos e novo Início (Claude)
 
 - `tv/sidebar.js` + `<aside id="sidebar">`: Início, Biblioteca, Desejados, Apps e stream e Ferramentas, num trilho de ícones que abre com rótulos

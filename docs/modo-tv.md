@@ -18,6 +18,12 @@ O cliente é um conjunto de módulos ES: `gui/static/tv.js` (entrada) importa `g
 `router.js` cuida dos endereços). Cada tela tem endereço por hash (`#/inicio`, `#/biblioteca`, `#/jogo/<chave>`, `#/ferramentas/<id>` …):
 recarregar a página volta à mesma tela e o voltar do navegador (Alt+←, botão voltar do mouse) percorre as telas.
 
+## Biblioteca única (desde 17/11/2026)
+
+Cinco destinos na barra lateral: Início, Biblioteca, Desejados, Apps e stream e Ferramentas. A Biblioteca reúne todos os jogos (PC, ROMs
+leves e pesadas, Switch) sem duplicar; filtros rápidos (LB/RB), painel de filtros (sistema, gênero, só neste PC, ordem) e pulo por inicial
+(`[`/`]` ou analógico direito) substituem as antigas coleções.
+
 ## Navegação
 
 Direcional ou analógico esquerdo navegam entre os botões e as capas. A confirma e

@@ -82,7 +82,7 @@ export function hideGame() {
   $("details").close();
   if (state.kind === 'home' && ui.spotlightGame) showSpotlight(ui.spotlightGame);
   const matching = [...document.querySelectorAll("#home .game,#gallery .game")].find(c => c.dataset.key === returnGameKey);
-  (returnFocus?.isConnected ? returnFocus : matching || $("gallery").children[Math.max(0, returnIndex)] || $("home").querySelector("button") || $("collections").querySelector("button"))?.focus();
+  (returnFocus?.isConnected ? returnFocus : matching || $("gallery").children[Math.max(0, returnIndex)] || $("home").querySelector("button") || $("destinations").querySelector("button"))?.focus();
 }
 $("time-toggle").onclick = () => { $("time-fields").hidden = !$("time-fields").hidden; if (!$("time-fields").hidden) $("time-minutes").focus(); };
 $("media-toggle").onclick = () => { $("media-fields").hidden = !$("media-fields").hidden; };

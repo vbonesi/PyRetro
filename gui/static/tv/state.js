@@ -1,6 +1,6 @@
 import {$} from "./dom.js";
-export const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "home", code: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null, preferences: {favorites: [], theme: "dark"}, home: null};
-export const collections = [["home", "Início"], ["local", "Neste PC"], ["favorites", "Favoritos"], ["systems", "Sistemas"], ["library", "Biblioteca"], ["playing", "Jogando"], ["ranking", "Ranking"], ["wishlist", "Desejados"], ["stats", "Estatísticas"], ["heavy", "ROMs pesadas"], ["light", "ROMs leves"], ["draw", "🎲 Sortear"], ["tools", "🛠 Ferramentas"], ["apps", "Apps"]];
+export const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "home", code: "", quick: "all", order: "", system: "", filter: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null, preferences: {favorites: [], theme: "dark"}, home: null};
+export const collections = [["home", "Início"], ["library", "Biblioteca"], ["wishlist", "Desejados"], ["apps", "Apps e stream"], ["tools", "Ferramentas"], ["stats", "Estatísticas"], ["draw", "🎲 Sortear"]];
 export const cardGames = new WeakMap();
 export const observedSaves = new Map();
 export const badgeKey = g => g.key || (g.code ? `${g.code}:${g.romName}` : `pc:${g.id}`);

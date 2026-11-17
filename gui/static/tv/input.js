@@ -1,4 +1,5 @@
-import {load} from "./catalog.js";
+import {filtersChanged, load} from "./catalog.js";
+import {cycleQuick, letterJump} from "./library.js";
 import {$, report} from "./dom.js";
 import {toggleFavorite} from "./favorites.js";
 import {focusable, move, page, scrollTarget, stickScroll} from "./focus.js";
@@ -60,6 +61,13 @@ export function action(key) {
   else if (key === "erase") { if ($("search-dialog").open) $("search-input").value = $("search-input").value.slice(0, -1); else if (!$("settings-dialog").open) toggleFavorite(); }
   else if (key === "submit") { if ($("search-dialog").open) applySearch(); else openSettings(); }
   else if (["page-up", "page-down"].includes(key) && !document.querySelector("dialog[open]")) page(key === "page-up" ? -1 : 1);
+  else if (["quick-prev", "quick-next"].includes(key) && !document.querySelector("dialog[open]")) {
+    // LB/RB na Biblioteca trocam o filtro rápido (Tudo, Jogando, Neste PC, Favoritos, Ranking, Finalizados).
+    const inQuick = $("quick").contains(document.activeElement);
+    cycleQuick(key === "quick-prev" ? -1 : 1); filtersChanged();
+    (inQuick ? $("quick").querySelector('[aria-pressed="true"]') : $("gallery").querySelector("button") || $("quick").querySelector('[aria-pressed="true"]'))?.focus();
+  }
+  else if (["letter-prev", "letter-next"].includes(key) && !document.querySelector("dialog[open]")) letterJump(key === "letter-prev" ? -1 : 1);
   else if (["previous", "next"].includes(key) && !document.querySelector("dialog[open]")) {
     stepDestination(key === "previous" ? -1 : 1);
   }
@@ -68,7 +76,7 @@ document.addEventListener("keydown", e => {
   if (!["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key)) setInputMode("keys");
   if (e.target instanceof HTMLInputElement && e.key !== "Escape") return;
   if (/^[1-5]$/.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey && !document.querySelector("dialog[open]")) { e.preventDefault(); goDestination(Number(e.key)); return; }
-  const key = {m: "sidebar", M: "sidebar", ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
+  const key = {"[": "letter-prev", "]": "letter-next", m: "sidebar", M: "sidebar", ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
   if (key) { e.preventDefault(); action(key); }
 });
 // Mouse: o botão "voltar" lateral faz o mesmo que B.
@@ -82,7 +90,7 @@ const RAW_PAD = {
   // índice padrão -> índice cru: A, B, X, Y, LB, RB, LT, RT, Back, Start
   buttons: {0: 0, 1: 1, 2: 3, 3: 4, 4: 6, 5: 7, 6: 8, 7: 9, 8: 10, 9: 11},
 };
-let lastPadFrame = null, scrollCarry = {x: 0, y: 0};
+let stickLatched = false, lastPadFrame = null, scrollCarry = {x: 0, y: 0};
 export function pollGamepad(now) {
   const pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false && p.buttons.length >= 10);
   const pad = pads.find(p => p.mapping === "standard") || pads[0];
@@ -101,12 +109,17 @@ export function pollGamepad(now) {
     if (pressed(13) || pad.axes[1] > 0.55 || hat(7, 1)) keys.add("down");
     if (pressed(0)) keys.add("accept"); if (pressed(1)) keys.add("back");
     if (pressed(2)) keys.add("erase"); if (pressed(3)) keys.add("search");
-    if (pressed(4)) keys.add("page-up"); if (pressed(5)) keys.add("page-down");
+    // Na Biblioteca LB/RB trocam o filtro rápido; nas demais telas continuam paginando.
+    if (pressed(4)) keys.add(state.kind === "library" ? "quick-prev" : "page-up"); if (pressed(5)) keys.add(state.kind === "library" ? "quick-next" : "page-down");
     if (pressed(6)) keys.add("previous"); if (pressed(7)) keys.add("next");
     if (pressed(9)) keys.add("submit"); if (pressed(8)) keys.add("sidebar");
     if (!foreground || document.hidden || ui.emulatorRunning) { held.clear(); awaitNeutral = true; requestAnimationFrame(pollGamepad); return; }
     const frame = lastPadFrame == null ? 16 : now - lastPadFrame; lastPadFrame = now;
+    // Biblioteca: o analógico direito para os lados pula de inicial em inicial (a rolagem fina continua no eixo vertical).
+    const stickX = pad.axes[raw ? 3 : 2] || 0, jumping = state.kind === "library" && $("gallery").contains(document.activeElement);
+    if (Math.abs(stickX) > .7 && !stickLatched && jumping) { stickLatched = true; letterJump(Math.sign(stickX)); } else if (Math.abs(stickX) < .4) stickLatched = false;
     for (const [axis, index] of [["x", raw ? 3 : 2], ["y", raw ? 4 : 3]]) {
+      if (axis === "x" && jumping) continue;
       scrollCarry[axis] += stickScroll(pad.axes[index] || 0, frame);
       if (Math.abs(scrollCarry[axis]) < 1) continue;
       const step = Math.trunc(scrollCarry[axis]); scrollCarry[axis] -= step;

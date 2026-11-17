@@ -2,6 +2,7 @@
 import {api} from "./tv/api.js";
 import {collectionTabs, drawGame, findGameByKey, load, updateFilters} from "./tv/catalog.js";
 import {$, report} from "./tv/dom.js";
+import {viewOf} from "./tv/library.js";
 import {focusSidebar} from "./tv/sidebar.js";
 import {closeGame, hideGame, openGame} from "./tv/game.js";
 import {scrollTarget, stickScroll} from "./tv/focus.js";
@@ -23,19 +24,17 @@ if (window.ResizeObserver) new ResizeObserver(entries => {
 async function openLinkedGame(key) {
   const game = await findGameByKey(key);
   if (game) openGame(game);
-  else { replaceRoute(routeFor(state.kind, state.code, state.query)); report("O jogo desse link não está mais disponível no catálogo.", true); }
+  else { replaceRoute(routeFor(state.kind, state.code, state.query, viewOf())); report("O jogo desse link não está mais disponível no catálogo.", true); }
 }
 // Aplica o endereço atual à tela (carga inicial e voltar/avançar do navegador). A coleção só recarrega
 // quando mudou; ficha e ferramenta sobem ou descem conforme o endereço, sem mexer no histórico.
 async function applyRoute(route) {
   if (!route.game && $("details").open) hideGame();
   if (!route.tool && isToolRouted()) hideTool();
-  if (route.kind) {
-    const code = route.kind === "heavy" || route.kind === "light" ? route.code || state.code : state.code;
-    const searchChanged = route.kind === "search" && route.query !== state.query;
-    if (route.kind === "search") state.query = route.query;
-    if (route.kind !== state.kind || code !== state.code || searchChanged) await load(route.kind, code);
-  }
+  if (route.kind === "library") {
+    const same = state.kind === "library" && !route.view.system && JSON.stringify({...viewOf(), query: state.query}) === JSON.stringify({quick: route.view.quick, filter: route.view.filter, genre: route.view.genre, order: route.view.order, installed: route.view.installed, query: route.view.query});
+    if (!same) await load("library", "", route.view);
+  } else if (route.kind && route.kind !== state.kind) await load(route.kind);
   if (route.game && !$("details").open) await openLinkedGame(route.game);
   if (route.tool && !isToolRouted()) openToolById(route.tool);
 }
@@ -49,8 +48,7 @@ async function init() {
     // antes, para o voltar não sair do PyRetro.
     const route = parseRoute(), underlying = route.game ? {kind: "home"} : route.tool ? {kind: "tools"} : route;
     if (route.game || route.tool) replaceRoute(routeFor(underlying.kind));
-    if (underlying.kind === "search") state.query = underlying.query;
-    await load(underlying.kind, underlying.code);
+    await load(underlying.kind, "", underlying.view);
     if (route.game) await openLinkedGame(route.game);
     if (route.tool) openToolById(route.tool);
     const key = new URLSearchParams(location.search).get("game");

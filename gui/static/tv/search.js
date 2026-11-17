@@ -1,4 +1,4 @@
-import {load, render} from "./catalog.js";
+import {filtersChanged, load} from "./catalog.js";
 import {$, button} from "./dom.js";
 import {state} from "./state.js";
 let searchReturnFocus, textEntry = null;
@@ -23,7 +23,7 @@ export function closeSearch() { $("search-dialog").close(); textEntry = null; (s
 export async function applySearch() {
   if (textEntry) { const apply = textEntry, value = $("search-input").value.trim(); closeSearch(); return apply(value); }
   state.query = $("search-input").value.trim(); closeSearch();
-  if (["home", "systems", "apps", "draw"].includes(state.kind)) await load("search"); else render();
+  if (state.kind !== "library") await load("library", "", {query: state.query}); else filtersChanged();
   $("gallery").querySelector("button")?.focus();
 }
 let keyboardLower = false;

@@ -13,7 +13,7 @@ function describeCascade(c, verb) {
     c.flat_skipped ? "saves da pasta antiga mantidos (nome usado em outro sistema)" : ""].filter(Boolean).join(" · ");
 }
 async function afterFileChange(message, error = false) {
-  state.busy = false; closeGame(); await reloadSelection($("collections").querySelector('[aria-pressed="true"]'));
+  state.busy = false; closeGame(); await reloadSelection($("destinations").querySelector('[aria-current="page"]'));
   report(message, error);
 }
 $("rom-rename").onclick = () => {
