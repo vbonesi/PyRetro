@@ -66,6 +66,19 @@ Executado por outra sessão; cada item termina com testes verdes e um commit peq
 - **N8 (L) — Desligar a entrada da web.** `/` redireciona para `/tv`; diagnóstico continua; tirar o "voltar à
   interface completa" do Menu; atualizar README e `docs/modo-tv.md`. Não apagar os arquivos ainda.
 - **V1 (V)** — Uso real por 1–2 semanas no PC (mouse, Nova 2 Lite, Steam Link) e lista de atritos.
+  Corre em paralelo com o Android (decisão do Victor em 17/11); cada atrito vira um item N10, N11…
+- **N10 (L) — Atritos do primeiro uso (17/11).**
+  - *Tela cheia:* com o "Seu console" aberto, `documentElement.requestFullscreen()` põe a página na camada superior
+    por cima do `<dialog>` modal, que continua aberto por baixo (fantasma translúcido). Fechar o diálogo antes de pedir
+    a tela cheia; na janela do PyRetro (QtWebEngine, já em tela cheia) o botão alterna a janela pelo Qt e, ao sair
+    da tela cheia do elemento, `gui/app.py` volta ao estado inicial (tela cheia, salvo `--windowed`) em vez de
+    `showNormal()`. Rótulo do botão conforme o estado ("Tela cheia"/"Sair da tela cheia").
+  - *Capas do mesmo tamanho:* moldura fixa **3:4** em todos os cards (fileiras, Biblioteca, busca, escolha de capa).
+    Capa com proporção perto da moldura (entre 0,62 e 0,9 de largura/altura) preenche com `object-fit:cover`
+    (corte leve, ancorado no topo para não cortar o título); capa larga (caixas de N64/SNES/Genesis americanas,
+    capas de Steam) ou muito alta fica inteira com `contain` sobre um fundo da própria capa desfocado e escurecido.
+    Decidir pela proporção real no `load` da imagem (`naturalWidth/naturalHeight`), sem mudar o servidor.
+    Ficha do jogo: mesma regra, moldura maior. Pronto: nenhuma faixa vazia nos cards; testes JS da regra.
 - **N9 (L) — Remover a web.** Depois do V1: apagar `index.html`, `app.js`, `style.css` e as rotas usadas só por
   eles; adaptar testes. Mudança no setup (links/atalhos que apontem para `/`) vai para o setup-linux-bonesi.
 
@@ -80,7 +93,7 @@ Executado por outra sessão; cada item termina com testes verdes e um commit peq
 - **A4 (L) — Desejados, Stream, Situação/Opções em Compose**; remover as Views antigas da `MainActivity`.
 - **V2 (V)** — Teste no celular com toque e com o G8.
 
-Ordem: N1 → N8, V1, A1 → A4, V2, N9.
+Ordem: N1 → N8, N10, A1 → A4 (com o V1 correndo em paralelo), V2, N9.
 
 ## Regras para a execução
 
