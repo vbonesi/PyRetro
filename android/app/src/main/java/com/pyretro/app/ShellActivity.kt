@@ -26,6 +26,8 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var data by mutableStateOf<ShellData?>(null)
     private var gamepad by mutableStateOf(false)
     private var status by mutableStateOf("")
+    private var openKey by mutableStateOf<String?>(null)
+    private var rev by mutableIntStateOf(0)
     private val drive by lazy { GoogleDrive(this, store.prefs) }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private var games = emptyList<Game>()
@@ -59,7 +61,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
         update()
         handler.postDelayed({ if (!isFinishing && !isDestroyed) work.execute { AppSync.prefetchCovers(this, store, drive, games) } }, 8000)
     }
-    override fun onResume() { super.onResume(); reload(); syncNow(force = false) }
+    override fun onResume() { super.onResume(); rev++; reload(); syncNow(force = false) }
     override fun onDestroy() { handler.removeCallbacksAndMessages(null); (getSystemService(INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this); work.shutdown(); super.onDestroy() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,7 +76,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                 val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
                 val layout = navLayout(landscape, gamepad)
                 fun select(d: Destination) { nav.select(d); current = nav.current }
-                BackHandler(enabled = current != Destination.INICIO) { nav.back(); current = nav.current }
+                BackHandler(enabled = openKey != null || current != Destination.INICIO) { if (openKey != null) openKey = null else { nav.back(); current = nav.current } }
                 Scaffold(
                     containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
@@ -94,7 +96,9 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                             Spacer(Modifier.weight(1f))
                         }
                         val shell = data ?: ShellData(store, emptyList(), emptyList(), false, status)
-                        when (current) {
+                        val open = openKey?.let { k -> shell.games.firstOrNull { it.key == k } }
+                        if (open != null) GameScreen(store, open, remember(open.key, rev, shell) { factsOf(open) }, rev, { runAction(open, it) }, ::changed, { openKey = null }, Modifier.weight(1f))
+                        else when (current) {
                             Destination.INICIO -> HomeScreen(shell, ::openGame, ::openLegacy, Modifier.weight(1f))
                             Destination.BIBLIOTECA -> LibraryScreen(shell, ::openGame, ::openLegacy, Modifier.weight(1f))
                             else -> DestinationScreen(current, Modifier.weight(1f))
@@ -107,9 +111,26 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
 
     private fun openLegacy(collection: String) =
         startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_COLLECTION, collection))
-    /** A ficha continua sendo a da tela antiga até o A3. */
-    private fun openGame(game: Game) =
-        startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_GAME, game.key))
+    private fun openGame(game: Game) { openKey = game.key }
+    /** Fluxos pesados da ficha (jogar, baixar, saves, ROMs, Drive, editar, capa, remover) ainda rodam na tela antiga, em cima do jogo escolhido. */
+    private fun runAction(game: Game, action: GameAction) =
+        startActivity(Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_GAME, game.key).putExtra(MainActivity.EXTRA_ACTION, action.id))
+    private fun changed() { rev++; reload() }
+
+    private fun factsOf(game: Game): GameFacts {
+        val rom = game.code in store.folders
+        val queued = runCatching { DownloadQueue.get(store).contains(game.key) }.getOrDefault(false)
+        return GameFacts(game.key, game.id, game.code, game.platform, rom, game.localUri != null, queued, store.prefs.contains("cloud:${game.key}"),
+            game.downloadable, game.pcLocal, game.drive, store.online, drive.connected, GameLogic.remotePackage(game.platform),
+            GameLogic.streamedThroughNotebook(game.platform), packageManager.getLaunchIntentForPackage("com.github.stenzek.duckstation") != null,
+            ExtrasRules.coverTarget(game.id, game.cover) != null, rom && SpaceStore(store).pinned(game), store.favorite(game))
+    }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        // B do controle volta, como na tela antiga.
+        if (keyCode == android.view.KeyEvent.KEYCODE_BUTTON_B) { onBackPressedDispatcher.onBackPressed(); return true }
+        return super.onKeyDown(keyCode, event)
+    }
 
     @Composable
     private fun DestinationScreen(destination: Destination, modifier: Modifier) {

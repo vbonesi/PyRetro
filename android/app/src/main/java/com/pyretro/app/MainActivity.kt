@@ -41,6 +41,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
         var automaticUpdates:Boolean get()=AppSync.enabled; set(value) { AppSync.enabled=value }
         const val EXTRA_COLLECTION="collection"
         const val EXTRA_GAME="game"
+        const val EXTRA_ACTION="action"
         private val COLLECTIONS=listOf("home" to "Início","cell" to "Neste celular","catalog" to "Catálogo","systems" to "Sistemas","favorites" to "Favoritos","ranking" to "Ranking","wishlist" to "Desejados","stream" to "Stream")
     }
     private lateinit var store:LibraryStore
@@ -212,7 +213,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState);store=LibraryStore(this)
         collection=store.prefs.getString("ui:collection","home").takeIf { it in COLLECTIONS.map { c -> c.first } } ?: "home"
-        requestedGame=intent?.getStringExtra(EXTRA_GAME)
+        requestedGame=intent?.getStringExtra(EXTRA_GAME);requestedAction=intent?.getStringExtra(EXTRA_ACTION)
         intent?.getStringExtra(EXTRA_COLLECTION)?.takeIf { it in COLLECTIONS.map { c -> c.first } }?.let { collection=it }
         filterPlatform=store.prefs.getString("ui:filter:$collection:platform","").orEmpty();filterGenre=store.prefs.getString("ui:filter:$collection:genre","").orEmpty()
         page=store.prefs.getInt("ui:page",0).coerceAtLeast(0);restoredScroll=store.prefs.getInt("ui:scroll",0).coerceAtLeast(0)
@@ -276,9 +277,33 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     override fun onInputDeviceRemoved(deviceId:Int)=updateControllerOrientation()
     override fun onInputDeviceChanged(deviceId:Int)=updateControllerOrientation()
     override fun onDestroy() { networkCallback?.let { callback -> runCatching { (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(callback) } };queueHandler.removeCallbacks(queueTick);updateQueueStatus=null;updateLocalStatus=null;if(::controllerManager.isInitialized)controllerManager.unregisterInputDeviceListener(this);super.onDestroy() }
-    /** Ficha pedida pela casca em Compose (EXTRA_GAME): abre assim que o jogo estiver carregado. */
+    /** Ficha ou ação pedida pela casca em Compose (EXTRA_GAME/EXTRA_ACTION): roda assim que o jogo estiver carregado. */
     private var requestedGame:String?=null
-    private fun openRequestedGame() { val key=requestedGame ?: return;games.firstOrNull { it.key==key }?.let { requestedGame=null;details(it) } }
+    private var requestedAction:String?=null
+    private fun openRequestedGame() {
+        val key=requestedGame ?: return
+        games.firstOrNull { it.key==key }?.let { game -> val action=GameAction.of(requestedAction);requestedGame=null;requestedAction=null;if(action==null)details(game) else runShellAction(game,action) }
+    }
+    /** As ações da ficha em Compose reaproveitam os fluxos (e diálogos) desta tela até o A4 removê-la. */
+    private fun runShellAction(game:Game,action:GameAction) {
+        when(action) {
+            GameAction.PLAY -> launchLocal(game)
+            GameAction.QUEUE -> downloads()
+            GameAction.DOWNLOAD -> quickDownload(game)
+            GameAction.STREAM -> GameLogic.remotePackage(game.platform)?.let(::openPackage)
+            GameAction.SWITCH,GameAction.MOONLIGHT -> notebook(game)
+            GameAction.DRIVE_SEARCH,GameAction.DRIVE_PICK -> driveSearch(game)
+            GameAction.SAVES -> gameSaves(game)
+            GameAction.ADD_LIBRARY -> addToLibrary(game)
+            GameAction.DUCKSTATION -> openPackage("com.github.stenzek.duckstation")
+            GameAction.OTHER_ROM -> pickRom(game,false)
+            GameAction.TEXTURES -> textures(game)
+            GameAction.EDIT -> editGame(game)
+            GameAction.COVER -> ExtrasRules.coverTarget(game.id,game.cover)?.let { coverSearch(game,it) }
+            GameAction.REMOVE -> offerRomRemoval(game)
+            GameAction.DRAW -> draw()
+        }
+    }
     private fun reloadLocal(after:(()->Unit)?=null) {
         work.execute {
             val loaded=store.loadGames(catalog);val problems=loaded.problems;val all=loaded.games
@@ -1687,7 +1712,7 @@ class MainActivity:Activity(),InputManager.InputDeviceListener {
     /** A casca em Compose (ShellActivity) abre a tela antiga numa coleção; com a activity já viva, só troca a coleção. */
     override fun onNewIntent(intent:Intent) {
         super.onNewIntent(intent);setIntent(intent)
-        intent.getStringExtra(EXTRA_GAME)?.let { requestedGame=it;openRequestedGame() }
+        intent.getStringExtra(EXTRA_GAME)?.let { requestedGame=it;requestedAction=intent.getStringExtra(EXTRA_ACTION);openRequestedGame() }
         intent.getStringExtra(EXTRA_COLLECTION)?.takeIf { it in COLLECTIONS.map { c -> c.first } }?.let { selectCollection(it) }
     }
     override fun onResume() {

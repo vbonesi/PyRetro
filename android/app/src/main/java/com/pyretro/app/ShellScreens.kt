@@ -46,11 +46,11 @@ class ShellData(val store: LibraryStore, val games: List<Game>, val entries: Lis
 }
 
 @Composable
-private fun focusRing(focused: Boolean) = if (focused) MaterialTheme.colorScheme.primary else Color.Transparent
+internal fun focusRing(focused: Boolean) = if (focused) MaterialTheme.colorScheme.primary else Color.Transparent
 
 /** Capa da lista: baixa do cache/Drive fora da thread principal e tenta de novo duas vezes, como a tela antiga. */
 @Composable
-private fun rememberCover(store: LibraryStore, game: Game): ImageBitmap? {
+internal fun rememberCover(store: LibraryStore, game: Game): ImageBitmap? {
     val bitmap by produceState<ImageBitmap?>(null, game.key, game.cover) {
         for (attempt in 0..2) {
             value = withContext(Dispatchers.IO) {

@@ -1,5 +1,19 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, A3: ficha do jogo em Compose, Android 0.28.0 (Claude)
+
+- **Ficha como página** na casca (`GameScreen.kt`), com voltar (botão, gesto e B do controle) e a capa na moldura 3:4. Uma **ação principal** por contexto
+  (▶ Jogar neste celular, ⬇ Na fila, ⬇ Baixar, 📡 Transmitir do Xbox/PlayStation/Switch, 🖥 Moonlight, Procurar a ROM no Drive), fileira secundária
+  (☆ Favoritar, 📌 Fixar, 💾 Saves, 🖼 Trocar capa, ✎ Editar, Texturas HD, 📚 Adicionar à Biblioteca), **Progresso e tempo** (iniciado/finalizado/platinado e
+  nota com −1/−0,1/+0,1/+1) direto na ficha e o raro em **⋯ Mais** (Moonlight, DuckStation, outra ROM, arquivo no Drive, Remover). Mesmos nomes da tela antiga.
+- Regras puras em `GameRules.kt` (`GameFacts`, `primary`, `state`, `notes`, `secondary`, `more`, `GameAction`) com 5 testes JVM.
+- Favoritar, fixar, progresso e nota são feitos na própria ficha (mesmas chamadas ao `LibraryStore`/`SpaceStore`); finalizar um jogo que está no celular
+  ainda oferece a remoção da ROM.
+- **Limite honesto:** os fluxos pesados (jogar, baixar, saves, trocar ROM, Drive, editar, capa, remover, textures) ainda rodam na tela antiga: a ficha manda
+  `EXTRA_GAME`+`EXTRA_ACTION` e a `MainActivity` executa a ação e seus diálogos. Isso sai no A4, quando as Views antigas forem removidas. Ao jogar, o
+  voltar do emulador cai na tela antiga, não na ficha nova.
+- Build, lint e testes JVM passaram; APK 0.28.0 (code 49) compilado, **não instalado**, não testado em aparelho (foco do controle, B, capa 3:4).
+
 ## 17/11/2026 — Nova navegação, correção do A2: atualização automática também na casca (Claude)
 
 - A casca em Compose virou a entrada, mas a rotina de abertura/retomada continuava só na `MainActivity`: quem abrisse só Início ou Biblioteca nunca
