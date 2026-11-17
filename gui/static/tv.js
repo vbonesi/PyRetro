@@ -1,6 +1,6 @@
 /* Modo TV: cliente das mesmas APIs da GUI, sem acesso direto ao acervo. */
 import {api} from "./tv/api.js";
-import {collectionTabs, drawGame, load, updateFilters} from "./tv/catalog.js";
+import {collectionTabs, drawGame, findGameByKey, load, updateFilters} from "./tv/catalog.js";
 import {$, report} from "./tv/dom.js";
 import {closeGame, hideGame, openGame} from "./tv/game.js";
 import {scrollTarget, stickScroll} from "./tv/focus.js";
@@ -20,7 +20,7 @@ if (window.ResizeObserver) new ResizeObserver(entries => {
   document.documentElement.style.setProperty("--footer-height", `${entries[0].target.getBoundingClientRect().height}px`);
 }).observe(document.querySelector("footer"));
 async function openLinkedGame(key) {
-  const game = (await api("/api/tv/catalog")).find(game => game.key === key);
+  const game = await findGameByKey(key);
   if (game) openGame(game);
   else { replaceRoute(routeFor(state.kind, state.code, state.query)); report("O jogo desse link não está mais disponível no catálogo.", true); }
 }

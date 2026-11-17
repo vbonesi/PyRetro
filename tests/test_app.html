@@ -899,6 +899,41 @@ teste('TV: sorteio sugere PS4, preserva erros e abre link pela identidade', asyn
   }finally{frame.remove();}
 });
 
+teste('TV: endereço da ficha resolve chave de ROM, da Biblioteca e dos Desejados', async () => {
+  const frame=document.createElement('iframe');frame.style.cssText='width:1000px;height:750px;position:absolute;left:-9999px';document.body.append(frame);
+  const html=(await(await fetch('/tv')).text()).replace('<script type="module" src="/static/tv.js"></scr'+'ipt>','');
+  const loaded=new Promise(resolve=>frame.onload=resolve);frame.srcdoc=html;await loaded;
+  const app=frame.contentWindow,doc=app.document;
+  app.requestAnimationFrame=fn=>app.setTimeout(()=>fn(app.performance.now()),16);
+  const catalog=[{key:'rom:ARCADE:19xx',id:'bib-1',code:'ARCADE',romName:'19xx.zip',name:'19XX',platform:'Arcade',tracking:{}},
+    {key:'rom:PS2:Teste',code:'PS2',romName:'Teste.iso',name:'Teste ROM',platform:'PlayStation 2',tracking:{}}];
+  app.fetch=async url=>{
+    let data;
+    if(url==='/api/tv/home')data={recent:[],continue:[],favorites:[],installed:[],ready:[],apps:[],counts:{}};
+    else if(url==='/api/systems'||url==='/api/heavy/systems')data=[];
+    else if(url==='/api/play/status')data={status:'idle'};
+    else if(url==='/api/tv/catalog')data=catalog;
+    else if(url==='/api/library')data=[{id:'so-bib',nome:'Só Biblioteca',plataforma:'Xbox'}];
+    else if(url==='/api/wishlist')data={steam:[{id:'w1',nome:'Desejado'}],psn:[],xbox:[]};
+    else if(url.startsWith('/api/play/options?')||url.startsWith('/api/pc/options?'))data={launcher:true,options:[],emulators:[]};
+    else throw new Error('requisição inesperada: '+url);
+    return{ok:true,json:async()=>data};
+  };
+  const script=doc.createElement('script');script.type='module';script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
+  try{
+    await app.load('home');
+    for(const [chave,titulo] of [['rom:ARCADE:19xx','19XX'],['pc:bib-1','19XX'],['ARCADE:19xx.zip','19XX'],['PS2:Teste.iso','Teste ROM'],['pc:so-bib','Só Biblioteca'],['pc:w1','Desejado']]){
+      await app.openLinkedGame(chave);
+      igual(doc.getElementById('game-title').textContent,titulo,'ficha de '+chave);
+      verdade(doc.getElementById('details').open,'ficha fechada para '+chave);
+      doc.getElementById('details').close();
+    }
+    await app.openLinkedGame('pc:w1');verdade(!doc.getElementById('wishlist-actions').hidden,'desejado sem ações de lista');doc.getElementById('details').close();
+    await app.openLinkedGame('pc:nada');verdade(!doc.getElementById('details').open,'chave inexistente abriu ficha');
+    verdade(doc.getElementById('message').textContent.includes('não está mais disponível'));
+  }finally{frame.remove();}
+});
+
 teste('TV: tempo manual, mais jogados e mídia local em detalhes a 390 px', async () => {
   const frame=document.createElement('iframe');frame.style.cssText='width:390px;height:800px;position:absolute;left:-9999px';document.body.append(frame);
   const html=(await(await fetch('/tv')).text()).replace('<script type="module" src="/static/tv.js"></scr'+'ipt>','');

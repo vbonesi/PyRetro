@@ -55,6 +55,25 @@ function platformTabs() {
 export function collectionTabs() {
   $("collections").replaceChildren(...collections.map(([kind, title]) => button(title, () => load(kind), state.kind === kind)));
 }
+// Resolve a chave da rota de uma ficha (#/jogo/<chave>) em qualquer coleção: chave do catálogo da TV, `pc:<id>` da
+// Biblioteca (primeiro o item do catálogo com esse id, depois a Biblioteca e os Desejados) ou `<sistema>:<ROM>`.
+export async function findGameByKey(key) {
+  const catalog = await api("/api/tv/catalog");
+  const found = catalog.find(g => g.key === key || (g.code && (`${g.code}:${g.romName}` === key || `${g.code}:${g.name}` === key)));
+  if (found) return found;
+  const id = /^pc:(.+)$/.exec(key)?.[1];
+  if (!id) return null;
+  const owned = catalog.find(g => g.id === id);
+  if (owned) return owned;
+  const book = (await api("/api/library")).find(g => g.id === id);
+  if (book) return libraryItem(book);
+  const lists = await api("/api/wishlist");
+  for (const [source, label] of Object.entries(WISHLIST_STORES)) {
+    const entry = (lists[source] || []).find(g => g.id === id);
+    if (entry) return {...libraryItem(entry), platform: label, wishlist: source};
+  }
+  return null;
+}
 function libraryItem(g) {
   const item = {id: g.id, name: g.nome, platform: g.plataforma || "Biblioteca", cover: g.capa_url, tracking: g};
   if (g.rom_code) { item.code = g.rom_code; item.romName = g.nome; }
