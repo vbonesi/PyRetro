@@ -18,21 +18,34 @@ function galleryMove(direction, current) {
   cards[target].focus({preventScroll: true}); cards[target].scrollIntoView({block: "nearest", inline: "nearest"});
   return true;
 }
-export function move(direction) {
-  const nodes = focusable(); const current = document.activeElement;
-  if (!nodes.includes(current)) { nodes[0]?.focus(); return; }
-  if (galleryMove(direction, current)) return;
-  const r = current.getBoundingClientRect(); const x = r.x + r.width / 2, y = r.y + r.height / 2;
-  let best, score = Infinity;
-  for (const e of nodes) {
-    if (e === current) continue;
-    const b = e.getBoundingClientRect(); const dx = b.x + b.width / 2 - x, dy = b.y + b.height / 2 - y;
+// Vizinho por geometria: dos retângulos candidatos, o que fica na direção pedida com menor custo (distância no
+// eixo + 4× o desvio no eixo cruzado). Função pura: recebe e devolve retângulos {x, y, width, height}.
+export function pickNeighbor(from, candidates, direction) {
+  const x = from.x + from.width / 2, y = from.y + from.height / 2;
+  let best = -1, score = Infinity;
+  candidates.forEach((b, i) => {
+    const dx = b.x + b.width / 2 - x, dy = b.y + b.height / 2 - y;
     const primary = direction === "left" ? -dx : direction === "right" ? dx : direction === "up" ? -dy : dy;
     const cross = Math.abs(direction === "left" || direction === "right" ? dy : dx);
-    if (primary <= 2) continue;
+    if (primary <= 2) return;
     const cost = primary + cross * 4;
-    if (cost < score) { best = e; score = cost; }
-  }
+    if (cost < score) { best = i; score = cost; }
+  });
+  return best;
+}
+// Memória por região: cada área marcada com data-region (menu, filtros, galeria, cada fileira) lembra o último
+// botão focado; ao entrar nela por outra direção, o foco volta para ele em vez de cair no mais próximo.
+const memory = new Map();
+export function regionOf(el) { return el.closest?.("[data-region]")?.dataset.region || el.closest?.("dialog")?.id || "pagina"; }
+document.addEventListener("focusin", e => { if (e.target instanceof HTMLElement) memory.set(regionOf(e.target), e.target); });
+export function recallFocus(region, nodes) { const el = memory.get(region); return el && el.isConnected && nodes.includes(el) ? el : null; }
+export function move(direction) {
+  const nodes = focusable(); const current = document.activeElement;
+  if (!nodes.includes(current)) { (recallFocus(regionOf(current), nodes) || nodes[0])?.focus(); return; }
+  if (galleryMove(direction, current)) return;
+  const others = nodes.filter(e => e !== current);
+  let best = others[pickNeighbor(current.getBoundingClientRect(), others.map(e => e.getBoundingClientRect()), direction)];
+  if (best && regionOf(best) !== regionOf(current)) best = recallFocus(regionOf(best), nodes) || best;
   if (best) { best.focus({preventScroll: true}); best.scrollIntoView({block: "nearest", inline: "nearest"}); }
 }
 export function page(direction) {

@@ -23,13 +23,32 @@ export function padFamily(id = "") {
   return /054c|sony|dualshock|dualsense|wireless controller/i.test(id) ? "ps" : "xbox";
 }
 export function glifos() { return GLIFOS[glifoPref === "auto" ? glifoDetectado : glifoPref] || GLIFOS.xbox; }
+// Entrada em uso: "pad" (controle), "keys" (teclado) ou "mouse" (mouse/toque). Decide cursor, hover, anel de foco
+// (tv.css, body[data-input]) e a barra de dicas; troca sem recarregar assim que o outro aparelho é usado.
+export const inputMode = () => document.body.dataset.input || "pad";
+export function setInputMode(mode) {
+  if (document.body.dataset.input === mode) return;
+  document.body.dataset.input = mode; applyGlyphs();
+}
 export function applyGlyphs() {
-  const g = glifos();
-  $("hints").textContent = `✚ Navegar · ${g.A} Escolher · ${g.B} Voltar · ☰ Opções`;
-  $("hints-extra").textContent = `${g.X} Favoritar · ${g.Y} Pesquisar · ${g.L}/${g.R} Página · ${g.LT}/${g.RT} Coleção · Mouse: botão direito favorita`;
-  $("search-open").textContent = `${g.Y} · Pesquisar`;
+  const g = glifos(), mode = inputMode();
+  $("hints").textContent = mode === "keys" ? "↑↓←→ Navegar · Enter Escolher · Esc Voltar · Y Pesquisar"
+    : mode === "mouse" ? "Clique Escolher · Botão direito Favoritar · Botão voltar do mouse Voltar"
+    : `✚ Navegar · ${g.A} Escolher · ${g.B} Voltar · ☰ Opções`;
+  $("hints-extra").textContent = mode === "keys" ? "Backspace Voltar · PgUp/PgDn Página · Tab também navega · Mouse: botão direito favorita"
+    : mode === "mouse" ? "Roda do mouse corre as fileiras · Y ou Pesquisar abre a busca · Teclado e controle seguem funcionando"
+    : `${g.X} Favoritar · ${g.Y} Pesquisar · ${g.L}/${g.R} Página · ${g.LT}/${g.RT} Coleção · Mouse: botão direito favorita`;
+  $("search-open").textContent = mode === "pad" ? `${g.Y} · Pesquisar` : "Pesquisar";
   $("glyphs-cycle").textContent = `Botões: ${GLIFO_NOMES[glifoPref]}`;
 }
+// Só deslocamento de verdade conta: o navegador repete pointermove nas mesmas coordenadas quando o layout muda sob o cursor.
+let pointerX, pointerY;
+document.addEventListener("pointermove", e => {
+  const moved = e.movementX || e.movementY || (pointerX !== undefined && (e.clientX !== pointerX || e.clientY !== pointerY));
+  pointerX = e.clientX; pointerY = e.clientY;
+  if (moved) setInputMode("mouse");
+});
+document.addEventListener("pointerdown", () => setInputMode("mouse"));
 export function action(key) {
   if (state.busy) return;
   if (["left", "right", "up", "down"].includes(key)) move(key);
@@ -45,6 +64,7 @@ export function action(key) {
   }
 }
 document.addEventListener("keydown", e => {
+  if (!["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key)) setInputMode("keys");
   if (e.target instanceof HTMLInputElement && e.key !== "Escape") return;
   const key = {ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Escape: "back", Backspace: "back", PageUp: "page-up", PageDown: "page-down", y: "search", Y: "search"}[e.key];
   if (key) { e.preventDefault(); action(key); }
@@ -91,6 +111,7 @@ export function pollGamepad(now) {
       scrollTarget(document.activeElement, axis === "x").scrollBy({[axis === "x" ? "left" : "top"]: step, behavior: "instant"});
     }
     if (awaitNeutral) { if (!keys.size) awaitNeutral = false; requestAnimationFrame(pollGamepad); return; }
+    if (keys.size) setInputMode("pad");
     for (const k of keys) {
       if (!held.has(k)) { action(k); repeatAt.set(k, now + 380); }
       else if (["left", "right", "up", "down", "page-up", "page-down", ...($("search-dialog").open ? ["erase"] : [])].includes(k) && now >= repeatAt.get(k)) { action(k); repeatAt.set(k, now + 110); }

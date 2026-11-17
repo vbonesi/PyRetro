@@ -46,7 +46,7 @@ export function renderHome() {
   const box = $("home"); box.replaceChildren();
   const home = state.home; $("spotlight").hidden = !home;
   if (!home) return;
-  const quick = document.createElement("section"); quick.className = "quick-access"; quick.setAttribute("aria-label", "Acesso rápido");
+  const quick = document.createElement("section"); quick.className = "quick-access"; quick.dataset.region = "acesso-rapido"; quick.setAttribute("aria-label", "Acesso rápido");
   for (const appId of ["greenlight", "chiaki", "sysdvr", "steam", "heroic"]) {
     const app = home.apps?.find(g => g.id === appId);
     if (app) { const b = button(`${app.icon} ${app.name}`, () => launchApp(app)); b.dataset.app = appId; quick.append(b); }
@@ -57,7 +57,7 @@ export function renderHome() {
     const games = home[key] || []; if (!games.length) continue;
     const section = document.createElement("section"); section.className = "home-section"; section.dataset.shelf = key;
     const heading = document.createElement("h3"); heading.textContent = title;
-    const row = document.createElement("div"); row.className = "shelf"; row.setAttribute("aria-label", title);
+    const row = document.createElement("div"); row.className = "shelf"; row.dataset.region = `fileira-${key}`; row.setAttribute("aria-label", title);
     for (const game of games) row.append(gameCard(game));
     const head = document.createElement('div'); head.className = 'shelf-heading';
     head.append(heading, shelfControls(row, title));

@@ -458,6 +458,77 @@ teste("modo TV: endereços das telas ida e volta", async () => {
   igual(parseRoute("").kind, "home"); igual(parseRoute("#/qualquer-coisa").kind, "home");
 });
 
+// Motor de foco (focus.js): vizinho por geometria e memória por região.
+teste("modo TV: vizinho por geometria escolhe a direção certa e o menor desvio", async () => {
+  const {pickNeighbor} = await import("/static/tv/focus.js");
+  const r = (x, y) => ({x, y, width: 100, height: 40});
+  const from = r(200, 200);
+  const cands = [r(0, 200), r(400, 200), r(200, 50), r(200, 400), r(420, 260)];
+  igual(pickNeighbor(from, cands, "left"), 0); igual(pickNeighbor(from, cands, "right"), 1);
+  igual(pickNeighbor(from, cands, "up"), 2); igual(pickNeighbor(from, cands, "down"), 3);
+  igual(pickNeighbor(from, [r(0, 0)], "right"), -1, "sem candidato na direção");
+  igual(pickNeighbor(from, [r(380, 200), r(300, 400)], "right"), 0, "desvio no eixo cruzado pesa mais");
+});
+teste("modo TV: cada região lembra o último botão focado", async () => {
+  const {move, regionOf} = await import("/static/tv/focus.js");
+  const dialog = document.createElement("dialog");
+  dialog.style.cssText = "position:fixed;left:0;top:0;width:600px;height:300px;margin:0;padding:0;border:0";
+  const make = (region, y) => [0, 1, 2].map(i => {
+    const b = document.createElement("button"); b.dataset.region = region; b.id = `${region}${i}`; b.textContent = `${region}${i}`;
+    b.style.cssText = `position:absolute;left:${i * 150}px;top:${y}px;width:100px;height:40px;margin:0;padding:0;min-height:0`; return b;
+  });
+  const [a, b] = [make("faixa-a", 10), make("faixa-b", 200)];
+  dialog.append(...a, ...b); document.body.append(dialog); dialog.show();
+  try {
+    igual(regionOf(a[0]), "faixa-a");
+    // O iframe de teste pode não ter o foco do sistema (então o navegador não dispara focusin): dispara à mão.
+    const focar = el => { el.focus(); el.dispatchEvent(new FocusEvent("focusin", {bubbles: true})); };
+    focar(b[2]); focar(a[0]);
+    move("down");
+    igual(document.activeElement.id, "faixa-b2", "voltou ao último botão da região de baixo, não ao mais próximo");
+    move("up");
+    igual(document.activeElement.id, "faixa-a0", "e ao último botão da região de cima");
+    focar(a[1]); move("left"); igual(document.activeElement.id, "faixa-a0", "dentro da região segue a geometria");
+    b[2].remove(); focar(a[0]); move("down");
+    verdade(document.activeElement.id.startsWith("faixa-b"), "botão lembrado removido: cai no vizinho");
+  } finally { dialog.remove(); }
+});
+// Modo de entrada: mouse, teclado e controle trocam body[data-input] e a barra de dicas sem recarregar.
+teste("modo TV: entrada em uso troca cursor, hover e dicas", async () => {
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "width:1000px;height:750px;position:absolute;left:-9999px";
+  document.body.append(frame);
+  const html = (await (await fetch("/tv")).text()).replace('<script type="module" src="/static/tv.js"></scr' + 'ipt>', "");
+  const loaded = new Promise(resolve => frame.onload = resolve);
+  frame.srcdoc = html; await loaded;
+  const app = frame.contentWindow, doc = app.document;
+  app.requestAnimationFrame = fn => app.setTimeout(() => fn(app.performance.now()), 16);
+  let pad = null;
+  Object.defineProperty(app.navigator, "getGamepads", {value: () => [pad], configurable: true});
+  app.fetch = async url => {
+    const data = url === "/api/tv/home" ? {recent: [], continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {}}
+      : url === "/api/systems" || url === "/api/heavy/systems" ? [] : url === "/api/play/status" ? {status: "idle"} : url === "/api/tv/catalog" ? [] : null;
+    if (data === null) throw new Error("requisição inesperada: " + url);
+    return {ok: true, json: async () => data};
+  };
+  const script = doc.createElement("script"); script.type = "module"; script.src = "/static/tv.js"; doc.head.append(script);
+  await new Promise(resolve => script.onload = resolve);
+  try {
+    const modo = () => doc.body.dataset.input, dicas = () => doc.getElementById("hints").textContent;
+    igual(modo(), "pad"); verdade(dicas().includes("Escolher"));
+    doc.dispatchEvent(new app.KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true}));
+    igual(modo(), "keys"); verdade(dicas().includes("Enter"), "dicas do teclado");
+    doc.dispatchEvent(new app.PointerEvent("pointermove", {pointerType: "mouse", bubbles: true, clientX: 10, clientY: 10}));
+    igual(modo(), "keys", "pointermove sem deslocamento não conta (layout mexendo sob o cursor parado)");
+    const move = new app.PointerEvent("pointermove", {pointerType: "mouse", bubbles: true}); Object.defineProperty(move, "movementX", {value: 4});
+    doc.dispatchEvent(move);
+    igual(modo(), "mouse"); verdade(dicas().includes("Clique"), "dicas do mouse");
+    pad = {id: "Xbox 360 Controller", connected: true, mapping: "standard", axes: [0, 0, 0, 0], buttons: Array.from({length: 17}, (_, i) => ({pressed: i === 13, value: i === 13 ? 1 : 0}))};
+    await esperar(() => modo() === "pad", "controle não voltou ao modo pad");
+    verdade(dicas().includes("Escolher") && !dicas().includes("Clique"), "dicas do controle");
+  } finally { frame.remove(); }
+});
+
 // Modo TV em iframe com TODAS as APIs substituídas antes de carregar o JS.
 // Não consulta nem grava a biblioteca real; simula também controle e SSE.
 teste("modo TV: controle, progresso atômico, falha de gravação e download", async () => {

@@ -1,5 +1,18 @@
 # Changelog
 
+## 17/11/2026 — Nova navegação, N2: motor de foco e modo de entrada (Claude)
+
+- `tv/focus.js`: `pickNeighbor` (vizinho por geometria, função pura) e memória por região. As áreas marcadas com `data-region` (menu,
+  plataformas, gêneros, ações, destaque, galeria, acesso rápido e cada fileira do Início) lembram o último botão focado; entrar nelas por
+  outra direção volta a ele. Dentro da região vale a geometria (a grade da galeria segue a ordem dos cards, como antes).
+- `body[data-input="pad|keys|mouse"]` (`tv/input.js`): controle, teclado ou mouse/toque, trocando sem recarregar. Com o controle o cursor some e
+  fica o anel de foco; hover só vale no modo mouse (o cursor parado não realça mais um segundo item); no mouse o anel só aparece para foco de
+  teclado. Deslocamento de verdade do mouse conta, `pointermove` repetido nas mesmas coordenadas não. A barra de dicas muda com o aparelho
+  (letras Xbox/PlayStation, teclado, mouse).
+- Fora do N2, de propósito: "foco fixo na fileira" (a fileira correr sob o foco) e a barra lateral ficam para o N3.
+- Também: N1 corrigido (`9d59c97`) — `findGameByKey` resolve o endereço da ficha vindo da Biblioteca, Ranking, Jogando e Desejados.
+- Testes: 500 Python e 63 JS (+4: vizinho, memória, troca de entrada, chave da ficha).
+
 ## 17/11/2026 — Nova navegação, N1: módulos e rotas no modo TV (Claude)
 
 - `gui/static/tv.js` (1.654 linhas) virou o ponto de entrada de módulos ES em `gui/static/tv/` (`api`, `state`, `router`, `focus`, `input`,

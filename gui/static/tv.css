@@ -66,7 +66,7 @@ input{font:inherit;width:100%;padding:.8rem;border:1px solid #54708a;border-radi
 .system-card{background:linear-gradient(135deg,#21394e,#122238);min-height:180px;justify-content:center}
 .system-card:not(:has(.system-symbol)){padding:1rem}
 .system-symbol{font-size:1.7rem}
-button:hover{
+body[data-input=mouse] button:hover{
   background:#2b435e
 }
 button[aria-pressed=true],.primary{
@@ -286,7 +286,7 @@ header{padding:1rem 3vw .5rem}
 :root[data-theme=light]{color-scheme:light;background:#e9edf0;color:#192b3e;--accent:#007a70;--panel:#fff;--text:#192b3e;--muted:#54697c;--edge:#173b5928;--badge:#006b5d}
 :root[data-theme=light] body{background:radial-gradient(ellipse at top right,#d5e5e9,transparent 60%)}
 :root[data-theme=light] button{background:#f5f8fa;color:#203247;border-color:#9db4c0}
-:root[data-theme=light] button:hover{background:#dce8eb}
+:root[data-theme=light] body[data-input=mouse] button:hover{background:#dce8eb}
 :root[data-theme=light] button[aria-pressed=true],:root[data-theme=light] .primary{background:#d2ece5;border-color:var(--accent)}
 :root[data-theme=light] dialog{background:#f4f8fb;color:#192b3e}
 :root[data-theme=light] input{background:#fff;color:#192b3e}
@@ -339,7 +339,7 @@ header{padding:1rem 3vw .5rem}
 .cover-choice small{font-size:.6rem}
 #wishlist-actions .primary,#wishlist-actions button{font-size:.85rem}
 /* Mouse e toque: realce ao passar e alvos maiores em tela de toque. */
-@media(hover:hover){.game:hover{border-color:var(--accent)}}
+@media(hover:hover){body[data-input=mouse] .game:hover{border-color:var(--accent)}}
 @media(pointer:coarse){button,a{min-height:48px}.shelf{overscroll-behavior-x:contain}#keyboard button{min-height:52px}}
 /* Linhas com ação (saves, cópias, texturas): texto à esquerda, botão à direita. */
 .save-row{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.5rem 0;font-size:.8rem;overflow-wrap:anywhere}
@@ -398,3 +398,8 @@ body.filters-collapsed #platforms,body.filters-collapsed #genres{display:none}
 
 .brand-logo{width:2.1rem;height:2.1rem;border-radius:22%;display:block}
 @media(max-width:700px){.brand-logo{width:1.8rem;height:1.8rem}}
+
+/* Entrada em uso (body[data-input], definido em tv/input.js): com o controle o cursor some e fica só o anel de foco;
+   com o teclado o realce do mouse some; com o mouse voltam cursor e realce ao passar, e o anel só aparece para foco de teclado. */
+body[data-input=pad],body[data-input=pad] *{cursor:none!important}
+body[data-input=mouse] button:focus:not(:focus-visible),body[data-input=mouse] a:focus:not(:focus-visible){outline:none;box-shadow:none}
