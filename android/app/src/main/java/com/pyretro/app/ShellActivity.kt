@@ -53,7 +53,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private fun readInfo(problems: List<String>, list: List<Game>): StatusInfo {
         val folders = runCatching { StatusStore(store).folders() }.getOrDefault(emptyList())
         val rows = runCatching { DownloadQueue.get(store).snapshot().filter { it.state != DownloadState.DONE } }.getOrDefault(emptyList())
-        val version = runCatching { packageManager.getPackageInfo(packageName, 0).let { "${it.versionName} (${it.longVersionCode})" } }.getOrDefault("")
+        val version = runCatching { packageManager.getPackageInfo(packageName, 0).let { "${it.versionName} (${(if (android.os.Build.VERSION.SDK_INT >= 28) it.longVersionCode else @Suppress("DEPRECATION") it.versionCode.toLong())})" } }.getOrDefault("")
         return StatusInfo(list.count { it.localUri != null }, list.size, store.prefs.getLong("updated", 0), problems, store.base().isBlank(), store.online, drive.connected, drive.email,
             folders.firstOrNull { it.code == "ROOT" }?.access ?: FolderAccess.UNSELECTED, folders.firstOrNull { it.code == "retroarch" }?.access ?: FolderAccess.UNSELECTED,
             store.pending(), store.prefs.getLong("library-sync-at", 0), rows.size, rows.count { it.state == DownloadState.FAILED }, rows.count { it.state == DownloadState.PAUSED }, version)
