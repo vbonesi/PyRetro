@@ -247,6 +247,24 @@
   Filtros (plataforma/gênero) ainda não entram no endereço.
 - Testes: 499 Python (+1, rota dos módulos) e 59 JS (+1, ida e volta dos endereços); os testes do modo TV passaram a carregar o `tv.js` como módulo.
 
+## 16/11/2026 — Terceiro lote de Switch (5 jogos) e sincronização de listas
+
+- Subidos ao Drive (`Jogos/ROMs/NSW`, MD5 conferido), cadastrados, capeados e com infos: Xenoblade Chronicles 2 (+ Torna e DLCs), 3 e X Definitive Edition, Thronefall e Tanuki Pon's Summer. Originais de `Downloads` apagados; ficaram só os mods russos (não enviados).
+- Heroic: 5 jogos novos (Trash Goblin, Jurassic World Evolution 2, Radiolight, WRC Generations, Knightica). Wishlist da Steam: 13 novos. Kingdom Hearts IV adicionado à lista Xbox (Urban Jungle já estava). Todos com capa e infos (desenvolvedora/data/sinopse da loja da Steam); Escape Academy 2 e Hope in the City usam o cabeçalho horizontal da loja (SteamGridDB não tem).
+- Datas de Switch de Thronefall e Tanuki seguem a Steam (PC).
+
+## 11/11/2026 — Segundo lote de Switch (25 jogos grandes por torrent)
+
+- Fluxo: torrent em `~/Downloads` (= `Drive/Temp`) → `rclone copy` direto ao `Jogos/ROMs/NSW/<Jogo>` → `rclone check` por MD5 → só então apagar o
+  original e o `Temp` (sem lixeira, a pedido do Victor). **Mover na nuvem não serviu:** o Insync sobe pouco e errado enquanto o torrent grava (o
+  update do Astral Chain no `Temp` tinha MD5 diferente do original), então o upload sai do disco local (~1,5 MB/s por arquivo).
+- Prontos: Astral Chain, Bayonetta 3, Inkonbini, LEGO Harry Potter Collection, Dragon Ball Z Kakarot, Kirby's Return to Dream Land Deluxe, Hyrule Warriors Definitive Edition, Lost in Random The Eternal Die, LEGO Horizon Adventures, Mario Strikers Battle League, Inazuma Eleven Victory Road, Monster Hunter Rise, Subnautica e Below Zero (originais apagados; Atelier Yumia já no Drive e cadastrado, original local pendente; Wolfenstein Youngblood, Front Mission 2 Remake, Raidou Remastered, Samurai Warriors 5, Xenoblade Chronicles Definitive Edition, Pokémon Shield, Wolfenstein II The New Colossus, Warriors Orochi 4 Ultimate, Police Simulator Patrol Officers (Aesir, 29/10/2024); Inkonbini: Nagai Industries, 30/04/2026). Bayonetta Origins também (MD5 conferido). Os três têm gênero,
+  desenvolvedora, lançamento, sinopse e capa do SteamGridDB.
+  Lixeira do Drive limpa das sobras do lote de 10/11 (mods em russo etc.). Demais jogos entram conforme os torrents terminam.
+- **Encerrado em 12/11:** os 25 jogos do lote estão no Drive (`Jogos/ROMs/NSW`), com MD5 conferido, cadastrados e capeados; originais e `Temp` apagados,
+  lixeira do Drive zerada. Sobras de `.part` (Sword, Totori, mod russo do Raidou) apagadas à mão pelo Victor. Transmission fechado e sem torrents.
+  Datas e desenvolvedoras escritas de memória (só Inkonbini, Police Simulator e Front Mission 2 conferidos na web): vale revisar.
+
 ## 11/11/2026 — PyRetro Shop: índice do Tinfoil para o Switch
 
 - `core/switch_shop.py`: uma chamada `rclone lsjson -R` na pasta `NSW` do Drive gera o índice de shop do Tinfoil
