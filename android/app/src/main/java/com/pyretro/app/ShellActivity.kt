@@ -40,7 +40,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private val flows by lazy {
         GameFlows(this, store, drive, actions, { games }, { data != null }, ::changed, { syncNow(force = true) },
             { intent, done -> onPicked = done; picker.launch(intent) },
-            { sender, done -> onPicked = done; senderPicker.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build()) }) { g, a -> runLegacyAction(g, a) }
+            { sender, done -> onPicked = done; senderPicker.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build()) }) { g, a -> runLegacyAction(g, a) }.also { it.onRemovedLocally = ::removedLocally }
     }
     private val drive by lazy { GoogleDrive(this, store.prefs) }
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -49,6 +49,9 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private val work = java.util.concurrent.Executors.newSingleThreadExecutor()
     /** Ações do usuário (remover, baixar, saves, capa, editar, testar conexão…): nunca esperam a sincronização de fundo. */
     private val actions = java.util.concurrent.Executors.newFixedThreadPool(3)
+    /** Recarga da lista: executor próprio (nunca atrás da sincronização do `work`); a leitura mais nova prevalece. */
+    private val reader = java.util.concurrent.Executors.newFixedThreadPool(2)
+    private val gate = ReloadGate()
 
     /** Mesmo critério da tela antiga: controle físico (não virtual) com gamepad ou joystick. */
     private fun gamepadPresent() = InputDevice.getDeviceIds().asSequence().mapNotNull { InputDevice.getDevice(it) }
@@ -73,17 +76,26 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
 
     /** Carrega os jogos como a tela antiga (catálogo em cache + pastas do celular) e os Desejados em cache; com o notebook online, atualiza os Desejados. */
     private fun reload() {
-        work.execute {
+        val generation = gate.next()
+        reader.execute {
             val loaded = runCatching { store.loadGames() }.getOrNull()
             val list = loaded?.games ?: emptyList()
             val ent = list.map(store::entryOf)
             val wishes = runCatching { extras.wishlist(false) }.getOrDefault(emptyList())
             val inf = runCatching { readInfo(loaded?.problems ?: emptyList(), list) }.getOrDefault(StatusInfo())
-            runOnUiThread { if (!isDestroyed) { games = list; entries = ent; wishItems = wishes; info = inf; status = statusLine(list.isEmpty()); data = buildData(); flows.deliverSession() } }
-            if (store.online) runCatching { extras.wishlist(true) }.onSuccess { fresh ->
+            runOnUiThread { if (!isDestroyed && gate.isCurrent(generation)) { games = list; entries = ent; wishItems = wishes; info = inf; status = statusLine(list.isEmpty()); data = buildData(); flows.deliverSession() } }
+        }
+        if (store.online) work.execute {
+            runCatching { extras.wishlist(true) }.onSuccess { fresh ->
                 runOnUiThread { if (!isDestroyed && fresh != wishItems) { wishItems = fresh; data = buildData() } }
             }
         }
+    }
+
+    /** Remoção local concluída: o jogo sai de "Neste celular" na hora, antes da recarga completa. */
+    private fun removedLocally(key: String) {
+        games = RemovalView.afterLocalRemoval(games, key); entries = games.map(store::entryOf); info = info.copy(readyGames = games.count { it.localUri != null }, catalogSize = games.size)
+        data = buildData(); rev++
     }
     private fun statusLine(catalogEmpty: Boolean) = AppSync.statusLine(store.online, store.prefs.getLong("updated", 0), catalogEmpty) {
         java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it))
@@ -98,7 +110,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     }
     override fun onResume() { super.onResume(); rev++; reload(); syncNow(force = false); flows.onResume() }
     override fun onPause() { flows.onPause(); super.onPause() }
-    override fun onDestroy() { handler.removeCallbacksAndMessages(null); (getSystemService(INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this); work.shutdown(); actions.shutdown(); super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacksAndMessages(null); (getSystemService(INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this); work.shutdown(); actions.shutdown(); reader.shutdown(); super.onDestroy() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

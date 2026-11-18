@@ -1,5 +1,16 @@
 # Changelog
 
+## 18/11/2026 — Android 0.31.2: a lista atualiza na hora depois de remover (atrito do V2) (Claude)
+
+- **Sintoma (Victor):** a remoção da ROM do Zool funcionou na 0.31.1, mas o jogo só saiu de "Neste celular" depois de reiniciar o app. **Causa:** `changed()` chamava `reload()`
+  no executor `work` (uma thread), o mesmo da sincronização automática (progresso e catálogo, com rede) e dos outros trabalhos de fundo; a recarga ficava na fila atrás deles.
+  Valia para toda ação que chama `changed()` (baixar, vincular ROM, pasta, conta Google, editar, catálogo).
+- **Correção:** `reload()` roda em executor próprio (`reader`) e a leitura mais nova prevalece (`ReloadGate`: contador de geração; leitura antiga e lenta é descartada).
+  A atualização dos Desejados pela rede saiu da recarga e roda no `work`, para não segurar a lista. Depois de uma remoção que tirou o arquivo do celular
+  (escopos "Só deste celular" e "Dos dois", sem falhas), a lista é atualizada na hora na thread de UI: `localUri` zerado e, se era entrada só local (sem cadastro, PC ou Drive),
+  a entrada sai da lista; o contador da Situação acompanha. Só então a recarga completa corre.
+- Testes JVM: 153 (+5, `ReloadGateTest`: geração mais nova prevalece, entrada só local sai, cadastrada fica sem arquivo). Lint ok. APK 0.31.2 (code 55) compilado, **não instalado**; sem teste em aparelho.
+
 ## 17/11/2026 — Android 0.31.1: remover ROM não fica mais mudo (bug do V2) (Claude)
 
 - **Sintoma (Victor, Zool → Remover → "Só deste celular"):** só o toast "Conferindo arquivos exclusivos e proteções…" e mais nada. **Causas confirmadas no código:**

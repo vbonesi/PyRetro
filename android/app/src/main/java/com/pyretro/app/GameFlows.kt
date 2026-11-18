@@ -194,6 +194,8 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
     fun remove(game: Game) {
         choice = ChoiceState("Remover ROM: ${game.name}", listOf("Só deste celular", "Só do Drive (lixeira)", "Dos dois")) { which -> removalPreview(game, listOf("local", "drive", "both")[which]) }
     }
+    /** Chamado na thread de UI depois de uma remoção que tirou o arquivo do celular: atualiza a lista na hora. */
+    var onRemovedLocally: (String) -> Unit = {}
     private fun removalPreview(game: Game, scope: String) {
         withBusy("Conferindo arquivos exclusivos e proteções…", retry = { removalPreview(game, scope) }, job = { RomRemoval(store).plan(game, scope, isRunning(game)) }) { result ->
             run { result.onFailure { notice = NoticeState("Não foi possível conferir", it.message ?: "Falha ao montar a prévia.", "Tentar de novo", "Voltar") { removalPreview(game, scope) } }.onSuccess { plan ->
@@ -210,6 +212,7 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
                         done.onSuccess { rows ->
                             val failures = rows.filter { it.second.isFailure }
                             notice = NoticeState("Remoção", "${rows.size - failures.size} arquivo(s) para a lixeira. " + if (failures.isEmpty()) "Versões recuperáveis; saves preservados." else failures.joinToString { "${it.first}: ${it.second.exceptionOrNull()?.message}" })
+                            if (scope != "drive" && plan.local.isNotEmpty() && failures.isEmpty()) onRemovedLocally(game.key)
                             changed()
                         }.onFailure { notice = NoticeState("Remoção", it.message ?: "Não foi possível remover.") }
                     }
