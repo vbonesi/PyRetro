@@ -1,5 +1,17 @@
 # Changelog
 
+## 23/11/2026 — N11: tela cheia e Fechar na janela nativa (V1) (Claude)
+
+- **Tela cheia sem efeito:** na janela do PyRetro o botão pedia a tela cheia do elemento e, ao sair, `gui/app.py` voltava ao estado inicial (também tela cheia). Agora há uma
+  ponte página ↔ Qt: `BridgePage` (subclasse de `QWebEnginePage`) intercepta `pyretro-app://fullscreen` e `pyretro-app://quit` em `acceptNavigationRequest` e recusa a navegação.
+  O perfil leva `PyRetroApp/1` no user agent; a página (`tv/native.js`) o usa para saber que está na janela nativa. Lá o botão e o F11 alternam a **própria janela** entre
+  tela cheia e maximizada; o Qt devolve o estado por `runJavaScript` (`window.pyretroFullscreen`, também ao terminar de carregar) e o rótulo acompanha. No Chrome nada mudou.
+- **Fechar:** botão "Fechar o PyRetro" em "Seu console" (que o Menu/Start abre), escondido fora da janela nativa; dois toques (o primeiro vira "Fechar o PyRetro?", zera ao fechar o diálogo).
+  Chama `pyretro-app://quit` → `QApplication.quit()`; o `pyretro-gui` continua no ar.
+- **Testado na janela nativa** (`--windowed` e sem a opção, via depuração remota do QtWebEngine): o botão e o F11 alternam nos dois sentidos, o rótulo acompanha, Fechar encerra só a janela
+  (servidor 200 depois). A navegação `pyretro-app://` só dispara com gesto do usuário (clique ou tecla reais); chamada de script sem gesto é ignorada. Em `--windowed` a "maximizada" apareceu como
+  janela normal no compositor deste teste. 503 Python, 73 testes de página (JS) passam.
+
 ## 18/11/2026 — Android 0.31.2: a lista atualiza na hora depois de remover (atrito do V2) (Claude)
 
 - **Sintoma (Victor):** a remoção da ROM do Zool funcionou na 0.31.1, mas o jogo só saiu de "Neste celular" depois de reiniciar o app. **Causa:** `changed()` chamava `reload()`

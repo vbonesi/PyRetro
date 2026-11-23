@@ -79,6 +79,20 @@ Executado por outra sessão; cada item termina com testes verdes e um commit peq
     capas de Steam) ou muito alta fica inteira com `contain` sobre um fundo da própria capa desfocado e escurecido.
     Decidir pela proporção real no `load` da imagem (`naturalWidth/naturalHeight`), sem mudar o servidor.
     Ficha do jogo: mesma regra, moldura maior. Pronto: nenhuma faixa vazia nos cards; testes JS da regra.
+- **N11 (L) — Fechar e tela cheia na janela do PyRetro (V1, 23/11).**
+  - *Tela cheia sem efeito:* na janela nativa (QtWebEngine), a janela já abre em tela cheia. O botão pede a tela cheia do elemento,
+    e ao sair dela o `gui/app.py` chama o estado inicial, que também é tela cheia: nada muda. Na janela nativa, o botão deve alternar a
+    **própria janela** entre tela cheia e janela maximizada com moldura, por uma ponte pequena entre a página e o Qt. Sugestão: uma
+    subclasse de `QWebEnginePage` cujo `acceptNavigationRequest` intercepta `pyretro-app://fullscreen` e `pyretro-app://quit` e recusa a
+    navegação; a página sabe que está na janela nativa por um marcador no user agent (por exemplo `PyRetroApp/1`). O Qt devolve o estado
+    à página com `runJavaScript`, e o rótulo "Tela cheia"/"Sair da tela cheia" acompanha. F11 faz o mesmo. No Chrome (sem o marcador),
+    o comportamento atual continua.
+  - *Fechar:* pelo Moonlight os atalhos (Alt+F4, Super) não chegam, e não há como sair. Botão **"Fechar o PyRetro"** que o controle
+    alcança: no fim da barra lateral (ou no "Seu console") e no Menu. Pede confirmação ("Fechar o PyRetro?"), só aparece na janela nativa e
+    encerra a aplicação Qt (`QApplication.quit()`); o servidor `pyretro-gui` continua no ar. Pelo Moonlight, fechar o app encerra a
+    transmissão, e isso é esperado.
+  - Pronto: os dois testados na janela nativa (`python3 gui/app.py`, com e sem `--windowed`): o botão de tela cheia alterna nos dois
+    sentidos, o rótulo acompanha, e Fechar encerra só a janela. Testes JS para a decisão de mostrar o botão e para o rótulo.
 - **N9 (L) — Remover a web.** Depois do V1: apagar `index.html`, `app.js`, `style.css` e as rotas usadas só por
   eles; adaptar testes. Mudança no setup (links/atalhos que apontem para `/`) vai para o setup-linux-bonesi.
 

@@ -721,6 +721,28 @@ teste("modo TV: tela cheia fecha o diálogo antes de pedir e o rótulo segue o e
   } finally { frame.remove(); }
 });
 
+teste("modo TV: janela nativa (PyRetroApp) decide o botão Fechar e o rótulo da tela cheia", async () => {
+  const {isNativeApp, fullscreenText} = await import("/static/tv/native.js");
+  verdade(isNativeApp("Mozilla/5.0 QtWebEngine/6 Chrome/1 PyRetroApp/1"), "marcador não reconhecido");
+  verdade(!isNativeApp("Mozilla/5.0 Chrome/120 Safari/537"), "Chrome comum tratado como janela nativa");
+  igual([fullscreenText(false), fullscreenText(true), fullscreenText(null)], ["Tela cheia", "Sair da tela cheia", "Tela cheia"]);
+  const {frame, app, doc} = await abrirTV(() => undefined);
+  try {
+    doc.getElementById("settings-open").click();
+    verdade(doc.getElementById("quit-app").hidden, "Fechar apareceu fora da janela nativa");
+    doc.getElementById("settings-close").click();
+    Object.defineProperty(app.navigator, "userAgent", {value: "Mozilla/5.0 PyRetroApp/1", configurable: true});
+    app.pyretroFullscreen(true);
+    doc.getElementById("settings-open").click();
+    verdade(!doc.getElementById("quit-app").hidden, "Fechar não apareceu na janela nativa");
+    igual(doc.getElementById("fullscreen").textContent, "Sair da tela cheia");
+    app.pyretroFullscreen(false);
+    igual(doc.getElementById("fullscreen").textContent, "Tela cheia");
+    doc.getElementById("quit-app").click();
+    igual(doc.getElementById("quit-app").textContent, "Fechar o PyRetro?", "Fechar não pediu confirmação");
+  } finally { frame.remove(); }
+});
+
 // Mouse e teclado completos: digitar busca, Ctrl+K, menu de contexto no botão direito, Home/End e Alt+1…5.
 teste("modo TV: digitar busca, Ctrl+K, botão direito, Home/End e Alt+número sem controle", async () => {
   const item = (name, extra = {}) => ({key: `pc:${name}`, id: name, name, platform: "Steam", tracking: {}, local: false, ...extra});

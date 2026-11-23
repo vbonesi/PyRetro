@@ -48,6 +48,14 @@ def ensure_server(timeout=30):
     return False
 
 
+APP_MARKER = 'PyRetroApp/1'
+
+
+def toggle_fullscreen(view):
+    """Alterna a própria janela entre tela cheia e maximizada com moldura."""
+    view.showMaximized() if view.isFullScreen() else view.showFullScreen()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--windowed', action='store_true', help='não abrir em tela cheia')
@@ -76,15 +84,34 @@ def main(argv=None):
     app = QApplication([sys.argv[0]])
     app.setApplicationName('PyRetro')
     profile = QWebEngineProfile('pyretro-tv')
+    # Marcador para a página saber que está na janela nativa (botões Tela cheia e Fechar).
+    profile.setHttpUserAgent(profile.httpUserAgent() + ' ' + APP_MARKER)
     view = QWebEngineView()
-    view.setPage(QWebEnginePage(profile, view))
+
+    def push_state():
+        view.page().runJavaScript(
+            'window.pyretroFullscreen && window.pyretroFullscreen(%s)' % ('true' if view.isFullScreen() else 'false'))
+
+    class BridgePage(QWebEnginePage):
+        # A página fala com o Qt navegando para pyretro-app://…; a navegação é recusada e vira ação.
+        def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+            if url.scheme() == 'pyretro-app':
+                acao = url.host()
+                if acao == 'fullscreen':
+                    toggle_fullscreen(view)
+                    push_state()
+                elif acao == 'quit':
+                    QApplication.quit()
+                return False
+            return super().acceptNavigationRequest(url, nav_type, is_main_frame)
+
+    view.setPage(BridgePage(profile, view))
     view.setWindowTitle('PyRetro')
     # O JS pede tela cheia (F11/Esc); sem isso o Qt a recusa silenciosamente.
     view.settings().setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
-    # Ao sair da tela cheia do elemento, volta ao estado inicial (tela cheia, salvo --windowed), não à janela solta.
-    inicial = view.showNormal if args.windowed else view.showFullScreen
-    view.page().fullScreenRequested.connect(lambda req: (req.accept(),
-        view.showFullScreen() if req.toggleOn() else inicial()))
+    # Pedidos de tela cheia do próprio conteúdo (vídeo) só são aceitos; a janela é alternada pela ponte.
+    view.page().fullScreenRequested.connect(lambda req: req.accept())
+    view.page().loadFinished.connect(lambda ok: push_state())
     view.load(QUrl(URL + args.path))
     view.showNormal() if args.windowed else view.showFullScreen()
     return app.exec()
