@@ -11,7 +11,9 @@
 - **Trails in the Sky 2nd Chapter não cadastrado:** a pasta do Drive só tem 30 DLCs (~100 KB cada), sem o jogo base nem update.
 - Wishlist da Steam sincronizada (128 jogos): entrou **C.L.T.** (Uniday Studio, 24/11/2026, acesso antecipado), com capa do cabeçalho horizontal da loja (sem capa vertical em
   nenhuma fonte) e infos da loja. Nada saiu. A segunda rodada seguida levou 429 da Steam e cancelou sem gravar; a terceira, minutos depois, passou.
-- Mais tarde no mesmo dia o 2nd Chapter continuava só com os DLCs; o arquivo base não está em lugar nenhum do Drive.
+- Mais tarde no mesmo dia o Victor subiu de novo o 2nd Chapter (base + update) e ele foi **cadastrado** (RPG, Nihon Falcom, 17/09/2026, capa do SteamGridDB).
+  Sem original local para MD5, conferi por amostragem (`rclone cat --offset`): o base tem cabeçalho PFS0 e 0 de 80 trechos zerados, mas o **update
+  (v327680, 1,18 GB) tem 14 de 16 trechos de 1 MB zerados** (o update do 1st Chapter, de controle, 0 de 16): está corrompido e precisa subir de novo.
 - **Repetidos fora da emulação** (Switch, Switch 2, lojas de PC, Xbox, PS3/PS4), a pedido do Victor: 16 casos. Decisões dele: Steam + Switch → se segue na
   biblioteca da Steam, sai do Switch (os 4 seguiam: Alex Kidd DX, Blasphemous, FF VII e FF IX; com o OK dele, pastas na lixeira do Drive, cadastros do Switch sem progresso apagados e índice do Tinfoil refeito); Amazon + Epic
   ficam nos dois; Steam/Epic + Xbox → se um lado for só desejo, sai o desejo, senão ele tira à mão (Celeste, Rise of the Tomb Raider, Overcooked e The Escapists 2
