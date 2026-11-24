@@ -12,6 +12,14 @@
 - Wishlist da Steam sincronizada (128 jogos): entrou **C.L.T.** (Uniday Studio, 24/11/2026, acesso antecipado), com capa do cabeçalho horizontal da loja (sem capa vertical em
   nenhuma fonte) e infos da loja. Nada saiu. A segunda rodada seguida levou 429 da Steam e cancelou sem gravar; a terceira, minutos depois, passou.
 - Mais tarde no mesmo dia o 2nd Chapter continuava só com os DLCs; o arquivo base não está em lugar nenhum do Drive.
+- **Repetidos fora da emulação** (Switch, Switch 2, lojas de PC, Xbox, PS3/PS4), a pedido do Victor: 16 casos. Decisões dele: Steam + Switch → se segue na
+  biblioteca da Steam, sai do Switch (os 4 seguem: Alex Kidd DX, Blasphemous, FF VII, FF IX; a remoção das pastas do Drive aguarda confirmação); Amazon + Epic
+  ficam nos dois; Steam/Epic + Xbox → se um lado for só desejo, sai o desejo, senão ele tira à mão (Celeste, Rise of the Tomb Raider, Overcooked e The Escapists 2
+  são posse nos dois lados). Juntados: The Witcher 3 (Complete Edition virou apelido do Remastered, nome atual da Steam) e Galactic Civilizations III
+  ("Test branch" virou apelido). Persona 5 Royal saiu da lista de desejos do Xbox (o Victor já tem no Switch).
+- Heroic: 5 jogos novos (CLeM, Mark of the Deep, Werewolf: The Apocalypse - Earthblood na Epic; Kiborg e Squirrel with a Gun na Amazon), com capa oficial
+  da Steam e infos da loja (Earthblood com a data da Epic, 04/02/2021).
+- A Steam renomeou "The Sims 4" para "The Sims™ 4" e o `_normalize` não tira o ™: o nome novo virou apelido do registro, senão a próxima atualização duplicaria.
 - Testes: 507 Python (+2).
 
 ## 23/11/2026 — N11: tela cheia e Fechar na janela nativa (V1) (Claude)
