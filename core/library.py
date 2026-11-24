@@ -991,6 +991,7 @@ PLATAFORMA_ROM_CODES = {
     "nintendo wii": "WII", "wii": "WII",
     "sony psp": "PSP", "psp": "PSP", "playstation portable": "PSP",
     "nintendo 3ds": "3DS", "3ds": "3DS",
+    "nintendo switch 2": "NSW2", "switch 2": "NSW2",
 }
 
 

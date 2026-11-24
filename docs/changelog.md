@@ -22,7 +22,15 @@
 - Heroic: 5 jogos novos (CLeM, Mark of the Deep, Werewolf: The Apocalypse - Earthblood na Epic; Kiborg e Squirrel with a Gun na Amazon), com capa oficial
   da Steam e infos da loja (Earthblood com a data da Epic, 04/02/2021).
 - A Steam renomeou "The Sims 4" para "The Sims™ 4" e o `_normalize` não tira o ™: o nome novo virou apelido do registro, senão a próxima atualização duplicaria.
-- Testes: 507 Python (+2).
+- **Switch 2 abre pelo PyRetro no PC (Lichii):** NSW2 passou a ser sistema pesado padrão (`core/heavy_roms.DEFAULT_HEAVY_SYSTEMS`, acrescentado ao
+  carregar a configuração; uma seção no `config.toml` vence), só PC, extensões `nup/nsp/xci`, fora das capas do libretro (`COVERS_EXCLUDED`).
+  "Nintendo Switch 2" mapeia para NSW2, então a pasta do Drive e o cadastro da Biblioteca são um item só no catálogo do modo TV (conferido no
+  `/api/tv/catalog`: o Zelda aparece uma vez, com código NSW2 e o id do cadastro). Baixar usa o mesmo download de pasta dos outros pesados;
+  jogar chama `bonisarch-emulator switch2`, que no setup (`bcf2c2f`) abre o AppImage do Lichii com `-f -g` e copia `SHADERS/*.bin` para
+  `~/.cache/lichii/shader/<id>` sem sobrescrever. A janela `lichii` entrou na lista que o PyRetro traz para a frente. Capa do Zelda copiada para
+  `Capas/Nintendo - Switch 2/Named_Boxarts`. **Não testado com o emulador:** o Lichii ainda não está instalado (AppImage e chaves/firmware de um
+  Switch 2 são manuais, do Victor). O Moonlight não precisa de nada: transmite o PyRetro, que é o primeiro app do Sunshine.
+- Testes: 508 Python (+5).
 
 ## 23/11/2026 — N11: tela cheia e Fechar na janela nativa (V1) (Claude)
 

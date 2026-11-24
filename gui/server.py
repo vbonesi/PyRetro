@@ -379,7 +379,7 @@ def load_config() -> dict:
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(f"config.toml não encontrado - abra o PyRetro (modo TV) para criar, ou copie config.example.toml para {CONFIG_PATH}")
     with open(CONFIG_PATH, "rb") as f:
-        return storage_mod.apply_config(tomllib.load(f))
+        return heavy_mod.with_defaults(storage_mod.apply_config(tomllib.load(f)))
 
 
 def search_cover_candidates(code: str, query: str, cfg: dict) -> list:

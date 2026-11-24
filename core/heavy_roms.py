@@ -47,6 +47,25 @@ from core import play as play_mod
 _TRACK_RE = re.compile(r"^(.+) \(Track \d+\)$")
 
 
+# Sistemas pesados que o código já traz, sem precisar de seção no config.toml. O NSW2 (24/11/2026) é o
+# Switch 2 emulado no PC pelo Lichii (`bonisarch-emulator switch2`): uma pasta por jogo em
+# `<drive_roms_root>/NSW2/`, o .nup dentro, e o cache de shaders da distribuição em `SHADERS/`. Só PC
+# (Android não emula Switch 2) e sem repositório de capas do libretro (`repo` vazio, em COVERS_EXCLUDED):
+# a capa vem do cadastro da Biblioteca. Uma seção [heavy_systems.NSW2] no config.toml tem precedência.
+DEFAULT_HEAVY_SYSTEMS = {
+    "NSW2": {"nome": "Nintendo Switch 2", "celular": False, "exts": ["nup", "nsp", "xci"],
+             "capas": "Nintendo - Switch 2", "repo": ""},
+}
+
+
+def with_defaults(cfg: dict) -> dict:
+    """Acrescenta DEFAULT_HEAVY_SYSTEMS ao que o config.toml define (o do arquivo vence)."""
+    heavy = cfg.setdefault("heavy_systems", {})
+    for code, info in DEFAULT_HEAVY_SYSTEMS.items():
+        heavy.setdefault(code, dict(info, exts=list(info["exts"])))
+    return cfg
+
+
 def load_heavy_systems(cfg: dict) -> dict:
     return cfg.get("heavy_systems", {})
 

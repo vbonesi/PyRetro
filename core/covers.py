@@ -35,7 +35,7 @@ ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 
 # de capas, não do projeto como um todo. Definido aqui (não em
 # gui/server.py) porque core/sync.py também precisa dele e core não
 # deveria importar de gui.
-COVERS_EXCLUDED = {"PS"}
+COVERS_EXCLUDED = {"PS", "NSW2"}  # NSW2: não há repositório do libretro para Switch 2
 
 _TAG_RE = re.compile(
     r"\((usa|europe|japan|world|en|fr|de|es|it|nl|pt|rev\s*\d+|beta|proto"

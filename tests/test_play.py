@@ -141,3 +141,39 @@ class TestPlay(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'CCD'): play.prepare(self.cfg, 'PS', 'Jogo.ccd')
         self.file('PS2/Jogo.iso'); self.launcher.unlink()
         with self.assertRaises(ValueError): play.prepare(self.cfg, 'PS2', 'Jogo.iso')
+
+
+class TestSwitch2(unittest.TestCase):
+    """NSW2 (24/11/2026): sistema pesado padrão, aberto pelo `bonisarch-emulator switch2` (Lichii)."""
+
+    def test_config_sem_secao_ganha_o_nsw2_e_a_do_arquivo_vence(self):
+        from core import heavy_roms
+        cfg = heavy_roms.with_defaults({'heavy_systems': {'PS2': {'exts': ['iso']}}})
+        self.assertEqual(cfg['heavy_systems']['NSW2']['exts'], ['nup', 'nsp', 'xci'])
+        self.assertFalse(cfg['heavy_systems']['NSW2']['celular'])
+        proprio = heavy_roms.with_defaults({'heavy_systems': {'NSW2': {'exts': ['nup']}}})
+        self.assertEqual(proprio['heavy_systems']['NSW2'], {'exts': ['nup']})
+
+    def test_pasta_do_jogo_abre_o_nup_e_ignora_o_resto(self):
+        from core import heavy_roms
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            jogo = root / 'NSW2' / 'Zelda'
+            (jogo / 'SHADERS').mkdir(parents=True)
+            (jogo / 'Zelda [0400486024DEC000][v131072].nup').write_bytes(b'x')
+            (jogo / 'SHADERS' / 'vulkan.bin').write_bytes(b'x')
+            (jogo / 'README PT-BR.txt').write_text('x')
+            cfg = heavy_roms.with_defaults({'pc': {'roms_root': tmp}})
+            opcoes = play.candidates(cfg, 'NSW2', 'Zelda')
+            self.assertEqual([o['name'] for o in opcoes], ['Zelda/Zelda [0400486024DEC000][v131072].nup'])
+            launcher = root / 'launcher'; launcher.write_text('#!/bin/sh\n'); launcher.chmod(0o755)
+            with patch.object(play, 'LAUNCHER', launcher):
+                cmd = play.prepare(cfg, 'NSW2', opcoes[0]['name'])
+            self.assertEqual(cmd[1], 'switch2')
+
+    def test_cadastro_de_switch_2_casa_com_a_pasta_do_nsw2(self):
+        from core import library
+        idx = library.index_by_rom_name({'games': [
+            {'id': 'a', 'nome': 'Zelda', 'plataforma': 'Nintendo Switch 2', 'nomes_alt': []},
+            {'id': 'b', 'nome': 'Zelda', 'plataforma': 'Nintendo Switch', 'nomes_alt': []}]})
+        self.assertEqual(library.find_for_rom(idx, 'Zelda', 'NSW2')['id'], 'a')

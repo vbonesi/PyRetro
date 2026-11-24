@@ -18,7 +18,7 @@ SYSTEMS = {
     'MD': 'megadrive', 'SMS': 'mastersystem', 'GG': 'gamegear', 'N64': 'n64',
     'ARCADE': 'arcade', 'PCE': 'pcengine', 'PCECD': 'pcenginecd',
     'PS': 'psx', 'PS2': 'ps2', 'PSP': 'psp', 'NGC': 'gc', 'WII': 'wii',
-    'NDS': 'nds', '3DS': 'n3ds',
+    'NDS': 'nds', '3DS': 'n3ds', 'NSW2': 'switch2',
 }
 LAUNCHER = Path.home() / '.local/bin/bonisarch-emulator'
 CORE_ROOT = Path.home() / '.var/app/org.libretro.RetroArch/config/retroarch/cores'
@@ -34,7 +34,7 @@ def emulators(code):
         if (CORE_ROOT / (key + '_libretro.so')).is_file()]]
 
 
-EMULATOR_CLASSES = ('retroarch', 'pcsx2', 'ppsspp', 'duckstation', 'dolphin', 'azahar')
+EMULATOR_CLASSES = ('retroarch', 'pcsx2', 'ppsspp', 'duckstation', 'dolphin', 'azahar', 'lichii')
 
 
 def raise_emulator_window():

@@ -61,7 +61,7 @@ def load_config() -> dict:
     if not CONFIG_PATH.exists():
         sys.exit(f"config.toml não encontrado - copie config.example.toml para {CONFIG_PATH}")
     with open(CONFIG_PATH, "rb") as f:
-        return storage_mod.apply_config(tomllib.load(f))
+        return heavy_mod.with_defaults(storage_mod.apply_config(tomllib.load(f)))
 
 
 def cmd_fetch_covers(args) -> None:
