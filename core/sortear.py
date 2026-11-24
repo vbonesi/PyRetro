@@ -65,7 +65,7 @@ GRUPOS = {"leve", "pesado", "biblioteca"}
 # (rótulo genérico, sem geração), PlayStation 3 e PlayStation 4 - 39
 # jogos ao todo, pouco pra valer separar por geração.
 BIBLIOTECA_SUBGRUPOS = {
-    "Nintendo Switch": "switch",
+    "Nintendo Switch": "switch", "Nintendo Switch 2": "switch",
     "Xbox": "xbox", "Xbox One": "xbox", "Xbox Series S": "xbox", "Xbox 360": "xbox",
     "PSN": "playstation", "PlayStation 4": "playstation", "PlayStation 3": "playstation",
 }

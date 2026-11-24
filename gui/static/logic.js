@@ -135,6 +135,7 @@ const FONTE_LABELS = {
   // recém importados (fonte "switch") viravam uma aba própria
   // "switch" em vez de se juntar aos que já existiam na planilha.
   "switch": "Nintendo Switch",
+  "switch2": "Nintendo Switch 2",
 };
 
 function fonteLabel(f) {

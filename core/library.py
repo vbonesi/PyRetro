@@ -729,7 +729,7 @@ def nomes_para_match(game: dict) -> list:
 # (Pixel Remaster) virava fonte do registro da ROM de SNES, e o FF VII do Switch sumia dentro do registro
 # da Steam - a pasta do NSW ficava sem jogo de Switch na Biblioteca. Entre lojas de PC o casamento por
 # nome continua juntando de propósito (mesmo jogo na Steam e na Epic é um registro só).
-FONTES_SO_DA_PLATAFORMA = {"switch"}
+FONTES_SO_DA_PLATAFORMA = {"switch", "switch2"}
 
 
 def merge_owned(library: dict, owned: list) -> dict:
@@ -1279,21 +1279,30 @@ def read_switch_library(roms_root: Path, cfg: dict | None = None) -> list:
     planilha não é forçado a casar (fica como possível duplicata só
     reportada, ou vira registro novo separado - aceito por decisão do
     usuário, "não daria pra separar, paciência")."""
-    nomes = set()
+    return _ler_pastas_switch(pasta_nsw(roms_root, cfg), "NSW", "Nintendo Switch", "switch", cfg)
 
-    switch_dir = pasta_nsw(roms_root, cfg)
-    if switch_dir.is_dir():
-        for entry in switch_dir.iterdir():
+
+def read_switch2_library(roms_root: Path, cfg: dict | None = None) -> list:
+    """Mesma leitura do Switch para a pasta `NSW2` (ROMs de Switch 2, para emular no PC):
+    plataforma "Nintendo Switch 2", fonte `switch2`. Sistema próprio desde 24/11/2026, porque
+    o Switch 1 do Victor (Tinfoil, SysDVR) não roda esses jogos."""
+    return _ler_pastas_switch(roms_root / "NSW2", "NSW2", "Nintendo Switch 2", "switch2", cfg)
+
+
+def _ler_pastas_switch(local: Path, codigo: str, plataforma: str, fonte: str, cfg: dict | None) -> list:
+    nomes = set()
+    if local.is_dir():
+        for entry in local.iterdir():
             if entry.is_dir():
                 nomes.add(_limpa_nome_switch(entry.name))
 
     if cfg:
         from core import heavy_roms as _heavy
-        for item in _heavy.list_drive_items("NSW", cfg):
+        for item in _heavy.list_drive_items(codigo, cfg):
             if item["is_dir"]:
                 nomes.add(_limpa_nome_switch(item["name"]))
 
-    return [{"nome": n, "plataforma": "Nintendo Switch", "fonte": "switch"}
+    return [{"nome": n, "plataforma": plataforma, "fonte": fonte}
             for n in sorted(nomes) if n]
 
 
@@ -1578,6 +1587,7 @@ def nomes_alternativos_de_capa(nome: str) -> list:
 
 PLATAFORMA_SCREENSCRAPER = {
     "Nintendo Switch": "NSW",
+    "Nintendo Switch 2": "NSW",   # ScreenScraper sem Switch 2 confirmado; capa de Switch é o mais próximo
     "PlayStation 4": "PS",     # ScreenScraper não separa PS4; PS1 é o mais próximo
     "PlayStation 3": "PS",
     "PlayStation 2": "PS2",

@@ -1081,8 +1081,8 @@ def run_library_refresh_job(emit, source: str, apply: bool) -> None:
         label = "Steam"
     elif source == "switch":
         roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
-        owned = library_mod.read_switch_library(roms_root, cfg)
-        label = "Nintendo Switch (roms_root/NSW/)"
+        owned = library_mod.read_switch_library(roms_root, cfg) + library_mod.read_switch2_library(roms_root, cfg)
+        label = "Nintendo Switch e Switch 2 (pastas NSW/ e NSW2/)"
         # Aproveita a varredura (que já pagou o custo do rclone) pra
         # guardar o mapa nome-limpo -> pasta real, usado pela tela de
         # decompor coletânea.

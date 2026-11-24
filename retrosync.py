@@ -485,10 +485,10 @@ def cmd_library_refresh(args) -> None:
         fonte_label = "steam: {n} jogo(s) possuído(s)"
     elif args.source == "switch":
         roms_root = Path(cfg["pc"]["roms_root"]).expanduser()
-        owned = library_mod.read_switch_library(roms_root, cfg)
+        owned = library_mod.read_switch_library(roms_root, cfg) + library_mod.read_switch2_library(roms_root, cfg)
         if not owned:
-            sys.exit(f"nada encontrado em {roms_root / 'NSW'}")
-        fonte_label = "switch: {n} jogo(s) em roms_root/NSW/"
+            sys.exit(f"nada encontrado em {roms_root / 'NSW'} nem em {roms_root / 'NSW2'}")
+        fonte_label = "switch: {n} jogo(s) em roms_root/NSW/ e NSW2/"
     elif args.source == "psn":
         try:
             owned = library_mod.read_psn_library(cfg.get("psn", {}))

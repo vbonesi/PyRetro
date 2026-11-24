@@ -186,6 +186,23 @@ class TestMergeDeFontes(unittest.TestCase):
         self.assertEqual((r["added"], r["merged"]), (0, 1))
         self.assertEqual(lib["games"][1]["fontes"], ["steam"])
 
+    def test_switch2_e_plataforma_propria(self):
+        # 24/11: pasta NSW2 (Switch 2). O mesmo título no Switch 1 ou no N64 continua outro registro.
+        lib = {"games": [jogo("Zelda", "Nintendo 64", fontes=["rom:N64"]), jogo("Zelda", "Nintendo Switch", fontes=["switch"])]}
+        r = lm.merge_owned(lib, [{"nome": "Zelda", "plataforma": "Nintendo Switch 2", "fonte": "switch2"}])
+        self.assertEqual((r["added"], r["merged"]), (1, 0))
+        self.assertEqual(lib["games"][2]["plataforma"], "Nintendo Switch 2")
+
+    def test_leitura_da_pasta_nsw2(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            roms = Path(tmp)
+            (roms / "NSW2" / "Jogo Novo [NSZ]").mkdir(parents=True)
+            (roms / "NSW" / "Jogo Velho").mkdir(parents=True)
+            self.assertEqual(lm.read_switch2_library(roms),
+                             [{"nome": "Jogo Novo", "plataforma": "Nintendo Switch 2", "fonte": "switch2"}])
+            self.assertEqual([g["nome"] for g in lm.read_switch_library(roms)], ["Jogo Velho"])
+
 
 class TestRenomearSobrevive(unittest.TestCase):
     """Achado real (28/08): renomear pela tela quebrava o casamento por

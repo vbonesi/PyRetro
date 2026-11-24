@@ -1,5 +1,16 @@
 # Changelog
 
+## 24/11/2026 — Switch 2 (NSW2) como plataforma própria e Trails in the Sky 1st Chapter (Claude)
+
+- **Nova plataforma "Nintendo Switch 2"** (id `switch2`, sigla NSW2) no `assets/platforms/manifest.json` (web, modo TV e Android regenerados). Os jogos vêm da pasta
+  `Jogos/ROMs/NSW2` do Drive (ROMs de Switch 2 para emular no PC), pela fonte `switch2` (`core/library.read_switch2_library`), lida junto com o Switch no
+  "Atualizar do Switch e Switch 2" e no `retrosync library-refresh switch`. A fonte só casa com registro da mesma plataforma, como a do Switch: o mesmo título do
+  N64/3DS/Switch continua outro registro. Cadastro manual ganhou "Switch 2"; Sortear junta ao grupo Switch. Fica fora do índice do Tinfoil e do SysDVR (o Switch 1 não roda).
+- Cadastrados: **The Legend of Zelda Ocarina of Time** (Switch 2, Nintendo, 05/11/2026; capa provisória do SteamGridDB, arte do N64) e **Trails in the Sky 1st Chapter**
+  (Switch, Nihon Falcom, 19/09/2025, base + update + DLCs no Drive).
+- **Trails in the Sky 2nd Chapter não cadastrado:** a pasta do Drive só tem 30 DLCs (~100 KB cada), sem o jogo base nem update.
+- Testes: 507 Python (+2).
+
 ## 23/11/2026 — N11: tela cheia e Fechar na janela nativa (V1) (Claude)
 
 - **Tela cheia sem efeito:** na janela do PyRetro o botão pedia a tela cheia do elemento e, ao sair, `gui/app.py` voltava ao estado inicial (também tela cheia). Agora há uma

@@ -190,7 +190,7 @@ export async function toolLibrary(body) {
   const add = {preset: "Nintendo Switch|switch", plataforma: "", fonte: "", games: []};
   const addBox = document.createElement("section"); addBox.className = "panel";
   const drawAdd = () => addBox.replaceChildren(heading("Adicionar jogos à Biblioteca"),
-    choice([["Nintendo Switch|switch", "Switch"], ["PlayStation 4|psn", "PS4 digital"], ["PlayStation 4|psn:fisico", "PS4 físico"], ["PlayStation 3|psn", "PS3 digital"], ["PlayStation 3|psn:fisico", "PS3 físico"], ["", "Outra"]], add.preset, v => { add.preset = v; drawAdd(); }),
+    choice([["Nintendo Switch|switch", "Switch"], ["Nintendo Switch 2|switch2", "Switch 2"], ["PlayStation 4|psn", "PS4 digital"], ["PlayStation 4|psn:fisico", "PS4 físico"], ["PlayStation 3|psn", "PS3 digital"], ["PlayStation 3|psn:fisico", "PS3 físico"], ["", "Outra"]], add.preset, v => { add.preset = v; drawAdd(); }),
     ...(add.preset ? [] : [actions(button(`Plataforma: ${add.plataforma || "—"}`, () => openTextEntry("Plataforma (ex.: Xbox)", add.plataforma, v => { add.plataforma = v; drawAdd(); })),
       button(`Fonte: ${add.fonte || "—"}`, () => openTextEntry("Fonte (ex.: xbox)", add.fonte, v => { add.fonte = v; drawAdd(); })))]),
     ...add.games.map((g, i) => row(g, button("Tirar", () => { add.games.splice(i, 1); drawAdd(); }))),
@@ -203,7 +203,7 @@ export async function toolLibrary(body) {
   };
   drawAdd();
   body.replaceChildren(jobRow("Atualizar do Heroic", a => q("/api/library/refresh", {source: "heroic"}, a)), jobRow("Atualizar da Steam", a => q("/api/library/refresh", {source: "steam"}, a)),
-    jobRow("Atualizar do Switch (pastas do Drive)", a => q("/api/library/refresh", {source: "switch"}, a)), jobRow("Buscar capas que faltam na Biblioteca", a => q("/api/library/fetch_covers", {}, a)),
+    jobRow("Atualizar do Switch e Switch 2 (pastas do Drive)", a => q("/api/library/refresh", {source: "switch"}, a)), jobRow("Buscar capas que faltam na Biblioteca", a => q("/api/library/fetch_covers", {}, a)),
     jobRow("Atualizar índice do Switch (Tinfoil)", "/api/switch/shop", {apply: false}), addBox);
 }
 export async function toolCovers(body) {

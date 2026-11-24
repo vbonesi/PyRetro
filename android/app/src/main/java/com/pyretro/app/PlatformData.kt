@@ -17,6 +17,7 @@ object PlatformData {
     PlatformInfo("gamecube","GameCube","GC",0xFF5B4B9A.toInt(),listOf("NGC","Nintendo - GameCube","GameCube","Nintendo GameCube")),
     PlatformInfo("wii","Wii","Wii",0xFF37769A.toInt(),listOf("WII","Nintendo - Wii","Nintendo Wii")),
     PlatformInfo("switch","Nintendo Switch","NSW",0xFFC21F2B.toInt(),listOf("NSW","Nintendo Switch","Switch")),
+    PlatformInfo("switch2","Nintendo Switch 2","NSW2",0xFF8E1B24.toInt(),listOf("NSW2","Nintendo Switch 2","Switch 2")),
     PlatformInfo("mastersystem","Master System","SMS",0xFF1F4E9C.toInt(),listOf("SMS","Sega - Master System - Mark III","Sega Master System")),
     PlatformInfo("megadrive","Mega Drive","MD",0xFF223A7A.toInt(),listOf("MD","Sega - Mega Drive - Genesis","Mega Drive","Genesis","Sega Genesis")),
     PlatformInfo("gamegear","Game Gear","GG",0xFF2B4F8F.toInt(),listOf("GG","Sega - Game Gear","Sega Game Gear")),

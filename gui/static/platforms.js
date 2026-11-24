@@ -128,6 +128,17 @@ const PLATAFORMAS = {
    ]
   },
   {
+   "id": "switch2",
+   "name": "Nintendo Switch 2",
+   "short": "NSW2",
+   "color": "#8E1B24",
+   "aliases": [
+    "NSW2",
+    "Nintendo Switch 2",
+    "Switch 2"
+   ]
+  },
+  {
    "id": "mastersystem",
    "name": "Master System",
    "short": "SMS",
