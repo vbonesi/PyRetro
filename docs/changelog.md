@@ -9,6 +9,9 @@
 - Cadastrados: **The Legend of Zelda Ocarina of Time** (Switch 2, Nintendo, 05/11/2026; capa provisória do SteamGridDB, arte do N64) e **Trails in the Sky 1st Chapter**
   (Switch, Nihon Falcom, 19/09/2025, base + update + DLCs no Drive).
 - **Trails in the Sky 2nd Chapter não cadastrado:** a pasta do Drive só tem 30 DLCs (~100 KB cada), sem o jogo base nem update.
+- Wishlist da Steam sincronizada (128 jogos): entrou **C.L.T.** (Uniday Studio, 24/11/2026, acesso antecipado), com capa do cabeçalho horizontal da loja (sem capa vertical em
+  nenhuma fonte) e infos da loja. Nada saiu. A segunda rodada seguida levou 429 da Steam e cancelou sem gravar; a terceira, minutos depois, passou.
+- Mais tarde no mesmo dia o 2nd Chapter continuava só com os DLCs; o arquivo base não está em lugar nenhum do Drive.
 - Testes: 507 Python (+2).
 
 ## 23/11/2026 — N11: tela cheia e Fechar na janela nativa (V1) (Claude)
