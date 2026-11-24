@@ -30,6 +30,10 @@
   `~/.cache/lichii/shader/<id>` sem sobrescrever. A janela `lichii` entrou na lista que o PyRetro traz para a frente. Capa do Zelda copiada para
   `Capas/Nintendo - Switch 2/Named_Boxarts`. **Não testado com o emulador:** o Lichii ainda não está instalado (AppImage e chaves/firmware de um
   Switch 2 são manuais, do Victor). O Moonlight não precisa de nada: transmite o PyRetro, que é o primeiro app do Sunshine.
+  **Atualizado no mesmo dia:** o Victor usa o **Fritchii** (fork do Lichii ajustado para o OoT, já instalado em `~/AppImages`); o lançador
+  (setup `c99a837`) o prefere, com o mesmo `-f -g`, e não copia `SHADERS/` para ele (cache próprio em `~/.cache/fritchii`, já com o do Zelda).
+- Update do Trails 2nd Chapter refeito: o arquivo novo (MD5 `dabba09a…`, sem trechos zerados) substituiu o corrompido no Drive, com MD5 conferido
+  depois do envio; o original de `Downloads` foi apagado.
 - Testes: 508 Python (+5).
 
 ## 23/11/2026 — N11: tela cheia e Fechar na janela nativa (V1) (Claude)
