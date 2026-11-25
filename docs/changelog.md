@@ -13,6 +13,10 @@
   Warriors: Age of Imprisonment.
 - **TOEM e TOEM 2** (Switch, Something We Made): o pacote baixado trazia os dois jogos; separados em `NSW/TOEM` e `NSW/TOEM 2`, cada um com base e update, MD5
   conferido no Drive e pasta local na lixeira. Gênero, dados, sinopse e capa preenchidos.
+- **Urban Jungle** (base, update e o DLC Brother's Wedding Story em `DLC/`) e **Minami Lane** (base e update; a tradução russa automática, incompleta, ficou de
+  fora) em `NSW/` do Drive, MD5 conferido e pastas locais na lixeira. O Urban Jungle era desejo do Xbox: o próprio cadastro virou Switch (capa, gênero e sinopse
+  mantidos) e saiu dos Desejados; o registro duplicado que a leitura das pastas criou foi apagado. Minami Lane com dados, sinopse e capa. Índice do Tinfoil
+  regerado (1.700 arquivos).
 - 510 testes Python (+2), 73 JS e 153 JVM passaram.
 
 ## 24/11/2026 — Switch 2 (NSW2) como plataforma própria e Trails in the Sky 1st Chapter (Claude)
