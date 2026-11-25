@@ -1,5 +1,6 @@
 """Apps da TV. Só IDs conhecidos chegam do navegador; argv fixo, sem shell."""
 from pathlib import Path
+import os
 import subprocess
 import shutil
 import ipaddress
@@ -36,8 +37,21 @@ DEFAULTS = {
     'sysdvr': ('Switch Lite', 'com.github.exelix11.sysdvr', '◧'),
 }
 
+# Emuladores em AppImage (não Flatpak), baixados pelo Victor: o de Switch 2 (24/11/2026). Mesmos caminhos que o
+# `bonisarch-emulator switch2` procura (setup); em cada um vale o AppImage mais novo.
+APPIMAGES = {
+    'fritchii': ('Fritchii (Switch 2)', ('AppImages/fritchii*.appimage', 'AppImages/fritchii*.AppImage', 'AppImages/Fritchii*.AppImage'), '🎮'),
+    'lichii': ('Lichii (Switch 2)', ('Applications/lichii*.AppImage', 'Applications/Lichii*.AppImage', 'AppImages/lichii*.AppImage'), '🎮'),
+}
 
-def entries(cfg):
+
+def appimage(patterns, home=None):
+    home = home or Path.home()
+    found = [p for pattern in patterns for p in home.glob(pattern) if p.is_file() and os.access(p, os.X_OK)]
+    return max(found, key=lambda p: p.stat().st_mtime) if found else None
+
+
+def entries(cfg, home=None):
     result = {}
     installed = set()
     if shutil.which('flatpak'):
@@ -46,6 +60,9 @@ def entries(cfg):
     for key, (name, app, icon) in DEFAULTS.items():
         if app in installed:
             result[key] = {'nome': name, 'icone': icon, 'comando': ['flatpak', 'run', app, *TV_ARGS.get(key, [])]}
+    for key, (name, patterns, icon) in APPIMAGES.items():
+        if path := appimage(patterns, home):
+            result[key] = {'nome': name, 'icone': icon, 'comando': [str(path)]}
     try:
         data = json.loads(REMOTES_PATH.read_text())
         if not isinstance(data, dict):

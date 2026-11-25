@@ -17,7 +17,11 @@
   fora) em `NSW/` do Drive, MD5 conferido e pastas locais na lixeira. O Urban Jungle era desejo do Xbox: o próprio cadastro virou Switch (capa, gênero e sinopse
   mantidos) e saiu dos Desejados; o registro duplicado que a leitura das pastas criou foi apagado. Minami Lane com dados, sinopse e capa. Índice do Tinfoil
   regerado (1.700 arquivos).
-- 510 testes Python (+2), 73 JS e 153 JVM passaram.
+- **Fritchii nos apps do modo TV** ("Fritchii (Switch 2)"; o Lichii também, se estiver instalado): `core/tv_apps.APPIMAGES` acha o AppImage executável mais
+  novo nos mesmos caminhos do `bonisarch-emulator switch2`. **Zelda Ocarina of Time em "Só neste PC"**: a cópia que o Insync baixou em `Jogos/ROMs/NSW2` tinha
+  MD5 igual ao do Drive e foi copiada por reflink (btrfs, sem ocupar espaço a mais) para `~/Games/PyRetro/ROMs/NSW2`; o Jogar acha o `.nup` e o lançador
+  monta o comando do Fritchii (conferido em `--dry-run`; o jogo não foi aberto).
+- 511 testes Python (+3), 73 JS e 153 JVM passaram.
 
 ## 24/11/2026 — Switch 2 (NSW2) como plataforma própria e Trails in the Sky 1st Chapter (Claude)
 

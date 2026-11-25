@@ -55,3 +55,19 @@ class TestRemoteLaunch(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'já está aberto'):
             tv_apps.launch({}, 'sysdvr')
         self.Popen_mock.assert_not_called()
+
+
+class TestAppImages(unittest.TestCase):
+    def test_fritchii_executavel_vira_app_e_lichii_ausente_nao(self):
+        import os, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp, patch('core.tv_apps.shutil.which', return_value=None):
+            home = Path(tmp)
+            (home / 'AppImages').mkdir()
+            app = home / 'AppImages/fritchii.appimage'
+            app.write_text('')
+            self.assertNotIn('fritchii', tv_apps.entries({}, home))  # sem permissão de execução
+            os.chmod(app, 0o755)
+            apps = tv_apps.entries({}, home)
+            self.assertEqual(apps['fritchii']['comando'], [str(app)])
+            self.assertNotIn('lichii', apps)
