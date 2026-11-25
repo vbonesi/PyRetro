@@ -1159,10 +1159,10 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
         plataforma = "Steam"
         generos_por_nome = {it["nome"]: it["genero"] for it in itens if it.get("genero")}
         wishlist_appids = {covers_mod.normalize(it["nome"]): it["appid"] for it in itens}
-    elif source in ("psn", "xbox"):
+    elif source in library_mod.WISHLIST_MANUAIS:
         nomes = [linha.strip() for linha in (texto or "").splitlines()
                  if linha.strip() and not linha.strip().startswith("#")]
-        plataforma = "PSN" if source == "psn" else "Xbox"
+        plataforma = library_mod.WISHLIST_MANUAIS[source]
     else:
         emit({"type": "log", "line": f"fonte desconhecida: {source}"})
         return
@@ -1171,7 +1171,7 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
         emit({"type": "log", "line": "lista vazia"})
         return
 
-    # Só a Steam pode remover; PSN/Xbox só acrescentam (ver docstring).
+    # Só a Steam pode remover; PSN/Xbox/Switch só acrescentam (ver docstring).
     sincronizar = library_mod.sync_wishlist if source == "steam" else library_mod.add_to_wishlist
 
     def sync_and_maybe_save():
@@ -2493,7 +2493,7 @@ class Handler(BaseHTTPRequestHandler):
             library_root = Path(cfg["pc"]["library_root"]).expanduser()
             library = library_mod.load_library(library_root / "library.json")
 
-            out = {"steam": [], "psn": [], "xbox": []}
+            out = {source: [] for source in library_mod.WISHLIST_FONTES}
             for g in library["games"]:
                 for source in out:
                     if f"wishlist:{source}" not in g["fontes"]:
@@ -3627,7 +3627,7 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "wishlist", "sync"]:
             body = self._read_json_body()
             source = body.get("source")
-            if source not in ("steam", "psn", "xbox"):
+            if source not in library_mod.WISHLIST_FONTES:
                 return self._json({"error": "fonte desconhecida"}, 400)
             texto = body.get("texto", "")
             apply = bool(body.get("apply"))
@@ -3644,7 +3644,7 @@ class Handler(BaseHTTPRequestHandler):
             # run_wishlist_sync_job).
             body = self._read_json_body()
             source = body.get("source")
-            if source not in ("steam", "psn", "xbox"):
+            if source not in library_mod.WISHLIST_FONTES:
                 return self._json({"error": "fonte desconhecida"}, 400)
             game_id = body.get("id")
             if not game_id:

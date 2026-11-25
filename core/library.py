@@ -819,13 +819,26 @@ WISHLIST_FONTE_POSSE = {
     "wishlist:steam": "steam",
     "wishlist:psn": "psn",
     "wishlist:xbox": "xbox",
+    # Switch (24/11/2026): "comprado" aqui é ter o dump na pasta do Drive, a mesma fonte que a leitura
+    # das pastas NSW/NSW2 grava (`read_switch_library`/`read_switch2_library`).
+    "wishlist:switch": "switch",
+    "wishlist:switch2": "switch2",
 }
 
 WISHLIST_PLATAFORMA_POSSE = {
     "wishlist:steam": "Steam",
     "wishlist:psn": "PlayStation 4",
     "wishlist:xbox": "Xbox",
+    "wishlist:switch": "Nintendo Switch",
+    "wishlist:switch2": "Nintendo Switch 2",
 }
+
+# Listas digitadas à mão (só acrescentam) e a plataforma de cada registro novo. As do Switch vêm do bot
+# de lançamentos que o Victor usa: jogos ainda por sair, às vezes já lançados.
+WISHLIST_MANUAIS = {"psn": "PSN", "xbox": "Xbox", "switch": "Nintendo Switch", "switch2": "Nintendo Switch 2"}
+WISHLIST_FONTES = ("steam", *WISHLIST_MANUAIS)
+# Nas listas do Switch o nome casa só com registro da mesma plataforma: "Star Fox" do Switch 2 não é o do SNES.
+WISHLIST_SO_DA_PLATAFORMA = {"wishlist:switch", "wishlist:switch2"}
 
 
 def _wishlist_key(nome: str) -> str:
@@ -860,6 +873,8 @@ def add_to_wishlist(library: dict, fonte: str, plataforma: str, nomes: list) -> 
     for nome in nomes:
         norm = _wishlist_key(nome)
         existentes = by_norm.get(norm)
+        if existentes and fonte in WISHLIST_SO_DA_PLATAFORMA:
+            existentes = [g for g in existentes if g["plataforma"] == plataforma]
         if existentes:
             alvo = existentes[0]
             if fonte not in alvo["fontes"]:

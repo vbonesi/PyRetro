@@ -4,7 +4,7 @@ import {$, report} from "./dom.js";
 import {closeGame} from "./game.js";
 import {openTextEntry} from "./search.js";
 import {WISHLIST_STORES, state} from "./state.js";
-// ➕ Desejados pela TV: PSN/Xbox só acrescentam (um nome por vez); Steam sincroniza com a
+// ➕ Desejados pela TV: PSN/Xbox/Switch só acrescentam (um nome por vez); Steam sincroniza com a
 // lista pública (pode tirar quem saiu de lá), por isso pede confirmação.
 async function wishlistJob(source, texto) {
   if (state.busy) return; state.busy = true; report(source === "steam" ? "Sincronizando a lista da Steam…" : `Adicionando "${texto}"…`);
@@ -18,7 +18,7 @@ async function wishlistJob(source, texto) {
   } catch (e) { report(e.message, true); }
   finally { state.busy = false; }
 }
-for (const source of ["psn", "xbox"]) $(`wishlist-add-${source}`).onclick = () =>
+for (const source of ["psn", "xbox", "switch", "switch2"]) $(`wishlist-add-${source}`).onclick = () =>
   openTextEntry(`Adicionar aos Desejados (${WISHLIST_STORES[source]})`, "", name => { if (name) wishlistJob(source, name); });
 $("wishlist-steam").onclick = () => {
   const b = $("wishlist-steam");

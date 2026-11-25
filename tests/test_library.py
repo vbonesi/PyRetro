@@ -662,6 +662,21 @@ class TestAddToWishlist(unittest.TestCase):
         r = lm.add_to_wishlist(lib, "wishlist:psn", "PSN", ["God of War"])
         self.assertEqual((r["adicionados"], r["ja_tinha"]), (0, 1))
 
+    def test_switch_casa_so_com_a_mesma_plataforma(self):
+        snes = jogo("Star Fox", "Super Nintendo", fontes=["rom:SNES"])
+        lib = {"games": [snes]}
+        lm.add_to_wishlist(lib, "wishlist:switch2", "Nintendo Switch 2", ["Star Fox"])
+        self.assertEqual(snes["fontes"], ["rom:SNES"])
+        novo = lib["games"][1]
+        self.assertEqual((novo["plataforma"], novo["fontes"]), ("Nintendo Switch 2", ["wishlist:switch2"]))
+
+    def test_switch_comprado_vira_fonte_da_pasta(self):
+        lib = {"games": []}
+        lm.add_to_wishlist(lib, "wishlist:switch", "Nintendo Switch", ["Lost and Found Co."])
+        g = lib["games"][0]
+        lm.mark_wishlist_owned(lib, "wishlist:switch", g["id"])
+        self.assertEqual((g["fontes"], g["plataforma"]), (["switch"], "Nintendo Switch"))
+
 
 class TestRemoveFromWishlist(unittest.TestCase):
     """Saída item a item, pelo ✎ (21/09). Mesma regra de sempre: só

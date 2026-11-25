@@ -1998,7 +1998,7 @@ const EDITAR_CAMPOS_ROM = EDITAR_CAMPOS_BIBLIOTECA.filter((c) => c.campo !== "pl
 
 let editarCtx = { kind: "biblioteca", id: null, rom: null, onDone: null, camposDef: EDITAR_CAMPOS_BIBLIOTECA, nomeOriginal: null, wishlist: null };
 
-// `wishlist` ("steam"/"psn"/"xbox") só vem quando o ✎ foi aberto pela aba
+// `wishlist` ("steam"/"psn"/"xbox"/"switch"/"switch2") só vem quando o ✎ foi aberto pela aba
 // Desejados: é o que destrava "✅ Comprado" e "🗑 Tirar da lista" aqui
 // dentro. Foi assim que tirar da lista virou ação item a item (pedido do
 // usuário 21/09) - antes, em PSN/Xbox, a única forma era recolar a lista
@@ -2508,7 +2508,7 @@ function buildDesejadoCard(item, fonte) {
 async function carregarDesejados() {
   const res = await fetch("/api/wishlist");
   const dados = await res.json();
-  for (const fonte of ["steam", "psn", "xbox"]) {
+  for (const fonte of ["steam", "psn", "xbox", "switch", "switch2"]) {
     const grid = document.getElementById(`desejados-grid-${fonte}`);
     grid.innerHTML = "";
     const itens = dados[fonte] || [];
@@ -2552,7 +2552,7 @@ document.getElementById("btn-desejados-sync-steam").addEventListener("click", ()
     body: JSON.stringify({ source: "steam", apply }),
   }, document.getElementById("desejados-log-steam"), carregarDesejados);
 });
-for (const fonte of ["psn", "xbox"]) {
+for (const fonte of ["psn", "xbox", "switch", "switch2"]) {
   document.getElementById(`btn-desejados-sync-${fonte}`).addEventListener("click", () => {
     const texto = document.getElementById(`desejados-texto-${fonte}`).value;
     const apply = document.getElementById(`desejados-apply-${fonte}`).checked;

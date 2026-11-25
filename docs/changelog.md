@@ -1,5 +1,20 @@
 # Changelog
 
+## 24/11/2026 (noite) — Desejados de Switch e Switch 2, TOEM e TOEM 2 (Claude)
+
+- **Duas listas de desejos novas, Switch e Switch 2** (`wishlist:switch`, `wishlist:switch2`), para os jogos que o Victor acompanha num bot de lançamentos.
+  Funcionam como PSN/Xbox: só acrescentam, e sair da lista é pelo ✎ ("🗑 Tirar da lista" ou "✅ Comprado"). Diferença: o nome só casa com registro da mesma
+  plataforma (`WISHLIST_SO_DA_PLATAFORMA`), para "Star Fox" do Switch 2 não marcar o do SNES. "Comprado" troca a marca pela fonte da pasta do Drive
+  (`switch`/`switch2`). Abas na web, botões ➕ Switch / ➕ Switch 2 no modo TV e filtro no Android **0.31.3 (code 56, compilado, não instalado)**.
+  Listas e plataformas num lugar só: `core/library.WISHLIST_MANUAIS`/`WISHLIST_FONTES`.
+- Cadastrados nos Desejados com gênero, desenvolvedora, lançamento, sinopse e capa: Switch: The Wolf Among Us 2 (Telltale, previsto para 2027, gravado como
+  2027-01-01) e Lost and Found Co. (Bit Egg; as notícias divergem entre 10/11/2026 e "início de 2027"; gravado 10/11/2026). Switch 2: Star Fox (Velan, 25/06/2026;
+  a capa automática era a do SNES, trocada pela arte de 2026), Pokémon Pokopia, Mario Kart World, Fire Emblem: Fortune's Weave, Donkey Kong Bananza e Hyrule
+  Warriors: Age of Imprisonment.
+- **TOEM e TOEM 2** (Switch, Something We Made): o pacote baixado trazia os dois jogos; separados em `NSW/TOEM` e `NSW/TOEM 2`, cada um com base e update, MD5
+  conferido no Drive e pasta local na lixeira. Gênero, dados, sinopse e capa preenchidos.
+- 510 testes Python (+2), 73 JS e 153 JVM passaram.
+
 ## 24/11/2026 — Switch 2 (NSW2) como plataforma própria e Trails in the Sky 1st Chapter (Claude)
 
 - **Nova plataforma "Nintendo Switch 2"** (id `switch2`, sigla NSW2) no `assets/platforms/manifest.json` (web, modo TV e Android regenerados). Os jogos vêm da pasta

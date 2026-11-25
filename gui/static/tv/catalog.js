@@ -105,7 +105,7 @@ export async function load(kind = state.kind, code = "", view) {
   state.items = []; collectionTabs(); platformTabs(); render();
   $("title").textContent = collections.find(x => x[0] === kind)?.[1] || "Biblioteca";
   $("installed-only").hidden = kind !== "library";
-  for (const id of ["wishlist-add-psn", "wishlist-add-xbox", "wishlist-steam"]) { $(id).hidden = kind !== "wishlist"; $(id).dataset.confirm = ""; }
+  for (const id of ["wishlist-add-psn", "wishlist-add-xbox", "wishlist-add-switch", "wishlist-add-switch2", "wishlist-steam"]) { $(id).hidden = kind !== "wishlist"; $(id).dataset.confirm = ""; }
   $("stats-open").hidden = kind !== "library"; $("draw-open").hidden = kind !== "library";
   $("wishlist-steam").textContent = "🔄 Steam";
   report("Carregando catálogo…");
@@ -122,7 +122,7 @@ export async function load(kind = state.kind, code = "", view) {
     } else if (kind === "apps") {
       items = await api("/api/tv/apps");
     } else if (kind === "wishlist") {
-      // Desejados: as três lojas juntas; a loja vira a "plataforma" para filtrar.
+      // Desejados: as lojas juntas; a loja vira a "plataforma" para filtrar.
       const lists = await api("/api/wishlist");
       items = Object.entries(WISHLIST_STORES).flatMap(([source, label]) => (lists[source] || []).map(g => ({...libraryItem(g), platform: label, wishlist: source})))
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
