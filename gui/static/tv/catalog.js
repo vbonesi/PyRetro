@@ -6,6 +6,7 @@ import {renderHome} from "./home.js";
 import {glifos} from "./input.js";
 import {applyPreferences} from "./settings.js";
 import {WISHLIST_STORES, collections, state} from "./state.js";
+import {rememberFocus} from "./focus.js";
 import {destinationOf, inSidebar, renderSidebar} from "./sidebar.js";
 import {renderTools} from "./tools.js";
 import {routeFor, replaceView, syncRoute} from "./router.js";
@@ -89,8 +90,21 @@ function romItem(kind, c, sys, g) {
     romName: kind === "heavy" ? g.name : g.label, driveName: kind === "heavy" && g.in_drive ? g.name : null,
   };
 }
+// Memória de foco por rota (coleção + filtros): voltar a uma tela devolve o foco ao último card em que se estava.
+const routeFocus = new Map();
+const routeKey = () => routeFor(state.kind, state.code, state.query, viewOf());
+function saveRouteFocus() {
+  const card = document.activeElement?.closest?.("#gallery .game, #home .game");
+  if (card?.dataset.key) routeFocus.set(routeKey(), {key: card.dataset.key, shelf: card.closest("[data-shelf]")?.dataset.shelf || ""});
+}
+function remembered() {
+  const saved = routeFocus.get(routeKey()); if (!saved) return null;
+  const cards = [...document.querySelectorAll("#gallery .game, #home .game")].filter(c => c.dataset.key === saved.key);
+  return cards.find(c => (c.closest("[data-shelf]")?.dataset.shelf || "") === saved.shelf) || cards[0] || null;
+}
 export async function load(kind = state.kind, code = "", view) {
   ({kind, code, view} = normalizeView(kind, code, view));
+  saveRouteFocus();
   const request = ++state.request;
   if (/^(Sessão encerrada|O emulador encerrou)/.test($("play-status").textContent)) report("", false, "play-status");
   if (view?.query !== undefined) state.query = view.query; else if (kind !== state.kind) state.query = "";
@@ -134,9 +148,13 @@ export async function load(kind = state.kind, code = "", view) {
     state.items = items; platformTabs(); render();
     if (kind === "library") replaceView(routeFor("library", "", state.query, viewOf()));
     // Quem escolheu o destino pela barra continua nela (→ entra no conteúdo); de fora (voltar, recarga) o foco vai ao conteúdo.
-    const fromSidebar = inSidebar();
-    if (kind === "home") { if (!fromSidebar) ($("spotlight").hidden ? $("home").querySelector("button") : $("spotlight-open"))?.focus({preventScroll: true}); window.scrollTo(0, 0); }
-    else if (!fromSidebar) (kind === "library" ? $("quick").querySelector('[aria-pressed="true"]') : $("gallery").querySelector("button"))?.focus();
+    const fromSidebar = inSidebar(), back = remembered();
+    if (back) rememberFocus(back);
+    if (kind === "home") { if (!fromSidebar) (back || ($("spotlight").hidden ? $("home").querySelector("button") : $("spotlight-open")))?.focus({preventScroll: !!back && !back.closest(".shelf")}); if (!back) window.scrollTo(0, 0); }
+    else if (!fromSidebar) (back || (kind === "library" ? $("quick").querySelector('[aria-pressed="true"]') : $("gallery").querySelector("button")))?.focus();
+    // Nenhuma rota abre com o foco perdido: sem alvo no conteúdo, o foco cai no destino atual da barra lateral.
+    const a = document.activeElement;
+    if (!a || a === document.body || !a.isConnected || !a.getClientRects().length) ($("destinations").querySelector('[aria-current="page"]') || $("destinations").querySelector("button"))?.focus();
   } catch (error) { if (request === state.request) report(`Não foi possível carregar: ${error.message}. Selecione o destino para tentar novamente.`, true); }
 }
 export function render() {

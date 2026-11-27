@@ -864,6 +864,25 @@ teste("modo TV: prateleira mantém o foco na 1ª coluna e termina em Ver tudo", 
   } finally { frame.remove(); }
 });
 
+// N14: memória de foco por rota e nenhuma rota abre com o foco perdido.
+teste("modo TV: voltar a uma rota devolve o foco ao último card", async () => {
+  const jogos = Array.from({length: 8}, (_, i) => ({key: `pc:j${i}`, id: `j${i}`, name: `Jogo ${i}`, platform: "Steam", tracking: {}, local: false}));
+  const {frame, app, doc} = await abrirTV(url => url === "/api/tv/catalog" ? jogos : url === "/api/tv/home" ? {recent: jogos, continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {}} : url === "/api/wishlist" ? {steam: [], psn: [], xbox: []} : undefined);
+  try {
+    await app.load("library");
+    const cards = () => [...doc.querySelectorAll("#gallery .game")];
+    cards()[3].focus(); await app.load("home"); await app.load("library");
+    igual(doc.activeElement.dataset.key, "pc:j3", "Biblioteca deveria devolver o foco ao 4º card: ");
+    // fileira do Início: volta ao mesmo card da mesma fileira
+    await app.load("home"); doc.querySelectorAll("#home .shelf .game")[2].focus();
+    await app.load("library"); await app.load("home");
+    igual(doc.activeElement.dataset.key, "pc:j2", "Início deveria devolver o foco ao 3º card da fileira");
+    // sem conteúdo nem card lembrado, o foco vai à barra lateral em vez de se perder
+    await app.load("wishlist");
+    verdade(doc.activeElement && doc.activeElement !== doc.body && doc.activeElement.getClientRects().length, "Desejados vazio abriu sem foco");
+  } finally { frame.remove(); }
+});
+
 // PS1 (27/11): os Desejados da PSN são do PS4; o rótulo "PlayStation" caía na sigla do PS1.
 teste("modo TV: Desejados da PSN aparecem como PS4, não PS1", async () => {
   const {WISHLIST_STORES} = await import("/static/tv/state.js");
