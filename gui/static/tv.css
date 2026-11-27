@@ -256,11 +256,10 @@ header{padding:1rem 3vw .5rem}
 .brand h1{margin:0;font-size:1.35rem;letter-spacing:-.04em}
 .console-status{font-size:.8rem;color:var(--text)}
 #settings-open{padding:.4rem .65rem;border-radius:50%;font-size:1rem}
-#quick{margin-top:.5rem;font-size:.8rem;scrollbar-width:none}
+#quick{margin-top:.5rem;font-size:.8rem;flex-wrap:wrap;overflow:visible}
 #quick button{border-radius:2rem;padding:.55rem 1rem}
 #tools{margin:.25rem 0 .4rem;font-size:.75rem;gap:.5rem}
 #tools button{padding:.45rem .8rem}
-#platforms:empty,#genres:empty{display:none}
 #title{font-size:1.05rem;margin:.8rem 0 .25rem}
 #message{font-size:.75rem;margin:.3rem 0 .8rem}
 #spotlight{position:relative;min-height:250px;border:1px solid var(--edge);border-radius:1rem;overflow:hidden;background:linear-gradient(115deg,#183939,#1c2444);margin-bottom:1rem}
@@ -399,8 +398,6 @@ header{padding:1rem 3vw .5rem}
 footer{flex-direction:row;align-items:center}
 #hints-more{font-size:.65rem;padding:.15rem .5rem}
 #hints-extra{flex-basis:100%}
-body.filters-collapsed #platforms,body.filters-collapsed #genres,body.filters-collapsed #orders{display:none}
-#filters-toggle{white-space:nowrap}
 
 .brand-logo{width:2.1rem;height:2.1rem;border-radius:22%;display:block}
 @media(max-width:700px){.brand-logo{width:1.8rem;height:1.8rem}}
@@ -446,3 +443,17 @@ body.page-open header,body.page-open main>:not(.page){display:none!important}
 #secondary,#more-menu{margin:1rem 0}
 #more-menu{padding:.8rem;border:1px solid var(--edge,#ffffff24);border-radius:.8rem}
 .page .detail-heading{margin-top:.4rem}
+
+/* Barra de filtros do cabeçalho (N11): botões-resumo que abrem o painel lateral; sem faixa com rolagem lateral. */
+.filterbar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.25rem 0 .4rem;font-size:.75rem}
+.filterbar button{padding:.45rem .8rem;white-space:nowrap}
+#actions-open{margin-left:auto}
+#quick,.filterbar{overflow:visible}
+/* Painel lateral (gaveta à direita, tv/panel.js): lista vertical, item atual marcado e centralizado. */
+#panel{position:fixed;inset:0 0 0 auto;margin:0;width:min(27rem,92vw);max-width:none;height:100dvh;max-height:none;border-radius:1rem 0 0 1rem;padding:1.2rem 1.2rem 5rem;box-shadow:-12px 0 40px #000a;overflow-y:auto;overflow-x:hidden}
+#panel-title{margin:.2rem 0 .8rem;font-size:1.1rem}
+#panel-list{display:flex;flex-direction:column;gap:.4rem}
+#panel-list button{width:100%;text-align:left;justify-content:flex-start;font-size:.8rem;display:flex;align-items:center;white-space:normal;overflow-wrap:anywhere}
+#panel-list button[aria-pressed=true]{box-shadow:inset 4px 0 0 var(--accent)}
+#panel-list h4{margin:.9rem 0 .2rem;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+:root[data-theme=light] #panel{background:#f4f8fb;color:#192b3e}

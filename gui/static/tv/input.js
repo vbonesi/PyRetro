@@ -1,4 +1,4 @@
-import {filtersChanged, load} from "./catalog.js";
+import {filtersChanged, load, openActions, openFilter} from "./catalog.js";
 import {cycleQuick, letterJump} from "./library.js";
 import {$, report} from "./dom.js";
 import {toggleFavorite} from "./favorites.js";
@@ -11,6 +11,7 @@ import {contextMenuOpen} from "./context.js";
 import {focusContent, focusSidebar, goDestination, inSidebar, stepDestination} from "./sidebar.js";
 import {state, ui} from "./state.js";
 import {modalOpen, pageOpen} from "./pages.js";
+import {closePanel, panelOpen} from "./panel.js";
 import {closeTool} from "./tools.js";
 // --- glifos do controle: Xbox (A/B/X/Y), PlayStation (✕/○/□/△) ou automático pelo controle conectado ---
 const GLIFOS = {xbox: {A: "A", B: "B", X: "X", Y: "Y", L: "LB", R: "RB", LT: "LT", RT: "RT"}, ps: {A: "✕", B: "○", X: "□", Y: "△", L: "L1", R: "R1", LT: "L2", RT: "R2"}};
@@ -41,7 +42,7 @@ export function applyGlyphs() {
     : `✚ Navegar · ${g.A} Escolher · ${g.B} Voltar · ☰ Opções`;
   $("hints-extra").textContent = mode === "keys" ? "Backspace Voltar · Home/End Início/fim · PgUp/PgDn Página · [ ] Letra · Alt+1…5 Destinos · Tab também navega"
     : mode === "mouse" ? "Roda do mouse corre as fileiras · Digite ou Ctrl+K pesquisa · Teclado e controle seguem funcionando"
-    : `${g.X} Favoritar · ${g.Y} Pesquisar · ${g.L}/${g.R} Página · ${g.LT}/${g.RT} Destino · Mouse: botão direito abre as opções do jogo`;
+    : `${g.X} Favoritar (ou Plataformas) · Start Ações · ${g.Y} Pesquisar · ${g.L}/${g.R} Página · ${g.LT}/${g.RT} Destino · Mouse: botão direito abre as opções do jogo`;
   $("search-open").textContent = mode === "pad" ? `${g.Y} · Pesquisar` : "Pesquisar";
   $("glyphs-cycle").textContent = `Botões: ${GLIFO_NOMES[glifoPref]}`;
 }
@@ -57,11 +58,16 @@ export function action(key) {
   if (state.busy) return;
   if (["left", "right", "up", "down"].includes(key)) move(key);
   else if (key === "accept") { if (!focusable().includes(document.activeElement)) focusable()[0]?.focus(); else document.activeElement.click(); }
-  else if (key === "back") { if ($("search-dialog").open) closeSearch(); else if ($("tool-dialog").open) closeTool(); else if ($("settings-dialog").open) closeSettings(); else if ($("details").open) closeGame(); else if (inSidebar()) focusContent(); else if (state.kind !== "home") load("home"); else focusSidebar(); }
+  else if (key === "back") { if (panelOpen()) closePanel(); else if ($("search-dialog").open) closeSearch(); else if ($("tool-dialog").open) closeTool(); else if ($("settings-dialog").open) closeSettings(); else if ($("details").open) closeGame(); else if (inSidebar()) focusContent(); else if (state.kind !== "home") load("home"); else focusSidebar(); }
   else if (key === "sidebar" && !modalOpen()) { if (inSidebar()) focusContent(); else focusSidebar(); }
   else if (key === "search") openSearch();
-  else if (key === "erase") { if ($("search-dialog").open) $("search-input").value = $("search-input").value.slice(0, -1); else if (!$("settings-dialog").open) toggleFavorite(); }
-  else if (key === "submit") { if ($("search-dialog").open) applySearch(); else openSettings(); }
+  else if (key === "erase") {
+    if ($("search-dialog").open) $("search-input").value = $("search-input").value.slice(0, -1);
+    // Na Biblioteca/Desejados o X fora de uma capa abre o painel de plataformas; sobre uma capa continua favoritando.
+    else if (!modalOpen() && !pageOpen() && ["library", "wishlist"].includes(state.kind) && !document.activeElement.closest?.(".game")) openFilter("platform");
+    else if (!modalOpen()) toggleFavorite();
+  }
+  else if (key === "submit") { if ($("search-dialog").open) applySearch(); else if (!modalOpen() && !pageOpen() && ["library", "wishlist"].includes(state.kind)) openActions(); else if (!panelOpen()) openSettings(); }
   else if (["page-up", "page-down"].includes(key) && !modalOpen() && !pageOpen()) page(key === "page-up" ? -1 : 1);
   else if (["quick-prev", "quick-next"].includes(key) && !modalOpen() && !pageOpen()) {
     // LB/RB na Biblioteca trocam o filtro rápido (Tudo, Jogando, Neste PC, Favoritos, Ranking, Finalizados).
@@ -143,8 +149,8 @@ export function pollGamepad(now) {
     if (awaitNeutral) { if (!keys.size) awaitNeutral = false; requestAnimationFrame(pollGamepad); return; }
     if (keys.size) setInputMode("pad");
     for (const k of keys) {
-      if (!held.has(k)) { action(k); repeatAt.set(k, now + 380); }
-      else if (["left", "right", "up", "down", "page-up", "page-down", ...($("search-dialog").open ? ["erase"] : [])].includes(k) && now >= repeatAt.get(k)) { action(k); repeatAt.set(k, now + 110); }
+      if (!held.has(k)) { action(k); repeatAt.set(k, now + 300); }
+      else if (["left", "right", "up", "down", "page-up", "page-down", ...($("search-dialog").open ? ["erase"] : [])].includes(k) && now >= repeatAt.get(k)) { action(k); repeatAt.set(k, now + 80); }
     }
     held = keys;
   } else {

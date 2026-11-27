@@ -61,10 +61,6 @@ export function quickTabs(changed) {
     b.dataset.quick = id; nav.append(b);
   }
 }
-export function orderTabs(changed) {
-  const nav = $("orders"); nav.replaceChildren();
-  for (const [id, label] of ORDERS) nav.append(button(`Ordem: ${label}`, () => { state.order = id; changed(); $("orders").querySelector('[aria-pressed="true"]')?.focus(); }, currentOrder() === id));
-}
 export function cycleQuick(delta) {
   const index = Math.max(0, QUICK.findIndex(q => q[0] === state.quick));
   state.quick = QUICK[(index + delta + QUICK.length) % QUICK.length][0];

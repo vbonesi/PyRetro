@@ -10,54 +10,50 @@ import {destinationOf, inSidebar, renderSidebar} from "./sidebar.js";
 import {renderTools} from "./tools.js";
 import {routeFor, replaceView, syncRoute} from "./router.js";
 import {modalOpen, pageOpen} from "./pages.js";
-import {currentOrder, norm, normalizeView, orderTabs, quickTabs, statsLine, viewOf, visibleItems} from "./library.js";
-// Filtros secundários (plataforma e gênero) recolhíveis: mais área para os jogos.
-let filtrosRecolhidos = true;
-try { filtrosRecolhidos = localStorage.getItem("pyretro-filtros") !== "aberto"; } catch (_) {}
+import {groupPlatforms, openActionsPanel, openChoicePanel} from "./panel.js";
+import {ORDERS, currentOrder, norm, normalizeView, quickTabs, statsLine, viewOf, visibleItems} from "./library.js";
+// Filtros secundários (plataforma, gênero, ordem) e ações ficam em painéis laterais (panel.js): o cabeçalho só
+// mostra um botão-resumo de cada, sem faixa com rolagem lateral.
+const ORDER_LABELS = Object.fromEntries(ORDERS);
 export function updateFilters() {
-  const toggle = $("filters-toggle"), available = ["library", "wishlist"].includes(state.kind);
-  const active = (state.filter ? 1 : 0) + (state.genre ? 1 : 0) + (state.order ? 1 : 0) + (state.installedOnly ? 1 : 0);
-  toggle.hidden = !available;
-  toggle.textContent = `Filtros${active ? ` (${active})` : ""} ${filtrosRecolhidos ? "▾" : "▴"}`;
-  toggle.setAttribute("aria-expanded", String(!filtrosRecolhidos));
-  document.body.classList.toggle("filters-collapsed", available && filtrosRecolhidos);
+  const kind = state.kind, filterable = ["library", "wishlist", "draw"].includes(kind);
+  $("filterbar").hidden = !(filterable || kind === "apps");
+  $("platform-open").hidden = $("genre-open").hidden = !filterable; $("order-open").hidden = kind !== "library";
+  const draw = kind === "draw", group = draw ? state.sortear?.grupos.find(g => g.code === state.draw.group)?.label : "";
+  $("platform-open").textContent = `${draw ? "Grupo" : "Plataforma"}: ${draw ? group || "Tudo" : state.filter || "Todas"} ▾`;
+  $("genre-open").textContent = `Gênero: ${(draw ? state.draw.genre : state.genre) || "Qualquer"} ▾`;
+  $("order-open").textContent = `Ordem: ${ORDER_LABELS[currentOrder()] || "Nome"} ▾`;
 }
-function drawTabs() {
-  const nav = $("platforms"), genres = $("genres"); nav.replaceChildren(); genres.replaceChildren();
-  if (state.kind !== "draw" || !state.sortear) { genres.hidden = true; return; }
-  const groups = [{code: "", label: "🎲 Tudo"}, ...state.sortear.grupos];
-  for (const g of groups) nav.append(button(g.label, () => { state.draw.group = g.code; drawTabs(); nav.querySelector(`[aria-pressed="true"]`)?.focus(); }, state.draw.group === g.code));
-  genres.hidden = false;
-  for (const name of ["", ...state.sortear.generos]) genres.append(button(name || "Qualquer gênero", () => { state.draw.genre = name; drawTabs(); genres.querySelector(`[aria-pressed="true"]`)?.focus(); }, state.draw.genre === name));
-}
-// Um filtro da Biblioteca mudou: redesenha as fileiras de filtros e a seleção, e atualiza o endereço sem empilhar histórico.
+// Um filtro da Biblioteca mudou: redesenha o cabeçalho e a seleção, e atualiza o endereço sem empilhar histórico.
 export function filtersChanged() {
   platformTabs(); render();
   if (state.kind === "library") replaceView(routeFor("library", "", state.query, viewOf()));
 }
+const drawChanged = () => { platformTabs(); render(); };
+function platformChoices() {
+  if (state.kind === "draw") return {title: "Grupo", groups: [{items: [["", "🎲 Tudo"], ...(state.sortear?.grupos || []).map(g => [g.code, g.label])]}], current: state.draw.group, pick: v => { state.draw.group = v; drawChanged(); }};
+  const counts = new Map(); for (const g of state.items) counts.set(g.platform, (counts.get(g.platform) || 0) + 1);
+  const groups = groupPlatforms([...counts.keys()]).map(group => ({heading: group.heading, items: group.items.map(p => [p, `${p} (${counts.get(p)})`, plataformaIcone(plataformaInfo(p))])}));
+  return {title: "Plataforma", groups: [{items: [["", `Todos os sistemas (${state.items.length})`]]}, ...groups], current: state.filter, pick: v => { state.filter = v; filtersChanged(); }};
+}
+function genreChoices() {
+  if (state.kind === "draw") return {title: "Gênero", groups: [{items: ["", ...(state.sortear?.generos || [])].map(n => [n, n || "Qualquer gênero"])}], current: state.draw.genre, pick: v => { state.draw.genre = v; drawChanged(); }};
+  const names = [...new Set(state.items.map(g => g.tracking?.genero).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  return {title: "Gênero", groups: [{items: ["", ...names].map(n => [n, n || "Qualquer gênero"])}], current: state.genre || "", pick: v => { state.genre = v; filtersChanged(); }};
+}
+const orderChoices = () => ({title: "Ordem", groups: [{items: ORDERS}], current: currentOrder(), pick: v => { state.order = v; filtersChanged(); }});
+// Abre o painel de um filtro (plataforma, gênero, ordem) a partir do botão do cabeçalho ou do atalho X.
+export function openFilter(which, from) {
+  if ($("filterbar").hidden || modalOpen() || pageOpen()) return false;
+  const c = {platform: platformChoices, genre: genreChoices, order: orderChoices}[which]?.(); if (!c || $(`${which}-open`).hidden) return false;
+  openChoicePanel(c.title, c.groups, c.current, c.pick, from || $(`${which}-open`)); return true;
+}
+export function openActions(from) { if ($("filterbar").hidden || modalOpen() || pageOpen()) return false; openActionsPanel(from || $("actions-open")); return true; }
 function platformTabs() {
-  drawTabs(); updateFilters();
-  const nav = $("platforms"), genres = $("genres"), library = state.kind === "library";
-  $("quick").hidden = !library; $("orders").hidden = !library;
-  if (library) { quickTabs(filtersChanged); orderTabs(filtersChanged); } else { $("quick").replaceChildren(); $("orders").replaceChildren(); }
-  if (state.kind === "draw") return; nav.replaceChildren();
-  const names = [...new Set(state.items.map(g => g.tracking?.genero).filter(Boolean))].sort();
-  if (["library", "wishlist"].includes(state.kind) && names.length) {
-    genres.hidden = false;
-    for (const name of ["", ...names]) genres.append(button(name || "Qualquer gênero", () => {
-      state.genre = name; filtersChanged(); genres.querySelector('[aria-pressed="true"]')?.focus();
-    }, (state.genre || "") === name));
-  }
-  if (["library", "wishlist"].includes(state.kind)) {
-    const platforms = [...new Set(state.items.map(g => g.platform))].sort();
-    for (const p of ["", ...platforms]) {
-      const tab = button(p || "Todos os sistemas", () => {
-        state.filter = p; filtersChanged(); nav.querySelector(`[aria-pressed="true"]`)?.focus();
-      }, state.filter === p);
-      if (p) tab.prepend(plataformaIcone(plataformaInfo(p)));
-      nav.append(tab);
-    }
-  }
+  updateFilters();
+  const library = state.kind === "library";
+  $("quick").hidden = !library;
+  if (library) quickTabs(filtersChanged); else $("quick").replaceChildren();
 }
 export function collectionTabs() { renderSidebar(); }
 // Resolve a chave da rota de uma ficha (#/jogo/<chave>) em qualquer coleção: chave do catálogo da TV, `pc:<id>` da
@@ -242,7 +238,7 @@ export async function reloadSelection(origin) {
   await load(kind, code, kind === "library" ? {quick, filter, genre, order} : undefined);
   if (state.kind !== kind) return;
   if (kind !== "library") { state.filter = filter; state.genre = genre; platformTabs(); render(); }
-  origin?.focus();
+  (origin?.getClientRects().length ? origin : $("actions-open"))?.focus();
 }
 $("installed-only").onclick = () => { state.installedOnly = !state.installedOnly; filtersChanged(); $("installed-only").focus(); };
 $("stats-open").onclick = () => load("stats");
@@ -279,8 +275,6 @@ export async function drawGame() {
   } catch (e) { report(`Não foi possível sortear: ${e.message}`, true); }
   finally { state.drawing = false; }
 }
-$("filters-toggle").onclick = () => {
-  filtrosRecolhidos = !filtrosRecolhidos;
-  try { localStorage.setItem("pyretro-filtros", filtrosRecolhidos ? "recolhido" : "aberto"); } catch (_) {}
-  updateFilters(); if (!filtrosRecolhidos) ($("platforms").querySelector("button") || $("genres").querySelector("button"))?.focus();
-};
+
+for (const which of ["platform", "genre", "order"]) $(`${which}-open`).onclick = () => openFilter(which);
+$("actions-open").onclick = () => openActions();

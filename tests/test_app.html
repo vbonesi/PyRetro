@@ -44,6 +44,13 @@ function igual(a, b, msg) {
 }
 function verdade(v, msg) { if (!v) throw new Error(msg || "esperava verdadeiro"); }
 
+// Painel lateral do modo TV (N11): abre pelo botão do cabeçalho e escolhe o item pelo texto (exato com `exato`).
+function escolher(doc, botao, texto, exato = false) {
+  doc.getElementById(botao).click();
+  const item = [...doc.querySelectorAll("#panel-list button")].find(b => exato ? b.textContent === texto : b.textContent.includes(texto));
+  if (!item) throw new Error(`painel ${botao} sem "${texto}"`);
+  item.click();
+}
 // Item do catálogo da TV (/api/tv/catalog) a partir de um registro da Biblioteca.
 const catalogo = g => ({id: g.id, key: `pc:${g.id}`, name: g.nome, platform: g.plataforma, cover: g.capa_url, tracking: g, local: false});
 const jogo = (extra = {}) => Object.assign({
@@ -567,7 +574,7 @@ teste("modo TV: barra lateral tem cinco destinos e leva a cada um em até dois p
     igual(doc.activeElement.dataset.destination, "home", "← não levou ao destino atual da barra");
     app.action("right"); verdade(!doc.activeElement.dataset.destination, "→ não voltou ao conteúdo");
     // ← vale também do botão do cabeçalho e de cima das setas da fileira (que o controle não alcança)
-    doc.getElementById("refresh").focus(); app.action("left");
+    doc.getElementById("search-open").focus(); app.action("left");
     igual(doc.activeElement.dataset.destination, "home", "← do cabeçalho não levou à barra");
     doc.querySelector(".game").focus(); app.action("left");
     igual(doc.activeElement.dataset.destination, "home", "← da primeira capa da fileira não levou à barra");
@@ -615,8 +622,8 @@ teste("modo TV: Biblioteca única filtra, ordena e pula por letra", async () => 
     app.action("quick-next"); igual(doc.querySelector("#quick [aria-pressed=true]").dataset.quick, "playing");
     app.action("quick-prev"); app.action("quick-prev"); igual(doc.querySelector("#quick [aria-pressed=true]").dataset.quick, "finished", "gira para trás a partir de Tudo");
     rapido("all").click();
-    [...doc.querySelectorAll("#orders button")].find(b => b.textContent.includes("Nota")).click(); igual(nomes()[0], "Zeta");
-    [...doc.querySelectorAll("#orders button")].find(b => b.textContent.includes("Nome")).click();
+    escolher(doc, "order-open", "Nota"); igual(nomes()[0], "Zeta");
+    escolher(doc, "order-open", "Nome");
     // pulo por letra: A (Abacaxi, Água) -> B -> Z, e de volta
     doc.querySelector("#gallery .game").focus();
     app.action("letter-next"); igual(atual(), "Beta");
@@ -659,7 +666,7 @@ teste("modo TV: ficha e ferramenta são páginas, não diálogos", async () => {
   });
   try {
     await app.load("library");
-    igual([...doc.querySelectorAll("dialog")].map(d => d.id).sort(), ["search-dialog", "settings-dialog"], "só busca e opções continuam diálogos");
+    igual([...doc.querySelectorAll("dialog")].map(d => d.id).sort(), ["panel", "search-dialog", "settings-dialog"], "só painel lateral, busca e opções continuam diálogos");
     verdade(!doc.body.classList.contains("page-open"));
     doc.querySelector("#gallery .game").click();
     verdade(doc.body.classList.contains("page-open") && doc.getElementById("details").open && doc.getElementById("details").tagName === "SECTION");
@@ -783,6 +790,50 @@ teste("modo TV: digitar busca, Ctrl+K, botão direito, Home/End e Alt+número se
     tecla("2", {altKey: true}); await esperar(() => doc.getElementById("title").textContent === "Biblioteca", "Alt+2 não levou à Biblioteca");
     tecla("3", {altKey: true}); await esperar(() => doc.getElementById("title").textContent === "Desejados", "Alt+3 não levou a Desejados");
     tecla("1"); verdade(doc.getElementById("search-dialog").open, "número sem Alt deveria buscar (digitar já busca)");
+  } finally { frame.remove(); }
+});
+
+// N11: filtros em painel lateral vertical, sem faixas com rolagem lateral; X, Start e Esc chegam a eles.
+teste("modo TV: filtros e ações em painel lateral, sem faixa com rolagem lateral", async () => {
+  const item = (name, platform, genero) => ({key: `pc:${name}`, id: name, name, platform, tracking: {genero}, local: false});
+  const catalog = [item("Alfa", "Steam", "RPG"), item("Beta", "Nintendo Switch", "Ação"), item("Gama", "PlayStation 4", "RPG"), item("Delta", "Arcade", "Luta")];
+  const {frame, app, doc} = await abrirTV(url => url === "/api/tv/catalog" ? catalog : undefined);
+  try {
+    await app.load("library");
+    const nomes = () => [...doc.querySelectorAll("#gallery .game strong")].map(x => x.textContent);
+    for (const id of ["platforms", "genres", "orders"]) verdade(!doc.getElementById(id), `faixa #${id} não deveria existir`);
+    for (const nav of doc.querySelectorAll("header nav")) verdade(getComputedStyle(nav).overflowX !== "auto" && getComputedStyle(nav).overflowX !== "scroll", "faixa com rolagem lateral no cabeçalho");
+    verdade(doc.getElementById("platform-open").textContent.includes("Todas"), "resumo de plataforma");
+    // plataformas agrupadas, com contagem; escolher filtra e o botão mostra a escolha
+    doc.getElementById("platform-open").click();
+    igual([...doc.querySelectorAll("#panel-list h4")].map(h => h.textContent), ["Sony", "Nintendo", "Arcade", "PC e lojas"]);
+    verdade(doc.getElementById("panel").open && doc.activeElement.closest("#panel-list"), "foco deveria entrar no painel");
+    verdade(doc.activeElement.getAttribute("aria-pressed") === "true", "item atual deveria ter o foco");
+    escolher(doc, "platform-open", "Nintendo Switch (1)"); igual(nomes(), ["Beta"]);
+    verdade(doc.getElementById("platform-open").textContent.includes("Nintendo Switch"));
+    verdade(!doc.getElementById("panel").open && doc.activeElement.id === "platform-open", "o foco deveria voltar ao botão");
+    escolher(doc, "platform-open", "Todos os sistemas");
+    // B fecha sem mudar
+    doc.getElementById("genre-open").click(); app.action("back");
+    verdade(!doc.getElementById("panel").open); igual(nomes().length, 4);
+    // ↑/↓ andam pela lista
+    doc.getElementById("genre-open").click(); const antes = doc.activeElement; app.action("down");
+    verdade(doc.activeElement !== antes && doc.getElementById("panel-list").contains(doc.activeElement), "↓ deveria andar na lista");
+    app.action("back");
+    // X fora de uma capa abre Plataforma; sobre a capa continua favoritando (não abre painel)
+    doc.querySelector("#quick button").focus(); app.action("erase");
+    verdade(doc.getElementById("panel").open && doc.getElementById("panel-title").textContent === "Plataforma", "X deveria abrir o painel de plataformas");
+    app.action("back");
+    // Ações: os botões reais vêm para o painel e voltam ao fechar
+    doc.getElementById("actions-open").click();
+    verdade(doc.getElementById("panel-list").contains(doc.getElementById("installed-only")), "Só neste PC deveria estar no painel");
+    doc.getElementById("installed-only").click();
+    await new Promise(r => setTimeout(r, 20));
+    verdade(!doc.getElementById("panel").open && doc.getElementById("tools").contains(doc.getElementById("installed-only")), "painel deveria fechar e devolver os botões");
+    doc.getElementById("installed-only").click();
+    // Ordem
+    escolher(doc, "order-open", "Plataforma"); verdade(doc.getElementById("order-open").textContent.includes("Plataforma"));
+    igual(nomes(), ["Delta", "Beta", "Gama", "Alfa"].filter(n => n), "ordem por plataforma");
   } finally { frame.remove(); }
 });
 
@@ -1039,9 +1090,9 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
   try {
     await esperar(() => doc.querySelector("#destinations button"), "TV não inicializou");
     await app.load("draw");
-    verdade(!doc.getElementById("genres").hidden, "gêneros deveriam aparecer na aba Sortear");
-    [...doc.querySelectorAll("#platforms button")].find(b => b.textContent.includes("Biblioteca")).click();
-    [...doc.querySelectorAll("#genres button")].find(b => b.textContent === "RPG").click();
+    verdade(!doc.getElementById("genre-open").hidden && doc.getElementById("platform-open").textContent.startsWith("Grupo"), "grupo e gênero deveriam aparecer na aba Sortear");
+    escolher(doc, "platform-open", "Biblioteca");
+    escolher(doc, "genre-open", "RPG", true);
     doc.querySelector("#gallery .draw").click();
     await esperar(() => doc.querySelectorAll("#gallery .game").length === 1, "sorteio não mostrou o jogo");
     igual(consultas, ["/api/sortear?system=biblioteca&genero=RPG"]);
@@ -1053,7 +1104,7 @@ teste("modo TV: sortear respeita grupo e gênero e abre o card sorteado", async 
     falha = true; doc.querySelector("#gallery .draw").click();
     await esperar(() => doc.getElementById("message").textContent.includes("Não foi possível sortear"), "falha do sorteio ficou invisível");
     await app.load("library");
-    verdade(doc.getElementById("genres").hidden, "gêneros deveriam sumir fora do sorteio");
+    verdade(doc.getElementById("platform-open").textContent.startsWith("Plataforma"), "o botão deveria voltar a Plataforma fora do sorteio");
   } finally { frame.remove(); }
 });
 
@@ -1235,7 +1286,11 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
     await esperar(() => doc.activeElement.textContent.includes("Jogar neste PC · Steam"), "card não priorizou Jogar");
     verdade(doc.getElementById("progress-fields").hidden, "edição de progresso deveria ser uma escolha separada");
     doc.getElementById("close").click(); verdade(doc.activeElement.classList.contains("game"));
+    // Na Biblioteca o Menu (Start) abre o painel de Ações; B fecha; no Início abre as opções do console.
     pad.buttons[9].pressed = true;
+    await esperar(() => doc.getElementById("panel").open, "Menu não abriu o painel de Ações");
+    pad.buttons[9].pressed = false; app.action("back"); verdade(!doc.getElementById("panel").open);
+    await app.load("home"); await new Promise(resolve => setTimeout(resolve, 100)); pad.buttons[9].pressed = true;
     await esperar(() => doc.getElementById("settings-dialog").open, "Menu não abriu opções");
     pad.buttons[9].pressed = false; doc.getElementById("theme-light").click();
     await esperar(() => doc.documentElement.dataset.theme === "light", "tema não foi aplicado");
@@ -1453,7 +1508,10 @@ teste("modo TV: Desejados filtra por loja e Comprado pede confirmação; Estatí
   });
   try {
     await app.load("wishlist");
-    igual([...doc.querySelectorAll("#platforms button")].map(b => b.textContent), ["Todos os sistemas", "PlayStation", "Steam"]);
+    doc.getElementById("platform-open").click();
+    igual([...doc.querySelectorAll("#panel-list button")].map(b => b.textContent), ["Todos os sistemas (2)", "PS4 (1)", "Steam (1)"]);
+    igual([...doc.querySelectorAll("#panel-list h4")].map(h => h.textContent), ["Sony", "PC e lojas"], "plataformas agrupadas");
+    app.action("back"); verdade(!doc.getElementById("panel").open, "B deveria fechar o painel");
     doc.querySelector("#gallery .game").click();
     verdade(!doc.getElementById("wishlist-actions").hidden && doc.getElementById("favorite").hidden, "ficha de desejado errada");
     doc.getElementById("wishlist-bought").click();
@@ -1689,7 +1747,7 @@ teste('modo TV: pódio ordena empates, filtros recolhem e glifos mudam sem troca
     await app.load('ranking');
     igual([...doc.querySelectorAll('.podium-place strong')].map(x=>x.textContent),['Zeta','Água','Beta']);
     verdade(doc.querySelector('.podium-note').textContent.includes('Empate'));
-    const toggle=doc.getElementById('filters-toggle');toggle.click();const expanded=toggle.getAttribute('aria-expanded');toggle.click();verdade(toggle.getAttribute('aria-expanded')!==expanded);
+    doc.getElementById('platform-open').click();verdade(doc.getElementById('panel').open);app.action('back');verdade(!doc.getElementById('panel').open);
     const glyphs=doc.getElementById('glyphs-cycle');
     for(let i=0;i<3 && glyphs.textContent!=='Botões: Xbox';i++)glyphs.click();
     verdade(doc.getElementById('hints-extra').textContent.includes('X Favoritar'),'glifos Xbox não aplicaram');
