@@ -12,13 +12,13 @@ function ensureVisibleY(el) {
 export function alignShelf(card) {
   const row = card.closest(".shelf"); if (!row) return;
   ensureVisibleY(card);
-  const state = shelfAnim.get(row) || {busy: false, target: null}; shelfAnim.set(row, state);
+  const state = shelfAnim.get(row) || {busy: false, target: null, last: null}; shelfAnim.set(row, state);
   state.target = Math.max(0, card.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft - parseFloat(getComputedStyle(row).paddingLeft || "0"));
   if (state.busy) return;
   const step = () => {
-    const left = state.target; state.target = null; state.busy = true;
+    const left = state.target; state.target = null; state.busy = true; state.last = left;
     row.scrollTo({left, behavior: reduced() ? "instant" : "smooth"});
-    setTimeout(() => { state.busy = false; if (state.target != null && Math.abs(state.target - row.scrollLeft) > 1) step(); }, reduced() ? 0 : 160);
+    setTimeout(() => { state.busy = false; if (state.target != null && state.target !== state.last) step(); }, reduced() ? 0 : 160);
   };
   step();
 }
