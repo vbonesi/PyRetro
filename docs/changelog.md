@@ -1,5 +1,20 @@
 # Changelog
 
+## 27/11/2026 — GTA (PS1, PSP e Switch), Houshin Engi e GTA IV nos Desejados do Xbox (Claude)
+
+- Organizados de `~/Downloads`, com nomes no padrão do Drive, conferência de blocos zerados e MD5 igual no Drive:
+  - **PS:** Grand Theft Auto 2 (`.ccd/.img/.sub`, o formato que o PS já aceita) e Houshin Engi - Aizouban (tradução de fãs para o inglês v1.0, `.cue` refeito
+    para o nome novo do `.bin`).
+  - **PSP:** Grand Theft Auto - Chinatown Wars PT-BR (tradução T1.0). O pacote de texturas HD que veio junto (ULUS10490, 46 arquivos) foi instalado no
+    PPSSPP do PC; o `SAVEDATA` do pacote não foi copiado.
+  - **Switch:** GTA III, Vice City e San Andreas The Definitive Edition, cada um com base e update. Os mods de voz/idioma russo vieram incompletos
+    (`.part`) e ficaram de fora.
+- Cadastros com gênero, desenvolvedora, lançamento, sinopse e capa (também em `Capas/<sistema>/Named_Boxarts`). GTA IV entrou nos Desejados do Xbox.
+  Gênero "Corrida" corrigido para "Ação" em GTA Advance, Vice City Stories e GTA VI.
+- Os três GTA do Switch ficaram em `NSW/<nome do jogo>` (Grove Street Games, 11/11/2021, capas da edição Definitive). Índice do Tinfoil regerado
+  (1.706 arquivos). Originais de `~/Downloads` na lixeira depois do MD5.
+- Heroic e lista da Steam atualizados: nenhum jogo novo (os 248 do Heroic já estavam no banco; o cache do GOG no Heroic é de 24/11).
+
 ## 24/11/2026 (noite) — Desejados de Switch e Switch 2, TOEM e TOEM 2 (Claude)
 
 - **Duas listas de desejos novas, Switch e Switch 2** (`wishlist:switch`, `wishlist:switch2`), para os jogos que o Victor acompanha num bot de lançamentos.
