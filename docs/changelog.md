@@ -13,7 +13,8 @@
   Gênero "Corrida" corrigido para "Ação" em GTA Advance, Vice City Stories e GTA VI.
 - Os três GTA do Switch ficaram em `NSW/<nome do jogo>` (Grove Street Games, 11/11/2021, capas da edição Definitive). Índice do Tinfoil regerado
   (1.706 arquivos). Originais de `~/Downloads` na lixeira depois do MD5.
-- Heroic e lista da Steam atualizados: nenhum jogo novo (os 248 do Heroic já estavam no banco; o cache do GOG no Heroic é de 24/11).
+- Heroic: na primeira leitura nenhum jogo novo; depois que o Victor atualizou a GOG na Heroic, entraram Bread and Fred (Epic; SandCastles Studio, 23/05/2023)
+  e Arcadia Fallen (Amazon; Galdra Studios, 17/11/2021), com gênero, sinopse e capa. Os 71 da GOG já estavam no banco. Lista da Steam sem jogo novo.
 
 ## 24/11/2026 (noite) — Desejados de Switch e Switch 2, TOEM e TOEM 2 (Claude)
 
