@@ -1,5 +1,19 @@
 # Changelog
 
+## 27/11/2026 (tarde) — Desejados da PSN viram PS4 e nova navegação do modo TV, N11 a N14 (Claude)
+
+- **PS1:** os Desejados da PSN são do PS4. O rótulo "PlayStation" da loja casava com a sigla do **PS1** no card (o catálogo usa o rótulo como plataforma);
+  agora `WISHLIST_STORES.psn` é "PS4" (modo TV e Android, só rótulo, compilado sem instalar), o botão é "➕ PS4" e `add_to_wishlist` da PSN grava
+  `plataforma = "PlayStation 4"` (fonte continua `wishlist:psn`). Desejo de PSN também não entra mais num registro de **ROM** de outro console (Shadow of the
+  Colossus do PS2 ganhava a marca de desejo do PS4). Migração pela API: os 24 registros com plataforma "PSN" passaram a "PlayStation 4".
+- **N11:** filtros e ações em **painel lateral vertical** (`gui/static/tv/panel.js`) no lugar das faixas de chips com rolagem lateral; X, Start e B chegam a eles.
+- **N12:** prateleiras do Início com foco fixo na 1ª coluna, sem barra de rolagem, com card "Ver tudo →". **N13:** ícones SVG na barra lateral, ícone fixo no
+  centro do trilho. **N14:** memória de foco por rota, nenhuma rota abre sem foco, repetição do D-pad 300/80 ms. Detalhe em `docs/modo-tv.md`.
+- Atenção ao testar no navegador: sem foco do sistema (janela não ativa) o `focusin` não dispara; o alinhamento das prateleiras é chamado também direto
+  pelo motor de foco.
+- Testes: 513 Python e 77 JS. Pendente: PS2 do plano (nomes dos Desejados, cartões Uncharted: The Lost Legacy e Knack 2, tirar Left Behind, Shadow of the
+  Colossus de PS4) e V1/V3 do Victor.
+
 ## 27/11/2026 — GTA (PS1, PSP e Switch), Houshin Engi e GTA IV nos Desejados do Xbox (Claude)
 
 - Organizados de `~/Downloads`, com nomes no padrão do Drive, conferência de blocos zerados e MD5 igual no Drive:

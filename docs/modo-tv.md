@@ -35,6 +35,21 @@ Cinco destinos na barra lateral: Início, Biblioteca, Desejados, Apps e stream e
 leves e pesadas, Switch) sem duplicar; filtros rápidos (LB/RB), painel de filtros (sistema, gênero, só neste PC, ordem) e pulo por inicial
 (`[`/`]` ou analógico direito) substituem as antigas coleções.
 
+## Navegação sem rolagem lateral (desde 27/11/2026)
+
+O cabeçalho não tem mais faixas com rolagem lateral. Na Biblioteca ficam só os filtros rápidos (Tudo, Jogando… quebram de linha) e uma barra com
+`Plataforma: Todas ▾`, `Gênero: Qualquer ▾`, `Ordem: Nome ▾` e `⋯ Ações`; nos Desejados, plataforma (a loja) e gênero; no Sortear, grupo e gênero.
+Cada botão abre um **painel lateral à direita** com uma lista vertical (↑/↓ move, A escolhe, B ou Esc fecha sem mudar; o item atual vem marcado e
+com o foco). Plataformas agrupadas (Sony, Nintendo, Sega, Arcade, PC e lojas, Outros) com a contagem de jogos. `⋯ Ações` reúne Atualizar, ➕ PS4/Xbox/
+Switch/Switch 2, 🔄 Steam, Estatísticas, Sortear e Só neste PC. Atalhos: **X** fora de uma capa abre o painel de plataformas (sobre a capa continua
+favoritando); **Start** abre as Ações na Biblioteca e nos Desejados (nas outras telas, as opções do console). Código em `gui/static/tv/panel.js`.
+
+No Início, cada fileira tem foco fixo: o card focado fica na 1ª coluna visível e a fileira desliza por baixo (uma animação por vez; passos repetidos
+guardam só o destino mais novo), sem barra de rolagem; LB/RB pulam uma tela da fileira e o último card, **Ver tudo →**, abre a Biblioteca já
+filtrada ou ordenada como a fileira. A barra lateral usa ícones SVG de traço único, com o ícone no mesmo ponto aberta ou fechada e a marca de "atual"
+como barra fina na borda. O foco é lembrado por região e por rota (voltar à Biblioteca ou a uma fileira devolve o último card), nenhuma rota abre
+com o foco perdido, e o D-pad segurado repete após 300 ms e depois a cada 80 ms.
+
 ## Navegação
 
 Direcional ou analógico esquerdo navegam entre os botões e as capas. A confirma e
@@ -49,7 +64,7 @@ instalações Steam/Heroic e ROMs locais em fileiras, com destaque do jogo selec
 O foco inicial fica no botão de abrir o destaque, sem rolar a tela para fora do cabeçalho.
 Sistemas mostra totais e presença local;
 Neste PC reúne instalações Steam/Epic/GOG/Amazon e ROMs locais completas.
-Os filtros de plataforma, gênero e Só neste PC são botões navegáveis.
+Os filtros de plataforma, gênero e ordem abrem no painel lateral (seção acima); Só neste PC fica em ⋯ Ações.
 A busca na tela inicial usa todo o catálogo; nas coleções, filtra a seleção atual.
 Atualizar relê o disco/cache, sem sincronizar posse ou atualizar o Drive.
 
