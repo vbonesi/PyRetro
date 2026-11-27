@@ -30,7 +30,7 @@ PlayStation (o ícone/rótulo cai no PS1) e o botão diz "➕ PSN". O console do
 |---|---|
 | Ghost of Tsushima VERSÃO DO DIRETOR | Ghost of Tsushima |
 | Guardiões da Galáxia da Marvel | Marvel's Guardians of the Galaxy |
-| Nioh 2 Remastered – A Edição Completa | Nioh 2 Remastered (ver nota) |
+| Nioh 2 Remastered – A Edição Completa | Nioh 2 |
 | Pacote digital com UNCHARTED 4: A Thief's End e UNCHARTED: The Lost Legacy | Uncharted 4: A Thief's End |
 | (novo cartão) | Uncharted: The Lost Legacy (jogo independente, 2017) |
 | UNCHARTED The Nathan Drake Collection | Uncharted: The Nathan Drake Collection |
@@ -38,9 +38,7 @@ PlayStation (o ícone/rótulo cai no PS1) e o botão diz "➕ PSN". O console do
 | The Last of Us: Left Behind Stand Alone | **sai dos Desejados** (rota `/api/wishlist/remove`) |
 | (novo cartão) | Knack 2 (2017, Japan Studio) |
 
-Nota Nioh 2: "Remastered" é a edição de PS5; no PS4 o jogo é "Nioh 2" (a edição completa de PS4 se
-chama "Nioh 2 – The Complete Edition"). Sem resposta do Victor, fica "Nioh 2 Remastered" como ele
-pediu; o executor pergunta antes.
+Nota Nioh 2: "Remastered" é a edição de PS5; o Victor decidiu em 27/11 que fica só "Nioh 2".
 
 Cartões novos com dados completos (capa, gênero, desenvolvedora, lançamento, sinopse em pt), como
 os desejados de Switch de 24/11. Capa nova sobe para a nuvem como as demais.
