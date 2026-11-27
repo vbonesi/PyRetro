@@ -631,6 +631,18 @@ class TestAddToWishlist(unittest.TestCase):
     encostar em quem já está na lista (incidente de 21/09: 3 nomes na
     PSN e 1 no Xbox apagaram 154 registros)."""
 
+    def test_desejo_psn_nao_entra_em_registro_de_rom(self):
+        rom = jogo("Shadow of the Colossus", "Sony - PlayStation 2", fontes=["rom:PS2"])
+        lib = {"games": [rom]}
+        r = lm.add_to_wishlist(lib, "wishlist:psn", "PlayStation 4", ["Shadow of the Colossus"])
+        self.assertEqual(r["adicionados"], 1)
+        self.assertEqual(rom["fontes"], ["rom:PS2"])
+        self.assertEqual(len(lib["games"]), 2)
+        self.assertEqual(lib["games"][1]["plataforma"], "PlayStation 4")
+
+    def test_psn_manual_grava_plataforma_ps4(self):
+        self.assertEqual(lm.WISHLIST_MANUAIS["psn"], "PlayStation 4")
+
     def test_nome_novo_cria_registro_com_a_fonte(self):
         lib = {"games": []}
         r = lm.add_to_wishlist(lib, "wishlist:psn", "PSN", ["God of War"])

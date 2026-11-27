@@ -590,7 +590,7 @@ def cmd_wishlist_sync(args) -> None:
         if not txt_path.exists():
             sys.exit(f"arquivo não encontrado: {txt_path}")
         nomes = [o["nome"] for o in library_mod.read_manual_list(txt_path, "", "")]
-        plataforma = {"psn": "PSN", "xbox": "Xbox"}[args.source]
+        plataforma = {"psn": "PlayStation 4", "xbox": "Xbox"}[args.source]
 
     if not nomes:
         sys.exit("lista vazia (ou só tinha linha em branco/comentário)")

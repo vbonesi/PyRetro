@@ -786,6 +786,19 @@ teste("modo TV: digitar busca, Ctrl+K, botão direito, Home/End e Alt+número se
   } finally { frame.remove(); }
 });
 
+// PS1 (27/11): os Desejados da PSN são do PS4; o rótulo "PlayStation" caía na sigla do PS1.
+teste("modo TV: Desejados da PSN aparecem como PS4, não PS1", async () => {
+  const {WISHLIST_STORES} = await import("/static/tv/state.js");
+  igual(WISHLIST_STORES.psn, "PS4");
+  igual(plataformaInfo(undefined, WISHLIST_STORES.psn).id, "ps4");
+  const {frame, doc} = await abrirTV(url => url === "/api/wishlist" ? {steam: [], psn: [{id: "g", nome: "Jogo PSN", plataforma: "PlayStation 4"}], xbox: []} : url === "/api/tv/catalog" ? [] : undefined, "#/desejados");
+  try {
+    await esperar(() => doc.querySelector("#gallery .game"), "Desejados não carregou");
+    verdade(doc.getElementById("wishlist-add-psn").textContent.includes("PS4"), "botão deveria dizer PS4");
+    verdade(doc.querySelector("#gallery .game").textContent.includes("PS4"), "card deveria dizer PS4");
+  } finally { frame.remove(); }
+});
+
 // Carga ou recarga numa rota: o foco vai ao conteúdo (filtro ativo na Biblioteca, destaque no Início), não à barra lateral.
 teste("modo TV: carregar numa rota deixa o foco no conteúdo", async () => {
   const item = (name, tracking = {}) => ({key: `pc:${name}`, id: name, name, platform: "Steam", tracking, local: false});

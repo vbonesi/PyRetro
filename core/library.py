@@ -835,7 +835,7 @@ WISHLIST_PLATAFORMA_POSSE = {
 
 # Listas digitadas à mão (só acrescentam) e a plataforma de cada registro novo. As do Switch vêm do bot
 # de lançamentos que o Victor usa: jogos ainda por sair, às vezes já lançados.
-WISHLIST_MANUAIS = {"psn": "PSN", "xbox": "Xbox", "switch": "Nintendo Switch", "switch2": "Nintendo Switch 2"}
+WISHLIST_MANUAIS = {"psn": "PlayStation 4", "xbox": "Xbox", "switch": "Nintendo Switch", "switch2": "Nintendo Switch 2"}
 WISHLIST_FONTES = ("steam", *WISHLIST_MANUAIS)
 # Nas listas do Switch o nome casa só com registro da mesma plataforma: "Star Fox" do Switch 2 não é o do SNES.
 WISHLIST_SO_DA_PLATAFORMA = {"wishlist:switch", "wishlist:switch2"}
@@ -875,6 +875,9 @@ def add_to_wishlist(library: dict, fonte: str, plataforma: str, nomes: list) -> 
         existentes = by_norm.get(norm)
         if existentes and fonte in WISHLIST_SO_DA_PLATAFORMA:
             existentes = [g for g in existentes if g["plataforma"] == plataforma]
+        if existentes and fonte == "wishlist:psn":
+            # Desejo de PS4 não entra num registro de ROM de outro console (Shadow of the Colossus do PS2 não é o remake do PS4).
+            existentes = [g for g in existentes if not any(f.startswith("rom:") for f in g["fontes"])]
         if existentes:
             alvo = existentes[0]
             if fonte not in alvo["fontes"]:

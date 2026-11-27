@@ -19,7 +19,7 @@ class LatestRequest {
 
 /** Regras sem Android: leitura das respostas do notebook e escolhas de exibição. */
 object ExtrasRules {
-    val STORES=linkedMapOf("steam" to "Steam","psn" to "PlayStation","xbox" to "Xbox","switch" to "Switch","switch2" to "Switch 2")
+    val STORES=linkedMapOf("steam" to "Steam","psn" to "PS4","xbox" to "Xbox","switch" to "Switch","switch2" to "Switch 2")
     /** As lojas numa lista só, por nome (mesma ordem do modo TV). */
     fun sorted(items:List<WishItem>)=items.sortedBy { it.name.lowercase() }
     fun wishKey(item:WishItem)="wish:${item.source}:${item.id}"
