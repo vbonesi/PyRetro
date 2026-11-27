@@ -567,6 +567,10 @@ teste("modo TV: barra lateral tem cinco destinos e leva a cada um em até dois p
     await esperar(() => doc.querySelector("#home .game"), "Início não carregou");
     const destinos = () => [...doc.querySelectorAll("#destinations button")].map(b => b.dataset.destination);
     igual(destinos(), ["home", "library", "wishlist", "apps", "tools"]);
+    // N13: ícones SVG de traço único (currentColor), um por destino, sem emoji nem glifo de texto
+    const icones = [...doc.querySelectorAll("#destinations .dest-icon")];
+    igual(icones.length, 5); verdade(icones.every(i => i.tagName.toLowerCase() === "svg" && i.getAttribute("stroke") === "currentColor" && i.getAttribute("aria-hidden") === "true" && !i.textContent.trim()), "ícones deveriam ser SVG monocromáticos");
+    verdade(icones.every(i => i.getBoundingClientRect().width === icones[0].getBoundingClientRect().width), "ícones com tamanhos diferentes");
     const atual = () => doc.querySelector('#destinations [aria-current="page"]')?.dataset.destination;
     igual(atual(), "home");
     // ← na borda esquerda entra na barra, já no destino atual

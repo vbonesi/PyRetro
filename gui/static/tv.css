@@ -417,12 +417,15 @@ body[data-input=mouse] button:focus:not(:focus-visible),body[data-input=mouse] a
   background:#0b1220f2;border-right:1px solid #ffffff1f;overflow:hidden;transition:width .15s ease}
 #sidebar:focus-within,body[data-input=mouse] #sidebar:hover{width:14.5rem;box-shadow:8px 0 30px #0008}
 #destinations{display:flex;flex-direction:column;gap:.5rem;padding:.6rem;margin:0;overflow:visible}
-#destinations button{display:flex;align-items:center;gap:.9rem;justify-content:flex-start;width:100%;white-space:nowrap;border-radius:.9rem}
-.dest-icon{font-size:1.4rem;width:1.8rem;text-align:center;flex:none}
+/* O ícone fica sempre no centro do trilho (aberto ou fechado): o botão tem a largura do trilho menos o respiro, o ícone
+   é fixo à esquerda e o rótulo entra à direita. A marca de "atual" é uma barra fina na borda do trilho, fora do ícone. */
+#destinations button{position:relative;display:flex;align-items:center;gap:1rem;justify-content:flex-start;width:100%;height:3.2rem;padding:0 0 0 .65rem;white-space:nowrap;border-radius:.9rem;overflow:hidden}
+.dest-icon{width:1.9rem;height:1.9rem;flex:none;display:block}
 .dest-label{font-size:.85rem}
-#destinations button[aria-current=page]{background:#235e57;border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+#destinations button[aria-current=page]{background:#1c3b45;border-color:#3c5166;color:var(--accent)}
+#destinations button[aria-current=page]::after{content:"";position:absolute;left:0;top:22%;bottom:22%;width:4px;border-radius:0 4px 4px 0;background:var(--accent)}
 :root[data-theme=light] #sidebar{background:#f4f8fbf2;border-color:#afbec7}
-:root[data-theme=light] #destinations button[aria-current=page]{background:#d2ece5}
+:root[data-theme=light] #destinations button[aria-current=page]{background:#d2ece5;color:#00594f}
 body{padding-left:var(--rail)}
 footer{width:calc(100% - var(--rail));left:var(--rail)}
 /* Telas estreitas (celular em pé): a barra vira uma faixa de ícones acima do rodapé. */
@@ -431,7 +434,8 @@ footer{width:calc(100% - var(--rail));left:var(--rail)}
   #sidebar{top:auto;bottom:var(--footer-height,0px);width:100%;height:3.4rem;border-right:0;border-top:1px solid #ffffff1f;flex-direction:row}
   #sidebar:focus-within,body[data-input=mouse] #sidebar:hover{width:100%;box-shadow:none}
   #destinations{flex-direction:row;justify-content:space-around;width:100%;padding:.2rem}
-  #destinations button{width:auto;flex:1;justify-content:center;min-height:44px;padding:.3rem}
+  #destinations button{width:auto;flex:1;justify-content:center;min-height:44px;height:auto;padding:.3rem}
+  #destinations button[aria-current=page]::after{left:25%;right:25%;top:0;bottom:auto;width:auto;height:3px;border-radius:0 0 3px 3px}
   .dest-label{display:none}
   main{padding-bottom:calc(var(--footer-height,8rem) + 5rem)}
 }
