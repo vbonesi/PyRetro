@@ -837,6 +837,29 @@ teste("modo TV: filtros e ações em painel lateral, sem faixa com rolagem later
   } finally { frame.remove(); }
 });
 
+// N12: prateleiras do Início com foco fixo (o card focado vai à 1ª coluna), sem barra de rolagem e com "Ver tudo →".
+teste("modo TV: prateleira mantém o foco na 1ª coluna e termina em Ver tudo", async () => {
+  const jogos = Array.from({length: 14}, (_, i) => ({key: `pc:j${i}`, id: `j${i}`, name: `Jogo ${String(i).padStart(2, "0")}`, platform: "Steam", tracking: {}, local: false}));
+  const {frame, app, doc} = await abrirTV(url => url === "/api/tv/home" ? {recent: jogos, continue: [], favorites: [], installed: [], ready: [], apps: [], counts: {}} : url === "/api/tv/catalog" ? jogos : undefined);
+  try {
+    await esperar(() => doc.querySelectorAll("#home .shelf .game").length === 14, "prateleira não carregou");
+    const fileira = doc.querySelector('#home [data-shelf="recent"] .shelf'), cards = [...fileira.querySelectorAll(".game")];
+    verdade(["none", "auto"].includes(getComputedStyle(fileira).scrollbarWidth) && getComputedStyle(fileira).scrollbarWidth === "none", "a fileira não deveria mostrar barra de rolagem");
+    const ultimo = fileira.lastElementChild; verdade(ultimo.classList.contains("see-all") && ultimo.textContent.includes("Ver tudo"), "falta o card Ver tudo");
+    cards[0].focus();
+    for (let i = 0; i < 5; i++) app.action("right");
+    igual(doc.activeElement, cards[5], "→ deveria andar um card por vez");
+    const alvoDe = c => c.getBoundingClientRect().left - fileira.getBoundingClientRect().left + fileira.scrollLeft - parseFloat(getComputedStyle(fileira).paddingLeft);
+    const alvo = () => alvoDe(cards[5]);
+    await esperar(() => Math.abs(fileira.scrollLeft - alvo()) < 2, "a fileira não deslizou para deixar o card focado na 1ª coluna");
+    app.action("left"); igual(doc.activeElement, cards[4]);
+    await esperar(() => Math.abs(fileira.scrollLeft - alvoDe(cards[4])) < 2, "← não realinhou a fileira");
+    // fim da fileira: Ver tudo abre a Biblioteca ordenada como a fileira
+    ultimo.focus(); ultimo.click();
+    await esperar(() => doc.getElementById("order-open") && !doc.getElementById("order-open").hidden && doc.getElementById("order-open").textContent.includes("Jogados recentemente"), "Ver tudo não abriu a Biblioteca ordenada");
+  } finally { frame.remove(); }
+});
+
 // PS1 (27/11): os Desejados da PSN são do PS4; o rótulo "PlayStation" caía na sigla do PS1.
 teste("modo TV: Desejados da PSN aparecem como PS4, não PS1", async () => {
   const {WISHLIST_STORES} = await import("/static/tv/state.js");

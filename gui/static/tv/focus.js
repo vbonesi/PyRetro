@@ -1,5 +1,28 @@
 import {$} from "./dom.js";
 import {state} from "./state.js";
+// Prateleiras (fileiras do Início): o card focado fica na 1ª coluna visível e a fileira desliza por baixo, sem barra
+// de rolagem. Uma animação por vez: passos repetidos (D-pad segurado) só guardam o destino mais novo.
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const shelfAnim = new WeakMap();
+function ensureVisibleY(el) {
+  const box = el.getBoundingClientRect(), footer = document.querySelector("footer")?.getBoundingClientRect().height || 0;
+  const over = box.bottom - (innerHeight - footer - 8), under = box.top - 8;
+  if (over > 0) scrollBy({top: over}); else if (under < 0) scrollBy({top: under});
+}
+export function alignShelf(card) {
+  const row = card.closest(".shelf"); if (!row) return;
+  ensureVisibleY(card);
+  const state = shelfAnim.get(row) || {busy: false, target: null}; shelfAnim.set(row, state);
+  state.target = Math.max(0, card.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft - parseFloat(getComputedStyle(row).paddingLeft || "0"));
+  if (state.busy) return;
+  const step = () => {
+    const left = state.target; state.target = null; state.busy = true;
+    row.scrollTo({left, behavior: reduced() ? "instant" : "smooth"});
+    setTimeout(() => { state.busy = false; if (state.target != null && Math.abs(state.target - row.scrollLeft) > 1) step(); }, reduced() ? 0 : 160);
+  };
+  step();
+}
+document.addEventListener("focusin", e => { const card = e.target instanceof HTMLElement && e.target.closest?.(".shelf > button"); if (card) alignShelf(card); });
 export function focusable() {
   const root = document.querySelector("dialog[open]") || document;
   // As setas ‹ › das fileiras são só do mouse: controle e teclado correm a fileira pelo próprio foco.
@@ -58,14 +81,14 @@ export function move(direction) {
   }
   let best = others[pickNeighbor(current.getBoundingClientRect(), others.map(e => e.getBoundingClientRect()), direction)];
   if (best && regionOf(best) !== regionOf(current)) best = recallFocus(regionOf(best), nodes) || best;
-  if (best) { best.focus({preventScroll: true}); best.scrollIntoView({block: "nearest", inline: "nearest"}); }
+  if (best) { best.focus({preventScroll: true}); if (best.closest(".shelf")) alignShelf(best); else best.scrollIntoView({block: "nearest", inline: "nearest"}); }
 }
 // Home/End: primeiro e último botão da região em foco (ou da página inteira).
 export function jumpEdge(last) {
   const nodes = focusable(), region = regionOf(document.activeElement);
   const inRegion = nodes.filter(e => regionOf(e) === region), list = inRegion.length ? inRegion : nodes;
   const target = last ? list[list.length - 1] : list[0];
-  target?.focus({preventScroll: true}); target?.scrollIntoView({block: "center", inline: "nearest"});
+  target?.focus({preventScroll: true}); if (target?.closest(".shelf")) alignShelf(target); else target?.scrollIntoView({block: "center", inline: "nearest"});
 }
 export function page(direction) {
   const row = document.activeElement.closest?.(".shelf");
@@ -77,7 +100,7 @@ export function page(direction) {
   const rows = Math.max(1, Math.floor(height / (first.height + 24)));
   const jump = state.kind === "home" ? Math.max(1, Math.floor((row?.clientWidth || innerWidth) / (first.width + 24))) : columns * rows;
   const target = cards[Math.max(0, Math.min(cards.length - 1, current + direction * jump))];
-  target.focus({preventScroll: true}); target.scrollIntoView({block: "center"});
+  target.focus({preventScroll: true}); if (target.closest(".shelf")) alignShelf(target); else target.scrollIntoView({block: "center"});
 }
 // Analógico direito: rola a área com foco (ficha, ferramenta, página, fileira de capas). A cruz só move o
 // foco entre botões; num texto comprido não havia como subir/descer (pedido de 07/11/2026).

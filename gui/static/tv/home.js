@@ -1,3 +1,4 @@
+import {load} from "./catalog.js";
 import {gameCard} from "./cards.js";
 import {$, button, report} from "./dom.js";
 import {openGame} from "./game.js";
@@ -48,12 +49,15 @@ export function renderHome() {
   const box = $("home"); box.replaceChildren();
   const home = state.home; $("spotlight").hidden = !home;
   if (!home) return;
+  // Cada fileira termina num card "Ver tudo →" que abre a Biblioteca já filtrada/ordenada como a fileira.
+  const SEE_ALL = {continue: {quick: "playing"}, favorites: {quick: "favorites"}, ready: {quick: "local"}, recent: {order: "recent"}, mostPlayed: {order: "time"}};
   for (const [key, title] of [["continue", "Jogando"], ["favorites", "Favoritos"], ["ready", "Neste PC"], ["recent", "Recentes"], ["mostPlayed", "Mais jogados"]]) {
     const games = home[key] || []; if (!games.length) continue;
     const section = document.createElement("section"); section.className = "home-section"; section.dataset.shelf = key;
     const heading = document.createElement("h3"); heading.textContent = title;
     const row = document.createElement("div"); row.className = "shelf"; row.dataset.region = `fileira-${key}`; row.setAttribute("aria-label", title);
     for (const game of games) row.append(gameCard(game));
+    const all = button("Ver tudo →", () => load("library", "", SEE_ALL[key])); all.className = "see-all"; all.setAttribute("aria-label", `Ver tudo: ${title}`); row.append(all);
     const head = document.createElement('div'); head.className = 'shelf-heading';
     head.append(heading, shelfControls(row, title));
     section.append(head, row); box.append(section);

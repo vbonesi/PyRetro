@@ -275,7 +275,11 @@ header{padding:1rem 3vw .5rem}
 .quick-access [data-app=chiaki]{border-color:#719df0}
 .quick-access [data-app=sysdvr]{border-color:#ef777e}
 .home-section h3{font-size:.95rem;margin:.6rem 0 .3rem;letter-spacing:-.02em}
-.shelf{display:flex;gap:1rem;overflow-x:auto;padding:.6rem .35rem 1rem;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x pan-y pinch-zoom}
+.shelf{display:flex;gap:1rem;overflow-x:auto;padding:.6rem .35rem 1rem;scrollbar-width:none;overscroll-behavior-x:contain;touch-action:pan-x pan-y pinch-zoom}
+.shelf::-webkit-scrollbar{display:none}
+/* Espaço no fim: o último card também alcança a 1ª coluna (foco fixo). */
+.shelf::after{content:"";flex:0 0 max(1rem,calc(100% - clamp(165px,17vw,245px) - 1.35rem))}
+.see-all{flex:0 0 clamp(120px,12vw,180px);scroll-snap-align:start;align-self:stretch;display:grid;place-items:center;font-size:.9rem;border-style:dashed;background:transparent}
 .shelf .game{flex:0 0 clamp(165px,17vw,245px);scroll-snap-align:start;transition:transform .12s,border-color .12s;background:var(--panel)}
 .shelf .art{height:220px;object-fit:contain;object-position:center}
 .shelf .game:focus{transform:translateY(-3px);outline:3px solid var(--accent);outline-offset:3px}
