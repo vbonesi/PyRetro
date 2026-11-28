@@ -2,7 +2,12 @@ package com.pyretro.app
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.input.key.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -54,24 +59,26 @@ fun SearchScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, 
 @Composable
 fun WishlistScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, modifier: Modifier = Modifier) {
     var store by rememberSaveable { mutableStateOf("") }
+    var panel by rememberSaveable { mutableStateOf(false) }
     val items = remember(data.wishItems) { data.wishItems.values.toList() }
     val stores = remember(items) { WishRules.stores(items) }
     val visible = remember(items, store, data.wish) { val keys = WishRules.filter(items, store).map(ExtrasRules::wishKey).toSet(); data.wish.filter { it.key in keys } }
-    Column(modifier.fillMaxSize()) {
+    val gridState = rememberLazyGridState()
+    val (focusKey, focusRequester) = rememberRestore("desejados", visible.map { it.key }, gridState)
+    Column(modifier.fillMaxSize().onPreviewKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key == Key.ButtonX && stores.size > 1 && !panel) { panel = true; true } else false }) {
         ScreenHeader("Desejados", "${visible.size} jogo(s) na lista", onStatus, data.statusLabel)
-        if (stores.size > 1) LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf("") + stores) { s ->
-                var focused by remember { mutableStateOf(false) }
-                FilterChip(selected = s == store, onClick = { store = s }, label = { Text(if (s.isBlank()) "Todos" else ExtrasRules.STORES.getValue(s)) },
-                    modifier = Modifier.border(3.dp, focusRing(focused), RoundedCornerShape(50)).onFocusChanged { focused = it.hasFocus })
-            }
+        if (stores.size > 1) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            RingButton("Loja: ${if (store.isBlank()) "Todos" else ExtrasRules.STORES.getValue(store)} ▾", Modifier.weight(1f)) { panel = true }
         }
         if (visible.isEmpty()) Text(if (data.loaded) "Nenhum jogo na lista de desejos. Para adicionar, use o modo TV ou a interface do notebook." else "Carregando…",
             Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyVerticalGrid(GridCells.Adaptive(132.dp), Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(12.dp),
+        LazyVerticalGrid(GridCells.Adaptive(132.dp), Modifier.fillMaxSize().focusRestorer(), gridState, contentPadding = PaddingValues(12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(visible, key = { it.key }) { g -> GameCard(data, g, onOpen) }
+            items(visible, key = { it.key }) { g -> GameCard(data, g, onOpen, if (g.key == focusKey) Modifier.focusRequester(focusRequester) else Modifier, "desejados") }
         }
+    }
+    if (panel) SidePanel("Loja", { panel = false }) {
+        items(listOf("") + stores) { s -> PanelItem(if (s.isBlank()) "Todos" else ExtrasRules.STORES.getValue(s), s == store, s == store) { store = s; panel = false } }
     }
 }
 
@@ -109,7 +116,7 @@ fun StatusScreen(data: ShellData, note: String, date: (Long) -> String, onTest: 
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             Text(text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (buttons.isNotEmpty()) LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(buttons.toList()) { (l, a) -> RingButton(l) { a() } } }
+            if (buttons.isNotEmpty()) ButtonFlow() { items(buttons.toList()) { (l, a) -> RingButton(l) { a() } } }
         }
     }
     Column(modifier.fillMaxSize()) {
@@ -147,14 +154,14 @@ fun OptionsScreen(data: ShellData, flows: GameFlows, onLegacy: (String) -> Unit,
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Text("Opções", style = MaterialTheme.typography.headlineSmall)
             Block("📁 Pastas", "Jogos: ${SituationRules.folder(i.rootFolder)}\nRetroArch (saves e estados): ${SituationRules.folder(i.retroarchFolder)}\nROMs ficam em Jogos/<sistema>; saves e estados, por sistema na pasta RetroArch.") {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ButtonFlow() {
                     item { RingButton("Escolher pasta Jogos") { flows.pickFolder("ROOT") } }
                     item { RingButton("Escolher pasta RetroArch") { flows.pickSyncFolder("retroarch") } }
                 }
             }
             Block("🖥 Notebook", SituationRules.notebook(i)) {
                 OutlinedTextField(address, { address = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("https://endereço-do-pyretro") })
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ButtonFlow() {
                     item { RingButton("Salvar endereço") { flows.saveServer(address) } }
                     item { RingButton("Atualizar Biblioteca e catálogo") { flows.refreshCatalog() } }
                 }
@@ -167,7 +174,7 @@ fun OptionsScreen(data: ShellData, flows: GameFlows, onLegacy: (String) -> Unit,
                 listOf("Espaço e jogos fixados" to "space", "Lixeira de ROMs deste celular" to "trash", "Saves e estados · todos os jogos" to "sync-files", "Saves na nuvem" to "cloud-saves",
                     "Organizar ROMs novas (notebook)" to "organize", "Texturas HD" to "textures", "Índice manual do Drive" to "index", "Playlists do RetroArch" to "playlists", "Pastas e permissões" to "folders",
                     "Apps instalados" to "apps", "Alterações pendentes" to "pending").chunked(2).forEach { pair ->
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { items(pair) { (l, id) -> RingButton(l) { onLegacy(id) } } }
+                    ButtonFlow() { items(pair) { (l, id) -> RingButton(l) { onLegacy(id) } } }
                 }
             }
             Text("PyRetro ${i.version}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

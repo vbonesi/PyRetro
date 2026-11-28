@@ -107,7 +107,7 @@ fun DownloadsScreen(store: LibraryStore, onLegacy: (String) -> Unit, onBack: () 
         val active = rows.firstOrNull { it.state == DownloadState.RUNNING }
         Text(error ?: "${rows.count { it.state == DownloadState.WAITING }} aguardando · ${rows.count { it.state == DownloadState.PAUSED }} pausado(s) · ${rows.count { it.state == DownloadState.FAILED }} falha(s)" +
             (active?.let { " · baixando ${it.game.name}" } ?: ""))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ButtonFlow() {
             item { RingButton("Iniciar / continuar fila") { act { DownloadQueue.get(store).start() } } }
             item { RingButton("Pausar fila") { act { DownloadQueue.get(store).pause(); DownloadStore.pause() } } }
             item { RingButton("Reordenar e cópias parciais") { onLegacy("downloads") } }
@@ -120,7 +120,7 @@ fun DownloadsScreen(store: LibraryStore, onLegacy: (String) -> Unit, onBack: () 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(row.game.name, fontWeight = FontWeight.Bold)
                 Text(state + percent + (if (row.state == DownloadState.FAILED && row.error.isNotBlank()) " · ${row.error}" else ""), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ButtonFlow() {
                     if (row.state == DownloadState.FAILED || row.state == DownloadState.PAUSED) item { RingButton("Tentar de novo") { act { DownloadQueue.get(store).retry(row.game.key) } } }
                     if (row.state != DownloadState.RUNNING) item { RingButton("Tirar da fila") { act { DownloadQueue.get(store).remove(row.game.key) } } }
                 }
@@ -136,14 +136,14 @@ fun SavesScreen(flows: GameFlows, game: Game, onBack: () -> Unit, modifier: Modi
     LaunchedEffect(game.key) { model.load() }
     PageFrame("💾 ${game.name}", onBack, modifier) {
         Text(model.info, fontSize = 14.sp)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ButtonFlow() {
             item { RingButton("Comparar novamente") { if (!model.busy) model.load() } }
             item { RingButton(if (model.showAll) "Mostrar só pendentes" else "Ver também saves em dia") { if (!model.busy) model.toggleAll() } }
             if (model.pending > 0) item { RingButton("Sincronizar agora (${model.pending})") { model.syncAll() } }
         }
         model.conflicts.forEach { (group, item) ->
             Text("⚠ Conflito: ${item.path}", fontWeight = FontWeight.Bold)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ButtonFlow() {
                 if (item.local != null) item { RingButton("Manter o do celular") { model.keepLocal(group, item) } }
                 items(item.heads.entries.toList()) { (sha, devices) ->
                     RingButton((if (sha in item.deletedHeads) "Usar exclusão confirmada" else "Usar da nuvem") + " · ${devices.joinToString()} · ${sha.take(12)}") { model.useRemote(group, item, sha) }

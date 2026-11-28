@@ -11,8 +11,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -92,14 +102,14 @@ private fun whereLabel(game: Game) = when {
 }
 
 @Composable
-fun GameCard(data: ShellData, game: Game, onOpen: (Game) -> Unit, modifier: Modifier = Modifier) {
+fun GameCard(data: ShellData, game: Game, onOpen: (Game) -> Unit, modifier: Modifier = Modifier, screen: String = "") {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
     val favorite = data.entryByKey[game.key]?.favorite == true
     Column(
         modifier.clip(shape).background(MaterialTheme.colorScheme.surface)
             .border(3.dp, focusRing(focused), shape)
-            .onFocusChanged { focused = it.hasFocus }
+            .onFocusChanged { focused = it.hasFocus; if (it.hasFocus && screen.isNotEmpty()) FocusMemory.set(screen, game.key) }
             .clickable { onOpen(game) },
     ) {
         CoverBox(rememberCover(data.store, game), game.name)
@@ -125,26 +135,24 @@ internal fun ScreenHeader(title: String, subtitle: String, onOptions: () -> Unit
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, onPackage: (String) -> Unit, modifier: Modifier = Modifier) {
+fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, onPackage: (String) -> Unit, onSeeAll: () -> Unit = {}, modifier: Modifier = Modifier) {
     val byKey = remember(data.games) { data.games.associateBy { it.key } }
     val homeEntries = remember(data.games, data.entries) {
         val prefs = data.store.prefs
         data.entries.map { HomeEntry(it.key, it.name, it.onPhone, it.started, it.finished, it.favorite, prefs.getLong("played:${it.key}", 0), prefs.getLong("time:${it.key}", 0)) }
     }
     val rows = remember(homeEntries) { HomeRules.rows(homeEntries) }
-    Column(modifier.fillMaxSize()) {
+    val firstShelf = remember { FocusRequester() }
+    Column(modifier.fillMaxSize().focusProperties { enter = { if (rows.firstOrNull()?.second?.any { byKey[it] != null } == true) firstShelf else FocusRequester.Default } }.focusGroup()) {
         ScreenHeader("Início", listOf("${data.games.size} jogos", data.status).filter { it.isNotBlank() }.joinToString(" · "), onStatus, data.statusLabel)
         LazyColumn(Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (rows.isEmpty()) item {
                 Text(if (data.loaded) "Escolha a pasta Jogos em Situação e opções ou carregue o catálogo. Jogos iniciados, abertos por aqui e favoritos aparecem em fileiras."
                     else "Carregando…", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            items(rows, key = { it.first }) { (title, keys) ->
+            itemsIndexed(rows, key = { _, r -> r.first }) { rowIndex, (title, keys) ->
                 Text(title, Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                // Cada fileira guarda o próprio foco (focusRestorer): voltar a ela cai no último card.
-                LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(keys, key = { it }) { key -> byKey[key]?.let { GameCard(data, it, onOpen, Modifier.width(132.dp)) } }
-                }
+                Shelf(data, "inicio:$title", keys, byKey, onOpen, onSeeAll, if (rowIndex == 0) firstShelf else null)
             }
             item {
                 // Stream deixou de ser um destino: são três atalhos para os clientes de transmissão.
@@ -162,43 +170,76 @@ fun HomeScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, on
 @Composable
 fun LibraryScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, onDraw: (List<String>) -> Unit, onStats: () -> Unit, modifier: Modifier = Modifier) {
     var filter by rememberSaveable { mutableStateOf(QuickFilter.TUDO) }
+    var panel by rememberSaveable { mutableStateOf("") } // "", "filtro" ou "acoes"
     val counts = remember(data.entries) { LibraryRules.counts(data.entries) }
     val byKey = remember(data.games) { data.games.associateBy { it.key } }
     val keys = remember(data.entries, filter) { LibraryRules.apply(data.entries, filter) }
+    val gridState = rememberLazyGridState()
+    val (focusKey, focusRequester) = rememberRestore("biblioteca", keys, gridState)
     Column(modifier.fillMaxSize().onPreviewKeyEvent { event ->
-        // LB/RB trocam o filtro rápido, como no PC.
-        if (event.type != KeyEventType.KeyDown) false
+        // LB/RB trocam o filtro rápido; X abre os filtros e Start as ações (N11), como no modo TV.
+        if (event.type != KeyEventType.KeyDown || panel.isNotEmpty()) false
         else when (event.key) {
             Key.ButtonL1 -> { filter = LibraryRules.step(filter, -1); true }
             Key.ButtonR1 -> { filter = LibraryRules.step(filter, 1); true }
+            Key.ButtonX -> { panel = "filtro"; true }
+            Key.ButtonStart -> { panel = "acoes"; true }
             else -> false
         }
     }) {
         ScreenHeader("Biblioteca", "${keys.size} de ${data.games.size} jogos", onStatus, data.statusLabel)
-        LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(QuickFilter.values().toList()) { f ->
-                var focused by remember { mutableStateOf(false) }
-                FilterChip(
-                    selected = f == filter, onClick = { filter = f }, label = { Text("${f.label} (${counts[f] ?: 0})") },
-                    // D-pad: parar no chip já troca o filtro.
-                    modifier = Modifier.border(3.dp, focusRing(focused), RoundedCornerShape(50)).onFocusChanged { focused = it.hasFocus; if (it.hasFocus) filter = f },
-                )
-            }
-        }
-        LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item { var open by remember { mutableStateOf(false) }
-                Box { RingButton("🎲 Sortear") { open = true }
-                    DropdownMenu(open, { open = false }) {
-                        OndeRoda.Grupo.values().forEach { g -> DropdownMenuItem({ Text(g.label) }, { open = false
-                            val pool = (data.games + data.wish).filter { OndeRoda.noGrupo(g, it.code, it.tracking) }
-                            onDraw(if (g == OndeRoda.Grupo.TODOS) keys.ifEmpty { pool.map { it.key } } else pool.map { it.key }) }) }
-                    } } }
-            item { RingButton("📊 Estatísticas") { onStats() } }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            RingButton("Filtro: ${filter.label} (${counts[filter] ?: 0}) ▾", Modifier.weight(1f)) { panel = "filtro" }
+            RingButton("⋯ Ações") { panel = "acoes" }
         }
         if (keys.isEmpty()) Text(if (data.loaded) "Nenhum jogo neste filtro." else "Carregando…", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyVerticalGrid(GridCells.Adaptive(132.dp), Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(12.dp),
+        LazyVerticalGrid(GridCells.Adaptive(132.dp), Modifier.fillMaxSize().focusRestorer(), gridState, contentPadding = PaddingValues(12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(keys, key = { it }) { key -> byKey[key]?.let { GameCard(data, it, onOpen) } }
+            items(keys, key = { it }) { key -> byKey[key]?.let { GameCard(data, it, onOpen, if (key == focusKey) Modifier.focusRequester(focusRequester) else Modifier, "biblioteca") } }
         }
+    }
+    if (panel == "filtro") SidePanel("Filtro", { panel = "" }) {
+        items(QuickFilter.values().toList()) { f -> PanelItem("${f.label} (${counts[f] ?: 0})", f == filter, f == filter) { filter = f; panel = "" } }
+    }
+    if (panel == "acoes") SidePanel("Ações", { panel = "" }) {
+        items(OndeRoda.Grupo.values().toList()) { g ->
+            PanelItem("🎲 Sortear: ${g.label}", initial = g == OndeRoda.Grupo.RETRO) {
+                panel = ""
+                val pool = (data.games + data.wish).filter { OndeRoda.noGrupo(g, it.code, it.tracking) }
+                onDraw(if (g == OndeRoda.Grupo.TODOS) keys.ifEmpty { pool.map { it.key } } else pool.map { it.key })
+            }
+        }
+        item { PanelItem("📊 Estatísticas") { panel = ""; onStats() } }
+    }
+}
+
+/**
+ * Prateleira do Início com foco fixo (N12): o card focado vai para a 1ª coluna e a fileira desliza por baixo; o fim tem "Ver tudo →".
+ * LB/RB pulam uma tela; o último card focado da fileira volta a ter o foco (e a posição) ao retornar.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun Shelf(data: ShellData, screen: String, keys: List<String>, byKey: Map<String, Game>, onOpen: (Game) -> Unit, onSeeAll: () -> Unit, entry: FocusRequester?) {
+    val memory = remember { FocusMemory.get(screen)?.let { keys.indexOf(it) } ?: -1 }
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(memory, 0))
+    val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    val start = entry ?: remember { FocusRequester() }
+    if (memory >= 0 || entry != null) LaunchedEffect(Unit) { kotlinx.coroutines.delay(250); runCatching { start.requestFocus() } }
+    LazyRow(Modifier.focusRestorer().onPreviewKeyEvent { e ->
+        if (e.type != KeyEventType.KeyDown) false
+        else when (e.key) {
+            Key.ButtonR1, Key.ButtonL1 -> { val dir = if (e.key == Key.ButtonR1) FocusDirection.Right else FocusDirection.Left; repeat(maxOf(state.layoutInfo.visibleItemsInfo.size - 1, 1)) { focusManager.moveFocus(dir) }; true }
+            else -> false
+        }
+    }, state = state, contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        itemsIndexed(keys, key = { _, k -> k }) { index, key ->
+            byKey[key]?.let { g ->
+                val mine = if (memory >= 0) index == memory else index == 0
+                GameCard(data, g, onOpen, Modifier.width(132.dp).then(if (mine) Modifier.focusRequester(start) else Modifier)
+                    .onFocusChanged { if (it.hasFocus) { FocusMemory.set(screen, key); scope.launch { state.animateScrollToItem(index) } } }, screen = "")
+            }
+        }
+        item(key = "ver-tudo") { RingButton("Ver tudo →", Modifier.width(132.dp).padding(vertical = 40.dp)) { onSeeAll() } }
     }
 }

@@ -163,7 +163,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                             wish != null -> WishDetailScreen(shell, wish, ::leaveWish, { wishKey = null }, mod)
                             open != null -> GameScreen(store, open, remember(open.key, rev, shell) { factsOf(open) }, rev, { runAction(open, it) }, ::changed, { openKey = null }, mod)
                             else -> when (current) {
-                                Destination.INICIO -> HomeScreen(shell, ::openGame, ::openStatus, ::openPackage, mod)
+                                Destination.INICIO -> HomeScreen(shell, ::openGame, ::openStatus, ::openPackage, { select(Destination.BIBLIOTECA) }, mod)
                                 Destination.BIBLIOTECA -> LibraryScreen(shell, ::openGame, ::openStatus, ::drawGame, flows::showStats, mod)
                                 Destination.DESEJADOS -> WishlistScreen(shell, { g -> wishKey = g.key }, ::openStatus, mod)
                                 Destination.BUSCA -> SearchScreen(shell, ::openGame, ::openStatus, mod)

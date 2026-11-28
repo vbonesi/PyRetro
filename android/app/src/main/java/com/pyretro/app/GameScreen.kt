@@ -63,7 +63,7 @@ fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAc
             primary?.let { (action, label) -> RingButton(label, Modifier.focusRequester(firstFocus), primary = true) { onAction(action) } }
             GameRules.notes(facts).forEach { Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             // Fileira secundária: favorito, fixar e as ações de uso comum.
-            LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ButtonFlow() {
                 item { RingButton(if (facts.favorite) "★ Favorito" else "☆ Favoritar", selected = facts.favorite) { store.setFavorite(game, !facts.favorite); onChanged() } }
                 if (facts.rom) item { RingButton(if (facts.pinned) "📌 Fixado" else "📌 Fixar", selected = facts.pinned) {
                     runCatching { SpaceStore(store).setPinned(game, !facts.pinned) }; onChanged() } }
@@ -72,7 +72,7 @@ fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAc
             // Progresso e tempo.
             RingButton((if (progressOpen) "▾ " else "▸ ") + "Progresso e tempo") { progressOpen = !progressOpen }
             if (progressOpen) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ButtonFlow() {
                     items(listOf("iniciado" to "Iniciado", "finalizado" to "Finalizado", "platinado" to "Platinado")) { (field, label) ->
                         val on = tracking.optBoolean(field)
                         RingButton((if (on) "✓ " else "○ ") + label, selected = on) {
@@ -84,7 +84,7 @@ fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAc
                 }
                 if (game.id.isNotBlank()) { // nota só vale para jogo da Biblioteca; ROM solta não cria cadastro
                     Text("Nota (0–11): ${if (NotaRules.special(nota)) "✦ " else ""}${TrackingRules.label(nota)}", fontWeight = FontWeight.Bold)
-                    LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ButtonFlow() {
                         items(listOf("−1" to -1.0, "−0,1" to -0.1, "+0,1" to 0.1, "+1" to 1.0)) { (label, delta) ->
                             RingButton(label) { store.setNota(game, TrackingRules.adjust(nota, delta)); onChanged() }
                         }
