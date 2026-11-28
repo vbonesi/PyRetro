@@ -2510,6 +2510,12 @@ class Handler(BaseHTTPRequestHandler):
                 out[source].sort(key=lambda g: g["nome"].lower())
             return self._json(out)
 
+        if parts == ["api", "onde-roda", "faltam"]:
+            # F4: o que falta nas wishlists de preço (Steam e Xbox); o Victor adiciona à mão.
+            cfg = load_config()
+            library = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
+            return self._json({loja: onde_roda_mod.faltam_na_wishlist(library, loja) for loja in onde_roda_mod.LISTAS_PRECO})
+
         if parts == ["api", "switch", "colecao"]:
             # Sugestão de quais jogos uma coletânea contém, lendo o que
             # existe DENTRO da pasta (ver core/library.
@@ -3667,6 +3673,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "jogo desconhecido ou fora desta lista"}, 404)
             library_mod.save_library(library_path, library)
             return self._json({"ok": True, **r})
+
+        if parts == ["api", "onde-roda", "faltam-txt"]:
+            # Grava as duas listas em TXT na pasta de downloads (~/Downloads), uma por loja.
+            cfg = load_config()
+            library = library_mod.load_library(Path(cfg["pc"]["library_root"]).expanduser() / "library.json")
+            destino = Path(cfg["pc"].get("downloads_dir", "~/Downloads")).expanduser()
+            destino.mkdir(parents=True, exist_ok=True)
+            arquivos = {}
+            for loja in onde_roda_mod.LISTAS_PRECO:
+                nomes = onde_roda_mod.faltam_na_wishlist(library, loja)
+                alvo = destino / f"falta-na-wishlist-{loja}.txt"
+                alvo.write_text(onde_roda_mod.texto_faltam(loja, nomes), encoding="utf-8")
+                arquivos[loja] = {"arquivo": alvo.name, "total": len(nomes)}
+            return self._json({"ok": True, "pasta": str(destino), "arquivos": arquivos})
 
         if len(parts) == 3 and parts[:2] == ["api", "onde-roda"]:
             # Onde o jogo roda e onde o Victor o tem (core/onde_roda.py, plano de 27/11/2026).

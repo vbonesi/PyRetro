@@ -269,3 +269,20 @@ export async function toolSettings(body) {
   draw();
 }
 
+// F4: o que falta nas wishlists de preço. Não há API para escrever wishlist: aqui só se lê e se exporta.
+export async function toolListasPreco(body) {
+  body.replaceChildren(hint("Lendo a lista…"));
+  const listas = await api("/api/onde-roda/faltam");
+  const nomes = {steam: "Steam (IsThereAnyDeal acompanha o preço)", xbox: "Xbox"};
+  body.replaceChildren(hint("Jogos que existem na plataforma, ainda não são seus e não estão na wishlist da loja. Adicione à mão na Steam e no Xbox para acompanhar o preço."),
+    actions(confirmButton("📄 Salvar TXT em Downloads", "Confirmar: gravar em Downloads", async () => {
+      try { const r = await api("/api/onde-roda/faltam-txt", {}); toolStatus(`Gravado em ${r.pasta}: ${Object.values(r.arquivos).map(a => `${a.arquivo} (${a.total})`).join(", ")}`); }
+      catch (e) { toolStatus(e.message, true); }
+    })));
+  for (const [loja, titulo] of Object.entries(nomes)) {
+    const lista = listas[loja] || [];
+    body.append(heading(`${titulo}: ${lista.length}`));
+    if (!lista.length) body.append(hint("Nada faltando."));
+    else { const ul = document.createElement("ul"); ul.append(...lista.map(n => Object.assign(document.createElement("li"), {textContent: n}))); body.append(ul); }
+  }
+}

@@ -157,3 +157,39 @@ class TestAPI(BaseAPI):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFaltamNaWishlist(unittest.TestCase):
+    def test_steam_lista_o_que_roda_no_pc_e_nao_esta_nem_e_dele(self):
+        a = jogo("Falta", "PlayStation 4", fontes=["wishlist:psn"]); orr.pesquisa(a, "pc", existe=True)
+        b = jogo("Ja na lista", fontes=["wishlist:steam"]); orr.inferir(b)
+        c = jogo("Ja comprei", fontes=["wishlist:psn"]); orr.pesquisa(c, "pc", existe=True); orr.tenho_em(c, "ps4")
+        d = jogo("Retro", "Super Nintendo", fontes=["rom:SFC"]); orr.pesquisa(d, "pc", existe=True)
+        e = jogo("Oculto", "PlayStation 4", fontes=["wishlist:psn"], oculto=True); orr.pesquisa(e, "pc", existe=True)
+        f = jogo("So no PS4", "PlayStation 4", fontes=["wishlist:psn"]); orr.pesquisa(f, "pc", existe=False)
+        lib = {"games": [a, b, c, d, e, f]}
+        self.assertEqual(orr.faltam_na_wishlist(lib, "steam"), ["Falta"])
+
+    def test_xbox_e_o_texto(self):
+        a = jogo("Zeta", "PlayStation 4", fontes=["wishlist:psn"]); orr.pesquisa(a, "xbox", existe=True)
+        b = jogo("alfa", "PlayStation 4", fontes=["wishlist:psn"]); orr.pesquisa(b, "xbox", existe=True)
+        nomes = orr.faltam_na_wishlist({"games": [a, b]}, "xbox")
+        self.assertEqual(nomes, ["alfa", "Zeta"])
+        self.assertEqual(orr.texto_faltam("xbox", nomes).splitlines(), ["# Falta na wishlist da Xbox (2 jogos): adicione à mão", "alfa", "Zeta"])
+
+    def test_loja_desconhecida(self):
+        with self.assertRaises(ValueError):
+            orr.faltam_na_wishlist({"games": []}, "gog")
+
+
+class TestFaltamAPI(BaseAPI):
+    def test_rota_e_txt_em_downloads(self):
+        a = jogo("Falta no PC", "PlayStation 4", fontes=["wishlist:psn"]); orr.pesquisa(a, "pc", existe=True)
+        self.gravar_biblioteca([a])
+        status, d = self.pedir("/api/onde-roda/faltam")
+        self.assertEqual((status, d), (200, {"steam": ["Falta no PC"], "xbox": []}))
+        status, d = self.pedir("/api/onde-roda/faltam-txt", {})
+        self.assertEqual(status, 200)
+        txt = Path(d["pasta"]) / "falta-na-wishlist-steam.txt"
+        self.assertIn("Falta no PC", txt.read_text(encoding="utf-8"))
+        self.assertEqual(d["arquivos"]["xbox"]["total"], 0)

@@ -3,7 +3,7 @@ import {render} from "./catalog.js";
 import {$, button, report} from "./dom.js";
 import {pushOverlay, toolRoute} from "./router.js";
 import {closePage, openPage} from "./pages.js";
-import {toolCloudSaves, toolCovers, toolDiagnostics, toolLibrary, toolMaintenance, toolMemcards, toolOrganize, toolPhoneSaves, toolSettings, toolSetup, toolTextures} from "./tools-pages.js";
+import {toolCloudSaves, toolCovers, toolDiagnostics, toolLibrary, toolListasPreco, toolMaintenance, toolMemcards, toolOrganize, toolPhoneSaves, toolSettings, toolSetup, toolTextures} from "./tools-pages.js";
 // --- 🛠 Ferramentas: o que antes só a interface completa fazia ------------------
 let toolReturnFocus, toolRouted = false;
 export function toolStatus(message, error = false) { report(message, error, "tool-status"); }
@@ -48,6 +48,7 @@ const TOOLS = [
   ["nuvem", "☁", "Saves na nuvem", "Comparar, sincronizar e escolher versões em conflito", toolCloudSaves],
   ["texturas", "🎨", "Texturas HD", "Catálogo completo, no PC ou no celular, e importar arquivo ou link", toolTextures],
   ["biblioteca", "📚", "Biblioteca", "Atualizar Heroic, Steam e Switch, buscar capas e adicionar jogos", toolLibrary],
+  ["listas-preco", "🏷", "Falta na wishlist", "O que adicionar à mão nas wishlists da Steam e do Xbox, para acompanhar preço (tela e TXT)", toolListasPreco],
   ["capas", "🖼", "Capas dos sistemas", "Buscar capas que faltam nas ROMs leves e pesadas", toolCovers],
   ["manutencao", "🛠", "Manutenção", "Backups, nomes, playlists e sincronização de saves", toolMaintenance],
   ["configuracoes", "⚙", "Configurações", "Pastas do PC e do celular usadas pelo PyRetro", toolSettings],

@@ -246,3 +246,31 @@ def migrar(library: dict, aplicar: bool = True) -> dict:
             if migrar_game(g):
                 tocados += 1
     return {"juntados": juntados, "atualizados": tocados}
+
+
+# --- F4: o que falta nas wishlists de preço (Steam e Xbox) -----------------------------------------
+# Não há API para escrever wishlist: o PyRetro só lista, o Victor adiciona à mão.
+LISTAS_PRECO = {"steam": ("pc", "wishlist:steam", ("steam",), "Steam"), "xbox": ("xbox", "wishlist:xbox", ("xbox",), "Xbox")}
+
+
+def faltam_na_wishlist(library: dict, loja: str) -> list[str]:
+    """Nomes dos cards que existem na plataforma da loja, ainda não são dele e não estão na wishlist dela."""
+    if loja not in LISTAS_PRECO:
+        raise ValueError(f"loja desconhecida: {loja}")
+    plat, marca, posse, _ = LISTAS_PRECO[loja]
+    nomes = []
+    for g in library.get("games", []):
+        if g.get("oculto") or eh_retro(g):
+            continue
+        fontes = g.get("fontes") or []
+        if marca in fontes or any(f in fontes for f in posse):
+            continue
+        if estado(g)["estado"] == "tenho":
+            continue
+        if (g.get("onde_roda") or {}).get(plat, {}).get("existe") is True:
+            nomes.append(g["nome"])
+    return sorted(set(nomes), key=str.lower)
+
+
+def texto_faltam(loja: str, nomes: list[str]) -> str:
+    return f"# Falta na wishlist da {LISTAS_PRECO[loja][3]} ({len(nomes)} jogos): adicione à mão\n" + "".join(n + "\n" for n in nomes)
