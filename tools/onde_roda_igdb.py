@@ -4,7 +4,8 @@
 Só lê a biblioteca (pelo código do projeto) e grava `cache/onde_roda_f2.json`; quem grava no banco é
 `tools/onde_roda_aplicar.py`, pela API. Cache de cada consulta em `cache/igdb/` (pode repetir à vontade)."""
 from __future__ import annotations
-import json, re, sys, time, urllib.request
+import json
+import os, re, sys, time, urllib.request
 from collections import defaultdict
 from pathlib import Path
 
@@ -117,9 +118,11 @@ def steam_gb(appid):
 
 
 def tamanhos_switch_locais():
-    """Tamanho (GB) de cada pasta NSW do manifesto do F0 → para os cards 'switch' que já são dump."""
-    arq = Path.home() / "Drive/Documentos/Auditorias/PyRetro-lista-unica-2026-11-27/manifesto/NSW.json"
-    if not arq.exists():
+    """Tamanho (GB) de cada pasta NSW do manifesto do F0 → para os cards 'switch' que já são dump.
+    O manifesto é privado (fora do repositório): caminho em PYRETRO_MANIFESTO_NSW."""
+    caminho = os.environ.get("PYRETRO_MANIFESTO_NSW")
+    arq = Path(caminho).expanduser() if caminho else None
+    if not arq or not arq.exists():
         return {}
     soma = defaultdict(int)
     for it in json.loads(arq.read_text()):
