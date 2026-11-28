@@ -11,8 +11,10 @@
   centro do trilho. **N14:** memória de foco por rota, nenhuma rota abre sem foco, repetição do D-pad 300/80 ms. Detalhe em `docs/modo-tv.md`.
 - Atenção ao testar no navegador: sem foco do sistema (janela não ativa) o `focusin` não dispara; o alinhamento das prateleiras é chamado também direto
   pelo motor de foco.
-- Testes: 513 Python e 77 JS. Pendente: PS2 do plano (nomes dos Desejados, cartões Uncharted: The Lost Legacy e Knack 2, tirar Left Behind, Shadow of the
-  Colossus de PS4) e V1/V3 do Victor.
+- **PS2 (dados, pela API):** seis nomes limpos com o antigo em `nomes_alt` (Nioh 2 fica só "Nioh 2", decisão do Victor); Left Behind saiu dos Desejados;
+  entraram Uncharted: The Lost Legacy e Knack 2 (dados completos e capa). Shadow of the Colossus: o registro antigo era a ROM de PS2 com a marca de desejo;
+  a marca saiu (a ROM fica na Biblioteca) e o cartão do remake de PS4 (Bluepoint, 2018) entrou. Resultado: 27 jogos em `psn`, todos "PlayStation 4".
+- Testes: 513 Python e 77 JS. Pendente: V1/V3 do Victor no controle.
 
 ## 27/11/2026 — GTA (PS1, PSP e Switch), Houshin Engi e GTA IV nos Desejados do Xbox (Claude)
 
