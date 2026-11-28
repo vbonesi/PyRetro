@@ -34,9 +34,9 @@ class CloudCatalogTest {
         assertEquals(1,games.size);assertEquals("ss",games.single().id);assertTrue(games.single().drive)
     }
     @Test fun extraDiscsShowTheFirstDiscRecord() {
-        val row=row("ff","Final Fantasy VII (Disk 1)").put("fontes",JSONArray().put("rom:PS"))
+        val row=row("ff","Final Fantasy VII (Disk 1)").put("fontes",JSONArray().put("rom:PCECD"))
         val files=listOf(DriveRef("1","Final Fantasy VII (Disk 1).chd",100,""),DriveRef("2","Final Fantasy VII (Disk 2).chd",100,""),DriveRef("3","Other (Disk 2).chd",100,""))
-        val games=CloudCatalog.games(JSONObject().put("games",JSONArray().put(row)),emptyList(),mapOf("PS" to files)) { _,_ -> true }
+        val games=CloudCatalog.games(JSONObject().put("games",JSONArray().put(row)),emptyList(),mapOf("PCECD" to files)) { _,_ -> true }
         assertEquals(3,games.size)
         val disc2=games.single { it.romName=="Final Fantasy VII (Disk 2).chd" }
         assertEquals("ff",disc2.id);assertEquals("cloud-cover:ff",disc2.cover);assertEquals("Final Fantasy VII (Disk 2)",disc2.name)

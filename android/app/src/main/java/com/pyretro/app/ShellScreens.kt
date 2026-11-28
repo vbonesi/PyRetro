@@ -106,6 +106,8 @@ fun GameCard(data: ShellData, game: Game, onOpen: (Game) -> Unit, modifier: Modi
         Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
             Text((if (favorite) "★ " else "") + game.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("${game.platform} · ${whereLabel(game)}", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val selos = remember(game.key, game.tracking) { OndeRoda.selos(game.tracking) }
+            if (selos.isNotEmpty()) Text(selos.joinToString(" · "), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

@@ -49,8 +49,6 @@ class HubRulesTest {
     }
     @Test fun consolePlatformsSuggestStreamingTheConsole() {
         assertEquals("com.grill.xbxplay",GameLogic.remotePackage("Xbox Series X"))
-        assertEquals("com.playstation.remoteplay",GameLogic.remotePackage("PlayStation 5"))
-        assertTrue(GameLogic.streamedThroughNotebook("Nintendo Switch"))
-        assertFalse(GameLogic.streamedThroughNotebook("Steam"))
+        assertNull(GameLogic.remotePackage("PlayStation 5"))
     }
 }

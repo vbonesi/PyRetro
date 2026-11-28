@@ -39,5 +39,5 @@ object SituationRules {
 /** Clientes de transmissão que o Início oferece (antes a aba Stream). */
 data class StreamClient(val label: String, val pkg: String)
 object StreamRules {
-    val clients = listOf(StreamClient("Xbox · XBXPlay", "com.grill.xbxplay"), StreamClient("PS4 · Remote Play", "com.playstation.remoteplay"), StreamClient("PC e Switch · Moonlight", "com.limelight"))
+    val clients = listOf(StreamClient("Xbox · XBXPlay", "com.grill.xbxplay"), StreamClient("PC · Moonlight", "com.limelight"))
 }

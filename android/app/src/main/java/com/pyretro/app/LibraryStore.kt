@@ -20,8 +20,8 @@ data class Game(val id:String, val key:String, val name:String, val platform:Str
     fun cache():JSONObject = JSONObject().put("id",id).put("key",key).put("name",name).put("platform",platform)
         .put("code",code).put("romName",romName).put("cover",cover).put("genre",genre).put("aliases",JSONArray(aliases))
         .put("tracking",tracking).put("local",pcLocal).put("remote",drive)
-    /** O notebook tem a ROM no acervo ou o catálogo do Drive a conhece: dá para baixar sem vincular nada. */
-    val downloadable get()=code.isNotEmpty() && (pcLocal || drive)
+    /** O notebook tem a ROM no acervo ou o catálogo do Drive a conhece: dá para baixar sem vincular nada. Só ROM retrô baixa (plano de 27/11/2026). */
+    val downloadable get()=OndeRoda.retro(code) && (pcLocal || drive)
 }
 data class RomFile(val code:String,val name:String,val uri:Uri)
 

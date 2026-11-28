@@ -30,9 +30,10 @@ Escolhas antigas de pasta por sistema e de core continuam respeitadas.
   a barra abaixo tem as coleções (a ativa fica destacada) e **🎲 Sortear**.
 - **Ficha do jogo:** a primeira ação é a que faz sentido para o jogo:
   **▶ Jogar neste celular**, **⬇ Baixar para este celular**, **📡 Transmitir do
-  Xbox/PlayStation** (o jogo é escolhido no console; abrir direto não é possível),
-  **📡 Transmitir do Switch pelo notebook** (SysDVR + Moonlight) ou **🖥 Jogar no
-  notebook · Moonlight** para jogos de PC. Ao lado: favoritar, fixar e **💾 Saves**.
+  Xbox** (XBXPlay; o jogo é escolhido no console; abrir direto não é possível) ou
+  **🖥 Jogar no notebook · Moonlight** para jogos de PC. PS4 (Remote Play) e Switch
+  (SysDVR) saíram do app em 28/11/2026: o PS4 e o Switch se chamam pelo PC.
+  Fora do retrô não há download: o card mostra só as plataformas onde o jogo existe. Ao lado: favoritar, fixar e **💾 Saves**.
   Trocar ROM, texturas e remoção ficam em **Mais opções**.
 - **Baixar em um toque:** com o notebook online, o celular pergunta ao PyRetro
   quais arquivos ele tem para o jogo (acervo do PC ou catálogo do Drive em cache)

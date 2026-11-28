@@ -58,6 +58,7 @@ fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAc
             Text(listOfNotNull(game.platform, GameRules.state(facts), GameRules.playedLabel(minutes)).joinToString(" · "), fontSize = 14.sp)
             nota?.let { Text(NotaRules.symbol(it) + " " + TrackingRules.label(it) + if (NotaRules.special(it)) " · jogo muito especial" else "",
                 color = NotaRules.color(it)?.let { c -> Color(c) } ?: MaterialTheme.colorScheme.onBackground, fontSize = 16.sp) }
+            OndeRoda.selos(tracking).takeIf { it.isNotEmpty() }?.let { Text("Onde jogar: " + OndeRoda.detalhe(tracking).ifBlank { it.joinToString(" · ") }, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
             if (sinopse.isNotBlank()) Text(sinopse, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             primary?.let { (action, label) -> RingButton(label, Modifier.focusRequester(firstFocus), primary = true) { onAction(action) } }
             GameRules.notes(facts).forEach { Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }

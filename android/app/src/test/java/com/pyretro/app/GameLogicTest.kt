@@ -35,7 +35,7 @@ class GameLogicTest {
         try { CoreProfiles.id("FC","snes9x");fail("core de outro sistema não pode ser usado") } catch(_:IllegalArgumentException) {}
     }
     @Test fun remoteRoutingOnlyUsesCompatibleConsoles() {
-        assertEquals("com.playstation.remoteplay",GameLogic.remotePackage("PlayStation 4"))
+        assertNull(GameLogic.remotePackage("PlayStation 4"))
         assertEquals("com.grill.xbxplay",GameLogic.remotePackage("Xbox One"))
         for(platform in listOf("Xbox 360","PlayStation 3","Nintendo Switch","Steam"))assertNull(GameLogic.remotePackage(platform))
     }

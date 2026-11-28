@@ -279,7 +279,7 @@ class MainActivity:Activity() {
     private fun connectionApps() {
         val apps=listOf("Tailscale" to listOf("com.tailscale.ipn"),"RetroArch" to listOf("com.retroarch.aarch64","com.retroarch"),
             "PPSSPP" to listOf("org.ppsspp.ppssppgold","org.ppsspp.ppsspp"),"3DS · Lime3DS / Azahar" to listOf("io.github.lime3ds.android","io.github.azahar_emu.azahar"),
-            "Xbox · XBXPlay" to listOf("com.grill.xbxplay"),"PS4 · Remote Play" to listOf("com.playstation.remoteplay"),"PC · Moonlight" to listOf("com.limelight"))
+            "Xbox · XBXPlay" to listOf("com.grill.xbxplay"),"PC · Moonlight" to listOf("com.limelight"))
         val box=column();box.addView(text("Emuladores e conexões",22f))
         box.addView(text("Aplicativo encontrado significa apenas que pode ser aberto. Login, pareamento, VPN, cores e funcionamento em jogo precisam ser conferidos no próprio aplicativo.",14f))
         for((label,packages) in apps) {

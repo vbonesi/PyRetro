@@ -47,7 +47,7 @@ object CloudCatalog {
         }
         // Discos 2, 3... de um jogo cujo disco 1 está ligado a um cadastro mostram o mesmo cadastro (capa, progresso), como no PC.
         val discOwners=result.filter { it.id.isNotBlank() && it.drive }.mapNotNull { g -> val l=GameLogic.fileLabel(g.romName);if(disc.containsMatchIn(l))(g.code to titleKey(l.replace(disc,""))) to g else null }.toMap()
-        for((code,refs) in files)for(ref in refs)if(ref.id !in used && ref.size>0 && accepts(code,ref.name)) {
+        for((code,refs) in files)if(OndeRoda.retro(code))for(ref in refs)if(ref.id !in used && ref.size>0 && accepts(code,ref.name)) {
             val name=label(code,ref.name)
             val owner=if(disc.containsMatchIn(name))discOwners[code to titleKey(name.replace(disc,""))] else null
             result.add(owner?.copy(key="drive:$code:${ref.id}",name=name,romName=ref.name,drive=true)

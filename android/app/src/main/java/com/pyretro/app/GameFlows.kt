@@ -80,7 +80,7 @@ class GameFlows(private val activity: ComponentActivity, val store: LibraryStore
             GameAction.QUEUE -> page = Page.Downloads
             GameAction.DOWNLOAD -> download(game)
             GameAction.STREAM -> GameLogic.remotePackage(game.platform)?.let(::openPackage)
-            GameAction.SWITCH, GameAction.MOONLIGHT -> moonlight(game)
+            GameAction.MOONLIGHT -> moonlight(game)
             GameAction.DUCKSTATION -> openPackage("com.github.stenzek.duckstation")
             GameAction.SAVES -> saves(game)
             GameAction.COVER -> cover(game)

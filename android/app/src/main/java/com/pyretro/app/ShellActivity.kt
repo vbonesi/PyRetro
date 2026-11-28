@@ -234,7 +234,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
         val queued = runCatching { DownloadQueue.get(store).contains(game.key) }.getOrDefault(false)
         return GameFacts(game.key, game.id, game.code, game.platform, rom, game.localUri != null, queued, store.prefs.contains("cloud:${game.key}"),
             game.downloadable, game.pcLocal, game.drive, store.online, drive.connected, GameLogic.remotePackage(game.platform),
-            GameLogic.streamedThroughNotebook(game.platform), packageManager.getLaunchIntentForPackage("com.github.stenzek.duckstation") != null,
+            packageManager.getLaunchIntentForPackage("com.github.stenzek.duckstation") != null,
             ExtrasRules.coverTarget(game.id, game.cover) != null, rom && SpaceStore(store).pinned(game), store.favorite(game))
     }
 

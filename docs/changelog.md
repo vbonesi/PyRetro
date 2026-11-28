@@ -1,5 +1,11 @@
 # Changelog
 
+## 28/11/2026 — Android 0.32.0: só ROM retrô baixa; cards mostram onde jogar (Claude)
+
+- **Celular (adb), a pedido do Victor e depois de mostrar a lista:** a única ROM fora do retrô era o PS1 `Castlevania - Symphony of the Night.chd` (358 MB), apagada de `/sdcard/Jogos/PS`. PSP, NDS, 3DS e PC não tinham ROM (só saves, configs e shaders, que ficam); BIOS do PS1, saves e estados intactos. Lista em `~/Drive/Documentos/Auditorias/PyRetro-lista-unica-2026-11-27/celular-removidos.txt` (fora do Git). Sem `Ni no Kuni`/PDF de `Download`: não são do PyRetro.
+- **App (0.32.0, code 57):** `OndeRoda.kt` (espelho de `core/onde_roda.py`). Sistemas fora de FC/SFC/MD/SMS/GG/GB/GBC/GBA/N64/PCE/PCECD/ARCADE deixam de oferecer baixar, procurar ROM no Drive e escolher arquivo; o catálogo do Drive ignora arquivos desses sistemas. Cards e ficha mostram os selos de plataforma na ordem do modo TV (Switch, PS4, Xbox, PC, Switch 2; "✓" onde o Victor tem; "♡ Quero jogar" sem plataforma) e, na ficha, o tamanho aproximado.
+- **Escopo (pedido do Victor):** saíram do app o stream de PS4 (PS Remote Play) e o "Transmitir do Switch pelo notebook" (SysDVR + Moonlight); ficam XBXPlay e Moonlight para o PC. Testes JVM e README ajustados. O PC (`core/tv_apps.py`, `core/game_actions.py`) é de outra sessão.
+
 ## 27/11/2026 (noite) — Lista "onde jogar", F0/F1/F3/F4/F6 do plano de retrô no Drive (Claude)
 
 Plano em `docs/plano-lista-unica-2026-11-27.md`. **F2** (pesquisa IGDB, espera a chave da Twitch) e **F5** (remoção no Drive, espera a revisão V1) **não foram feitos**; nada foi apagado nem movido no Drive.
