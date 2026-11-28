@@ -73,7 +73,7 @@ fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAc
             // Coleção com jogos retrô de dentro: cada um abre a própria ficha; o botão principal ("Procurar a ROM no Drive") só confundiria.
             val colecaoRetro = Edicoes.colecao(tracking) && edicoes.any { openEdition(it) != null }
             primary?.takeUnless { colecaoRetro }?.let { (action, label) -> RingButton(label, Modifier.focusRequester(firstFocus), primary = true) { onAction(action) } }
-            GameRules.notes(facts).forEach { Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (!colecaoRetro) GameRules.notes(facts).forEach { Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             // Fileira secundária: favorito, fixar e as ações de uso comum.
             ButtonFlow() {
                 item { RingButton(if (facts.favorite) "★ Favorito" else "☆ Favoritar", selected = facts.favorite) { store.setFavorite(game, !facts.favorite); onChanged() } }
