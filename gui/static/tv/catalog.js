@@ -5,7 +5,7 @@ import {openGame} from "./game.js";
 import {renderHome} from "./home.js";
 import {glifos} from "./input.js";
 import {applyPreferences} from "./settings.js";
-import {WISHLIST_STORES, collections, state} from "./state.js";
+import {RODA, WISHLIST_STORES, collections, rodaMatch, state} from "./state.js";
 import {rememberFocus} from "./focus.js";
 import {destinationOf, inSidebar, renderSidebar} from "./sidebar.js";
 import {renderTools} from "./tools.js";
@@ -19,7 +19,9 @@ const ORDER_LABELS = Object.fromEntries(ORDERS);
 export function updateFilters() {
   const kind = state.kind, filterable = ["library", "wishlist", "draw"].includes(kind);
   $("filterbar").hidden = !(filterable || kind === "apps");
-  $("platform-open").hidden = $("genre-open").hidden = !filterable; $("order-open").hidden = kind !== "library";
+  $("platform-open").hidden = $("genre-open").hidden = !filterable;
+  $("roda-open").hidden = !["library", "wishlist"].includes(kind);
+  $("roda-open").textContent = `Onde roda: ${state.roda === "quero" ? "Quero jogar" : RODA.find(([id]) => id === state.roda)?.[1] || "Qualquer"} ▾`; $("order-open").hidden = kind !== "library";
   const draw = kind === "draw", group = draw ? state.sortear?.grupos.find(g => g.code === state.draw.group)?.label : "";
   $("platform-open").textContent = `${draw ? "Grupo" : "Plataforma"}: ${draw ? group || "Tudo" : state.filter || "Todas"} ▾`;
   $("genre-open").textContent = `Gênero: ${(draw ? state.draw.genre : state.genre) || "Qualquer"} ▾`;
@@ -42,11 +44,16 @@ function genreChoices() {
   const names = [...new Set(state.items.map(g => g.tracking?.genero).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   return {title: "Gênero", groups: [{items: ["", ...names].map(n => [n, n || "Qualquer gênero"])}], current: state.genre || "", pick: v => { state.genre = v; filtersChanged(); }};
 }
+function rodaChoices() {
+  const n = value => state.items.filter(g => rodaMatch(g, value)).length;
+  return {title: "Onde roda", groups: [{items: [["", `Qualquer plataforma (${state.items.length})`], ["quero", `♡ Quero jogar (${n("quero")})`],
+    ...RODA.map(([id, label]) => [id, `Roda no ${label} (${n(id)})`])]}], current: state.roda, pick: v => { state.roda = v; filtersChanged(); }};
+}
 const orderChoices = () => ({title: "Ordem", groups: [{items: ORDERS}], current: currentOrder(), pick: v => { state.order = v; filtersChanged(); }});
 // Abre o painel de um filtro (plataforma, gênero, ordem) a partir do botão do cabeçalho ou do atalho X.
 export function openFilter(which, from) {
   if ($("filterbar").hidden || modalOpen() || pageOpen()) return false;
-  const c = {platform: platformChoices, genre: genreChoices, order: orderChoices}[which]?.(); if (!c || $(`${which}-open`).hidden) return false;
+  const c = {platform: platformChoices, genre: genreChoices, order: orderChoices, roda: rodaChoices}[which]?.(); if (!c || $(`${which}-open`).hidden) return false;
   openChoicePanel(c.title, c.groups, c.current, c.pick, from || $(`${which}-open`)); return true;
 }
 export function openActions(from) { if ($("filterbar").hidden || modalOpen() || pageOpen()) return false; openActionsPanel(from || $("actions-open")); return true; }
@@ -108,6 +115,7 @@ export async function load(kind = state.kind, code = "", view) {
   const request = ++state.request;
   if (/^(Sessão encerrada|O emulador encerrou)/.test($("play-status").textContent)) report("", false, "play-status");
   if (view?.query !== undefined) state.query = view.query; else if (kind !== state.kind) state.query = "";
+  if (kind !== state.kind) state.roda = "";
   state.kind = kind; state.code = code; state.quick = view?.quick || "all"; state.filter = view?.filter || ""; state.genre = view?.genre || "";
   state.order = view?.order || ""; state.system = view?.system || "";
   if (view && view.installed !== undefined) state.installedOnly = !!view.installed;
@@ -134,7 +142,10 @@ export async function load(kind = state.kind, code = "", view) {
     } else if (kind === "wishlist") {
       // Desejados: as lojas juntas; a loja vira a "plataforma" para filtrar.
       const lists = await api("/api/wishlist");
+      // Um card só por jogo, mesmo que esteja em mais de uma lista (a primeira loja dá o rótulo e a rota de "Comprado").
+      const seen = new Set();
       items = Object.entries(WISHLIST_STORES).flatMap(([source, label]) => (lists[source] || []).map(g => ({...libraryItem(g), platform: label, wishlist: source})))
+        .filter(g => !seen.has(g.id) && seen.add(g.id))
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     } else if (kind === "stats") {
       const [stats, library, wishlist] = await Promise.all([api("/api/estatisticas"), api("/api/library"), api("/api/wishlist")]);
@@ -171,7 +182,7 @@ export function render() {
   if (state.kind === "tools") return renderTools();
   const library = state.kind === "library";
   const items = library ? visibleItems() : state.items.filter(g => (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre)
-    && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || state.kind === "draw"));
+    && (!state.query || norm(g.name).includes(norm(state.query))) && (!state.installedOnly || state.kind === "draw") && rodaMatch(g, state.roda));
   const gallery = $("gallery"); gallery.replaceChildren();
   if (state.kind === "draw") gallery.append(drawPanel(items.length > 0));
   if (library) { $("library-stats").hidden = false; $("library-stats").textContent = statsLine(state.items); }
@@ -294,5 +305,5 @@ export async function drawGame() {
   finally { state.drawing = false; }
 }
 
-for (const which of ["platform", "genre", "order"]) $(`${which}-open`).onclick = () => openFilter(which);
+for (const which of ["platform", "genre", "roda", "order"]) $(`${which}-open`).onclick = () => openFilter(which);
 $("actions-open").onclick = () => openActions();

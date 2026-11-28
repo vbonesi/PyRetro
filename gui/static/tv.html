@@ -17,7 +17,7 @@
 <header>
   <div class="heading"><div class="brand"><img class="brand-logo" src="/static/brand/pyretro.svg" alt="" width="34" height="34"><h1>PyRetro</h1></div><div class="console-status"><button id="search-open">Y · Pesquisar</button><span id="battery" hidden></span><time id="clock"></time><button id="settings-open" aria-label="Opções do console">⚙</button></div></div>
   <nav id="quick" data-region="rapidos" aria-label="Filtros rápidos" hidden></nav>
-  <div id="filterbar" data-region="filtros" class="filterbar" hidden><button id="platform-open" aria-haspopup="dialog"></button><button id="genre-open" aria-haspopup="dialog"></button><button id="order-open" aria-haspopup="dialog"></button><button id="actions-open" aria-haspopup="dialog">⋯ Ações</button><span id="search-summary"></span></div>
+  <div id="filterbar" data-region="filtros" class="filterbar" hidden><button id="platform-open" aria-haspopup="dialog"></button><button id="genre-open" aria-haspopup="dialog"></button><button id="roda-open" aria-haspopup="dialog" hidden></button><button id="order-open" aria-haspopup="dialog"></button><button id="actions-open" aria-haspopup="dialog">⋯ Ações</button><span id="search-summary"></span></div>
   <div id="tools" class="actions" hidden><button id="stats-open" hidden>📊 Estatísticas</button><button id="draw-open" hidden>🎲 Sortear</button><button id="installed-only" aria-pressed="false">Só neste PC</button><button id="refresh">Atualizar</button><button id="wishlist-add-psn" hidden>➕ PS4</button><button id="wishlist-add-xbox" hidden>➕ Xbox</button><button id="wishlist-add-switch" hidden>➕ Switch</button><button id="wishlist-add-switch2" hidden>➕ Switch 2</button><button id="wishlist-steam" hidden>🔄 Steam</button></div>
   <p id="library-stats" class="hint" hidden></p>
 </header>
@@ -26,6 +26,7 @@
   <div class="page-bar"><button id="close">← Voltar</button></div>
   <div class="detail-heading"><div id="detail-cover-frame" class="cover-frame" hidden><img id="detail-cover" alt=""></div><div><h2 id="game-title"></h2><p id="game-platform"></p><div id="game-badges" class="badges" hidden></div><button id="favorite" aria-pressed="false">☆ Favoritar</button></div></div>
   <div id="play-actions" class="actions"></div>
+  <div id="onde-actions" class="actions" hidden><button id="onde-jogar" aria-haspopup="dialog">🎮 Onde jogar</button></div>
   <p id="play-hint" class="hint" role="status"></p>
   <p id="game-synopsis" class="synopsis" hidden></p><p id="game-time" class="hint"></p><video id="detail-video" controls playsinline preload="none" hidden></video>
   <div id="secondary" class="actions"><button id="saves-toggle" aria-expanded="false" hidden>💾 Saves</button><button id="edit-toggle" aria-expanded="false">✎ Editar jogo</button><button id="cover-toggle" aria-expanded="false">🖼 Capa</button><button id="textures-toggle" aria-expanded="false" hidden>🎨 Texturas</button><button id="progress-toggle" aria-expanded="false">Progresso e tempo</button><button id="more-toggle" aria-expanded="false" aria-controls="more-menu">⋯ Mais</button></div>

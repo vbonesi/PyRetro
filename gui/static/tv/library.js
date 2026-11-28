@@ -2,7 +2,7 @@
    (sistema, gênero, só local, ordem), estatísticas no cabeçalho e pulo por inicial. As antigas coleções
    (Neste PC, Favoritos, Jogando, Ranking, Sistemas, ROMs leves/pesadas, Pesquisa) são filtros daqui. */
 import {$, button, report} from "./dom.js";
-import {cardGames, state} from "./state.js";
+import {cardGames, rodaMatch, state} from "./state.js";
 
 export const QUICK = [
   ["all", "Tudo", () => true],
@@ -38,7 +38,7 @@ export const viewOf = () => ({quick: state.quick, filter: state.filter, genre: s
 export function visibleItems() {
   const quick = QUICK.find(q => q[0] === state.quick)?.[2] || (() => true), q = norm(state.query);
   const items = state.items.filter(g => quick(g) && (!state.filter || g.platform === state.filter) && (!state.genre || g.tracking.genero === state.genre)
-    && (!q || norm(g.name).includes(q)) && (!state.installedOnly || g.local));
+    && (!q || norm(g.name).includes(q)) && (!state.installedOnly || g.local) && rodaMatch(g, state.roda));
   return items.sort(SORTERS[currentOrder()] || byName);
 }
 export function libraryStats(items) {

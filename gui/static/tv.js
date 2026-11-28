@@ -17,6 +17,7 @@ import "./tv/game-edit.js";
 import "./tv/game-files.js";
 import "./tv/game-textures.js";
 import "./tv/wishlist.js";
+import "./tv/onde.js";
 import "./tv/panel.js";
 if (window.ResizeObserver) new ResizeObserver(entries => {
   document.documentElement.style.setProperty("--footer-height", `${entries[0].target.getBoundingClientRect().height}px`);

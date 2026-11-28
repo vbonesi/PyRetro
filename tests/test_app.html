@@ -896,6 +896,27 @@ teste("modo TV: Desejados da PSN aparecem como PS4, não PS1", async () => {
   } finally { frame.remove(); }
 });
 
+// F3 (27/11): selos de plataforma na ordem Switch, PS4, Xbox, PC, Switch 2; filtro "Onde roda" e ação "Onde jogar".
+teste("modo TV: selos de plataforma na ordem de prioridade e filtro Onde roda", async () => {
+  const {RODA, rodaOf, rodaMatch} = await import("/static/tv/state.js");
+  igual(RODA.map(([id]) => id), ["switch", "ps4", "xbox", "pc", "switch2"]);
+  const onde = (...ids) => Object.fromEntries(ids.map(id => [id, {existe: true, gb: null, manual: false}]));
+  const a = {id: "a", name: "Alfa", platform: "PS4", tracking: {onde_roda: onde("pc", "ps4", "switch"), jogar: {estado: "tenho", plataforma: "ps4"}}};
+  const b = {id: "b", name: "Beta", platform: "Xbox", tracking: {onde_roda: {xbox: {existe: false}}, jogar: {estado: "quero"}}};
+  igual(rodaOf(a).map(([id]) => id), ["switch", "ps4", "pc"], "ordem de prioridade, não a de gravação");
+  igual(rodaOf(b), [], "existe=false não é selo");
+  verdade(rodaMatch(a, "pc") && !rodaMatch(a, "xbox") && rodaMatch(b, "quero") && !rodaMatch(a, "quero") && rodaMatch(a, ""));
+  const {frame, doc} = await abrirTV(url => url === "/api/tv/catalog" ? [a, b] : undefined, "#/biblioteca");
+  try {
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 2, "Biblioteca não carregou");
+    const selos = [...doc.querySelector("#gallery .game .badges").children].map(e => e.textContent);
+    igual(selos, ["Switch", "✓ PS4", "PC"], "selos do card");
+    escolher(doc, "roda-open", "Roda no Switch");
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 1, "filtro não aplicou");
+    verdade(doc.querySelector("#gallery .game").textContent.includes("Alfa"));
+  } finally { frame.remove(); }
+});
+
 // Carga ou recarga numa rota: o foco vai ao conteúdo (filtro ativo na Biblioteca, destaque no Início), não à barra lateral.
 teste("modo TV: carregar numa rota deixa o foco no conteúdo", async () => {
   const item = (name, tracking = {}) => ({key: `pc:${name}`, id: name, name, platform: "Steam", tracking, local: false});

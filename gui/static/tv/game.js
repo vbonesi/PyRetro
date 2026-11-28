@@ -30,7 +30,7 @@ export function openGame(g, origin = document.activeElement) {
   state.edits = {}; $("edit-fields").hidden = true; $("cover-fields").hidden = true; $("genre-list").hidden = true;
   $("edit-toggle").setAttribute("aria-expanded", "false"); $("cover-toggle").setAttribute("aria-expanded", "false");
   $("cover-toggle").hidden = !g.code && !g.id; $("edit-toggle").hidden = !g.code && !g.id;
-  $("wishlist-actions").hidden = !g.wishlist;
+  $("wishlist-actions").hidden = !g.wishlist; $("onde-actions").hidden = !g.id || !!g.code;
   const light = state.light.some(x => x.code === g.code);
   $("rom-rename").hidden = !g.code || !(light ? g.cover : g.local); $("rom-delete").hidden = !g.code || !(light || g.local);
   $("decompose").hidden = !g.id || !!g.code || !!g.wishlist;

@@ -3707,7 +3707,7 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, TypeError) as e:
                 return self._json({"error": str(e)}, 400)
             library_mod.save_library(library_path, library)
-            return self._json({"ok": True, "resultado": r})
+            return self._json({"ok": True, "resultado": r, "onde_roda": alvo.get("onde_roda", {}), "jogar": alvo.get("jogar")})
 
         if parts == ["api", "library", "fetch_covers"]:
             apply = query.get("apply", ["0"])[0] == "1"

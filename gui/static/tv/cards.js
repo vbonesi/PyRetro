@@ -3,7 +3,7 @@ import {coverFrame} from "./cover-frame.js";
 import {openContextMenu} from "./context.js";
 import {openGame} from "./game.js";
 import {showSpotlight} from "./home.js";
-import {badgeKey, cardGames, observedSaves, state} from "./state.js";
+import {RODA, badgeKey, cardGames, observedSaves, rodaOf, state} from "./state.js";
 function gameBadges(g) {
   const t = g.tracking || {}, badges = [];
   if (t.platinado) badges.push(['🏆 Platinado', 'Jogo platinado']);
@@ -12,6 +12,13 @@ function gameBadges(g) {
   if (t.nota != null) badges.push([`${notaEspecial(t.nota) ? '✦' : '★'} ${String(t.nota).replace('.', ',')}`, notaEspecial(t.nota) ? 'Nota: jogo muito especial' : 'Nota', notaColor(t.nota)]);
   const minutes = Math.floor((g.playtime?.seconds || 0) / 60);
   if (minutes > 0) badges.push([minutes >= 60 ? `⏱ ${Math.floor(minutes/60)}h${String(minutes%60).padStart(2,'0')}` : `⏱ ${minutes}min`, 'Tempo registrado neste PC']);
+  // Selos de plataforma (Switch, PS4, Xbox, PC, Switch 2); ✓ marca onde o Victor tem o jogo.
+  const jogar = t.jogar || {}, tamanho = id => t.onde_roda?.[id]?.gb;
+  for (const [id, label] of rodaOf(g)) {
+    const mine = jogar.estado === "tenho" && jogar.plataforma === id;
+    badges.push([`${mine ? "✓ " : ""}${label}`, `${mine ? "Você tem este jogo" : "Existe"} no ${label}${tamanho(id) ? ` (~${String(tamanho(id)).replace(".", ",")} GB)` : ""}${mine && id === "pc" && jogar.loja ? ` · ${jogar.loja}` : ""}`]);
+  }
+  if (!rodaOf(g).length && jogar.estado === "quero") badges.push(["♡ Quero jogar", "Quero jogar; ainda sem plataforma conhecida"]);
   if (observedSaves.get(badgeKey(g))) badges.push(['💾', 'Save encontrado neste PC na última consulta']);
   return badges;
 }
