@@ -14,3 +14,13 @@ export const rodaOf = g => RODA.filter(([id]) => g.tracking?.onde_roda?.[id]?.ex
 // Valor do filtro "Onde roda": "" (qualquer), "quero" (quero jogar) ou o id de uma plataforma.
 export const rodaMatch = (g, value) => !value || (value === "quero" ? g.tracking?.jogar?.estado === "quero" : g.tracking?.onde_roda?.[value]?.existe === true);
 export const ui = {spotlightGame: undefined, emulatorRunning: false};
+
+// Coleção ou versão (ex.: Advance Wars 1+2 Re-Boot Camp): cada entrada com ROM retrô aponta ao jogo jogável do mesmo sistema,
+// que já oferece baixar e jogar como qualquer ficha de ROM (casa pelo título, nunca o próprio card).
+export const RETRO_CODES = ["FC", "SFC", "MD", "SMS", "GG", "GB", "GBC", "GBA", "N64", "PCE", "PCECD", "ARCADE"];
+const tituloChave = s => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+export const edicoesRetro = g => (g.tracking?.edicoes || []).filter(e => RETRO_CODES.includes(String(e.rom || "").replace(/^rom:/, "")));
+export function jogoDaEdicao(items, card, e) {
+  const code = String(e.rom || "").replace(/^rom:/, ""), alvo = tituloChave(e.nome);
+  return items.find(x => x !== card && x.code === code && tituloChave(x.name) === alvo) || null;
+}

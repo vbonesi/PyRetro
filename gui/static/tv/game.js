@@ -8,7 +8,7 @@ import {gameRoute, pushOverlay} from "./router.js";
 import {closePage, openPage} from "./pages.js";
 import {showSpotlight} from "./home.js";
 import {playDownloaded, refreshHomeAfterPlay, refreshPlayOptions} from "./play.js";
-import {TEXTURE_SYSTEMS, WISHLIST_STORES, state, ui} from "./state.js";
+import {TEXTURE_SYSTEMS, WISHLIST_STORES, edicoesRetro, jogoDaEdicao, state, ui} from "./state.js";
 let returnFocus, returnIndex, returnGameKey;
 export function openGame(g, origin = document.activeElement) {
   returnFocus = origin; returnIndex = [...$("gallery").children].indexOf(returnFocus); state.selected = g;
@@ -47,6 +47,12 @@ export function openGame(g, origin = document.activeElement) {
   openPage($("details")); $("close").focus();
   if (g.wishlist) { $("play-actions").replaceChildren(); $("play-hint").textContent = `Na sua lista de desejos (${WISHLIST_STORES[g.wishlist]}). Comprou? Marque abaixo e ele entra na Biblioteca.`; }
   else refreshPlayOptions(g);
+  renderEdicoes(g);
+}
+function renderEdicoes(g) {
+  const box = $("edicoes-actions"), itens = g.code ? [] : edicoesRetro(g).map(e => [e, jogoDaEdicao(state.items, g, e)]).filter(([, j]) => j);
+  box.replaceChildren(...itens.map(([e, j]) => button(`▶ ${e.nome} (${e.plataforma || j.code})`, () => openGame(j, document.activeElement))));
+  box.hidden = !itens.length;
 }
 $("progress-toggle").onclick = () => {
   $("progress-fields").hidden = !$("progress-fields").hidden;

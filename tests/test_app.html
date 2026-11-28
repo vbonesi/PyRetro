@@ -917,6 +917,28 @@ teste("modo TV: selos de plataforma na ordem de prioridade e filtro Onde roda", 
   } finally { frame.remove(); }
 });
 
+// Coleção/versão (Advance Wars 1+2 Re-Boot Camp): a entrada com ROM retrô abre a ficha do jogo, que oferece baixar.
+teste("modo TV: ficha de coleção abre o jogo retrô de dentro para baixar e jogar", async () => {
+  const {jogoDaEdicao, edicoesRetro} = await import("/static/tv/state.js");
+  const rom = {key: "rom:GBA:Advance Wars", name: "Advance Wars", code: "GBA", platform: "Nintendo - Game Boy Advance", romName: "Advance Wars", local: false, downloadName: "Advance Wars.gba", driveName: "Advance Wars.gba", tracking: {}};
+  const card = {key: "pc:aw", id: "aw", name: "Advance Wars 1+2 Re-Boot Camp", platform: "Nintendo Switch", local: false, tracking: {edicoes: [
+    {nome: "Advance Wars", plataforma: "GBA", rom: "rom:GBA"}, {nome: "Advance Wars 1+2: Re-Boot Camp", plataforma: "Switch"}]}};
+  igual(edicoesRetro(card).length, 1, "só a entrada com ROM retrô");
+  verdade(jogoDaEdicao([card, rom], card, card.tracking.edicoes[0]) === rom && !jogoDaEdicao([card], card, card.tracking.edicoes[0]));
+  const {frame, doc} = await abrirTV(url => url === "/api/tv/catalog" ? [card, rom] : undefined, "#/biblioteca");
+  try {
+    await esperar(() => doc.querySelectorAll("#gallery .game").length === 2, "Biblioteca não carregou");
+    [...doc.querySelectorAll("#gallery .game")].find(e => e.textContent.includes("Re-Boot")).click();
+    await esperar(() => !doc.getElementById("edicoes-actions").hidden, "ficha sem entrada retrô");
+    const b = doc.getElementById("edicoes-actions").querySelector("button");
+    verdade(b.textContent.includes("Advance Wars"));
+    b.click();
+    await esperar(() => doc.getElementById("game-title").textContent === "Advance Wars", "não abriu o jogo retrô");
+    verdade(!doc.getElementById("download").hidden, "a ficha da ROM deve oferecer baixar");
+    verdade(doc.getElementById("edicoes-actions").hidden);
+  } finally { frame.remove(); }
+});
+
 // Carga ou recarga numa rota: o foco vai ao conteúdo (filtro ativo na Biblioteca, destaque no Início), não à barra lateral.
 teste("modo TV: carregar numa rota deixa o foco no conteúdo", async () => {
   const item = (name, tracking = {}) => ({key: `pc:${name}`, id: name, name, platform: "Steam", tracking, local: false});
