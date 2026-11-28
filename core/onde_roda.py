@@ -70,8 +70,10 @@ def desmarcar_manual(game: dict, plat: str) -> None:
     game.get("onde_roda", {}).pop(_checa_plataforma(plat), None)
 
 
-def pesquisa(game: dict, plat: str, existe=None, gb=None) -> bool:
-    """Resultado de pesquisa (IGDB, lojas): grava só se o Victor não corrigiu à mão."""
+def pesquisa(game: dict, plat: str, existe=None, gb=None, **extra) -> bool:
+    """Resultado de pesquisa (IGDB, lojas): grava só se o Victor não corrigiu à mão.
+
+    `extra` (edicao, lojas) guarda a edição que prova a plataforma e as lojas de PC."""
     e = _entrada(game, _checa_plataforma(plat))
     if e["manual"]:
         return False
@@ -79,7 +81,31 @@ def pesquisa(game: dict, plat: str, existe=None, gb=None) -> bool:
         e["existe"] = bool(existe)
     if gb is not None:
         e["gb"] = _gb(gb)
+    for k in ("edicao", "lojas"):
+        if k in extra:
+            if extra[k]:
+                e[k] = extra[k]
+            else:
+                e.pop(k, None)
     return True
+
+
+def aplicar_pesquisa(game: dict, resultado: dict) -> int:
+    """Grava no card o resultado da pesquisa do F2 (IGDB). Nunca toca no manual; nunca derruba
+    uma plataforma que a fonte do próprio card prova. Devolve quantas plataformas mudaram."""
+    provadas = {plataforma_da_fonte(f) for f in game.get("fontes", [])} - {None}
+    antes = repr(game.get("onde_roda"))
+    game["pesquisa"] = {"fonte": "igdb", "estado": resultado.get("estado"), "igdb_id": resultado.get("igdb_id"),
+                        "igdb_nome": resultado.get("igdb_nome"), "confianca": resultado.get("confianca")}
+    if resultado.get("estado") == "igdb":
+        for plat, dados in (resultado.get("plataformas") or {}).items():
+            existe = bool(dados.get("existe"))
+            if plat in provadas and not existe:
+                existe = True
+            pesquisa(game, plat, existe=existe, gb=dados.get("gb"),
+                     edicao=dados.get("edicao"), lojas=dados.get("lojas"))
+    inferir(game)
+    return int(antes != repr(game.get("onde_roda")))
 
 
 def inferir(game: dict) -> int:
@@ -137,8 +163,13 @@ def _fonte_de_posse(game: dict):
     return None
 
 
+# Sistemas que ficam no Drive (plano de 27/11/2026). PS1, PS2, PSP, DS, 3DS, GameCube e Wii têm ROM,
+# mas saem do Drive e entram na lista "onde jogar".
+SISTEMAS_RETRO = {"FC", "SFC", "MD", "SMS", "GG", "GB", "GBC", "GBA", "N64", "PCE", "PCECD", "ARCADE"}
+
+
 def eh_retro(game: dict) -> bool:
-    return any(f.startswith("rom:") for f in game.get("fontes", []))
+    return any(f.startswith("rom:") and f[4:] in SISTEMAS_RETRO for f in game.get("fontes", []))
 
 
 def migrar_game(game: dict) -> bool:

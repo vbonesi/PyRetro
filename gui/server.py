@@ -2812,7 +2812,7 @@ class Handler(BaseHTTPRequestHandler):
         ("api", "cover", "apply_url"),
         ("api", "wishlist", "remove"), ("api", "wishlist", "comprado"),
         ("api", "onde-roda", "set"), ("api", "onde-roda", "reset"), ("api", "onde-roda", "jogar"),
-        ("api", "onde-roda", "juntar"), ("api", "onde-roda", "migrar"),
+        ("api", "onde-roda", "juntar"), ("api", "onde-roda", "migrar"), ("api", "onde-roda", "pesquisa"),
         # Renomear ROM grava o nome novo em nomes_alt (core/rename_links.py).
         ("api", "cover", "rename"), ("api", "heavy", "rename"),
     }
@@ -3698,6 +3698,19 @@ class Handler(BaseHTTPRequestHandler):
                     if aplicar:
                         library_mod.save_library(library_path, library)
                     return self._json({"ok": True, "aplicado": aplicar, **r})
+                if acao == "pesquisa":
+                    # F2: lote de resultados do IGDB ({"resultados": [{"id": ..., "estado": ..., "plataformas": {...}}]}).
+                    por_id = {g["id"]: g for g in library["games"]}
+                    mudou = 0
+                    ausentes = []
+                    for res in body.get("resultados") or []:
+                        alvo = por_id.get(res.get("id"))
+                        if alvo is None:
+                            ausentes.append(res.get("id"))
+                            continue
+                        mudou += onde_roda_mod.aplicar_pesquisa(alvo, res)
+                    library_mod.save_library(library_path, library)
+                    return self._json({"ok": True, "atualizados": mudou, "ausentes": ausentes})
                 if acao == "juntar":
                     onde_roda_mod.juntar(library, body.get("manter"), body.get("descartar"))
                     library_mod.save_library(library_path, library)

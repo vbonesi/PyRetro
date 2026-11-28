@@ -145,6 +145,19 @@ class TestAPI(BaseAPI):
         status, d = self.pedir("/api/onde-roda/jogar", {"id": self.a["id"], "estado": "tenho", "plataforma": "pc", "loja": "Steam"})
         self.assertEqual(d["resultado"]["loja"], "Steam")
 
+    def test_pesquisa_em_lote_respeita_manual_e_fonte(self):
+        self.pedir("/api/onde-roda/set", {"id": self.a["id"], "plataforma": "switch", "existe": False})
+        res = {"id": self.a["id"], "estado": "igdb", "igdb_id": 1, "plataformas": {
+            "switch": {"existe": True, "gb": 5, "edicao": "X (original, Switch)"},
+            "ps4": {"existe": False, "gb": None}, "pc": {"existe": True, "gb": 20, "lojas": ["Steam"]}}}
+        status, d = self.pedir("/api/onde-roda/pesquisa", {"resultados": [res, {"id": "nao", "estado": "igdb"}]})
+        self.assertEqual((status, d["ausentes"]), (200, ["nao"]))
+        g = next(g for g in self.salvo() if g["id"] == self.a["id"])
+        self.assertEqual(g["onde_roda"]["switch"]["existe"], False)   # manual vence
+        self.assertEqual(g["onde_roda"]["ps4"]["existe"], True)       # fonte wishlist:psn prova
+        self.assertEqual(g["onde_roda"]["pc"]["lojas"], ["Steam"])
+        self.assertEqual(g["pesquisa"]["igdb_id"], 1)
+
     def test_id_desconhecido_404(self):
         status, _ = self.pedir("/api/onde-roda/set", {"id": "nao", "plataforma": "ps4", "existe": True})
         self.assertEqual(status, 404)
@@ -216,3 +229,30 @@ class TestShopAposentado(unittest.TestCase):
         txt = (Path(__file__).parent.parent / "retrosync.py").read_text()
         self.assertNotIn("switch-shop", txt)
         self.assertNotIn("tinfoil-auth", txt)
+
+
+class TestIgdbPuro(unittest.TestCase):
+    def test_nome_limpo_e_nucleo(self):
+        from core import onde_igdb as ig
+        self.assertEqual(ig.norm("Resident Evil 4 (USA) [PT-BR]™"), "resident evil 4")
+        self.assertGreaterEqual(ig.similaridade("Dino Crisis 2", "Dino Crisis 2"), 1.0)
+        self.assertGreaterEqual(ig.similaridade("Tomb Raider", "Tomb Raider Remastered"), 0.9)
+
+    def test_base_prefere_plataforma_nativa_e_port_conta(self):
+        from core import onde_igdb as ig
+        pool = [{"id": 416083, "name": "Dino Crisis 2", "platforms": [48, 167], "game_type": 11},
+                {"id": 4132, "name": "Dino Crisis 2", "platforms": [9, 6, 7], "game_type": 0, "ports": [416083]}]
+        base, sim, _ = ig.escolher_base(["Dino Crisis 2"], "Sony - PlayStation", pool)
+        self.assertEqual(base["id"], 4132)
+        tipos = ig.ids_relacionados(base)
+        evs = ig.evidencias(base, {416083: pool[0]}, tipos, [])
+        self.assertEqual(evs["ps4"][0]["tipo"], "port")
+        r = ig.montar("Dino Crisis 2", "Sony - PlayStation", base, sim, evs)
+        self.assertTrue(r["plataformas"]["ps4"]["existe"])
+        self.assertFalse(r["plataformas"]["switch"]["existe"])
+        self.assertTrue(r["plataformas"]["ps4"]["gb"] > 0)
+
+    def test_sem_casamento_fica_nao_verificado(self):
+        from core import onde_igdb as ig
+        r = ig.montar("Zzz", "Steam", None, 0.3, None)
+        self.assertEqual(r["estado"], "nao_verificado")

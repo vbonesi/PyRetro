@@ -1,5 +1,12 @@
 # Changelog
 
+## 28/11/2026 — F2: onde cada jogo roda, pesquisado no IGDB (Claude)
+
+- **Pesquisa:** `core/igdb.py` (token Twitch app access, 4 req/s, cache em `cache/igdb/`), `core/onde_igdb.py` (casamento de nome por plataforma nativa; port, remaster, remake, coleção e edição contam; tamanho aproximado em GB por plataforma, com Steam `appdetails` para o PC e o tamanho real do dump para os de Switch) e `tools/onde_roda_igdb.py`. Escopo: 1.008 cards (Desejados de Xbox/Steam/PSN/Switch/Switch 2 e Biblioteca de PS1, PS2, PSP, DS, 3DS, GameCube, Wii, Switch, Switch 2).
+- **Gravação:** `POST /api/onde-roda/pesquisa` (lote; nunca sobrescreve `manual`, nunca derruba plataforma provada pela fonte do card) via `tools/onde_roda_aplicar.py`. Cada plataforma ganha `edicao` (qual edição prova) e, no PC, `lojas`; o card ganha `pesquisa` (igdb_id, confiança).
+- **Resultado:** 967 casados, 41 não verificados (sem chute). Existe em: PC 557, Xbox 429, Switch 397, PS4 354, Switch 2 145. Relatório de dúvidas em `~/Downloads` (fora do repositório). Listas "Falta na wishlist" regeradas: Steam 213, Xbox 154.
+- **Correção no F1:** `eh_retro` tratava qualquer `rom:` como retrô; agora só FC, SFC, MD, SMS, GG, GB, GBC, GBA, N64, PCE, PCECD e ARCADE (PS1…Wii são "onde jogar").
+
 ## 28/11/2026 — Android 0.32.0: só ROM retrô baixa; cards mostram onde jogar (Claude)
 
 - **Celular (adb), a pedido do Victor e depois de mostrar a lista:** a única ROM fora do retrô era o PS1 `Castlevania - Symphony of the Night.chd` (358 MB), apagada de `/sdcard/Jogos/PS`. PSP, NDS, 3DS e PC não tinham ROM (só saves, configs e shaders, que ficam); BIOS do PS1, saves e estados intactos. Lista em cópia privada, fora do repositório. Sem `Ni no Kuni`/PDF de `Download`: não são do PyRetro.
