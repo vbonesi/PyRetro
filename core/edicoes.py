@@ -21,7 +21,7 @@ _MODERNIDADE = {"Xbox Series S": 5, "PlayStation 4": 5, "Nintendo Switch 2": 5, 
 _ROT = {7: "PS1", 8: "PS2", 9: "PS3", 38: "PSP", 46: "PS Vita", 48: "PS4", 167: "PS5", 20: "DS", 37: "3DS", 21: "GameCube",
         5: "Wii", 41: "Wii U", 130: "Switch", 508: "Switch 2", 4: "N64", 19: "SNES", 18: "NES", 24: "GBA", 33: "Game Boy",
         22: "Game Boy Color", 29: "Mega Drive", 32: "Saturn", 23: "Dreamcast", 86: "PC Engine", 150: "PC Engine CD",
-        6: "PC", 12: "Xbox 360", 11: "Xbox", 49: "Xbox One", 169: "Xbox Series X|S", 34: "Android", 3: "Linux", 14: "Mac",
+        6: "PC", 12: "Xbox 360", 11: "Xbox", 49: "Xbox One", 169: "Xbox Series X|S", 34: "Android", 39: "iOS", 55: "Windows Phone", 3: "Linux", 14: "Mac",
         52: "Arcade", 64: "Master System", 35: "Game Gear", 27: "Mega CD"}
 _ROM_ROTULO = {"PS": "PS1", "PS2": "PS2", "PSP": "PSP", "NDS": "DS", "3DS": "3DS", "NGC": "GameCube", "WII": "Wii",
                "FC": "NES", "SFC": "SNES", "MD": "Mega Drive", "SMS": "Master System", "GG": "Game Gear", "GB": "Game Boy",

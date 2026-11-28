@@ -1,5 +1,10 @@
 # Changelog
 
+## 28/11/2026 — F2b aplicado: edições unificadas no banco (Claude)
+
+- Revisão do Victor: recusado "Street Fighter Collection"; Pokémon Diamond/Pearl juntos com Brilliant Diamond/Shining Pearl; o resto aceito, incluindo os [?]. Rota `POST /api/onde-roda/unificar` (`apply` falso simula). **46 grupos, 28 cards absorvidos** (2.946 → 2.918), com cópia de segurança do banco antes (fora do repositório). Super Mario 64 (N64) não entrou: fica como linha "N64" na lista do 3D All-Stars, sem progresso. A exclusão de ROM/card/saves de N64 com port nativo no Switch **não foi feita**: espera a confirmação do Victor.
+- Formato no card que fica: `tipo_card` (`versao` ou `colecao`), `ids_antigos` (aliases), `edicoes`: lista de `{id, nome, plataforma, tipo (atual/edicao/item), fontes, rom (fonte rom:X ou null), progresso, registro (card completo absorvido ou null)}`.
+
 ## 28/11/2026 — F2b: proposta e modelo de unificação de edições (Claude)
 
 - `core/edicoes.py` (versão = card da moderna com `edicoes`; coleção = card com a lista dos jogos de dentro; progresso migra, `ids_antigos` como alias, registro completo preservado) e `tools/proposta_unificacao.py`, que gerou a proposta (35 coleções, 12 versões) em `~/Downloads`. **Nada aplicado no banco**: espera a revisão do Victor (V1). Plano: seção F2b de `docs/plano-lista-unica-2026-11-27.md`.
