@@ -40,7 +40,7 @@ internal fun RingButton(label: String, modifier: Modifier = Modifier, primary: B
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAction: (GameAction) -> Unit, onChanged: () -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAction: (GameAction) -> Unit, onChanged: () -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier, openEdition: (Edicao) -> Game? = { null }, onOpenGame: (Game) -> Unit = {}) {
     val tracking = remember(game.key, rev) { store.tracking(game) }
     val nota = remember(game.key, rev) { TrackingRules.value(tracking, "nota") as Double? }
     val minutes = remember(game.key, rev) { store.prefs.getLong("time:${game.key}", 0) / 60 }
@@ -63,12 +63,16 @@ fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAc
             if (edicoes.isNotEmpty() && (Edicoes.colecao(tracking) || Edicoes.versao(tracking))) {
                 Text(if (Edicoes.colecao(tracking)) "Jogos da coleção" else "Edições", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 edicoes.forEach { e ->
-                    Text("• " + e.nome + (if (e.plataforma.isNotBlank()) " · ${e.plataforma}" else "") + (if (e.progresso.isNotBlank()) " · ${e.progresso}" else "") +
-                        (if (e.rom != null && OndeRoda.retro(e.rom.removePrefix("rom:"))) " · ROM retrô: baixe pelo botão principal" else ""), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val jogo = openEdition(e)
+                    val texto = "• " + e.nome + (if (e.plataforma.isNotBlank()) " · ${e.plataforma}" else "") + (if (e.progresso.isNotBlank()) " · ${e.progresso}" else "")
+                    if (jogo != null) RingButton("$texto · abrir", Modifier.fillMaxWidth()) { onOpenGame(jogo) }
+                    else Text(texto, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (sinopse.isNotBlank()) Text(sinopse, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            primary?.let { (action, label) -> RingButton(label, Modifier.focusRequester(firstFocus), primary = true) { onAction(action) } }
+            // Coleção com jogos retrô de dentro: cada um abre a própria ficha; o botão principal ("Procurar a ROM no Drive") só confundiria.
+            val colecaoRetro = Edicoes.colecao(tracking) && edicoes.any { openEdition(it) != null }
+            primary?.takeUnless { colecaoRetro }?.let { (action, label) -> RingButton(label, Modifier.focusRequester(firstFocus), primary = true) { onAction(action) } }
             GameRules.notes(facts).forEach { Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             // Fileira secundária: favorito, fixar e as ações de uso comum.
             ButtonFlow() {

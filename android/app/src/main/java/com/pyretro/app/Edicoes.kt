@@ -34,6 +34,14 @@ object Edicoes {
     fun codigoRetro(tracking: JSONObject): String? =
         if (!colecao(tracking)) null else lista(tracking).firstNotNullOfOrNull { it.rom?.removePrefix("rom:")?.takeIf { c -> OndeRoda.retro(c) } }
 
+    /** O jogo jogável de uma entrada de coleção com ROM retrô (ex.: Advance Wars dentro de Advance Wars 1+2): casa código e título entre os jogos carregados, menos o próprio card. */
+    fun jogoDaEdicao(games: List<Game>, card: Game, e: Edicao): Game? {
+        val code = e.rom?.removePrefix("rom:")?.takeIf { OndeRoda.retro(it) } ?: return null
+        val alvo = CloudCatalog.titleKey(e.nome)
+        return games.filter { it.key != card.key && it.code == code && (it.drive || it.localUri != null) }
+            .firstOrNull { CloudCatalog.titleKey(it.name) == alvo || it.aliases.any { a -> CloudCatalog.titleKey(a) == alvo } }
+    }
+
     /** Chaves antigas (`pc:<id>`) -> chave do card que ficou, para favoritos, recentes e tempo seguirem a unificação. */
     fun aliases(games: List<Game>): Map<String, String> = games.filter { it.id.isNotBlank() }.flatMap { g ->
         val ids = g.tracking.optJSONArray("ids_antigos") ?: return@flatMap emptyList()

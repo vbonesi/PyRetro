@@ -29,4 +29,14 @@ class EdicoesTest {
         val g = Game("novo", "pc:novo", "Coleção", "PS4", tracking = colecao)
         assertEquals(mapOf("pc:old1" to "pc:novo", "pc:old2" to "pc:novo"), Edicoes.aliases(listOf(g, Game("", "x", "Sem id", "PS"))))
     }
+
+    @Test fun colecaoAbreOJogoRetroDeDentro() {
+        val card = Game("c", "pc:c", "Advance Wars 1+2 Re-Boot Camp", "Nintendo Switch")
+        val aw = Game("", "drive:GBA:1", "Advance Wars", "Nintendo - Game Boy Advance", "GBA", "Advance Wars.gba", drive = true)
+        val aw2 = Game("", "drive:GBA:2", "Advance Wars 2 - Black Hole Rising", "Nintendo - Game Boy Advance", "GBA", "x.gba", drive = true)
+        val e = Edicao("Advance Wars 2 - Black Hole Rising", "Nintendo - Game Boy Advance", "colecao", "rom:GBA", "")
+        assertEquals(aw2, Edicoes.jogoDaEdicao(listOf(card, aw, aw2), card, e))
+        assertNull(Edicoes.jogoDaEdicao(listOf(card, aw, aw2), card, e.copy(rom = "rom:PS")))   // não retrô: nada a abrir
+        assertNull(Edicoes.jogoDaEdicao(listOf(card, aw), card, e))
+    }
 }

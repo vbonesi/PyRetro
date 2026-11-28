@@ -163,7 +163,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
                             showOptions -> OptionsScreen(shell, flows, ::openLegacy, { showOptions = false }, mod)
                             showStatus -> StatusScreen(shell, statusNote, ::date, ::testConnection, ::syncProgress, ::statusNavigate, { showStatus = false }, mod)
                             wish != null -> WishDetailScreen(shell, wish, ::leaveWish, { wishKey = null }, mod)
-                            open != null -> GameScreen(store, open, remember(open.key, rev, shell) { factsOf(open) }, rev, { runAction(open, it) }, ::changed, { openKey = null }, mod)
+                            open != null -> GameScreen(store, open, remember(open.key, rev, shell) { factsOf(open) }, rev, { runAction(open, it) }, ::changed, { openKey = null }, mod, { e -> Edicoes.jogoDaEdicao(shell.games, open, e) }, ::openGame)
                             else -> when (current) {
                                 Destination.INICIO -> HomeScreen(shell, ::openGame, ::openStatus, ::openPackage, { select(Destination.BIBLIOTECA) }, mod)
                                 Destination.BIBLIOTECA -> LibraryScreen(shell, ::openGame, ::openStatus, ::drawGame, flows::showStats, mod)
