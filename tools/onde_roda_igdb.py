@@ -19,6 +19,7 @@ CACHE = RAIZ / "cache" / "igdb"
 SAIDA = RAIZ / "cache" / "onde_roda_f2.json"
 CAMPOS = ("name,alternative_names.name,platforms,game_type,first_release_date,remakes,remasters,ports,bundles,"
           "version_parent,total_rating_count,genres")
+CAMPOS_FILHOS = CAMPOS + ",release_dates.platform,release_dates.date"   # jogos de dentro de uma coleção: precisa da data por plataforma
 PLAT_ESCOPO = {"Sony - PlayStation", "Sony - PlayStation 2", "Sony - PSP", "Nintendo - Nintendo DS", "Nintendo - 3DS",
                "Nintendo - GameCube", "Nintendo - Wii", "Nintendo Switch", "Nintendo Switch 2"}
 

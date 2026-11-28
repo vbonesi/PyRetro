@@ -291,7 +291,7 @@ class TestEdicoes(unittest.TestCase):
         fica = self.ed.unificar(self.lib, self.colecao["id"], [self.rondo["id"]], "colecao",
                                 extras=[{"nome": "Symphony of the Night", "plataforma": "PS1"}])
         nomes = [(e["nome"], e["plataforma"], e["rom"]) for e in fica["edicoes"]]
-        self.assertIn(("Castlevania - Rondo of Blood", "NEC - PC Engine CD - TurboGrafx-CD", "rom:PCECD"), nomes)
+        self.assertIn(("Castlevania - Rondo of Blood", "PC Engine CD", "rom:PCECD"), nomes)
         self.assertIn(("Symphony of the Night", "PS1", None), nomes)
         self.assertEqual(fica["tipo_card"], "colecao")
 
@@ -312,3 +312,54 @@ class TestEdicoes(unittest.TestCase):
         self.assertEqual(tipos["versao"]["fica"]["id"], self.ps4["id"])
         self.assertEqual(tipos["colecao"]["entram"][0]["id"], self.rondo["id"])
         self.assertIn("FICA", self.ed.texto_proposta(gs))
+
+
+class TestEdicoesPlataformaOriginal(unittest.TestCase):
+    def setUp(self):
+        from core import edicoes
+        self.ed = edicoes
+
+    def test_original_pela_data_de_lancamento(self):
+        jogo_igdb = {"platforms": [48, 6, 49, 7], "release_dates": [{"platform": 48, "date": 1500000000},
+                                                                     {"platform": 7, "date": 900000000}, {"platform": 6, "date": 1400000000}]}
+        self.assertEqual(self.ed.plataforma_original(jogo_igdb), "PS1")
+
+    def test_sem_datas_usa_a_era_e_ignora_id_sem_rotulo(self):
+        self.assertEqual(self.ed.plataforma_original({"platforms": [39, 130, 20]}), "DS")
+        self.assertEqual(self.ed.plataforma_original({"platforms": [9999, 15, 26]}), "C64")
+        self.assertIsNone(self.ed.plataforma_original({"platforms": [9999]}))
+        self.assertNotIn("#", self.ed.rotulo_plataformas([9999, 15]) or "")
+
+    def test_card_moderno_de_jogo_antigo_mostra_a_original(self):
+        card = {"fontes": ["switch"], "plataforma": "Nintendo Switch"}
+        self.assertEqual(self.ed.rotulo_card(card, {"platforms": [5, 130]}), "Wii")
+        self.assertEqual(self.ed.rotulo_card({"fontes": ["rom:NGC"], "plataforma": "Nintendo - GameCube"}), "GameCube")
+
+    def test_repetido_do_igdb_some_e_card_repetido_e_marcado(self):
+        colecao = jogo("Super Mario 3D All-Stars", "Nintendo Switch", fontes=["switch"])
+        sunshine = jogo("Mario Sunshine", "Nintendo - GameCube", fontes=["rom:NGC"])
+        galaxy_wii = jogo("Mario Galaxy", "Nintendo - Wii", fontes=["rom:WII"])
+        galaxy_sw = jogo("Super Mario Galaxy", "Nintendo Switch", fontes=["switch"])
+        lib = {"games": [colecao, sunshine, galaxy_wii, galaxy_sw]}
+        fica = self.ed.unificar(lib, colecao["id"], [sunshine["id"], galaxy_wii["id"], galaxy_sw["id"]], "colecao",
+                                extras=[{"nome": "Super Mario Sunshine", "plataforma": "Switch"},
+                                        {"nome": "Super Mario 64", "plataforma": "N64"}, {"nome": "Super Mario 64", "plataforma": "Switch"}])
+        nomes = [(e["nome"], e["plataforma"], e.get("repetido", False)) for e in fica["edicoes"]]
+        self.assertEqual(sum(1 for n, _, _ in nomes if "Sunshine" in n), 1)
+        self.assertIn(("Mario Sunshine", "GameCube", False), nomes)
+        self.assertIn(("Mario Galaxy", "Wii", False), nomes)
+        self.assertIn(("Super Mario Galaxy", "Switch", True), nomes)    # card guardado, mas escondido
+        self.assertEqual([p for n, p, _ in nomes if n == "Super Mario 64"], ["N64"])
+
+    def test_reparar_edicoes_ja_gravadas_e_idempotente(self):
+        card = {"tipo_card": "colecao", "edicoes": [
+            {"id": None, "nome": "Turrican", "plataforma": "#73, #15, #26", "tipo": "item", "fontes": [], "rom": None},
+            {"id": None, "nome": "Crash Bandicoot", "plataforma": "PS4, PC, Xbox One", "tipo": "item", "fontes": [], "rom": None},
+            {"id": "x", "nome": "Super Mario Galaxy", "plataforma": "Nintendo Switch", "tipo": "item", "fontes": ["switch"], "rom": None,
+             "registro": {"fontes": ["switch"], "plataforma": "Nintendo Switch"}}]}
+        filhos = [{"name": "Crash Bandicoot", "platforms": [48, 7], "release_dates": [{"platform": 7, "date": 850000000}, {"platform": 48, "date": 1500000000}]},
+                  {"name": "Turrican", "platforms": [73, 15, 26]}, {"name": "Super Mario Galaxy", "platforms": [5, 130]}]
+        self.assertTrue(self.ed.reparar_edicoes(card, filhos))
+        self.assertEqual([(e["nome"], e["plataforma"]) for e in card["edicoes"]],
+                         [("Turrican", "C64"), ("Crash Bandicoot", "PS1"), ("Super Mario Galaxy", "Wii")])
+        self.assertFalse(self.ed.reparar_edicoes(card, filhos))

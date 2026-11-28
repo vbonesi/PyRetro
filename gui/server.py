@@ -2813,7 +2813,7 @@ class Handler(BaseHTTPRequestHandler):
         ("api", "cover", "apply_url"),
         ("api", "wishlist", "remove"), ("api", "wishlist", "comprado"),
         ("api", "onde-roda", "set"), ("api", "onde-roda", "reset"), ("api", "onde-roda", "jogar"),
-        ("api", "onde-roda", "juntar"), ("api", "onde-roda", "migrar"), ("api", "onde-roda", "pesquisa"), ("api", "onde-roda", "unificar"), ("api", "onde-roda", "apagar"),
+        ("api", "onde-roda", "juntar"), ("api", "onde-roda", "migrar"), ("api", "onde-roda", "pesquisa"), ("api", "onde-roda", "unificar"), ("api", "onde-roda", "apagar"), ("api", "onde-roda", "reparar-edicoes"),
         # Renomear ROM grava o nome novo em nomes_alt (core/rename_links.py).
         ("api", "cover", "rename"), ("api", "heavy", "rename"),
     }
@@ -3707,6 +3707,19 @@ class Handler(BaseHTTPRequestHandler):
                     if aplicar:
                         library_mod.save_library(library_path, library)
                     return self._json({"ok": True, "aplicado": aplicar, "grupos": feitos})
+                if acao == "reparar-edicoes":
+                    # Corrige `edicoes` já gravadas (plataforma original, sem '#id' cru, sem repetidos): core/edicoes.reparar_edicoes.
+                    # Corpo: {"filhos": {id_do_card: [jogos do IGDB com release_dates]}, "apply": bool}.
+                    from core import edicoes as edicoes_mod
+                    aplicar = bool(body.get("apply"))
+                    filhos = body.get("filhos") or {}
+                    mudados = []
+                    for g in library["games"]:
+                        if g.get("edicoes") and edicoes_mod.reparar_edicoes(g if aplicar else copy.deepcopy(g), filhos.get(g["id"])):
+                            mudados.append(g["nome"])
+                    if aplicar and mudados:
+                        library_mod.save_library(library_path, library)
+                    return self._json({"ok": True, "aplicado": aplicar, "mudados": mudados})
                 if acao == "apagar":
                     # Retirada de cards de ROM já decidida pelo Victor (ex.: N64 com versão nativa no Switch). Só apaga
                     # card cuja única fonte é `rom:` e que não tem progresso; o resto volta como recusado.

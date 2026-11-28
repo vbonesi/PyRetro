@@ -22,7 +22,26 @@ _ROT = {7: "PS1", 8: "PS2", 9: "PS3", 38: "PSP", 46: "PS Vita", 48: "PS4", 167: 
         5: "Wii", 41: "Wii U", 130: "Switch", 508: "Switch 2", 4: "N64", 19: "SNES", 18: "NES", 24: "GBA", 33: "Game Boy",
         22: "Game Boy Color", 29: "Mega Drive", 32: "Saturn", 23: "Dreamcast", 86: "PC Engine", 150: "PC Engine CD",
         6: "PC", 12: "Xbox 360", 11: "Xbox", 49: "Xbox One", 169: "Xbox Series X|S", 34: "Android", 39: "iOS", 55: "Windows Phone", 3: "Linux", 14: "Mac",
-        52: "Arcade", 64: "Master System", 35: "Game Gear", 27: "Mega CD"}
+        52: "Arcade", 64: "Master System", 35: "Game Gear", 27: "Mega CD", 13: "DOS", 15: "C64", 16: "Amiga", 25: "Amstrad CPC",
+        26: "ZX Spectrum", 63: "Atari ST", 51: "Famicom Disk System", 58: "Super Famicom", 99: "Famicom", 78: "Sega CD", 30: "32X",
+        50: "3DO", 59: "Atari 2600", 53: "MSX2", 73: "BlackBerry", 132: "Fire TV"}
+# Ano de lançamento do aparelho: só desempata quando o IGDB não dá a data por plataforma.
+_ERA = {13: 1981, 15: 1982, 26: 1982, 25: 1984, 16: 1985, 63: 1985, 18: 1983, 99: 1983, 51: 1986, 64: 1985, 29: 1988, 33: 1989,
+        86: 1987, 150: 1988, 19: 1990, 58: 1990, 35: 1990, 78: 1991, 30: 1994, 7: 1994, 32: 1994, 50: 1993, 4: 1996, 6: 1996,
+        14: 1998, 22: 1998, 23: 1998, 8: 2000, 3: 2000, 24: 2001, 21: 2001, 11: 2001, 20: 2004, 38: 2004, 12: 2005, 9: 2006,
+        5: 2006, 34: 2008, 39: 2008, 73: 2008, 37: 2011, 46: 2011, 41: 2012, 48: 2013, 49: 2013, 132: 2014, 130: 2017,
+        169: 2020, 167: 2020, 508: 2025, 52: 1975}
+# Plataforma de card (nome do PyRetro) -> rótulo curto.
+_CARD_ROT = {"Sony - PlayStation": "PS1", "Sony - PlayStation 2": "PS2", "Sony - PSP": "PSP", "Nintendo - Nintendo DS": "DS",
+             "Nintendo - 3DS": "3DS", "Nintendo - GameCube": "GameCube", "Nintendo - Wii": "Wii", "Nintendo Switch": "Switch",
+             "Nintendo Switch 2": "Switch 2", "Nintendo - Nintendo 64": "N64", "Nintendo - Super Nintendo Entertainment System": "SNES",
+             "Nintendo - Nintendo Entertainment System": "NES", "Nintendo - Game Boy": "Game Boy",
+             "Nintendo - Game Boy Color": "Game Boy Color", "Nintendo - Game Boy Advance": "GBA", "Sega - Mega Drive - Genesis": "Mega Drive",
+             "Sega - Master System - Mark III": "Master System", "Sega - Game Gear": "Game Gear", "PlayStation 4": "PS4",
+             "Xbox One": "Xbox One", "Xbox Series S": "Xbox Series", "Xbox 360": "Xbox 360", "Xbox": "Xbox", "Steam": "PC", "GOG": "PC",
+             "Epic Games Store": "PC", "FBNeo - Arcade Games": "Arcade", "Android": "Android", "iOS": "iOS"}
+_MODERNOS_CARD = {"Nintendo Switch", "Nintendo Switch 2", "PlayStation 4", "Xbox One", "Xbox Series S", "Steam", "GOG", "Epic Games Store",
+                  "Switch", "Switch 2", "PS4", "Xbox Series", "PC"}
 _ROM_ROTULO = {"PS": "PS1", "PS2": "PS2", "PSP": "PSP", "NDS": "DS", "3DS": "3DS", "NGC": "GameCube", "WII": "Wii",
                "FC": "NES", "SFC": "SNES", "MD": "Mega Drive", "SMS": "Master System", "GG": "Game Gear", "GB": "Game Boy",
                "GBC": "Game Boy Color", "GBA": "GBA", "N64": "N64", "PCE": "PC Engine", "PCECD": "PC Engine CD", "ARCADE": "Arcade"}
@@ -30,11 +49,35 @@ _MODERNAS = {48, 167, 130, 508, 169, 49, 6, 3, 14, 34, 41}
 
 
 def rotulo_plataformas(ids) -> str | None:
-    """Plataformas antigas primeiro (a original); se só houver modernas, mostra as modernas."""
-    ids = list(ids or [])
+    """Plataformas antigas primeiro (a original); se só houver modernas, mostra as modernas. IDs sem rótulo são ignorados."""
+    ids = [i for i in ids or [] if i in _ROT]
     antigas = [i for i in ids if i not in _MODERNAS]
     escolha = antigas or ids
-    return ", ".join(_ROT.get(i, f"#{i}") for i in escolha[:3]) or None
+    return ", ".join(_ROT[i] for i in escolha[:3]) or None
+
+
+def plataforma_original(jogo_igdb: dict | None) -> str | None:
+    """Rótulo da plataforma de LANÇAMENTO de um jogo do IGDB: a de `release_dates` mais antiga; sem isso, a mais antiga
+    pela era do aparelho. Plataformas sem rótulo conhecido são ignoradas (nunca devolve '#123' se houver outra)."""
+    jogo_igdb = jogo_igdb or {}
+    datas = [(rd["date"], rd["platform"]) for rd in jogo_igdb.get("release_dates") or []
+             if isinstance(rd, dict) and rd.get("date") and rd.get("platform") in _ROT]
+    if datas:
+        return _ROT[min(datas)[1]]
+    conhecidas = [i for i in jogo_igdb.get("platforms") or [] if i in _ROT]
+    if conhecidas:
+        return _ROT[min(conhecidas, key=lambda i: _ERA.get(i, 9999))]
+    return None
+
+
+def rotulo_card(card: dict, jogo_igdb: dict | None = None) -> str | None:
+    """Plataforma curta de um card antigo; se for versão moderna de jogo antigo (sem ROM), vale a original do IGDB."""
+    rom = next((f[4:] for f in card.get("fontes", []) if f.startswith("rom:")), None)
+    proprio = _ROM_ROTULO.get(rom) or _CARD_ROT.get(card.get("plataforma")) or card.get("plataforma")
+    orig = plataforma_original(jogo_igdb)
+    if orig and not rom and card.get("plataforma") in _MODERNOS_CARD:
+        return orig
+    return proprio
 
 
 def progresso(g: dict) -> dict:
@@ -100,18 +143,17 @@ def propor(jogos: dict, igdb_de: dict, det: dict, filhos: dict, res: dict) -> li
                         alvo, via = gid, "nome"
                     if alvo:
                         break
-                plat = rotulo_plataformas(f.get("platforms"))
-                if alvo and via == "nome":
-                    rom = next((x[4:] for x in jogos[alvo].get("fontes", []) if x.startswith("rom:")), None)
-                    plat = _ROM_ROTULO.get(rom) or jogos[alvo].get("plataforma") or plat
-                if alvo and via == "igdb" and igdb_de.get(alvo) != f["id"]:
-                    plat = ", ".join(x for x in (_ROT.get(i) for i in det[igdb_de[alvo]].get("platforms") or []) if x)[:60] or plat
+                if alvo:
+                    plat = rotulo_card(jogos[alvo], f)
+                else:
+                    plat = plataforma_original(f) or rotulo_plataformas(f.get("platforms"))
                 entram.append({"id": alvo, "nome": f["name"], "plataforma": plat or None,
                                "motivo": "jogo de dentro da coleção (IGDB)" if via != "nome" else "casado só pelo nome",
                                "incerto": bool(alvo and (via == "nome" or incerto(alvo))),
                                "progresso": progresso(jogos[alvo]) if alvo else {}})
                 if alvo:
                     usados.add(alvo)
+            entram = sem_repetidos(entram, marcar=False)
             if entram:
                 usados.add(fica)
                 grupos.append({"tipo": "colecao", "fica": _resumo(jogos[fica]), "entram": entram,
@@ -138,6 +180,73 @@ def propor(jogos: dict, igdb_de: dict, det: dict, filhos: dict, res: dict) -> li
                            "progresso": progresso(jogos[gid])})
         grupos.append({"tipo": "versao", "fica": _resumo(jogos[fica]), "entram": entram, "incerto": incerto(fica)})
     return grupos
+
+
+def _chave_jogo(nome: str) -> str:
+    """Nome sem 'Super'/'The' na frente: 'Mario Sunshine' = 'Super Mario Sunshine'."""
+    n = ig.norm(nome)
+    for pre in ("super ", "the "):
+        if n.startswith(pre):
+            n = n[len(pre):]
+    return n
+
+
+def _idade(rotulo: str | None) -> int:
+    for i, r in _ROT.items():
+        if r == rotulo:
+            return _ERA.get(i, 9999)
+    return 9999
+
+
+def sem_repetidos(entradas: list[dict], marcar: bool = True) -> list[dict]:
+    """O mesmo jogo de dentro de uma coleção pode vir de um card antigo e do IGDB (ou de dois cards). Fica uma linha:
+    a de card (se houver) e, entre elas, a de plataforma mais antiga. Linha sem card repetida some; linha de card repetida
+    segue guardada (tem o registro do card) mas com `repetido: true`, para a tela escondê-la."""
+    grupos: dict[str, list[dict]] = {}
+    for e in entradas:
+        grupos.setdefault(_chave_jogo(e.get("nome") or ""), []).append(e)
+    sair = set()
+    for chave, itens in grupos.items():
+        if not chave or len(itens) < 2:
+            continue
+        itens = sorted(itens, key=lambda e: (e.get("id") is None, 0 if e.get("rom") else 1, _idade(e.get("plataforma"))))
+        for e in itens[1:]:
+            if e.get("id") is None:
+                sair.add(id(e))
+            elif marcar:
+                e["repetido"] = True
+    return [e for e in entradas if id(e) not in sair]
+
+
+def reparar_edicoes(card: dict, filhos: list[dict] | None = None) -> bool:
+    """Conserta `edicoes` já gravadas: plataforma curta e original, sem '#id' cru e sem repetidos. `filhos` = jogos do IGDB
+    (com `release_dates`) da coleção. Idempotente. Devolve se algo mudou."""
+    ed = card.get("edicoes")
+    if not ed:
+        return False
+    antes = copy.deepcopy([{k: v for k, v in e.items() if k != "registro"} for e in ed])
+    for e in ed:
+        if e.get("tipo") == "atual":
+            continue
+        filho = None
+        if filhos:
+            chave = _chave_jogo(e.get("nome") or "")
+            filho = next((f for f in filhos if _chave_jogo(f.get("name", "")) == chave), None)
+        reg = e.get("registro")
+        if e.get("id") is not None:
+            base = reg or {"fontes": e.get("fontes", []), "plataforma": e.get("plataforma")}
+            e["plataforma"] = rotulo_card(base, filho) or e.get("plataforma")
+        elif filho is not None:
+            e["plataforma"] = plataforma_original(filho) or e.get("plataforma")
+        else:
+            limpo = ", ".join(t for t in (e.get("plataforma") or "").split(", ") if t and not t.startswith("#"))
+            e["plataforma"] = limpo or None
+    if card.get("tipo_card") == "colecao":
+        itens = [e for e in ed if e.get("tipo") == "item"]
+        mantidos = sem_repetidos(itens)
+        ids_m = {id(e) for e in mantidos}
+        card["edicoes"] = [e for e in ed if e.get("tipo") != "item" or id(e) in ids_m]
+    return antes != [{k: v for k, v in e.items() if k != "registro"} for e in card["edicoes"]]
 
 
 def _resumo(g: dict) -> dict:
@@ -194,7 +303,7 @@ def _fundir_progresso(a: dict, b: dict) -> None:
 
 
 def _entrada(g: dict, tipo: str) -> dict:
-    return {"id": g["id"], "nome": g["nome"], "plataforma": g.get("plataforma"), "tipo": tipo,
+    return {"id": g["id"], "nome": g["nome"], "plataforma": rotulo_card(g) if tipo == "item" else g.get("plataforma"), "tipo": tipo,
             "fontes": list(g.get("fontes", [])), "rom": next((f for f in g.get("fontes", []) if f.startswith("rom:")), None),
             "progresso": progresso(g), "registro": copy.deepcopy(g)}
 
@@ -233,6 +342,11 @@ def unificar(library: dict, fica_id: str, entram_ids: list[str], tipo: str = "ve
         ed.append({"id": None, "nome": x["nome"], "plataforma": x.get("plataforma"), "tipo": "item", "fontes": [],
                    "rom": None, "progresso": {}, "registro": None})
     fica["tipo_card"] = tipo
+    if tipo == "colecao":
+        itens = [e for e in ed if e.get("tipo") == "item"]
+        mantidos = sem_repetidos(itens)
+        ids_m = {id(e) for e in mantidos}
+        fica["edicoes"] = [e for e in ed if e.get("tipo") != "item" or id(e) in ids_m]
     return fica
 
 
