@@ -10,7 +10,7 @@ object CloudCatalog {
     fun code(game:JSONObject):String {
         val sources=game.optJSONArray("fontes") ?: JSONArray()
         for(i in 0 until sources.length())sources.optString(i).takeIf { it.startsWith("rom:") }?.removePrefix("rom:")?.takeIf { it in codes.values }?.let { return it }
-        return codes[PlatformRules.find(game.optString("plataforma")).id].orEmpty()
+        return Edicoes.codigoRetro(game) ?: codes[PlatformRules.find(game.optString("plataforma")).id].orEmpty()
     }
     private val setCode=Regex("\\s*\\([^)]*\\)")
     private val disc=Regex("\\s*\\((?:Disc|Disk)\\s*(\\d+)\\)",RegexOption.IGNORE_CASE)

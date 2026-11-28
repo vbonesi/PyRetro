@@ -80,6 +80,8 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
         reader.execute {
             val loaded = runCatching { store.loadGames() }.getOrNull()
             val list = loaded?.games ?: emptyList()
+            // F2b: favoritos, recentes e tempo dos cards absorvidos passam ao card que ficou.
+            runCatching { store.migrateKeys(Edicoes.aliases(list)) }
             val ent = list.map(store::entryOf)
             val wishes = runCatching { extras.wishlist(false) }.getOrDefault(emptyList())
             val inf = runCatching { readInfo(loaded?.problems ?: emptyList(), list) }.getOrDefault(StatusInfo())

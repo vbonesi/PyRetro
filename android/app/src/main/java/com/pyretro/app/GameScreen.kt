@@ -59,6 +59,14 @@ fun GameScreen(store: LibraryStore, game: Game, facts: GameFacts, rev: Int, onAc
             nota?.let { Text(NotaRules.symbol(it) + " " + TrackingRules.label(it) + if (NotaRules.special(it)) " · jogo muito especial" else "",
                 color = NotaRules.color(it)?.let { c -> Color(c) } ?: MaterialTheme.colorScheme.onBackground, fontSize = 16.sp) }
             OndeRoda.selos(tracking).takeIf { it.isNotEmpty() }?.let { Text("Onde jogar: " + OndeRoda.detalhe(tracking).ifBlank { it.joinToString(" · ") }, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+            val edicoes = Edicoes.lista(tracking)
+            if (edicoes.isNotEmpty() && (Edicoes.colecao(tracking) || Edicoes.versao(tracking))) {
+                Text(if (Edicoes.colecao(tracking)) "Jogos da coleção" else "Edições", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                edicoes.forEach { e ->
+                    Text("• " + e.nome + (if (e.plataforma.isNotBlank()) " · ${e.plataforma}" else "") + (if (e.progresso.isNotBlank()) " · ${e.progresso}" else "") +
+                        (if (e.rom != null && OndeRoda.retro(e.rom.removePrefix("rom:"))) " · ROM retrô: baixe pelo botão principal" else ""), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             if (sinopse.isNotBlank()) Text(sinopse, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             primary?.let { (action, label) -> RingButton(label, Modifier.focusRequester(firstFocus), primary = true) { onAction(action) } }
             GameRules.notes(facts).forEach { Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
