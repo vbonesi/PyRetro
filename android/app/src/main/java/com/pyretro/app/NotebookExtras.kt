@@ -6,7 +6,7 @@ import org.json.JSONObject
 import java.io.File
 
 /** Um desejado como o app mostra: a loja vira a "plataforma". */
-data class WishItem(val id:String,val source:String,val name:String,val cover:String,val genre:String)
+data class WishItem(val id:String,val source:String,val name:String,val cover:String,val genre:String,val tracking:JSONObject=JSONObject())
 /** Para onde vai uma capa trocada: cadastro da Biblioteca ou arquivo da ROM no PC. */
 data class CoverTarget(val kind:String,val id:String="",val code:String="",val label:String="")
 
@@ -49,7 +49,7 @@ class NotebookExtras(private val store:LibraryStore,private val dir:File) {
         return runCatching { val data=JSONObject(cache("wishlist.json").readText())
             ExtrasRules.sorted(ExtrasRules.STORES.keys.flatMap { source -> val list=data.optJSONArray(source) ?: JSONArray()
                 (0 until list.length()).map { list.getJSONObject(it) }.map { g -> fun text(k:String)=if(g.isNull(k))"" else g.optString(k)
-                    WishItem(g.getString("id"),source,g.getString("nome"),text("capa_url"),text("genero")) } }) }.getOrDefault(emptyList())
+                    WishItem(g.getString("id"),source,g.getString("nome"),text("capa_url"),text("genero"),g) } }) }.getOrDefault(emptyList())
     }
     fun stats(fresh:Boolean):JSONObject? {
         if(store.cloudLibrary.ready())return LibraryView.stats(store.cloudLibrary.journal.library())

@@ -28,6 +28,18 @@ object OndeRoda {
         return if (lista.isEmpty() && jogar?.optString("estado") == "quero") listOf("♡ Quero jogar") else lista
     }
 
+    /** Os quatro grupos do Sortear, iguais aos do PC (core/sortear.py): retrô; quero jogar no Switch/PS4; já tenho no PS4/Xbox/PC; todos. */
+    enum class Grupo(val label: String) { RETRO("Jogos retrô"), QUERO("Quero jogar (Switch/PS4)"), TENHO("Já tenho (PS4/Xbox/PC)"), TODOS("Todos") }
+    fun noGrupo(grupo: Grupo, code: String, tracking: JSONObject): Boolean {
+        val jogar = tracking.optJSONObject("jogar")
+        return when (grupo) {
+            Grupo.RETRO -> retro(code)
+            Grupo.QUERO -> !retro(code) && jogar?.optString("estado") == "quero" && existe(tracking).any { it.first in setOf("switch", "ps4") }
+            Grupo.TENHO -> !retro(code) && jogar?.optString("estado") == "tenho" && jogar.optString("plataforma") in setOf("ps4", "xbox", "pc")
+            Grupo.TODOS -> true
+        }
+    }
+
     /** Tamanhos aproximados (GB) por plataforma, para a ficha. */
     fun detalhe(tracking: JSONObject): String {
         val mapa = tracking.optJSONObject("onde_roda") ?: return ""

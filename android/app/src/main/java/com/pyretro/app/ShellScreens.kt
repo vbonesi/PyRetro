@@ -186,7 +186,13 @@ fun LibraryScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit,
             }
         }
         LazyRow(Modifier.focusRestorer(), contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item { RingButton("🎲 Sortear") { onDraw(keys) } }
+            item { var open by remember { mutableStateOf(false) }
+                Box { RingButton("🎲 Sortear") { open = true }
+                    DropdownMenu(open, { open = false }) {
+                        OndeRoda.Grupo.values().forEach { g -> DropdownMenuItem({ Text(g.label) }, { open = false
+                            val pool = (data.games + data.wish).filter { OndeRoda.noGrupo(g, it.code, it.tracking) }
+                            onDraw(if (g == OndeRoda.Grupo.TODOS) keys.ifEmpty { pool.map { it.key } } else pool.map { it.key }) }) }
+                    } } }
             item { RingButton("📊 Estatísticas") { onStats() } }
         }
         if (keys.isEmpty()) Text(if (data.loaded) "Nenhum jogo neste filtro." else "Carregando…", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)

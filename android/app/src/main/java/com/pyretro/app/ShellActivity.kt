@@ -60,7 +60,7 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
     override fun onInputDeviceRemoved(deviceId: Int) { gamepad = gamepadPresent() }
     override fun onInputDeviceChanged(deviceId: Int) { gamepad = gamepadPresent() }
 
-    private fun wishGames(items: List<WishItem>) = items.map { Game(it.id, ExtrasRules.wishKey(it), it.name, ExtrasRules.STORES.getValue(it.source), cover = it.cover, genre = it.genre) }
+    private fun wishGames(items: List<WishItem>) = items.map { Game(it.id, ExtrasRules.wishKey(it), it.name, ExtrasRules.STORES.getValue(it.source), cover = it.cover, genre = it.genre, tracking = it.tracking) }
     private fun buildData() = ShellData(store, games, entries, true, statusLine(games.isEmpty()), wishGames(wishItems), wishItems.associateBy(ExtrasRules::wishKey), info)
     private fun date(t: Long) = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(t))
 
@@ -184,11 +184,14 @@ class ShellActivity : ComponentActivity(), InputManager.InputDeviceListener {
         "downloads" -> flows.page = Page.Downloads
         else -> openLegacy(screen)
     }
-    /** Sorteia do filtro aberto; sem jogos nele, dos jogos do celular ou do catálogo em cache (como a tela antiga). */
+    /** Sorteia do grupo escolhido (jogos da Biblioteca ou desejados); grupo vazio avisa em vez de sortear outra coisa. */
     private fun drawGame(keys: List<String>) {
-        val byKey = games.associateBy { it.key }
-        val pick = keys.randomOrNull()?.let(byKey::get) ?: games.filter { it.localUri != null }.randomOrNull() ?: games.randomOrNull()
-        if (pick == null) android.widget.Toast.makeText(this, "Nenhum jogo para sortear. Escolha as pastas ou carregue o catálogo.", android.widget.Toast.LENGTH_LONG).show() else openKey = pick.key
+        val key = keys.randomOrNull()
+        when {
+            key == null -> android.widget.Toast.makeText(this, "Nenhum jogo neste grupo. Carregue o catálogo ou escolha outro grupo.", android.widget.Toast.LENGTH_LONG).show()
+            key.startsWith("wish:") -> wishKey = key
+            else -> openKey = key
+        }
     }
     private fun openStatus() { statusNote = ""; showStatus = true; reload() }
     private fun openPackage(pkg: String) {

@@ -7,7 +7,7 @@ object LibraryView {
     fun wishlist(data:JSONObject):List<WishItem> = ExtrasRules.sorted(JournalRules.games(data).values.flatMap { game ->
         val sources=game.optJSONArray("fontes") ?: JSONArray()
         (0 until sources.length()).map(sources::optString).filter { it.startsWith("wishlist:") }.map { it.removePrefix("wishlist:") }.filter { it in ExtrasRules.STORES }.distinct()
-            .map { WishItem(game.getString("id"),it,game.getString("nome"),"cloud-cover:"+game.getString("id"),game.optString("genero").takeUnless { game.isNull("genero") }.orEmpty()) }
+            .map { WishItem(game.getString("id"),it,game.getString("nome"),"cloud-cover:"+game.getString("id"),game.optString("genero").takeUnless { game.isNull("genero") }.orEmpty(),JournalRules.copy(game)) }
     })
     fun stats(data:JSONObject):JSONObject {
         val rows=JournalRules.games(data).values.filter { !it.optBoolean("oculto") };val notes=rows.mapNotNull { (it.opt("nota") as? Number)?.toDouble() }

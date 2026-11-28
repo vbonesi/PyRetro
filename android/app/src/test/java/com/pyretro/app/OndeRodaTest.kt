@@ -20,4 +20,13 @@ class OndeRodaTest {
         assertTrue(listOf("FC", "SFC", "MD", "SMS", "GG", "GB", "GBC", "GBA", "N64", "PCE", "PCECD", "ARCADE").all(OndeRoda::retro))
         assertFalse(listOf("PS", "PSP", "NDS", "3DS", "NGC", "WII", "NSW", "").any(OndeRoda::retro))
     }
+    @Test fun `grupos do Sortear`() {
+        val g = OndeRoda.Grupo.values().associateBy { it.name }
+        assertTrue(OndeRoda.noGrupo(g.getValue("RETRO"), "SFC", JSONObject()))
+        assertFalse(OndeRoda.noGrupo(g.getValue("RETRO"), "PS", JSONObject()))
+        val quero = JSONObject("""{"onde_roda":{"ps4":{"existe":true}},"jogar":{"estado":"quero"}}""")
+        assertTrue(OndeRoda.noGrupo(g.getValue("QUERO"), "", quero)); assertFalse(OndeRoda.noGrupo(g.getValue("TENHO"), "", quero))
+        assertTrue(OndeRoda.noGrupo(g.getValue("TENHO"), "", JSONObject("""{"jogar":{"estado":"tenho","plataforma":"pc"}}""")))
+        assertFalse(OndeRoda.noGrupo(g.getValue("QUERO"), "", JSONObject("""{"onde_roda":{"xbox":{"existe":true}},"jogar":{"estado":"quero"}}""")))
+    }
 }
