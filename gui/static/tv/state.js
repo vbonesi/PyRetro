@@ -1,5 +1,5 @@
 import {$} from "./dom.js";
-export const state = {query: "", installedOnly: false, draw: {group: "", genre: ""}, sortear: null, kind: "home", code: "", quick: "all", order: "", system: "", filter: "", roda: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null, preferences: {favorites: [], theme: "dark"}, home: null};
+export const state = {query: "", installedOnly: false, draw: {group: "todos", genre: ""}, sortear: null, kind: "home", code: "", quick: "all", order: "", system: "", filter: "", roda: "", items: [], systems: [], light: [], request: 0, selected: null, draft: null, busy: false, download: null, preferences: {favorites: [], theme: "dark"}, home: null};
 export const collections = [["home", "Início"], ["library", "Biblioteca"], ["wishlist", "Desejados"], ["apps", "Apps e stream"], ["tools", "Ferramentas"], ["stats", "Estatísticas"], ["draw", "🎲 Sortear"]];
 export const cardGames = new WeakMap();
 export const observedSaves = new Map();

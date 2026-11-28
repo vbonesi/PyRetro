@@ -125,3 +125,41 @@ class TestPoolLeveComDrive(unittest.TestCase):
         self.assertEqual([p for p in pool if p[2] == "pesado"], [("PS", "Disco.cue", "pesado")])
         self.assertEqual(len(sortear_mod.build_pool(self.cfg, self.root, self.catalog, "SFC")), 2)
         self.assertEqual(len(sortear_mod.build_pool(self.cfg, self.root, self.catalog, "leve")), 2)
+
+
+class TestQuatroGrupos(unittest.TestCase):
+    """Plano de 27/11: Sortear em retrô, quero jogar (Switch/PS4), já tenho (PS4/Xbox/PC) e todos."""
+
+    def setUp(self):
+        import tempfile
+        from core import library as lm, onde_roda as orr
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        for code, nome in (("SFC", "Chrono.sfc"), ("NDS", "Pokemon.nds")):
+            (self.root / code).mkdir(); (self.root / code / nome).write_bytes(b"x")
+        self.cfg = {"systems": {"SFC": {"exts": ["sfc"]}, "NDS": {"exts": ["nds"]}}, "heavy_systems": {"PS": {"exts": ["cue"]}}}
+        self.catalog = {"PS": [{"name": "Disco.cue", "size": 3, "is_dir": False}]}
+
+        def g(nome, fontes, **k):
+            x = lm._blank_game(nome, "Steam"); x["fontes"] = fontes; x.update(k); return x
+        quero_ps4 = g("Quero PS4", ["wishlist:psn"]); orr.migrar_game(quero_ps4)
+        quero_xbox = g("Quero so Xbox", ["wishlist:xbox"]); orr.migrar_game(quero_xbox)
+        tenho_pc = g("Tenho PC", ["heroic:gog"]); orr.migrar_game(tenho_pc)
+        tenho_switch = g("Tenho Switch", ["switch"]); orr.migrar_game(tenho_switch)
+        retro = g("Retro", ["rom:SFC"])
+        self.lib = {"games": [quero_ps4, quero_xbox, tenho_pc, tenho_switch, retro]}
+
+    def nomes(self, grupo):
+        return sorted(n for _, n, _ in sortear_mod.build_pool(self.cfg, self.root, self.catalog, grupo, library=self.lib))
+
+    def test_retro_so_tem_sistemas_retro_do_drive(self):
+        self.assertEqual(self.nomes("retro"), ["Chrono.sfc"])
+
+    def test_quero_exige_switch_ou_ps4(self):
+        self.assertEqual(self.nomes("quero"), ["Quero PS4"])
+
+    def test_tenho_aceita_ps4_xbox_pc_mas_nao_switch(self):
+        self.assertEqual(self.nomes("tenho"), ["Tenho PC"])
+
+    def test_todos_junta_os_tres(self):
+        self.assertEqual(self.nomes("todos"), ["Chrono.sfc", "Quero PS4", "Tenho PC"])

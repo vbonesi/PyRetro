@@ -21,7 +21,8 @@ export function updateFilters() {
   $("filterbar").hidden = !(filterable || kind === "apps");
   $("platform-open").hidden = $("genre-open").hidden = !filterable;
   $("roda-open").hidden = !["library", "wishlist"].includes(kind);
-  $("roda-open").textContent = `Onde roda: ${state.roda === "quero" ? "Quero jogar" : RODA.find(([id]) => id === state.roda)?.[1] || "Qualquer"} ▾`; $("order-open").hidden = kind !== "library";
+  $("roda-open").textContent = `Onde roda: ${state.roda === "quero" ? "Quero jogar" : RODA.find(([id]) => id === state.roda)?.[1] || "Qualquer"} ▾`;
+  $("order-open").hidden = kind !== "library";
   const draw = kind === "draw", group = draw ? state.sortear?.grupos.find(g => g.code === state.draw.group)?.label : "";
   $("platform-open").textContent = `${draw ? "Grupo" : "Plataforma"}: ${draw ? group || "Tudo" : state.filter || "Todas"} ▾`;
   $("genre-open").textContent = `Gênero: ${(draw ? state.draw.genre : state.genre) || "Qualquer"} ▾`;
@@ -34,7 +35,7 @@ export function filtersChanged() {
 }
 const drawChanged = () => { platformTabs(); render(); };
 function platformChoices() {
-  if (state.kind === "draw") return {title: "Grupo", groups: [{items: [["", "🎲 Tudo"], ...(state.sortear?.grupos || []).map(g => [g.code, g.label])]}], current: state.draw.group, pick: v => { state.draw.group = v; drawChanged(); }};
+  if (state.kind === "draw") return {title: "Grupo", groups: [{items: (state.sortear?.grupos || []).map(g => [g.code, g.label])}], current: state.draw.group, pick: v => { state.draw.group = v; drawChanged(); }};
   const counts = new Map(); for (const g of state.items) counts.set(g.platform, (counts.get(g.platform) || 0) + 1);
   const groups = groupPlatforms([...counts.keys()]).map(group => ({heading: group.heading, items: group.items.map(p => [p, `${p} (${counts.get(p)})`, plataformaIcone(plataformaInfo(p))])}));
   return {title: "Plataforma", groups: [{items: [["", `Todos os sistemas (${state.items.length})`]]}, ...groups], current: state.filter, pick: v => { state.filter = v; filtersChanged(); }};
@@ -209,7 +210,7 @@ function podium(ranked) {
   return section;
 }
 function drawPanel(hasResult) {
-  const group = state.sortear?.grupos.find(g => g.code === state.draw.group)?.label || "Tudo";
+  const group = state.sortear?.grupos.find(g => g.code === (state.draw.group || "todos"))?.label || "Tudo";
   const panel = document.createElement("section"); panel.className = "draw-panel"; panel.setAttribute("aria-label", "Sortear jogo");
   const summary = document.createElement("p"); summary.className = "draw-summary";
   summary.textContent = `${group} · ${state.draw.genre || "Qualquer gênero"}`;
@@ -278,7 +279,7 @@ export async function drawGame() {
   state.drawing = true; report("Sorteando…");
   try {
     const request = state.request;
-    const query = new URLSearchParams(); if (state.draw.group) query.set("system", state.draw.group); if (state.draw.genre) query.set("genero", state.draw.genre);
+    const query = new URLSearchParams(); query.set("system", state.draw.group || "todos"); if (state.draw.genre) query.set("genero", state.draw.genre);
     const r = await api(`/api/sortear?${query}`);
     if (request !== state.request || state.kind !== "draw") return;
     let item;

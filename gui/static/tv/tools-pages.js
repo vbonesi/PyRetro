@@ -73,7 +73,7 @@ async function switchUploads(body) {
   const gb = n => n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${Math.max(1, Math.round(n / 1048576))} MB`;
   box.append(heading("Dumps de Switch em Downloads"));
   if (!data.items.length) { box.append(hint("Nenhum dump de Switch em Downloads.")); return box; }
-  box.append(hint("Escolha o nome da pasta no Drive e o gênero (automático se vazio); depois Subir. A capa e o índice do Switch são atualizados no fim."));
+  box.append(hint("Escolha o nome da pasta no Drive e o gênero (automático se vazio); depois Subir. A capa é atualizada no fim."));
   for (const item of data.items) {
     const pick = {nome: item.nome, genero: "", lista: false}, row = document.createElement("div"); row.className = "panel";
     const draw = () => row.replaceChildren(
@@ -204,7 +204,7 @@ export async function toolLibrary(body) {
   drawAdd();
   body.replaceChildren(jobRow("Atualizar do Heroic", a => q("/api/library/refresh", {source: "heroic"}, a)), jobRow("Atualizar da Steam", a => q("/api/library/refresh", {source: "steam"}, a)),
     jobRow("Atualizar do Switch e Switch 2 (pastas do Drive)", a => q("/api/library/refresh", {source: "switch"}, a)), jobRow("Buscar capas que faltam na Biblioteca", a => q("/api/library/fetch_covers", {}, a)),
-    jobRow("Atualizar índice do Switch (Tinfoil)", "/api/switch/shop", {apply: false}), addBox);
+    addBox);
 }
 export async function toolCovers(body) {
   const light = {code: state.light[0]?.code || "", fallback: "0"}, heavy = {code: state.systems[0]?.code || ""};

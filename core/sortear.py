@@ -56,6 +56,41 @@ def save_heavy_catalog(cache_path: Path, catalog: dict) -> None:
 
 GRUPOS = {"leve", "pesado", "biblioteca"}
 
+# Quatro grupos do Sortear (plano de 27/11/2026): o Drive só guarda retrô; o resto vira card "onde jogar".
+RETRO_CODES = frozenset({"FC", "SFC", "MD", "SMS", "GG", "GB", "GBC", "GBA", "N64", "PCE", "PCECD", "ARCADE"})
+GRUPOS_ONDE_JOGAR = ("retro", "quero", "tenho", "todos")
+_PLATAFORMAS_QUERO = ("switch", "ps4")        # "quero jogar" que existe no Switch ou no PS4
+_PLATAFORMAS_TENHO = ("ps4", "xbox", "pc")    # "já tenho" no PS4, Xbox ou PC
+
+
+def _pool_retro(cfg: dict, roms_root: Path, catalog: dict) -> list:
+    pool = []
+    for c, info in cfg["systems"].items():
+        if c in RETRO_CODES:
+            pool += [(c, n, "leve") for n in _light_names(c, roms_root, info, catalog)]
+    for c in heavy_mod.load_heavy_systems(cfg):
+        if c in RETRO_CODES:
+            pool += [(c, item["name"], "pesado") for item in catalog.get(c, [])]
+    return pool
+
+
+def _pool_onde_jogar(library: dict, modo: str) -> list:
+    """[(id, nome, "biblioteca")] dos cards fora do retrô: "quero" (existe no Switch ou PS4) ou "tenho" (PS4, Xbox, PC)."""
+    from core import onde_roda as onde_roda_mod
+
+    pool = []
+    for g in library["games"]:
+        if g.get("oculto") or onde_roda_mod.eh_retro(g):
+            continue
+        jogar = onde_roda_mod.estado(g)
+        if modo == "quero":
+            ok = jogar["estado"] == "quero" and any(p in onde_roda_mod.existentes(g) for p in _PLATAFORMAS_QUERO)
+        else:
+            ok = jogar["estado"] == "tenho" and jogar["plataforma"] in _PLATAFORMAS_TENHO
+        if ok:
+            pool.append((g["id"], g["nome"], "biblioteca"))
+    return pool
+
 # Sub-grupos da Biblioteca (11/09, pedido do usuário: "colocar em
 # sistemas específicos a biblioteca também, com o nintendo switch, PS4
 # e Xbox's, e o resto como PC") - console primeiro, loja de PC cai tudo
@@ -138,7 +173,16 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
     if system:
         code = system.upper()
         chave = system.lower()
-        if chave.startswith("biblioteca:"):
+        if chave in GRUPOS_ONDE_JOGAR:
+            lib = library if library is not None else {"games": []}
+            pool = []
+            if chave in ("retro", "todos"):
+                pool += _pool_retro(cfg, roms_root, catalog)
+            if chave in ("quero", "todos"):
+                pool += _pool_onde_jogar(lib, "quero")
+            if chave in ("tenho", "todos"):
+                pool += _pool_onde_jogar(lib, "tenho")
+        elif chave.startswith("biblioteca:"):
             subgrupo = chave.split(":", 1)[1]
             pool = _pool_biblioteca(library, rom_names_by_code or {}, subgrupo) if library is not None else []
         elif chave in GRUPOS:

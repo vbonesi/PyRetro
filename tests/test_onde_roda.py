@@ -193,3 +193,26 @@ class TestFaltamAPI(BaseAPI):
         txt = Path(d["pasta"]) / "falta-na-wishlist-steam.txt"
         self.assertIn("Falta no PC", txt.read_text(encoding="utf-8"))
         self.assertEqual(d["arquivos"]["xbox"]["total"], 0)
+
+
+class TestSortearQuatroGruposAPI(BaseAPI):
+    def test_grupos_e_sorteio_de_quero_jogar(self):
+        a = jogo("Quero no PS4", "PlayStation 4", fontes=["wishlist:psn"]); orr.migrar_game(a)
+        b = jogo("Quero so no Xbox", "Xbox", fontes=["wishlist:xbox"]); orr.migrar_game(b)
+        self.gravar_biblioteca([a, b])
+        status, d = self.pedir("/api/sortear/systems")
+        self.assertEqual([g["code"] for g in d["grupos"]], ["retro", "quero", "tenho", "todos"])
+        for _ in range(5):
+            status, r = self.pedir("/api/sortear?system=quero")
+            self.assertEqual((status, r["nome"]), (200, "Quero no PS4"))
+        self.assertEqual(self.pedir("/api/sortear?system=tenho")[0], 404)
+
+
+class TestShopAposentado(unittest.TestCase):
+    def test_comando_e_modulos_sairam(self):
+        import importlib.util
+        self.assertIsNone(importlib.util.find_spec("core.switch_shop"))
+        self.assertIsNone(importlib.util.find_spec("core.tinfoil_auth"))
+        txt = (Path(__file__).parent.parent / "retrosync.py").read_text()
+        self.assertNotIn("switch-shop", txt)
+        self.assertNotIn("tinfoil-auth", txt)

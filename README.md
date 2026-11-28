@@ -447,16 +447,8 @@ relatório - nunca são mescladas sozinhas, mesmo cuidado que o
   steamcommunity.com/dev/apikey). Só funciona com "Detalhes do jogo"
   público no perfil Steam - senão a API devolve biblioteca vazia sem
   erro nenhum.
-- **Shop do Switch (Tinfoil)** (11/11) - `python3 retrosync.py switch-shop`
-  (ou 🛠 Ferramentas › Biblioteca › "Atualizar índice do Switch" no modo TV)
-  lista `NSW/` no Drive com um só `rclone lsjson -R` e grava
-  `PyRetro-Nuvem/switch/shop.json` no formato de shop do Tinfoil
-  (`gdrive:/<ID>#<arquivo>`). Roda sozinho ao subir um jogo pelo
-  Organizar do Switch. O Tinfoil lê o índice direto do Drive por OAuth
-  somente leitura; o índice tem nomes do acervo e nunca vai para o Git.
-  A credencial do Tinfoil sai de `python3 retrosync.py tinfoil-auth <client.json>`
-  (cliente OAuth Desktop; grava `credentials.json` e `gdrive.token` em
-  `~/Downloads/COPY_TO_SD/switch/tinfoil/`, copie para o SD).
+- ~~Shop do Switch (Tinfoil)~~ **aposentado em 27/11/2026**: saíram o comando `switch-shop`, o `tinfoil-auth` e o botão do modo TV
+  (o jogo de Switch passou a ser um card "onde jogar"; o PyRetro não distribui mais dump).
 - **`switch`** (27/08) - lê `roms_root/NSW/` (cada jogo é uma pasta,
   ex: `Nine Sols [NSZ]`), removendo qualquer tag entre colchetes do
   nome (formato do dump, não é parte do nome do jogo). Na organização

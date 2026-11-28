@@ -48,7 +48,6 @@ from core import onde_roda as onde_roda_mod
 from core import memcard as memcard_mod
 from core import organize as organize_mod
 from core import switch_upload as switch_upload_mod
-from core import switch_shop as switch_shop_mod
 from core import pc_backup as pc_backup_mod
 from core import play as play_mod
 from core import pc_games as pc_games_mod
@@ -2274,13 +2273,10 @@ class Handler(BaseHTTPRequestHandler):
             for c, info in heavy_mod.load_heavy_systems(cfg).items():
                 out.append({"code": c, "label": info.get("nome", c), "kind": "pesado"})
             out.sort(key=lambda x: x["label"])
-            grupos = [{"code": "leve", "label": "🕹 ROMs leves (todas)", "kind": "grupo"},
-                      {"code": "pesado", "label": "📦 ROMs pesadas (todas)", "kind": "grupo"},
-                      {"code": "biblioteca", "label": "📚 Biblioteca (toda)", "kind": "grupo"},
-                      {"code": "biblioteca:switch", "label": "📚 Biblioteca - Nintendo Switch", "kind": "grupo"},
-                      {"code": "biblioteca:xbox", "label": "📚 Biblioteca - Xbox", "kind": "grupo"},
-                      {"code": "biblioteca:playstation", "label": "📚 Biblioteca - PlayStation", "kind": "grupo"},
-                      {"code": "biblioteca:pc", "label": "📚 Biblioteca - PC (Steam/GOG/Epic/etc)", "kind": "grupo"}]
+            grupos = [{"code": "retro", "label": "🕹 Retrô (no Drive)", "kind": "grupo"},
+                      {"code": "quero", "label": "♡ Quero jogar (existe no Switch ou PS4)", "kind": "grupo"},
+                      {"code": "tenho", "label": "🎮 Já tenho (PS4, Xbox, PC)", "kind": "grupo"},
+                      {"code": "todos", "label": "🎲 Todos", "kind": "grupo"}]
             library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
             library = library_mod.load_library(library_path)
             generos = sortear_mod.generos_disponiveis(library)
@@ -3805,27 +3801,13 @@ class Handler(BaseHTTPRequestHandler):
                                                  library_update, genero=genero, emit=emit)
                     emit({"type": "system_done", "result": {"ok": True, "message":
                           f"{r['pasta']}: {r['arquivos']} arquivo(s) no Drive; capa {'ok' if r.get('capa') else 'não achada'}; "
-                          f"gênero {r.get('genero') or 'não achado (defina no ✎)'}; "
-                          f"índice do Switch {'atualizado' if r.get('indice') else 'NÃO atualizado (use Atualizar índice do Switch)'}"}})
+                          f"gênero {r.get('genero') or 'não achado (defina no ✎)'}"}})
                 except (ValueError, LookupError, OSError, subprocess.SubprocessError) as e:
                     emit({"type": "system_done", "result": {"ok": False, "message": str(e).strip("'")}})
 
             if not _transfer_lock.acquire(blocking=False):
                 return self._json({"error": "já existe uma transferência/sincronização em andamento"}, 409)
             _transfer_lock.release()
-            return self._json({"job": _start_job(worker)})
-
-        if parts == ["api", "switch", "shop"]:
-            cfg = load_config()
-
-            def worker(emit):
-                try:
-                    r = switch_shop_mod.gerar(cfg, emit=emit)
-                    emit({"type": "system_done", "result": {"ok": True, "message":
-                          f"Índice do Switch atualizado: {r['arquivos']} arquivo(s)."}})
-                except OSError as e:
-                    emit({"type": "system_done", "result": {"ok": False, "message": str(e)}})
-
             return self._json({"job": _start_job(worker)})
 
         if parts == ["api", "organize", "discard"]:

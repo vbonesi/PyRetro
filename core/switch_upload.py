@@ -144,12 +144,4 @@ def upload(downloads: Path, entry_name: str, nome: str, cfg: dict, trash, librar
 
     library_update(aplicar)
     trash(entry)
-    indice = None
-    try:  # o jogo já está no Drive: falha do índice não desfaz o envio
-        from core import switch_shop as shop_mod
-        emit({"type": "progress", "status": "atualizando o índice do Switch"})
-        shop_mod.gerar(cfg, run=run)
-        indice = True
-    except OSError:
-        indice = False
-    return {"pasta": nome, "arquivos": len(files), "indice": indice, **resultado}
+    return {"pasta": nome, "arquivos": len(files), **resultado}

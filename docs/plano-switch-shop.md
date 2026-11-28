@@ -1,6 +1,6 @@
 # Plano: "PyRetro Shop" para o Switch (11/11/2026)
 
-Só planejado; nada implementado.
+**APOSENTADO em 27/11/2026** (ver `docs/plano-lista-unica-2026-11-27.md`, F6): o código foi removido; este plano fica só como histórico.
 
 ## Objetivo
 

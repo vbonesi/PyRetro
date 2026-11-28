@@ -1,5 +1,19 @@
 # Changelog
 
+## 27/11/2026 (noite) — Lista "onde jogar", F0/F1/F3/F4/F6 do plano de retrô no Drive (Claude)
+
+Plano em `docs/plano-lista-unica-2026-11-27.md`. **F2** (pesquisa IGDB, espera a chave da Twitch) e **F5** (remoção no Drive, espera a revisão V1) **não foram feitos**; nada foi apagado nem movido no Drive.
+- **F0:** retrato do banco pela API (`/api/library`, `/api/wishlist`, `/api/tv/catalog`) e manifesto `rclone lsjson` (somente leitura: nome, tamanho, MD5 e ID) de PS, PS2, PSP, NDS, 3DS, NGC, WII e NSW,
+  com os 9 de Jogando separados, em `~/Drive/Documentos/Auditorias/PyRetro-lista-unica-2026-11-27/` (fora do Git).
+- **F1:** `core/onde_roda.py`. Cada card ganha `onde_roda` (Switch, PS4, Xbox, PC, Switch 2: existe, GB aproximado, `manual`) e `jogar` (`quero` ou `tenho` + plataforma, + loja no PC). Correção manual vence pesquisa e inferência;
+  `tenho_em` ("baixei/comprei em…") exige a loja no PC; `juntar_repetidos` funde cards só de desejo repetidos entre listas (Switch × Switch 2 nunca); `migrar` é idempotente. Rotas `/api/onde-roda/{set,reset,jogar,juntar,migrar}`.
+  **O sync da Steam nunca apaga card nem tira marca:** `sync_wishlist` só acrescenta e devolve `saiu`, que o job mostra como aviso. Migração aplicada no banco real (963 cards atualizados, nenhuma junção).
+- **F3:** modo TV com selos de plataforma na ordem de prioridade (✓ onde ele tem), filtro "Onde roda" (Desejados e Biblioteca) e botão 🎮 Onde jogar na ficha (quero, baixei/comprei em…, corrigir existe/não existe). Desejados mostram um card por jogo.
+- **F4:** 🏷 Falta na wishlist (Ferramentas): o que existe no PC / no Xbox e não está na wishlist da loja nem é dele, na tela e em `~/Downloads/falta-na-wishlist-{steam,xbox}.txt`. Vazio até a pesquisa (F2) ou o ✎ preencherem onde cada jogo roda.
+- **F6:** Sortear em quatro grupos: Retrô (FC, SFC, MD, SMS, GG, GB, GBC, GBA, N64, PCE, PCECD, ARCADE), Quero jogar (existe no Switch ou PS4), Já tenho (PS4, Xbox, PC) e Todos.
+  **PyRetro Shop aposentado:** saíram `core/switch_shop.py`, `core/tinfoil_auth.py`, o comando `switch-shop`, o `tinfoil-auth`, a rota `/api/switch/shop`, o botão e o gancho do `switch_upload`. O `shop.json` do Drive só sai no F5; o Victor tira do SD `credentials.json`/`gdrive.token`.
+- Testes: 526 Python. JS no navegador: 77 de 78; falha só "prateleira mantém o foco…", que também falha no código anterior (sem foco do sistema na janela do teste). `pyretro-gui` reiniciado (modo TV fechado). Commits locais, sem push.
+
 ## 27/11/2026 (tarde) — Desejados da PSN viram PS4 e nova navegação do modo TV, N11 a N14 (Claude)
 
 - **PS1:** os Desejados da PSN são do PS4. O rótulo "PlayStation" da loja casava com a sigla do **PS1** no card (o catálogo usa o rótulo como plataforma);

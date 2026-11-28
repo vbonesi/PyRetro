@@ -7,8 +7,9 @@ pronto" (resumo) e "o que vem a seguir". Atualizado em 09/11/2026.
 
 ## PyRetro Shop para o Switch — 11/11/2026
 
-Plano em `docs/plano-switch-shop.md`. **P1/L1 feitos:** gerador do índice do Tinfoil (`core/switch_shop.py`, CLI `switch-shop`, botão no
-modo TV, gancho no `switch_upload`). **Faltam, do Victor:** V1 (teste do Tinfoil com OAuth no Switch, fora de casa) e V2 (uso real).
+**Aposentado em 27/11/2026** (F6 do `docs/plano-lista-unica-2026-11-27.md`): saíram `core/switch_shop.py`, `core/tinfoil_auth.py`, o comando
+`switch-shop`, o `tinfoil-auth` e o botão do modo TV. O `PyRetro-Nuvem/switch/shop.json` do Drive só sai no F5; o Victor tira do SD o
+`credentials.json`/`gdrive.token` e a fonte gdrive do Tinfoil. Plano antigo em `docs/plano-switch-shop.md` (histórico).
 
 ## Estado em 09/11/2026
 
