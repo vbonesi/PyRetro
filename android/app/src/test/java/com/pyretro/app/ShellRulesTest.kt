@@ -12,6 +12,8 @@ class ShellRulesTest {
         assertEquals(listOf("4"), LibraryRules.search(list, "pokemon"))
         assertEquals(listOf("3"), LibraryRules.search(list, "aventura"))
         assertEquals(listOf("1"), LibraryRules.search(list, "n64"))
+        val col = listOf(LibEntry("c", "Super Mario 3D All-Stars", inside = "Super Mario 64 Super Mario Sunshine"), LibEntry("m", "Mario Kart"))
+        assertEquals(listOf("c"), LibraryRules.search(col, "mario 64")); assertEquals(listOf("m", "c"), LibraryRules.search(col, "kart") + LibraryRules.search(col, "sunshine"))
         assertTrue(LibraryRules.search(list, "   ").isEmpty()); assertTrue(LibraryRules.search(list, "xyz").isEmpty())
     }
     @Test fun `busca respeita o limite`() {

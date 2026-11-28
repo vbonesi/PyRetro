@@ -7,7 +7,7 @@ enum class QuickFilter(val label: String) {
 
 /** Um jogo visto pela Biblioteca: só o que filtros e Ranking precisam, sem Android. */
 data class LibEntry(val key: String, val name: String, val platform: String = "", val onPhone: Boolean = false, val started: Boolean = false,
-    val finished: Boolean = false, val favorite: Boolean = false, val nota: Double? = null, val genre: String = "")
+    val finished: Boolean = false, val favorite: Boolean = false, val nota: Double? = null, val genre: String = "", val inside: String = "")
 
 object LibraryRules {
     private fun collator() = java.text.Collator.getInstance(java.util.Locale.forLanguageTag("pt-BR")).apply { strength = java.text.Collator.PRIMARY }
@@ -34,9 +34,9 @@ object LibraryRules {
         val q = GameLogic.normalized(query)
         if (q.isEmpty()) return emptyList()
         val c = collator()
-        return entries.filter { GameLogic.normalized(it.name + it.platform + it.genre).contains(q) }
-            // nome que começa pelo termo vem antes do que só o contém
-            .sortedWith(compareBy<LibEntry> { !GameLogic.normalized(it.name).startsWith(q) }.thenComparator { a, b -> c.compare(a.name, b.name) })
+        return entries.filter { GameLogic.normalized(it.name + it.platform + it.genre + it.inside).contains(q) }
+            // nome que começa pelo termo vem antes do que só o contém; achado só dentro de coletânea vem por último
+            .sortedWith(compareBy<LibEntry> { !GameLogic.normalized(it.name).startsWith(q) }.thenBy { !GameLogic.normalized(it.name + it.platform + it.genre).contains(q) }.thenComparator { a, b -> c.compare(a.name, b.name) })
             .take(limit).map { it.key }
     }
 

@@ -14,5 +14,5 @@ fun LibraryStore.loadGames(catalog: List<Game> = cached()): LoadedGames {
 fun LibraryStore.entryOf(game: Game): LibEntry {
     val t = tracking(game)
     return LibEntry(game.key, game.name, game.platform, game.localUri != null, t.optBoolean("iniciado"), t.optBoolean("finalizado"), favorite(game),
-        TrackingRules.value(t, "nota") as Double?, game.genre)
+        TrackingRules.value(t, "nota") as Double?, game.genre, Edicoes.lista(t).joinToString(" ") { it.nome })
 }

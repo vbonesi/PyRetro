@@ -39,7 +39,7 @@ fun SearchScreen(data: ShellData, onOpen: (Game) -> Unit, onStatus: () -> Unit, 
     var focused by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
     Column(modifier.fillMaxSize()) {
-        ScreenHeader("Busca", if (query.isBlank()) "Procure pelo nome, plataforma ou gênero" else "${keys.size} resultado(s)", onStatus, data.statusLabel)
+        ScreenHeader("Busca", if (query.isBlank()) "Procure pelo nome, plataforma, gênero ou jogo dentro de coletânea" else "${keys.size} resultado(s)", onStatus, data.statusLabel)
         OutlinedTextField(
             query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                 .border(3.dp, focusRing(focused), RoundedCornerShape(8.dp)).onFocusChanged { focused = it.hasFocus },
