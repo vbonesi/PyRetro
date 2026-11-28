@@ -1,5 +1,9 @@
 # Changelog
 
+## 28/11/2026 — N64 com versão nativa: sete jogos retirados (Claude)
+
+- Por decisão do Victor ("começar de novo pelo remake"): Super Mario 64, Doom 64, Shadow Man, Turok 2, Turok 3, Gex 3 e Star Wars Episode I: Racer saíram do banco, da pasta N64 do Drive e do PC (ROM, `.srm`, `.state` de Mario 64), tudo pela lixeira, com cópia dos arquivos do PC em `Backups/`. Rota `POST /api/onde-roda/apagar` (só cards cuja única fonte é `rom:` e sem progresso real; `iniciado` não conta). Catálogo do Drive atualizado (30 → 23). Celular: o Victor apaga à mão.
+
 ## 28/11/2026 — F2b aplicado: edições unificadas no banco (Claude)
 
 - Revisão do Victor: recusado "Street Fighter Collection"; Pokémon Diamond/Pearl juntos com Brilliant Diamond/Shining Pearl; o resto aceito, incluindo os [?]. Rota `POST /api/onde-roda/unificar` (`apply` falso simula). **46 grupos, 28 cards absorvidos** (2.946 → 2.918), com cópia de segurança do banco antes (fora do repositório). Super Mario 64 (N64) não entrou: fica como linha "N64" na lista do 3D All-Stars, sem progresso. A exclusão de ROM/card/saves de N64 com port nativo no Switch **não foi feita**: espera a confirmação do Victor.

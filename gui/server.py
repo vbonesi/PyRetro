@@ -2813,7 +2813,7 @@ class Handler(BaseHTTPRequestHandler):
         ("api", "cover", "apply_url"),
         ("api", "wishlist", "remove"), ("api", "wishlist", "comprado"),
         ("api", "onde-roda", "set"), ("api", "onde-roda", "reset"), ("api", "onde-roda", "jogar"),
-        ("api", "onde-roda", "juntar"), ("api", "onde-roda", "migrar"), ("api", "onde-roda", "pesquisa"), ("api", "onde-roda", "unificar"),
+        ("api", "onde-roda", "juntar"), ("api", "onde-roda", "migrar"), ("api", "onde-roda", "pesquisa"), ("api", "onde-roda", "unificar"), ("api", "onde-roda", "apagar"),
         # Renomear ROM grava o nome novo em nomes_alt (core/rename_links.py).
         ("api", "cover", "rename"), ("api", "heavy", "rename"),
     }
@@ -3707,6 +3707,21 @@ class Handler(BaseHTTPRequestHandler):
                     if aplicar:
                         library_mod.save_library(library_path, library)
                     return self._json({"ok": True, "aplicado": aplicar, "grupos": feitos})
+                if acao == "apagar":
+                    # Retirada de cards de ROM já decidida pelo Victor (ex.: N64 com versão nativa no Switch). Só apaga
+                    # card cuja única fonte é `rom:` e que não tem progresso; o resto volta como recusado.
+                    from core.edicoes import CAMPOS_PROGRESSO
+                    apagados, recusados = [], []
+                    for gid in body.get("ids") or []:
+                        g = next((x for x in library["games"] if x["id"] == gid), None)
+                        if g is None or any(not str(f).startswith("rom:") for f in g.get("fontes") or []) \
+                                or any(g.get(k) for k in CAMPOS_PROGRESSO if k != "iniciado"):
+                            recusados.append(gid)
+                        elif library_mod.remove_game(library, gid):
+                            apagados.append(gid)
+                    if apagados:
+                        library_mod.save_library(library_path, library)
+                    return self._json({"ok": True, "apagados": apagados, "recusados": recusados})
                 if acao == "pesquisa":
                     # F2: lote de resultados do IGDB ({"resultados": [{"id": ..., "estado": ..., "plataformas": {...}}]}).
                     por_id = {g["id"]: g for g in library["games"]}
