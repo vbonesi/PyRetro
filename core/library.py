@@ -138,6 +138,10 @@ def _blank_game(nome: str, plataforma: str, game_id: str | None = None) -> dict:
         # não faz sentido acompanhar). Nunca some do arquivo - mesmo
         # princípio de "nunca apaga nada sozinho" do resto do projeto.
         "oculto": False,
+        # Onde o jogo existe entre as plataformas do Victor e o que ele "tem"
+        # (ver core/onde_roda.py).
+        "onde_roda": {},
+        "jogar": None,
     }
 
 
@@ -898,27 +902,15 @@ def add_to_wishlist(library: dict, fonte: str, plataforma: str, nomes: list) -> 
 
 
 def sync_wishlist(library: dict, fonte: str, plataforma: str, nomes_atuais: list) -> dict:
-    """Sincroniza uma lista de desejos contra `nomes_atuais` tratando
-    essa lista como a verdade COMPLETA de agora: além de adicionar (ver
-    `add_to_wishlist`), um registro que tinha essa fonte mas cujo nome
-    não está na lista perde a marca - e se não sobrar NENHUMA fonte, o
-    registro inteiro é apagado (ver `remove_game`).
-
-    Só a Steam usa isso, e só porque lá a lista vem da API ao vivo, onde
-    "não veio" significa mesmo "saiu da wishlist". PSN/Xbox, onde a
-    lista é digitada à mão, usam `add_to_wishlist` desde 21/09 - ver o
-    porquê lá."""
+    """Sincroniza uma lista de desejos contra `nomes_atuais` (só a
+    Steam, cuja lista vem da API ao vivo): acrescenta o que falta (ver
+    `add_to_wishlist`) e **nunca apaga card nem tira marca**. Desde
+    27/11/2026 o card é do Victor (nota, tempo, "onde jogar"): jogo que
+    saiu da wishlist da Steam só entra em `saiu`, para o job avisar."""
     resultado = add_to_wishlist(library, fonte, plataforma, nomes_atuais)
     atuais_norm = {_wishlist_key(n) for n in nomes_atuais}
-
-    for g in list(library["games"]):
-        if fonte in g["fontes"] and _wishlist_key(g["nome"]) not in atuais_norm:
-            g["fontes"].remove(fonte)
-            resultado["removidos"] += 1
-            if not g["fontes"]:
-                remove_game(library, g["id"])
-                resultado["apagados"] += 1
-
+    resultado["saiu"] = [{"id": g["id"], "nome": g["nome"]} for g in library["games"]
+                         if fonte in g["fontes"] and _wishlist_key(g["nome"]) not in atuais_norm]
     return resultado
 
 

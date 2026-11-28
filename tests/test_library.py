@@ -755,12 +755,8 @@ class TestMarkWishlistOwned(unittest.TestCase):
 
 
 class TestSyncWishlist(unittest.TestCase):
-    """sync_wishlist (só a Steam usa, onde a lista vem da API ao vivo)
-    é a única rotina do projeto que apaga registro sozinha (pedido
-    explícito do usuário 11/09: lista de desejos não tem progresso pra
-    perder) - por isso o cuidado extra de testar o caso que NÃO pode
-    apagar: jogo que saiu da lista mas já é posse de verdade por outra
-    fonte."""
+    """sync_wishlist (só a Steam usa) acrescenta e avisa; desde 27/11
+    nunca apaga card nem tira marca."""
 
     def test_nome_novo_cria_registro_com_a_fonte(self):
         lib = {"games": []}
@@ -776,23 +772,21 @@ class TestSyncWishlist(unittest.TestCase):
         self.assertEqual(r["adicionados"], 1)
         self.assertIn("wishlist:steam", existente["fontes"])
 
-    def test_nome_que_sai_da_lista_sem_outra_fonte_e_apagado(self):
+    def test_nome_que_sai_da_lista_nunca_apaga_o_card_so_avisa(self):
         g = jogo("Erica", "Steam", fontes=["wishlist:steam"])
         lib = {"games": [g]}
         r = lm.sync_wishlist(lib, "wishlist:steam", "Steam", [])
-        self.assertEqual((r["removidos"], r["apagados"]), (1, 1))
-        self.assertEqual(lib["games"], [])
+        self.assertEqual((r["removidos"], r["apagados"]), (0, 0))
+        self.assertEqual(r["saiu"], [{"id": g["id"], "nome": "Erica"}])
+        self.assertEqual(lib["games"], [g])
+        self.assertEqual(g["fontes"], ["wishlist:steam"])
 
-    def test_nome_que_sai_da_lista_mas_e_posse_de_verdade_so_perde_a_marca(self):
-        # achado real (pedido do usuário): jogo saiu da wishlist ao vivo
-        # porque o usuário já conseguiu em outra fonte (ex: Heroic) -
-        # o registro tem que sobreviver, só sem a marca de desejo.
+    def test_nome_que_sai_da_lista_e_posse_de_verdade_continua_intacto(self):
         g = jogo("Diablo", "Steam", fontes=["wishlist:steam", "heroic:gog"])
         lib = {"games": [g]}
         r = lm.sync_wishlist(lib, "wishlist:steam", "Steam", [])
-        self.assertEqual((r["removidos"], r["apagados"]), (1, 0))
-        self.assertEqual(lib["games"], [g])
-        self.assertEqual(g["fontes"], ["heroic:gog"])
+        self.assertEqual(len(r["saiu"]), 1)
+        self.assertEqual(g["fontes"], ["wishlist:steam", "heroic:gog"])
 
     def test_ja_marcado_nao_conta_como_novo(self):
         g = jogo("God of War", "Steam", fontes=["wishlist:steam"])

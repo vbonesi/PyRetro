@@ -44,6 +44,7 @@ from core import generos as generos_mod
 from core import heavy_roms as heavy_mod
 from core import launchbox as launchbox_mod
 from core import library as library_mod
+from core import onde_roda as onde_roda_mod
 from core import memcard as memcard_mod
 from core import organize as organize_mod
 from core import switch_upload as switch_upload_mod
@@ -1196,8 +1197,10 @@ def run_wishlist_sync_job(emit, source: str, texto: str, apply: bool) -> None:
     emit({"type": "log", "line": f"{fonte}: {len(nomes)} {rotulo}"})
     emit({"type": "log", "line": f"  novo(s): {result['adicionados']}   já tinha: {result['ja_tinha']}"})
     if source == "steam":
-        emit({"type": "log", "line": f"  saiu da lista: {result['removidos']}   "
-                                      f"apagado(s) (sem outra fonte): {result['apagados']}"})
+        saiu = result.get("saiu", [])
+        emit({"type": "log", "line": f"  saiu da wishlist da Steam: {len(saiu)} (os cards ficam; nada foi apagado)"})
+        for g in saiu[:30]:
+            emit({"type": "log", "line": f"    aviso: {g['nome']}"})
     else:
         emit({"type": "log", "line": "  (nada é removido aqui - pra tirar da lista use o ✎ do jogo)"})
 
@@ -2806,6 +2809,8 @@ class Handler(BaseHTTPRequestHandler):
         ("api", "library", "decompor"),
         ("api", "cover", "apply_url"),
         ("api", "wishlist", "remove"), ("api", "wishlist", "comprado"),
+        ("api", "onde-roda", "set"), ("api", "onde-roda", "reset"), ("api", "onde-roda", "jogar"),
+        ("api", "onde-roda", "juntar"), ("api", "onde-roda", "migrar"),
         # Renomear ROM grava o nome novo em nomes_alt (core/rename_links.py).
         ("api", "cover", "rename"), ("api", "heavy", "rename"),
     }
@@ -3662,6 +3667,47 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "jogo desconhecido ou fora desta lista"}, 404)
             library_mod.save_library(library_path, library)
             return self._json({"ok": True, **r})
+
+        if len(parts) == 3 and parts[:2] == ["api", "onde-roda"]:
+            # Onde o jogo roda e onde o Victor o tem (core/onde_roda.py, plano de 27/11/2026).
+            body = self._read_json_body()
+            cfg = load_config()
+            library_path = Path(cfg["pc"]["library_root"]).expanduser() / "library.json"
+            library = library_mod.load_library(library_path)
+            acao = parts[2]
+            try:
+                if acao == "migrar":
+                    aplicar = bool(body.get("apply"))
+                    r = onde_roda_mod.migrar(library, aplicar)
+                    if aplicar:
+                        library_mod.save_library(library_path, library)
+                    return self._json({"ok": True, "aplicado": aplicar, **r})
+                if acao == "juntar":
+                    onde_roda_mod.juntar(library, body.get("manter"), body.get("descartar"))
+                    library_mod.save_library(library_path, library)
+                    return self._json({"ok": True})
+                alvo = next((g for g in library["games"] if g["id"] == body.get("id")), None)
+                if alvo is None:
+                    return self._json({"error": "jogo desconhecido"}, 404)
+                if acao == "set":
+                    r = onde_roda_mod.definir(alvo, body.get("plataforma"), body.get("existe"), body.get("gb"))
+                elif acao == "reset":
+                    onde_roda_mod.desmarcar_manual(alvo, body.get("plataforma"))
+                    r = alvo.get("onde_roda", {})
+                elif acao == "jogar":
+                    estado = body.get("estado")
+                    if estado == "quero":
+                        r = onde_roda_mod.quero_jogar(alvo)
+                    elif estado == "tenho":
+                        r = onde_roda_mod.tenho_em(alvo, body.get("plataforma"), body.get("loja"))
+                    else:
+                        return self._json({"error": "estado deve ser quero ou tenho"}, 400)
+                else:
+                    return self._json({"error": "rota desconhecida"}, 404)
+            except (ValueError, TypeError) as e:
+                return self._json({"error": str(e)}, 400)
+            library_mod.save_library(library_path, library)
+            return self._json({"ok": True, "resultado": r})
 
         if parts == ["api", "library", "fetch_covers"]:
             apply = query.get("apply", ["0"])[0] == "1"
