@@ -29,4 +29,12 @@ class OndeRodaTest {
         assertTrue(OndeRoda.noGrupo(g.getValue("TENHO"), "", JSONObject("""{"jogar":{"estado":"tenho","plataforma":"pc"}}""")))
         assertFalse(OndeRoda.noGrupo(g.getValue("QUERO"), "", JSONObject("""{"onde_roda":{"xbox":{"existe":true}},"jogar":{"estado":"quero"}}""")))
     }
+    @Test fun `grupo Entre geracoes pega PS1 a Wii pelo codigo ou pela fonte`() {
+        val e = OndeRoda.Grupo.ENTRE
+        for (c in listOf("PS", "PSP", "NDS", "3DS")) assertTrue(OndeRoda.noGrupo(e, c, JSONObject()))
+        for (c in listOf("PS2", "NGC", "WII")) assertTrue(OndeRoda.noGrupo(e, "", JSONObject("""{"fontes":["rom:$c"]}""")))
+        assertFalse(OndeRoda.noGrupo(e, "SFC", JSONObject("""{"fontes":["rom:SFC"]}""")))
+        assertFalse(OndeRoda.noGrupo(e, "", JSONObject("""{"fontes":["wishlist:switch"]}""")))
+        assertEquals(listOf("RETRO", "ENTRE", "QUERO", "TENHO", "TODOS"), OndeRoda.Grupo.values().map { it.name })
+    }
 }

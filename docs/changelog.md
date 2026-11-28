@@ -6,6 +6,7 @@
 - **App (0.32.0, code 57):** `OndeRoda.kt` (espelho de `core/onde_roda.py`). Sistemas fora de FC/SFC/MD/SMS/GG/GB/GBC/GBA/N64/PCE/PCECD/ARCADE deixam de oferecer baixar, procurar ROM no Drive e escolher arquivo; o catálogo do Drive ignora arquivos desses sistemas. Cards e ficha mostram os selos de plataforma na ordem do modo TV (Switch, PS4, Xbox, PC, Switch 2; "✓" onde o Victor tem; "♡ Quero jogar" sem plataforma) e, na ficha, o tamanho aproximado.
 - **Escopo (pedido do Victor):** saíram do app o stream de PS4 (PS Remote Play) e o "Transmitir do Switch pelo notebook" (SysDVR + Moonlight); ficam XBXPlay e Moonlight para o PC. Testes JVM e README ajustados. O PC (`core/tv_apps.py`, `core/game_actions.py`) é de outra sessão.
 - **0.32.1 (code 58):** Sortear do app em quatro grupos, como no PC (retrô; quero jogar no Switch/PS4; já tenho no PS4/Xbox/PC; todos), incluindo os desejados; cards de Desejados passam a trazer os dados de `onde_roda`. Conferido no celular (3 sorteios por grupo: PS4 da wishlist, Epic, retrô). Biblioteca sincronizada às 00:21; o app tem 2665 jogos e o PC 2661 (diferença não investigada).
+- **0.32.2 (code 59):** Sortear ganha "Entre gerações" (PS1, PS2, PSP, DS, 3DS, GameCube, Wii; PS2/GC/Wii pela fonte `rom:`), ordem retrô → entre gerações → quero → tenho → todos. Conferido no celular (DS, PS2, PS1).
 
 ## 27/11/2026 (noite) — Lista "onde jogar", F0/F1/F3/F4/F6 do plano de retrô no Drive (Claude)
 

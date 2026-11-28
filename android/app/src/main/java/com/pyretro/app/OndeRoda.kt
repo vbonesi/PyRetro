@@ -29,11 +29,20 @@ object OndeRoda {
     }
 
     /** Os quatro grupos do Sortear, iguais aos do PC (core/sortear.py): retrô; quero jogar no Switch/PS4; já tenho no PS4/Xbox/PC; todos. */
-    enum class Grupo(val label: String) { RETRO("Jogos retrô"), QUERO("Quero jogar (Switch/PS4)"), TENHO("Já tenho (PS4/Xbox/PC)"), TODOS("Todos") }
+    enum class Grupo(val label: String) { RETRO("Jogos retrô"), ENTRE("Entre gerações"), QUERO("Quero jogar (Switch/PS4)"), TENHO("Já tenho (PS4/Xbox/PC)"), TODOS("Todos") }
+    /** Sistemas entre o retrô e os modernos (mesma lista do PC). */
+    val ENTRE_GERACOES = setOf("PS", "PS2", "PSP", "NDS", "3DS", "NGC", "WII")
+    /** O código do catálogo do app só conhece alguns sistemas; PS2/GameCube/Wii vêm só das fontes `rom:<sistema>` do registro. */
+    fun entreGeracoes(code: String, tracking: JSONObject): Boolean {
+        if (code in ENTRE_GERACOES) return true
+        val fontes = tracking.optJSONArray("fontes") ?: return false
+        return (0 until fontes.length()).any { fontes.optString(it).removePrefix("rom:").takeIf { s -> fontes.optString(it).startsWith("rom:") } in ENTRE_GERACOES }
+    }
     fun noGrupo(grupo: Grupo, code: String, tracking: JSONObject): Boolean {
         val jogar = tracking.optJSONObject("jogar")
         return when (grupo) {
             Grupo.RETRO -> retro(code)
+            Grupo.ENTRE -> entreGeracoes(code, tracking)
             Grupo.QUERO -> !retro(code) && jogar?.optString("estado") == "quero" && existe(tracking).any { it.first in setOf("switch", "ps4") }
             Grupo.TENHO -> !retro(code) && jogar?.optString("estado") == "tenho" && jogar.optString("plataforma") in setOf("ps4", "xbox", "pc")
             Grupo.TODOS -> true
