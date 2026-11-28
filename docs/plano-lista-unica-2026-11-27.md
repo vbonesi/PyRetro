@@ -37,7 +37,7 @@ Plano fechado com o Victor em 27/11 (noite); nada executado ainda. Marcas: **P**
   onde jogar. Android depois.
 - **F4 (L)** Listas "falta na wishlist da Steam" e "falta na wishlist do Xbox".
 - **V1 (V)** Victor revisa a lista de remoção e corrige disponibilidades à mão.
-- **F5 (L)** Remoção para a lixeira do Drive (exceto a lista de Jogando acima), catálogo e índice do celular
+- **F5 (L) — feito em 28/11 (ver changelog).** Remoção para a lixeira do Drive (exceto a lista de Jogando acima), catálogo e índice do celular
   atualizados; sistemas fora do retrô deixam de oferecer download no PC e no Android.
 - **F6 (L)** Sortear em quatro grupos; aposentar o PyRetro Shop.
 

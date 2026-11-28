@@ -1,5 +1,18 @@
 # Changelog
 
+## 28/11/2026 — F5: ROMs fora do retrô para a lixeira do Drive (Claude)
+
+- Depois da revisão do Victor (V1) e da confirmação dele: **12.682 arquivos, 2.188 GB** (3DS 104, NDS 10, GameCube 23,5, Switch 1.651, PS 62,5,
+  PS2 236,5, PSP 53, Wii 46,5) foram para a **lixeira do Drive** (recuperável por 30 dias), cada um com ID, tamanho e MD5 conferidos contra o
+  manifesto do F0; recibos por sistema na cópia privada da auditoria. O `PyRetro-Nuvem/switch/shop.json` também. Só arquivos: as pastas ficaram.
+- Ficaram os 9 de Jogando e os 6 marcados "manter" (Cat Rescue Story, FINAL FANTASY VI, Pokemon Legends Z-A, Super Mario 3D All-Stars, Blood Will
+  Tell, Patapon 2). N64 não foi tocado (outra sessão). Dois arquivos de TMNT Mutants Unleashed divergiam do manifesto e já não estavam no Drive.
+- Saves dos removidos no PC (PS1 GT2 e cartões, GameCube Smash/Beyblade, Wii NSMBW): cópia em `Backups/Saves removidos F5 2026-11-28/` e depois
+  lixeira do sistema; os de dono incerto (cartões Mcd001/002, estados avulsos) não foram apagados. Catálogo do Drive reconstruído; o celular lê o
+  Drive direto.
+- Modo TV: a ficha de uma coleção ou versão (ex.: Advance Wars 1+2 Re-Boot Camp) lista as entradas com ROM retrô e abre a ficha do jogo, que oferece
+  baixar e jogar; teste JS novo.
+
 ## 28/11/2026 — N64 com versão nativa: sete jogos retirados (Claude)
 
 - Por decisão do Victor ("começar de novo pelo remake"): Super Mario 64, Doom 64, Shadow Man, Turok 2, Turok 3, Gex 3 e Star Wars Episode I: Racer saíram do banco, da pasta N64 do Drive e do PC (ROM, `.srm`, `.state` de Mario 64), tudo pela lixeira, com cópia dos arquivos do PC em `Backups/`. Rota `POST /api/onde-roda/apagar` (só cards cuja única fonte é `rom:` e sem progresso real; `iniciado` não conta). Catálogo do Drive atualizado (30 → 23). Celular: o Victor apaga à mão.
