@@ -50,3 +50,11 @@ Plano fechado com o Victor em 27/11 (noite); nada executado ainda. Marcas: **P**
   `credentials.json`/`gdrive.token` e a fonte gdrive do Tinfoil.
 - **Emuladores ficam** no PC e no celular (PCSX2, Dolphin, PPSSPP, Azahar, SwanStation etc.): quando não houver versão
   de Switch ou PS4, o Victor joga por eles.
+
+## F2b — unificar as edições de um mesmo jogo (28/11/2026)
+
+Decisões do Victor: **remaster, remake ou port de um jogo só** = card único com a cara da edição mais moderna (nome, capa, sinopse); as antigas ficam dentro, em `edicoes`, e o progresso (nota, finalizado, tempo, observações) migra, com os IDs antigos em `ids_antigos`. **Coleção** (Castlevania Requiem, Mega Man X Legacy Collection 2, Uncharted: The Nathan Drake Collection) = card da coleção, com a lista dos jogos de dentro (nome e plataforma originais); os cards antigos viram entradas, e uma ROM retrô que fica no Drive continua jogável a partir da entrada (e aparece no grupo retrô).
+
+- **Etapa 1 (feita): proposta, sem aplicar.** `tools/proposta_unificacao.py` usa `remakes`, `remasters`, `ports` e `bundles` do IGDB (e o nome, marcado [?], quando o IGDB não liga o card original ao jogo da coleção) e escreve `~/Downloads/PyRetro - proposta de unificação.txt` (fora do Git): 35 coleções e 12 versões. DLCs e expansões ficam fora das coleções.
+- **Etapa 2 (feita): código, sem gravar no banco.** `core/edicoes.py`: `propor`, `unificar` (em memória; guarda o registro completo de cada card absorvido), `resolver_id` (alias) e `aplicar_proposta` (simula por padrão). Testes em `tests/test_onde_roda.py`.
+- **Falta:** o Victor revisar a proposta (parte do V1); depois, aplicar pela API (rota ainda não criada de propósito) e mostrar `edicoes` na ficha e nos selos do modo TV e do Android. Casos com [?] e coleções com jogos sem card próprio pedem decisão: itens sem card viram só linha da lista.

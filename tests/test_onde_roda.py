@@ -265,3 +265,50 @@ class TestIgdbPuro(unittest.TestCase):
         from core import onde_igdb as ig
         r = ig.montar("Zzz", "Steam", None, 0.3, None)
         self.assertEqual(r["estado"], "nao_verificado")
+
+
+class TestEdicoes(unittest.TestCase):
+    def setUp(self):
+        from core import edicoes
+        self.ed = edicoes
+        self.ps2 = jogo("Shadow of the Colossus", "Sony - PlayStation 2", fontes=["rom:PS2"], nota=9, finalizado=True, tempo=12, observacoes="clássico")
+        self.ps4 = jogo("Shadow of the Colossus", "PlayStation 4", fontes=["wishlist:psn"], tempo=1)
+        self.rondo = jogo("Castlevania - Rondo of Blood", "NEC - PC Engine CD - TurboGrafx-CD", fontes=["rom:PCECD"], iniciado=True)
+        self.colecao = jogo("Castlevania Requiem", "PlayStation 4", fontes=["wishlist:psn"])
+        self.lib = {"games": [self.ps2, self.ps4, self.rondo, self.colecao]}
+
+    def test_versao_migra_progresso_e_guarda_alias(self):
+        fica = self.ed.unificar(self.lib, self.ps4["id"], [self.ps2["id"]], "versao")
+        self.assertEqual(len(self.lib["games"]), 3)
+        self.assertEqual((fica["nota"], fica["finalizado"], fica["tempo"]), (9, True, 13))
+        self.assertIn("clássico", fica["observacoes"])
+        self.assertIn(self.ps2["id"], fica["ids_antigos"])
+        self.assertEqual(self.ed.resolver_id(self.lib, self.ps2["id"]), self.ps4["id"])
+        self.assertEqual(fica["edicoes"][1]["registro"]["nota"], 9)       # nada se perde
+        self.assertEqual(fica["edicoes"][1]["rom"], "rom:PS2")
+
+    def test_colecao_lista_item_rom_retro_e_so_nome(self):
+        fica = self.ed.unificar(self.lib, self.colecao["id"], [self.rondo["id"]], "colecao",
+                                extras=[{"nome": "Symphony of the Night", "plataforma": "PS1"}])
+        nomes = [(e["nome"], e["plataforma"], e["rom"]) for e in fica["edicoes"]]
+        self.assertIn(("Castlevania - Rondo of Blood", "NEC - PC Engine CD - TurboGrafx-CD", "rom:PCECD"), nomes)
+        self.assertIn(("Symphony of the Night", "PS1", None), nomes)
+        self.assertEqual(fica["tipo_card"], "colecao")
+
+    def test_simulacao_nao_mexe_na_biblioteca(self):
+        grupo = {"tipo": "versao", "fica": {"id": self.ps4["id"]}, "entram": [{"id": self.ps2["id"]}]}
+        self.assertEqual(self.ed.aplicar_proposta(self.lib, [grupo])[0]["entraram"], 1)
+        self.assertEqual(len(self.lib["games"]), 4)
+        self.ed.aplicar_proposta(self.lib, [grupo], aplicar=True)
+        self.assertEqual(len(self.lib["games"]), 3)
+
+    def test_propor_versao_e_colecao(self):
+        ig = {self.ps2["id"]: 1, self.ps4["id"]: 2, self.colecao["id"]: 3}
+        det = {1: {"id": 1, "remakes": [2], "first_release_date": 1}, 2: {"id": 2, "first_release_date": 9}, 3: {"id": 3, "game_type": 3}}
+        filhos = {3: [{"id": 50, "name": "Castlevania: Rondo of Blood", "platforms": [150]}]}
+        jogos = {g["id"]: g for g in self.lib["games"]}
+        gs = self.ed.propor(jogos, ig, det, filhos, {})
+        tipos = {g["tipo"]: g for g in gs}
+        self.assertEqual(tipos["versao"]["fica"]["id"], self.ps4["id"])
+        self.assertEqual(tipos["colecao"]["entram"][0]["id"], self.rondo["id"])
+        self.assertIn("FICA", self.ed.texto_proposta(gs))

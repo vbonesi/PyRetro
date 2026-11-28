@@ -1,5 +1,9 @@
 # Changelog
 
+## 28/11/2026 — F2b: proposta e modelo de unificação de edições (Claude)
+
+- `core/edicoes.py` (versão = card da moderna com `edicoes`; coleção = card com a lista dos jogos de dentro; progresso migra, `ids_antigos` como alias, registro completo preservado) e `tools/proposta_unificacao.py`, que gerou a proposta (35 coleções, 12 versões) em `~/Downloads`. **Nada aplicado no banco**: espera a revisão do Victor (V1). Plano: seção F2b de `docs/plano-lista-unica-2026-11-27.md`.
+
 ## 28/11/2026 — Sortear: grupo "Entre gerações" no PC (Claude)
 
 - Quinto grupo do Sortear (`geracoes`), a pedido do Victor: cards de PS1, PS2, PSP, DS, 3DS, GameCube e Wii (fonte `rom:`), mesma lista e nome do Android 0.32.2. Ordem: retrô → entre gerações → quero jogar → já tenho → todos; um card pode estar em dois grupos (um PS2 que existe no PS4) e "Todos" o inclui. Rota `/api/sortear?system=geracoes`; o modo TV lê os grupos de `/api/sortear/systems`.
