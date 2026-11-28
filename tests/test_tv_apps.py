@@ -9,9 +9,9 @@ from core import tv_apps
 
 class TestRemoteLaunch(unittest.TestCase):
     def setUp(self):
-        self.command = ['flatpak', 'run', 'com.github.exelix11.sysdvr', 'bridge', '192.0.2.20', '--fullscreen']
+        self.command = ['flatpak', 'run', 'io.github.unknownskl.greenlight']
         for target, kwargs in (
-                ('entries', {'return_value': {'sysdvr': {'comando': self.command}}}),
+                ('entries', {'return_value': {'greenlight': {'comando': self.command}}}),
                 ('subprocess.run', {}), ('subprocess.Popen', {}), ('session_env', {'return_value': {}})):
             mock = patch('core.tv_apps.' + target, **kwargs)
             setattr(self, target.split('.')[-1] + '_mock', mock.start())
@@ -27,7 +27,7 @@ class TestRemoteLaunch(unittest.TestCase):
 
         def open_remote():
             barrier.wait()
-            results.append(tv_apps.launch({}, 'sysdvr'))
+            results.append(tv_apps.launch({}, 'greenlight'))
 
         threads = [threading.Thread(target=open_remote) for _ in range(8)]
         for thread in threads: thread.start()
@@ -39,21 +39,21 @@ class TestRemoteLaunch(unittest.TestCase):
         self.assertNotIn('shell', self.Popen_mock.call_args.kwargs)
 
     def test_existing_flatpak_after_service_restart_is_preserved(self):
-        self.run_mock.return_value.stdout = 'com.github.exelix11.sysdvr\n'
-        self.assertTrue(tv_apps.launch({}, 'sysdvr')['already_running'])
+        self.run_mock.return_value.stdout = 'io.github.unknownskl.greenlight\n'
+        self.assertTrue(tv_apps.launch({}, 'greenlight')['already_running'])
         self.Popen_mock.assert_not_called()
 
     def test_closed_player_can_be_opened_again(self):
-        self.run_mock.return_value.stdout = 'com.github.exelix11.sysdvr.other\n'
-        self.assertFalse(tv_apps.launch({}, 'sysdvr')['already_running'])
+        self.run_mock.return_value.stdout = 'io.github.unknownskl.greenlight.other\n'
+        self.assertFalse(tv_apps.launch({}, 'greenlight')['already_running'])
         self.Popen_mock.return_value.poll.return_value = 0
-        self.assertFalse(tv_apps.launch({}, 'sysdvr')['already_running'])
+        self.assertFalse(tv_apps.launch({}, 'greenlight')['already_running'])
         self.assertEqual(self.Popen_mock.call_count, 2)
 
     def test_failed_instance_check_does_not_launch_blindly(self):
         self.run_mock.side_effect = subprocess.TimeoutExpired('flatpak', 5)
         with self.assertRaisesRegex(ValueError, 'já está aberto'):
-            tv_apps.launch({}, 'sysdvr')
+            tv_apps.launch({}, 'greenlight')
         self.Popen_mock.assert_not_called()
 
 

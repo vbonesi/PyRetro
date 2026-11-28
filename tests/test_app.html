@@ -1303,7 +1303,7 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
   const preferences = {favorites: [], theme: "dark"}; const posts = []; let failFavorite = false;
   const games = [{id: "one", key: "pc:one", name: "Meu recente", platform: "Steam", tracking: {}, local: true},
     {id: "two", key: "pc:two", name: "Minha campanha", platform: "GOG", tracking: {iniciado: true}, local: true}];
-  const apps = [{id: "greenlight", name: "Xbox remoto", icon: "X"}, {id: "chiaki", name: "PS4 remoto", icon: "PS"}, {id: "sysdvr", name: "Switch Lite", icon: "S"}];
+  const apps = [{id: "greenlight", name: "Xbox remoto", icon: "X"}];
   const pad = {id: "Xbox", mapping: "standard", axes: [0, 0], buttons: Array.from({length: 17}, () => ({pressed: false}))};
   Object.defineProperty(app.navigator, "getGamepads", {value: () => [pad], configurable: true});
   app.fetch = async (url, init) => {
@@ -1321,7 +1321,7 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
         if (failFavorite) return {ok: false, json: async () => ({error: "disco indisponível"})};
         preferences.favorites = body.favorite ? [body.key] : []; data = {...preferences, key: body.key};
       } else if (url === "/api/tv/preferences") { preferences.theme = body.theme; data = preferences; }
-      else if (url === "/api/tv/apps/launch") data = {ok: true, already_running: body.id === "sysdvr"};
+      else if (url === "/api/tv/apps/launch") data = {ok: true, already_running: false};
       else throw new Error(`escrita indevida: ${url}`);
     } else throw new Error(`requisição inesperada: ${url}`);
     return {ok: true, json: async () => JSON.parse(JSON.stringify(data))};
@@ -1337,7 +1337,7 @@ teste("console: início, remotos, X favorito sem repetição, foco em Jogar e te
     // Apps e stream (destino próprio da barra lateral) abrem os clientes remotos.
     await app.load("apps");
     const appButton = nome => [...doc.querySelectorAll("#gallery button")].find(b => b.textContent.includes(nome));
-    for (const nome of ["Xbox remoto", "PS4 remoto", "Switch Lite"]) verdade(appButton(nome), `atalho remoto ausente: ${nome}`);
+    for (const nome of ["Xbox remoto"]) verdade(appButton(nome), `atalho remoto ausente: ${nome}`);
     appButton("Xbox remoto").click();
     await esperar(() => posts.length === 1, "Xbox remoto não abriu");
     igual(posts[0], {url: "/api/tv/apps/launch", body: {id: "greenlight"}});
@@ -1382,16 +1382,16 @@ teste('sorteio completo: ação de transmissão, erro visível e nome seguro', a
     if (init?.method === 'POST') { posts.push({url, body:JSON.parse(init.body)}); return {ok: false, json: async () => ({error:'cliente indisponível'})}; }
     if (fail) throw new Error('sem conexão');
     return {ok:true, json:async () => ({nome:name, plataforma:'PlayStation 4', kind:'biblioteca', label:'Biblioteca', pool_size:1,
-      game:{key:'pc:test'}, suggestion:{kind:'remote',label:'Transmitir do PS4',app:{id:'chiaki'},hint:'Escolha este jogo no console.'}})};
+      game:{key:'pc:test'}, suggestion:{kind:'remote',label:'Transmitir do Xbox',app:{id:'greenlight'},hint:'Escolha este jogo no console.'}})};
   };
   try {
     await app.runSortear();
     igual(doc.querySelector('.sortear-nome').textContent,name); verdade(!doc.querySelector('.sortear-nome img'));
-    igual(doc.querySelector('.sortear-actions button').textContent,'Transmitir do PS4');
+    igual(doc.querySelector('.sortear-actions button').textContent,'Transmitir do Xbox');
     igual(posts.length,0,'sortear iniciou uma transmissão sem escolha');
     doc.querySelector('.sortear-actions button').click();
     await esperar(() => doc.querySelector('.sortear-status').textContent.includes('cliente indisponível'),'erro de abertura invisível');
-    igual(posts,[{url:'/api/tv/apps/launch',body:{id:'chiaki'}}]);
+    igual(posts,[{url:'/api/tv/apps/launch',body:{id:'greenlight'}}]);
     verdade(doc.querySelector('.sortear-actions a').href.includes('/tv?game=pc%3Atest'));
     frame.style.width='390px';modal.classList.remove('hidden');await new Promise(resolve=>setTimeout(resolve,30));
     const box=modal.querySelector('.modal-box').getBoundingClientRect(), filters=doc.getElementById('sortear-system').getBoundingClientRect();
@@ -1419,7 +1419,7 @@ teste('TV: sorteio sugere PS4, preserva erros e abre link pela identidade', asyn
     else if(url==='/api/sortear/systems')data={grupos:[],generos:[]};
     else if(url.startsWith('/api/sortear?')){ if(delayed)await new Promise(resolve=>releaseDraw=resolve);data={game}; }
     else if(url==='/api/tv/catalog')data=[{...game,id:'pc',key:'pc:pc',platform:'Steam'},game];
-    else if(url.startsWith('/api/pc/options?'))data={available:false,remote:{label:'Transmitir do PS4',app:{id:'chiaki',name:'PS4 remoto'},hint:'Escolha o jogo no console.'}};
+    else if(url.startsWith('/api/pc/options?'))data={available:false,remote:{label:'Transmitir do Xbox',app:{id:'greenlight',name:'Xbox remoto'},hint:'Escolha o jogo no console.'}};
     else if(url==='/api/tv/apps/launch'){posts.push(JSON.parse(init.body));return{ok:false,json:async()=>({error:'falha de abertura'})};}
     else throw new Error('requisição inesperada: '+url);
     return{ok:true,json:async()=>data};
@@ -1427,10 +1427,10 @@ teste('TV: sorteio sugere PS4, preserva erros e abre link pela identidade', asyn
   const script=doc.createElement('script');script.type='module';script.src='/static/tv.js';doc.head.append(script);await new Promise(resolve=>script.onload=resolve);
   try{
     await app.load('draw');await app.drawGame();
-    await esperar(()=>doc.activeElement.textContent==='Transmitir do PS4','ação remota não recebeu foco');
+    await esperar(()=>doc.activeElement.textContent==='Transmitir do Xbox','ação remota não recebeu foco');
     igual(posts.length,0,'sorteio abriu cliente automaticamente');doc.activeElement.click();
     await esperar(()=>doc.getElementById('detail-status').textContent.includes('falha de abertura'),'erro foi sobrescrito pela dica');
-    igual(posts,[{id:'chiaki'}]);doc.getElementById('close').click();
+    igual(posts,[{id:'greenlight'}]);doc.getElementById('close').click();
     await app.openLinkedGame('pc:ps4');igual(doc.getElementById('game-platform').textContent,'PlayStation 4');
     doc.getElementById('close').click();
     delayed=true;const drawing=app.drawGame();await esperar(()=>releaseDraw,'sorteio pendente não iniciou');

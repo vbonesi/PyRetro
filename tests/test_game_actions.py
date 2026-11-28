@@ -10,7 +10,7 @@ from test_api import BaseAPI
 
 class TestSuggestions(unittest.TestCase):
     def setUp(self):
-        self.apps = [{'id': name, 'name': name, 'icon': ''} for name in ('chiaki', 'sysdvr', 'greenlight', 'steam', 'heroic')]
+        self.apps = [{'id': name, 'name': name, 'icon': ''} for name in ('greenlight', 'steam', 'heroic')]
         patched = patch.object(tv_apps, 'catalog', return_value=self.apps)
         patched.start(); self.addCleanup(patched.stop)
 
@@ -19,12 +19,12 @@ class TestSuggestions(unittest.TestCase):
         return {'id': record['id'], 'name': record['nome'], 'platform': platform, 'tracking': record, **extra}
 
     def test_remote_requires_supported_generation_and_installed_client(self):
-        for platform, app in (('PlayStation 4', 'chiaki'), ('Nintendo Switch', 'sysdvr'), ('Xbox One', 'greenlight')):
+        for platform, app in (('Xbox One', 'greenlight'),):
             suggestion = game_actions.suggest({}, self.game(platform))
             self.assertEqual((suggestion['kind'], suggestion['app']['id']), ('remote', app))
-        for platform in ('PlayStation 3', 'Xbox 360', 'PSN'):
+        for platform in ('PlayStation 3', 'Xbox 360', 'PSN', 'PlayStation 4', 'Nintendo Switch'):
             self.assertIsNone(game_actions.remote_option(platform, self.apps))
-        self.assertIsNone(game_actions.remote_option('PlayStation 4', []))
+        self.assertIsNone(game_actions.remote_option('Xbox One', []))
 
     def test_installed_pc_and_store_fallback_are_distinguished(self):
         with patch.object(pc_games, 'find', return_value={'store': 'steam', 'id': '10'}):
@@ -49,9 +49,9 @@ class TestSuggestions(unittest.TestCase):
 class TestDrawActionsHTTP(BaseAPI):
     def setUp(self):
         self.pc = library._blank_game('Mesmo nome', 'Steam'); self.pc.update(fontes=['steam'], genero='Ação')
-        self.ps4 = library._blank_game('Mesmo nome', 'PlayStation 4'); self.ps4.update(fontes=['psn'], genero='RPG')
+        self.ps4 = library._blank_game('Mesmo nome', 'Xbox One'); self.ps4.update(fontes=['xbox'], genero='RPG')
         self.gravar_biblioteca([self.pc, self.ps4])
-        apps = patch.object(tv_apps, 'catalog', return_value=[{'id': 'chiaki', 'name': 'PS4 remoto', 'icon': 'PS'}])
+        apps = patch.object(tv_apps, 'catalog', return_value=[{'id': 'greenlight', 'name': 'Xbox remoto', 'icon': 'PS'}])
         apps.start(); self.addCleanup(apps.stop)
 
     def test_draw_homonyms_preserves_id_platform_and_genre_without_launching(self):
@@ -64,12 +64,12 @@ class TestDrawActionsHTTP(BaseAPI):
         self.assertEqual(result['suggestion']['kind'], 'pc')
         launch.assert_not_called()
 
-    def test_draw_and_details_offer_ps4_remote_without_pc_launch(self):
+    def test_draw_and_details_offer_xbox_remote_without_pc_launch(self):
         with patch.object(pc_games, 'find', return_value=None), patch('subprocess.Popen') as launch:
             result = self.pedir('/api/sortear?system=biblioteca&genero=RPG')[1]
             detail = self.pedir('/api/pc/options?id=' + self.ps4['id'])[1]
         self.assertEqual(result['game']['id'], self.ps4['id'])
-        self.assertEqual(result['suggestion']['app']['id'], 'chiaki')
+        self.assertEqual(result['suggestion']['app']['id'], 'greenlight')
         self.assertFalse(detail['available'])
-        self.assertEqual(detail['remote']['label'], 'Transmitir do PS4')
+        self.assertEqual(detail['remote']['label'], 'Transmitir do Xbox')
         launch.assert_not_called()

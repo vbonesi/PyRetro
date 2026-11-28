@@ -256,7 +256,7 @@ export async function launchApp(app, target = "play-status") {
   if (state.busy) return; state.busy = true;
   try {
     const result = await api("/api/tv/apps/launch", {id: app.id});
-    const message = result.already_running ? `${app.name} já está aberto. Volte à janela existente para continuar.` : app.id === "sysdvr" ? "Switch Lite: abrindo transmissão. Ative TCP Bridge no SysDVR do console e use os controles do Switch para jogar." : `${app.name}: abertura solicitada.`;
+    const message = result.already_running ? `${app.name} já está aberto. Volte à janela existente para continuar.` : `${app.name}: abertura solicitada.`;
     report(message, false, "play-status");
     if (target !== "play-status") report(message, false, target);
   }

@@ -3,14 +3,12 @@ from pathlib import Path
 import os
 import subprocess
 import shutil
-import ipaddress
 import json
 import threading
 
 from core.desktop_env import session_env
 
-REMOTES_PATH = Path(__file__).resolve().parent.parent / 'cache/tv_remotes.json'
-REMOTE_IDS = {'sysdvr', 'chiaki', 'greenlight'}
+REMOTE_IDS = {'greenlight'}
 _launch_lock = threading.Lock()
 _remote_processes = {}
 
@@ -32,9 +30,7 @@ DEFAULTS = {
     'dolphin': ('Dolphin', 'org.DolphinEmu.dolphin-emu', '🐬'),
     'ppsspp': ('PPSSPP', 'org.ppsspp.PPSSPP', '🎮'),
     'azahar': ('Azahar (3DS)', 'org.azahar_emu.Azahar', '🎮'),
-    'chiaki': ('PS4 remoto', 'io.github.streetpea.Chiaki4deck', '◈'),
     'greenlight': ('Xbox remoto', 'io.github.unknownskl.greenlight', '⊗'),
-    'sysdvr': ('Switch Lite', 'com.github.exelix11.sysdvr', '◧'),
 }
 
 # Emuladores em AppImage (não Flatpak), baixados pelo Victor: o de Switch 2 (24/11/2026). Mesmos caminhos que o
@@ -63,28 +59,6 @@ def entries(cfg, home=None):
     for key, (name, patterns, icon) in APPIMAGES.items():
         if path := appimage(patterns, home):
             result[key] = {'nome': name, 'icone': icon, 'comando': [str(path)]}
-    try:
-        data = json.loads(REMOTES_PATH.read_text())
-        if not isinstance(data, dict):
-            data = {}
-    except (OSError, ValueError):
-        data = {}
-    if 'sysdvr' in result:
-        try:
-            address = str(ipaddress.ip_address(data['switch_ip']))
-        except (ValueError, KeyError, TypeError):
-            address = None
-        result['sysdvr']['comando'] += ['bridge', *([address] if address else []), '--fullscreen']
-    if 'chiaki' in result:
-        try:
-            address = str(ipaddress.ip_address(data['ps4_ip']))
-            nickname = data['ps4_nickname']
-            if not isinstance(nickname, str) or not nickname or len(nickname) > 128 or '\0' in nickname:
-                raise ValueError('nome de console inválido')
-        except (ValueError, KeyError, TypeError):
-            pass
-        else:
-            result['chiaki']['comando'] += ['--fullscreen', '--exit-app-on-stream-exit', 'stream', nickname, address]
     for key, value in cfg.get('apps', {}).items():
         command = value.get('comando')
         if not isinstance(command, list) or not command or not all(isinstance(x, str) and x and '\0' not in x for x in command):

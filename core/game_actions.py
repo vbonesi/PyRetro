@@ -5,9 +5,6 @@ from core import pc_games, play, tv_apps
 
 
 REMOTE_PLATFORMS = {
-    'Nintendo Switch': ('sysdvr', 'Transmitir do Switch Lite'),
-    'Switch': ('sysdvr', 'Transmitir do Switch Lite'),
-    'PlayStation 4': ('chiaki', 'Transmitir do PS4'),
     'Xbox': ('greenlight', 'Transmitir do Xbox'),
     'Xbox One': ('greenlight', 'Transmitir do Xbox'),
     'Xbox Series S': ('greenlight', 'Transmitir do Xbox'),
@@ -23,9 +20,7 @@ def remote_option(platform, apps):
     app = next((app for app in apps if app['id'] == remote[0]), None)
     if not app:
         return None
-    hint = ('Abra o jogo no Switch e ative TCP Bridge no SysDVR. Use os controles do console.'
-            if remote[0] == 'sysdvr' else
-            'Abre o cliente remoto. Escolha este jogo no console; o jogo não é iniciado automaticamente.')
+    hint = 'Abre o cliente remoto. Escolha este jogo no console; o jogo não é iniciado automaticamente.'
     return {'kind': 'remote', 'app': app, 'label': remote[1], 'hint': hint}
 
 

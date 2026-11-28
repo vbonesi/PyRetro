@@ -1,5 +1,9 @@
 # Changelog
 
+## 28/11/2026 — PC sem PS4 remoto e Switch Lite (Claude)
+
+- A pedido do Victor ("chamar o PS4 via PC e Android e o Switch via PC, pode retirar"): saem do modo TV os apps "PS4 remoto" (Chiaki) e "Switch Lite" (SysDVR), junto com a montagem do comando e do IP deles, as ações "Transmitir do PS4/Switch Lite" da ficha e o CSS dos atalhos. Ficam o Xbox remoto (Greenlight), Steam, Heroic e emuladores. **Nada foi desinstalado da máquina** (Chiaki e SysDVR seguem instalados até o Victor decidir). Testes ajustados (528 Python); o `tests/test_app.html` foi editado mas não rodado no navegador.
+
 ## 28/11/2026 — F2: onde cada jogo roda, pesquisado no IGDB (Claude)
 
 - **Pesquisa:** `core/igdb.py` (token Twitch app access, 4 req/s, cache em `cache/igdb/`), `core/onde_igdb.py` (casamento de nome por plataforma nativa; port, remaster, remake, coleção e edição contam; tamanho aproximado em GB por plataforma, com Steam `appdetails` para o PC e o tamanho real do dump para os de Switch) e `tools/onde_roda_igdb.py`. Escopo: 1.008 cards (Desejados de Xbox/Steam/PSN/Switch/Switch 2 e Biblioteca de PS1, PS2, PSP, DS, 3DS, GameCube, Wii, Switch, Switch 2).

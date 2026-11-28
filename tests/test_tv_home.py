@@ -38,23 +38,6 @@ class TestTVPreferences(unittest.TestCase):
         self.assertEqual(tv_home.item_key(game), recent.rom_key('PS', 'Mr. Driller.chd'))
         self.assertNotEqual(tv_home.item_key(game), tv_home.item_key({'code': 'PS2', 'romName': 'Mr. Driller'}))
 
-    def test_sysdvr_command_uses_validated_address_and_no_shell(self):
-        self.path.write_text(json.dumps({'switch_ip': '192.0.2.20'}))
-        with patch.object(tv_apps, 'REMOTES_PATH', self.path), patch.object(tv_apps.shutil, 'which', return_value='/bin/flatpak'), patch.object(tv_apps.subprocess, 'run') as run:
-            run.return_value.stdout = 'com.github.exelix11.sysdvr\n'
-            cmd = tv_apps.entries({})['sysdvr']['comando']
-            self.assertEqual(cmd, ['flatpak', 'run', 'com.github.exelix11.sysdvr', 'bridge', '192.0.2.20', '--fullscreen'])
-            self.path.write_text(json.dumps({'switch_ip': 'host;whoami'}))
-            self.assertEqual(tv_apps.entries({})['sysdvr']['comando'][-2:], ['bridge', '--fullscreen'])
-
-    def test_chiaki_uses_registered_nickname_and_validated_ip(self):
-        self.path.write_text(json.dumps({'ps4_ip': '192.0.2.45', 'ps4_nickname': 'PS4 de teste'}))
-        with patch.object(tv_apps, 'REMOTES_PATH', self.path), patch.object(tv_apps.shutil, 'which', return_value='/bin/flatpak'), patch.object(tv_apps.subprocess, 'run') as run:
-            run.return_value.stdout = 'io.github.streetpea.Chiaki4deck\n'
-            self.assertEqual(tv_apps.entries({})['chiaki']['comando'], ['flatpak', 'run', 'io.github.streetpea.Chiaki4deck', '--fullscreen', '--exit-app-on-stream-exit', 'stream', 'PS4 de teste', '192.0.2.45'])
-            self.path.write_text(json.dumps({'ps4_ip': 'host;whoami', 'ps4_nickname': 'PS4 de teste'}))
-            self.assertEqual(tv_apps.entries({})['chiaki']['comando'], ['flatpak', 'run', 'io.github.streetpea.Chiaki4deck'])
-
 
 class TestTVHomeHTTP(BaseAPI):
     def setUp(self):
@@ -62,7 +45,7 @@ class TestTVHomeHTTP(BaseAPI):
         self.gravar_biblioteca([self.game]); srv.TV_PREFS_PATH.unlink(missing_ok=True); srv.LAST_PLAYED_PATH.unlink(missing_ok=True)
         self.patch_pc = patch.object(pc_games, 'installed_indexes', return_value={'steam': {'meujogo': '10'}, 'legendary': {}, 'gog': {}, 'nile': {}})
         self.patch_pc.start(); self.addCleanup(self.patch_pc.stop)
-        self.patch_apps = patch.object(tv_apps, 'catalog', return_value=[{'id': 'chiaki', 'name': 'PS4 remoto', 'icon': 'PS'}])
+        self.patch_apps = patch.object(tv_apps, 'catalog', return_value=[{'id': 'greenlight', 'name': 'Xbox remoto', 'icon': 'PS'}])
         self.patch_apps.start(); self.addCleanup(self.patch_apps.stop)
 
     def test_home_tracks_unmarked_recent_games_and_local_pc(self):
@@ -73,7 +56,7 @@ class TestTVHomeHTTP(BaseAPI):
         self.assertEqual(home['recent'][0]['id'], self.game['id'])
         self.assertEqual(home['continue'], [])
         self.assertEqual(home['counts']['pc'], 1)
-        self.assertEqual(home['apps'][0]['id'], 'chiaki')
+        self.assertEqual(home['apps'][0]['id'], 'greenlight')
 
     def test_favorite_is_shared_and_theme_stays_local(self):
         before = self.lib_path.read_bytes()

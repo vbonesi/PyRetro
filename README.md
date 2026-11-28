@@ -39,7 +39,7 @@ não são só estilo:
 
 Acesse `http://127.0.0.1:8000/tv` (a raiz `/` leva para lá; a antiga interface web foi desligada em 17/11/2026). Cinco destinos na barra lateral (Início, Biblioteca, Desejados, Apps e stream, Ferramentas). Navegue pelo controle: Y pesquisa, X favorita,
 LB/RB trocam o filtro rápido da Biblioteca e Menu abre opções de tema/tela cheia; com mouse e teclado, digite para buscar e use o botão direito nos jogos. Os acessos rápidos abrem
-Xbox remoto, PS4 remoto, Switch Lite via SysDVR, Steam, Heroic e emuladores quando
+Xbox remoto, Steam, Heroic e emuladores quando
 os clientes estão instalados. Também oferece progresso/notas, download de ROMs do seu
 Drive e lançamento pelo setup. Instalação do atalho e limitações:
 [`docs/modo-tv.md`](docs/modo-tv.md).

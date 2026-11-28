@@ -272,8 +272,6 @@ header{padding:1rem 3vw .5rem}
 .quick-access{display:flex;gap:.6rem;overflow-x:auto;padding:.5rem .3rem .8rem;margin-bottom:.6rem}
 .quick-access button{font-size:.75rem;white-space:nowrap;border-radius:2rem;flex-shrink:0}
 .quick-access [data-app=greenlight]{border-color:#70c660}
-.quick-access [data-app=chiaki]{border-color:#719df0}
-.quick-access [data-app=sysdvr]{border-color:#ef777e}
 .home-section h3{font-size:.95rem;margin:.6rem 0 .3rem;letter-spacing:-.02em}
 .shelf{display:flex;gap:1rem;overflow-x:auto;padding:.6rem .35rem 1rem;scrollbar-width:none;overscroll-behavior-x:contain;touch-action:pan-x pan-y pinch-zoom}
 .shelf::-webkit-scrollbar{display:none}
