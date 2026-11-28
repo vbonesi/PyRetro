@@ -324,6 +324,12 @@ class TestEdicoesPlataformaOriginal(unittest.TestCase):
                                                                      {"platform": 7, "date": 900000000}, {"platform": 6, "date": 1400000000}]}
         self.assertEqual(self.ed.plataforma_original(jogo_igdb), "PS1")
 
+    def test_origem_e_empate_de_data(self):
+        remaster = {"platforms": [48], "release_dates": [{"platform": 48, "date": 1500000000}],
+                    "origens": [{"platforms": [7], "release_dates": [{"platform": 7, "date": 850000000}]}]}
+        self.assertEqual(self.ed.plataforma_original(remaster), "PS1")
+        self.assertEqual(self.ed.plataforma_original({"release_dates": [{"platform": 3, "date": 5}, {"platform": 6, "date": 5}]}), "PC")
+
     def test_sem_datas_usa_a_era_e_ignora_id_sem_rotulo(self):
         self.assertEqual(self.ed.plataforma_original({"platforms": [39, 130, 20]}), "DS")
         self.assertEqual(self.ed.plataforma_original({"platforms": [9999, 15, 26]}), "C64")

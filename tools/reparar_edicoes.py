@@ -28,7 +28,7 @@ def main():
     for g in lib["games"]:
         iid = (g.get("pesquisa") or {}).get("igdb_id")
         if g.get("tipo_card") == "colecao" and iid:
-            filhos[g["id"]] = f2.q("games", f'fields {f2.CAMPOS_FILHOS}; where bundles = ({iid}); limit 100;')
+            filhos[g["id"]] = f2.filhos_da_colecao(iid)
     r = post({"filhos": filhos, "apply": "--aplicar" in sys.argv})
     print(r["aplicado"], len(r["mudados"]), "cards", r["mudados"][:10])
 

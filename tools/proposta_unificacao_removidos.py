@@ -50,7 +50,7 @@ def main(aplicar=False):
     filhos = {}
     for gid, iid in igdb_de.items():
         if (det.get(iid) or {}).get("game_type") in (3, 13):
-            filhos[iid] = f2.q("games", f'fields {f2.CAMPOS_FILHOS}; where bundles = ({iid}); limit 100;')
+            filhos[iid] = f2.filhos_da_colecao(iid)
     grupos = edicoes.propor(jogos, igdb_de, det, filhos, res)
     bons = []
     for g in grupos:

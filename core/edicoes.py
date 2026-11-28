@@ -58,13 +58,15 @@ def rotulo_plataformas(ids) -> str | None:
 
 def plataforma_original(jogo_igdb: dict | None) -> str | None:
     """Rótulo da plataforma de LANÇAMENTO de um jogo do IGDB: a de `release_dates` mais antiga; sem isso, a mais antiga
-    pela era do aparelho. Plataformas sem rótulo conhecido são ignoradas (nunca devolve '#123' se houver outra)."""
+    pela era do aparelho. Se o jogo traz `origens` (os jogos dos quais ele é remake/remaster/port), valem as deles também.
+    Plataformas sem rótulo conhecido são ignoradas (nunca devolve '#123' se houver outra)."""
     jogo_igdb = jogo_igdb or {}
-    datas = [(rd["date"], rd["platform"]) for rd in jogo_igdb.get("release_dates") or []
+    todos = [jogo_igdb, *(jogo_igdb.get("origens") or [])]
+    datas = [(rd["date"], _ERA.get(rd["platform"], 9999), rd["platform"]) for j in todos for rd in j.get("release_dates") or []
              if isinstance(rd, dict) and rd.get("date") and rd.get("platform") in _ROT]
     if datas:
-        return _ROT[min(datas)[1]]
-    conhecidas = [i for i in jogo_igdb.get("platforms") or [] if i in _ROT]
+        return _ROT[min(datas)[2]]
+    conhecidas = [i for j in todos for i in j.get("platforms") or [] if i in _ROT]
     if conhecidas:
         return _ROT[min(conhecidas, key=lambda i: _ERA.get(i, 9999))]
     return None

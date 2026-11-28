@@ -29,7 +29,7 @@ def main():
     for gid, iid in igdb_de.items():
         b = det.get(iid) or {}
         if b.get("game_type") in (3, 13):
-            filhos[iid] = f2.q("games", f'fields {f2.CAMPOS_FILHOS}; where bundles = ({iid}); limit 100;')
+            filhos[iid] = f2.filhos_da_colecao(iid)
     grupos = edicoes.propor(jogos, igdb_de, det, filhos, res)
     (RAIZ / "cache" / "proposta_unificacao.json").write_text(json.dumps(grupos, ensure_ascii=False, indent=1))
     Path.home().joinpath("Downloads", "PyRetro - proposta de unificação.txt").write_text(edicoes.texto_proposta(grupos), encoding="utf-8")

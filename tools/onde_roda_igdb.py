@@ -91,6 +91,21 @@ def externos(ids):
     return out
 
 
+def filhos_da_colecao(iid):
+    """Jogos de dentro de uma coleção (com release_dates) e, em `origens`, os jogos originais de que cada um é remake/remaster/port."""
+    filhos = q("games", f'fields {CAMPOS_FILHOS}; where bundles = ({iid}); limit 100;')
+    ids = [f["id"] for f in filhos]
+    if ids:
+        lista = ",".join(map(str, ids))
+        for campo in ("remasters", "remakes", "ports"):
+            for o in q("games", f'fields name,platforms,release_dates.platform,release_dates.date,{campo}; where {campo} = ({lista}); limit 200;'):
+                for alvo in o.get(campo) or []:
+                    for f in filhos:
+                        if f["id"] == alvo and o.get("game_type") not in (1, 2, 5, 6, 7, 14):
+                            f.setdefault("origens", []).append(o)
+    return filhos
+
+
 def steam_gb(appid):
     arq = CACHE / f"steam_{appid}.json"
     if arq.exists():
