@@ -2274,6 +2274,7 @@ class Handler(BaseHTTPRequestHandler):
                 out.append({"code": c, "label": info.get("nome", c), "kind": "pesado"})
             out.sort(key=lambda x: x["label"])
             grupos = [{"code": "retro", "label": "🕹 Retrô (no Drive)", "kind": "grupo"},
+                      {"code": "geracoes", "label": "💿 Entre gerações (PS1, PS2, PSP, DS, 3DS, GameCube, Wii)", "kind": "grupo"},
                       {"code": "quero", "label": "♡ Quero jogar (existe no Switch ou PS4)", "kind": "grupo"},
                       {"code": "tenho", "label": "🎮 Já tenho (PS4, Xbox, PC)", "kind": "grupo"},
                       {"code": "todos", "label": "🎲 Todos", "kind": "grupo"}]

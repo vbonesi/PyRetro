@@ -214,11 +214,20 @@ class TestSortearQuatroGruposAPI(BaseAPI):
         b = jogo("Quero so no Xbox", "Xbox", fontes=["wishlist:xbox"]); orr.migrar_game(b)
         self.gravar_biblioteca([a, b])
         status, d = self.pedir("/api/sortear/systems")
-        self.assertEqual([g["code"] for g in d["grupos"]], ["retro", "quero", "tenho", "todos"])
+        self.assertEqual([g["code"] for g in d["grupos"]], ["retro", "geracoes", "quero", "tenho", "todos"])
         for _ in range(5):
             status, r = self.pedir("/api/sortear?system=quero")
             self.assertEqual((status, r["nome"]), (200, "Quero no PS4"))
         self.assertEqual(self.pedir("/api/sortear?system=tenho")[0], 404)
+
+    def test_entre_geracoes(self):
+        ps2 = jogo("Jogo de PS2", "Sony - PlayStation 2", fontes=["rom:PS2"])
+        snes = jogo("Jogo de SNES", "Nintendo - Super Nintendo Entertainment System", fontes=["rom:SFC"])
+        oculto = jogo("Escondido", "Sony - PSP", fontes=["rom:PSP"], oculto=True)
+        self.gravar_biblioteca([ps2, snes, oculto])
+        for _ in range(5):
+            status, r = self.pedir("/api/sortear?system=geracoes")
+            self.assertEqual((status, r["nome"]), (200, "Jogo de PS2"))
 
 
 class TestShopAposentado(unittest.TestCase):

@@ -1,5 +1,9 @@
 # Changelog
 
+## 28/11/2026 — Sortear: grupo "Entre gerações" no PC (Claude)
+
+- Quinto grupo do Sortear (`geracoes`), a pedido do Victor: cards de PS1, PS2, PSP, DS, 3DS, GameCube e Wii (fonte `rom:`), mesma lista e nome do Android 0.32.2. Ordem: retrô → entre gerações → quero jogar → já tenho → todos; um card pode estar em dois grupos (um PS2 que existe no PS4) e "Todos" o inclui. Rota `/api/sortear?system=geracoes`; o modo TV lê os grupos de `/api/sortear/systems`.
+
 ## 28/11/2026 — PC sem PS4 remoto e Switch Lite (Claude)
 
 - A pedido do Victor ("chamar o PS4 via PC e Android e o Switch via PC, pode retirar"): saem do modo TV os apps "PS4 remoto" (Chiaki) e "Switch Lite" (SysDVR), junto com a montagem do comando e do IP deles, as ações "Transmitir do PS4/Switch Lite" da ficha e o CSS dos atalhos. Ficam o Xbox remoto (Greenlight), Steam, Heroic e emuladores. **Nada foi desinstalado da máquina** (Chiaki e SysDVR seguem instalados até o Victor decidir). Testes ajustados (528 Python); o `tests/test_app.html` foi editado mas não rodado no navegador.

@@ -58,7 +58,9 @@ GRUPOS = {"leve", "pesado", "biblioteca"}
 
 # Quatro grupos do Sortear (plano de 27/11/2026): o Drive só guarda retrô; o resto vira card "onde jogar".
 RETRO_CODES = frozenset({"FC", "SFC", "MD", "SMS", "GG", "GB", "GBC", "GBA", "N64", "PCE", "PCECD", "ARCADE"})
-GRUPOS_ONDE_JOGAR = ("retro", "quero", "tenho", "todos")
+GRUPOS_ONDE_JOGAR = ("retro", "geracoes", "quero", "tenho", "todos")
+# "Entre gerações": os sistemas que não são retrô nem moderno (pedido do Victor, 28/11/2026).
+SISTEMAS_ENTRE_GERACOES = frozenset({"PS", "PS2", "PSP", "NDS", "3DS", "NGC", "WII"})
 _PLATAFORMAS_QUERO = ("switch", "ps4")        # "quero jogar" que existe no Switch ou no PS4
 _PLATAFORMAS_TENHO = ("ps4", "xbox", "pc")    # "já tenho" no PS4, Xbox ou PC
 
@@ -72,6 +74,13 @@ def _pool_retro(cfg: dict, roms_root: Path, catalog: dict) -> list:
         if c in RETRO_CODES:
             pool += [(c, item["name"], "pesado") for item in catalog.get(c, [])]
     return pool
+
+
+def _pool_geracoes(library: dict) -> list:
+    """[(id, nome, "biblioteca")] dos cards de PS1, PS2, PSP, DS, 3DS, GameCube e Wii. Um card pode estar também em
+    "quero" (ex.: um PS2 que existe no PS4)."""
+    return [(g["id"], g["nome"], "biblioteca") for g in library["games"]
+            if not g.get("oculto") and any(f.startswith("rom:") and f[4:] in SISTEMAS_ENTRE_GERACOES for f in g.get("fontes", []))]
 
 
 def _pool_onde_jogar(library: dict, modo: str) -> list:
@@ -178,6 +187,8 @@ def build_pool(cfg: dict, roms_root: Path, catalog: dict, system: str | None,
             pool = []
             if chave in ("retro", "todos"):
                 pool += _pool_retro(cfg, roms_root, catalog)
+            if chave in ("geracoes", "todos"):
+                pool += _pool_geracoes(lib)
             if chave in ("quero", "todos"):
                 pool += _pool_onde_jogar(lib, "quero")
             if chave in ("tenho", "todos"):
